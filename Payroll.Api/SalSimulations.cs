@@ -35,7 +35,7 @@ public static class SalSimulations
                 lines.Add(new JsonObject{["side"]="debit",["accountHint"]="debt",["erpRiderId"]=rider["erp_rider_id"]!.ToString(),["amount"]=debt,["labelAr"]="مديونية متوقعة من صافي سالب",["posted"]=false});
             }
         }
-        return WithActions(actor,run,new()
+        return WithActions(c,null,actor,run,new()
         {
             ["id"]=run.S("id"),["runMode"]=1,["companyId"]=run.S("companyId"),["app"]=run.S("app"),
             ["periodMonth"]=run.S("periodMonth"),["riderCount"]=riders.Count,
@@ -54,7 +54,7 @@ public static class SalSimulations
             ("@s",StatusCancelled),("@by",actor.Identity!.Name!),("@at",DateTimeOffset.UtcNow.ToString("O")),("@id",id));
         Store.Audit(c,tx,"sal.simulation_discarded",id,actor.Identity!.Name!);
         run["status"]=StatusCancelled;
-        return WithActions(actor,run,run);
+        return WithActions(c,tx,actor,run,run);
     }
 
     public static JsonObject PromoteDiff(DbConnection c,ClaimsPrincipal actor,string id)
@@ -73,28 +73,30 @@ public static class SalSimulations
             simRiders.TryGetValue(key,out var s);liveRiders.TryGetValue(key,out var l);
             decimal simNet=s==null?0:J.Money(Convert.ToDecimal(s["salary_net"]));
             decimal liveNet=l==null?0:J.Money(Convert.ToDecimal(l["salary_net"]));
-            string change=s==null?"live_only":l==null?"sim_only":simNet==liveNet?"same":"changed";
+            string changeCode=s==null?"live_only":l==null?"sim_only":simNet==liveNet?"same":"changed";
+            string changeAr=changeCode switch
+            {
+                "sim_only"=>"في المحاكاة فقط",
+                "live_only"=>"في الحي فقط",
+                "changed"=>"تغيّر",
+                _=>"متطابق"
+            };
             rows.Add(new JsonObject
             {
-                ["erpRiderId"]=key,["simNet"]=simNet,["liveNet"]=liveNet,["change"]=change,
-                ["changeAr"]=change switch
-                {
-                    "sim_only"=>"في المحاكاة فقط",
-                    "live_only"=>"في الحي فقط",
-                    "changed"=>"تغيّر",
-                    _=>"متطابق"
-                }
+                // WC1H: screen binds Arabic from change; keep English code as a separate key.
+                ["erpRiderId"]=key,["simNet"]=simNet,["liveNet"]=liveNet,
+                ["change"]=changeAr,["changeAr"]=changeAr,["changeCode"]=changeCode
             });
         }
-        return WithActions(actor,run,new()
+        return WithActions(c,null,actor,run,new()
         {
             ["id"]=id,["liveRunId"]=live?.S("id")??"",["companyId"]=company,["app"]=app,["periodMonth"]=month,
             ["rows"]=rows,["summary"]=new JsonObject
             {
-                ["simOnly"]=rows.Count(r=>r!.AsObject().S("change")=="sim_only"),
-                ["liveOnly"]=rows.Count(r=>r!.AsObject().S("change")=="live_only"),
-                ["changed"]=rows.Count(r=>r!.AsObject().S("change")=="changed"),
-                ["same"]=rows.Count(r=>r!.AsObject().S("change")=="same")
+                ["simOnly"]=rows.Count(r=>r!.AsObject().S("changeCode")=="sim_only"),
+                ["liveOnly"]=rows.Count(r=>r!.AsObject().S("changeCode")=="live_only"),
+                ["changed"]=rows.Count(r=>r!.AsObject().S("changeCode")=="changed"),
+                ["same"]=rows.Count(r=>r!.AsObject().S("changeCode")=="same")
             }
         });
     }
@@ -208,12 +210,14 @@ public static class SalSimulations
         return rows;
     }
 
-    static JsonObject WithActions(ClaimsPrincipal actor,JsonObject run,JsonObject body)
+    static JsonObject WithActions(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject run,JsonObject body)
     {
         var actions=new JsonArray();
         bool cancelled=run.N("status")==StatusCancelled;
         if(!cancelled&&AccessPolicy.Has(actor,RunPermission))actions.Add("discard_simulation");
-        if(!cancelled&&AccessPolicy.Has(actor,PromotePermission))actions.Add("promote_simulation");
+        // WC1H: never offer promote once a live run already exists for the same company/app/month.
+        bool liveExists=FindLive(c,tx,run.S("companyId"),run.S("app"),run.S("periodMonth"))!=null;
+        if(!cancelled&&!liveExists&&AccessPolicy.Has(actor,PromotePermission))actions.Add("promote_simulation");
         body["allowedActions"]=actions;
         return body;
     }

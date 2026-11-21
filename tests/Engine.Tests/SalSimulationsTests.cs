@@ -70,6 +70,12 @@ public sealed class SalSimulationsTests
             var diff=SalSimulations.PromoteDiff(c,admin,run2);
             Assert.IsTrue(diff["rows"]!.AsArray().Count>=1);
             Assert.IsTrue(diff["rows"]!.AsArray().OfType<JsonObject>().All(r=>r.S("changeAr")!=""));
+            // Screen binds Arabic from change; English code stays under changeCode.
+            Assert.IsTrue(diff["rows"]!.AsArray().OfType<JsonObject>().All(r=>
+                r.S("change") is "في المحاكاة فقط" or "في الحي فقط" or "تغيّر" or "متطابق"
+                &&r.S("changeCode") is "sim_only" or "live_only" or "changed" or "same"));
+            Assert.IsFalse(diff["allowedActions"]!.AsArray().Any(a=>a?.ToString()=="promote_simulation"),
+                "live run exists after promote-real — promote_simulation must not be offered");
         }
     }
 
