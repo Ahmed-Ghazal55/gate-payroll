@@ -1,39 +1,115 @@
+using Microsoft.Data.Sqlite;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Text.Json.Nodes;
 using Payroll;
 
 [TestClass]
 public sealed class SchemaApprovalsTests
 {
-    [TestMethod]
-    [DataRow(false)]
-    [DataRow(true)]
-    public void ApprovalLimitSlaAndDecisionTablesAreAdditive(bool sqlServer)
+    [TestMethod,DataRow(false),DataRow(true)]
+    public void EnsureTwiceCreatesApprovalsBypassAndLimits(bool sqlServer)
     {
         using var c=MoneySchemaFixture.Open(sqlServer);
-        if(SchemaSql.IsSql(c))
-            SchemaSql.Exec(c,null,"IF OBJECT_ID(N'dbo.records',N'U') IS NULL CREATE TABLE dbo.records(id nvarchar(128) NOT NULL PRIMARY KEY, kind nvarchar(40) NOT NULL, body nvarchar(max) NOT NULL);");
-        else
-            MoneySchemaFixture.Exec(c,null,"CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL)");
-        SchemaApprovals.Ensure(c);
-        SchemaApprovals.Ensure(c);
-        Assert.IsTrue(SchemaSql.TableExists(c,null,"auth","approval_limit"));
-        Assert.IsTrue(SchemaSql.TableExists(c,null,"org","sla_policy"));
+        SchemaAuthCatalog.Ensure(c);SchemaOrgStructure.Ensure(c);SchemaApprovals.Ensure(c);SchemaApprovals.Ensure(c);
+        Assert.IsTrue(SchemaSql.TableExists(c,null,"approvals","request"));
         Assert.IsTrue(SchemaSql.TableExists(c,null,"approvals","decision"));
-        var limit=new System.Text.Json.Nodes.JsonObject{["id"]=MoneySchemaFixture.Id(),["rank"]="B",["department"]="OPS",["limitSar"]=1000,["unlimited"]=false,["updatedBy"]="synthetic"};
-        using(var tx=c.BeginTransaction())
+        Assert.IsTrue(SchemaSql.TableExists(c,null,"auth","bypass_grant"));
+        Assert.IsTrue(SchemaSql.TableExists(c,null,"auth","approval_limit"));
+        Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_bypass_grant"));
+        Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM approvals_request"));
+        foreach(string index in new[]{"IX_auth_bypass_granted_by","IX_approvals_request_requested_by","IX_approvals_decision_decided_by","IX_approvals_decision_delegation_id"})
+            Assert.IsTrue(IndexExists(c,index),index);
+    }
+
+    static bool IndexExists(System.Data.Common.DbConnection c,string name)
+    {
+        if(SchemaSql.IsSql(c))
+            return Convert.ToInt32(MoneySchemaFixture.Scalar(c,null,"SELECT CASE WHEN EXISTS(SELECT 1 FROM sys.indexes WHERE name=@n) THEN 1 ELSE 0 END",("@n",name))!)==1;
+        return Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(1) FROM sqlite_master WHERE type='index' AND name=@n",("@n",name))!)>0;
+    }
+
+    [TestMethod,DataRow(false),DataRow(true)]
+    public void BypassGrantDatesAndScopeChecks(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Open(sqlServer);
+        SchemaAuthCatalog.Ensure(c);SchemaApprovals.Ensure(c);
+        string role=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM auth_role WHERE code='Admin'")!;
+        string user=MoneySchemaFixture.Id(),granter=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_user(id,username,role_id,security_version,status,created_at) VALUES(@id,'syn-bypass',@role,1,1,datetime('now'))",("@id",user),("@role",role));
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_user(id,username,role_id,security_version,status,created_at) VALUES(@id,'syn-granter',@role,1,1,datetime('now'))",("@id",granter),("@role",role));
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_bypass_grant(id,user_id,scope,valid_from,valid_to,reason,granted_by,created_at) VALUES(@id,@u,'pay.approvals','2026-01-01T00:00:00','2026-06-30T23:59:59','parallel',@g,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@u",user),("@g",granter));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_bypass_grant(id,user_id,scope,valid_from,valid_to,reason,granted_by,created_at) VALUES(@id,@u,'pay.approvals','2026-03-01T00:00:00','2026-09-30T23:59:59','overlap',@g,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@u",user),("@g",granter)),"Bypass grant date ranges for one user and scope cannot overlap");
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_bypass_grant(id,user_id,scope,valid_from,valid_to,reason,granted_by,created_at) VALUES(@id,@u,'pay.approvals','2026-07-01T00:00:00','2026-12-31T23:59:59','renewed',@g,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@u",user),("@g",granter));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_bypass_grant(id,user_id,scope,valid_from,valid_to,reason,granted_by,created_at) VALUES(@id,@u,'other.scope','2026-12-31T00:00:00','2026-01-01T00:00:00','bad',@g,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@u",user),("@g",granter)),"CK_bypass_dates",sqliteToken:"CHECK");
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_bypass_grant(id,user_id,scope,valid_from,valid_to,reason,granted_by,created_at) VALUES(@id,@u,'pay.approvals','2026-01-01T00:00:00','2026-12-31T23:59:59','x',@g,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@u",MoneySchemaFixture.Id()),("@g",granter)),"FK_auth_bypass_user",sqliteToken:"FOREIGN KEY");
+    }
+
+    [TestMethod,DataRow(false),DataRow(true)]
+    public void DecisionRequiresMembershipSnapshotAndLinksBypass(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Open(sqlServer);
+        SchemaAuthCatalog.Ensure(c);SchemaOrgStructure.Ensure(c);SchemaApprovals.Ensure(c);
+        string role=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM auth_role WHERE code='Admin'")!;
+        string user=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_user(id,username,role_id,security_version,status,created_at) VALUES(@id,'syn-decide',@role,1,1,datetime('now'))",("@id",user),("@role",role));
+        string request=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO approvals_request(id,kind,title_ar,status,target_department,required_rank_level,requested_by,created_at) VALUES(@id,'pay.approve','t','pending','FIN',1,@u,datetime('now'))",("@id",request),("@u",user));
+        string bypass=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_bypass_grant(id,user_id,scope,valid_from,valid_to,reason,granted_by,created_at) VALUES(@id,@u,'pay.approvals','2026-01-01T00:00:00','2026-12-31T23:59:59','parallel',@u,datetime('now'))",("@id",bypass),("@u",user));
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO approvals_decision(id,request_id,decided_by,decided_at,outcome,membership_snapshot_json,bypass_grant_id,created_at) VALUES(@id,@r,@u,datetime('now'),'approved','{}',@b,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@r",request),("@u",user),("@b",bypass));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO approvals_decision(id,request_id,decided_by,decided_at,outcome,membership_snapshot_json,created_at) VALUES(@id,@r,@u,datetime('now'),'approved',NULL,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@r",request),("@u",user)),"membership_snapshot_json",sqliteToken:"NOT NULL");
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_approval_limit(id,rank,department,limit_amount,created_at) VALUES(@id,'A','FIN',20000,datetime('now'))",("@id",MoneySchemaFixture.Id()));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_approval_limit(id,rank,department,limit_amount,created_at) VALUES(@id,'A','FIN',1,datetime('now'))",("@id",MoneySchemaFixture.Id())),"UQ",sqliteToken:"UNIQUE");
+    }
+
+    [TestMethod,DataRow(false),DataRow(true)]
+    public void SeedsConfirmedBypassOnlyWhenGhazalUserExists(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Open(sqlServer);
+        SchemaAuthCatalog.Ensure(c);SchemaApprovals.Ensure(c);
+        Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_user WHERE username='ghazal'"));
+        Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_bypass_grant"));
+        string role=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM auth_role WHERE code='Admin'")!;
+        string user=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_user(id,username,role_id,security_version,status,created_at) VALUES(@id,'ghazal',@role,1,1,datetime('now'))",("@id",user),("@role",role));
+        SchemaApprovals.Ensure(c);SchemaApprovals.Ensure(c);
+        Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_bypass_grant WHERE user_id=@u AND scope='pay.approvals' AND revoked_at IS NULL",("@u",user)));
+        Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_user WHERE username='ghazal'"));
+        Assert.AreEqual("Ninja October parallel (payout_blocked=1); revoke before first real payment",
+            MoneySchemaFixture.Scalar(c,null,"SELECT reason FROM auth_bypass_grant WHERE user_id=@u",("@u",user)));
+    }
+
+    [TestMethod]
+    public void StoreStartupCreatesApprovalsSchema()
+    {
+        string dir=Path.Combine(Path.GetTempPath(),"gate-appr-"+Guid.NewGuid().ToString("N"));
+        try
         {
-            SchemaApprovals.UpsertLimit(c,tx,limit);
-            SchemaApprovals.UpsertSla(c,tx,new(){["id"]=MoneySchemaFixture.Id(),["requestType"]="default",["workingDays"]=3,["updatedBy"]="synthetic"});
-            SchemaApprovals.SaveDecision(c,tx,new()
-            {
-                ["id"]=MoneySchemaFixture.Id(),["requestId"]="req-1",["outcome"]="approved",
-                ["decidedBy"]="synthetic",["decidedAt"]=DateTimeOffset.UtcNow.ToString("O"),
-                ["membershipSnapshot"]=new System.Text.Json.Nodes.JsonObject{["department"]="FIN"},
-                ["bypassGrantId"]="",["note"]="ok",["dualPermission"]=""
+            var store=new Store(dir);
+            Assert.IsTrue(store.DataPreservationVerified);
+            store.Read(c=>{
+                Assert.IsTrue(SchemaSql.TableExists(c,null,"approvals","decision"));
+                Assert.IsTrue(SchemaSql.TableExists(c,null,"auth","bypass_grant"));
+                Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_bypass_grant"));
+                return true;
             });
-            tx.Commit();
         }
-        Assert.AreEqual(1000m,SchemaApprovals.FindLimit(c,null,"B","OPS")!.N("limitSar"));
-        Assert.AreEqual(1,SchemaApprovals.ListSla(c,null).Count(s=>s.S("requestType")=="default"));
+        finally{SqliteConnection.ClearAllPools();if(Directory.Exists(dir))Directory.Delete(dir,true);}
+    }
+
+    [TestMethod]
+    public void RuntimeWritesLandInRealApprovalTables()
+    {
+        using var f=new PayFixture();
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]="synthetic-pay-maker",["role"]="Admin"},tx);
+            ApprovalsArea.PutLimits(c,tx,PayFixture.Maker,new(){["items"]=new JsonArray(new JsonObject{["rank"]="A",["department"]="FIN",["limitSar"]=1234})});
+            ApprovalsArea.PutSla(c,tx,PayFixture.Maker,new(){["items"]=new JsonArray(new JsonObject{["requestType"]="default",["workingDays"]=2})});
+            AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-pay-maker",["from"]="2026-01-01",["to"]="2026-12-31",["reason"]="table read",["scope"]=AccessPolicy.ScopePayApprovals});
+            return true;
+        });
+        Assert.AreEqual(1234m,f.Store.Read(c=>Convert.ToDecimal(SchemaSql.Scalar(c,null,$"SELECT limit_amount FROM {SchemaSql.Q(c,"auth","approval_limit")} WHERE rank=@r AND department=@d",("@r","A"),("@d","FIN"))!)));
+        Assert.AreEqual(2,f.Store.Read(c=>Convert.ToInt32(SchemaSql.Scalar(c,null,$"SELECT working_days FROM {SchemaSql.Q(c,"org","sla_policy")} WHERE request_type=@t",("@t","default"))!)));
+        Assert.IsTrue(f.Store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"auth","bypass_grant")}")!)>0));
     }
 }

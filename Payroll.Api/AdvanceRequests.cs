@@ -164,7 +164,7 @@ public static class AdvanceRequests
         string payloadHash=ApprovalsArea.PayloadContentHash(payoutRef,amount,("type",r.S("type")),("vault",r.S("vaultCode",r.S("vault"))),("rider",r.S("riderIqama")));
         var req=ApprovalsArea.OpenMoneyOutDual(c,tx,actor,"advance_payout",payoutRef,amount,payloadHash,
             "اعتماد صرف سلفة","طلب صرف سلفة — بانتظار اعتماد شخصين.",
-            new(){["advanceRequestId"]=id,["type"]=r.S("type"),["vaultCode"]=r.S("vaultCode",r.S("vault"))});
+            new(){["advanceRequestId"]=id,["type"]=r.S("type"),["vaultCode"]=r.S("vaultCode",r.S("vault")),["companyId"]=r.S("companyId"),["sponsorId"]=r.S("companyId"),["platform"]=r.S("platform")});
         r["payoutRequestId"]=req.S("id");r["payoutRequestedAt"]=DateTimeOffset.UtcNow.ToString("O");r["payoutRequestedBy"]=Me(actor);
         Save(c,tx,r,actor,"advance.payout_requested");
         return req;

@@ -182,8 +182,8 @@ public static partial class AccessPolicy
         string rank=actor.FindFirstValue("rank")??RankCode(actor.FindFirstValue("rankLevel"));
         string department=actor.FindFirstValue("department")??request.S("targetDepartment");
         ApprovalsArea.EnsureLimitsSeeded(c,tx);
-        var row=Store.List(c,ApprovalsArea.LimitsKind,tx).FirstOrDefault(l=>l.S("rank")==rank&&l.S("department")==department)
-            ??SchemaApprovals.FindLimit(c,tx,rank,department);
+        var row=SchemaApprovals.FindLimit(c,tx,rank,department)
+            ??Store.List(c,ApprovalsArea.LimitsKind,tx).FirstOrDefault(l=>l.S("rank")==rank&&l.S("department")==department);
         if(row==null||row.B("unlimited")||row["limitSar"] is null)return true;
         return amount<=row.N("limitSar");
     }

@@ -5,8 +5,7 @@ using System.Text.Json.Nodes;
 namespace Payroll;
 
 /// <summary>U-W2-27: approvals inbox shaping, dual-control (M-0672), SLA escalate-without-auto-approve,
-/// and CRUD for approval limits / SLA policies. SQL tables for auth.approval_limit / org.sla_policy /
-/// approvals.* await U-W1-18c — dual-write uses document kinds until that DDL lands.</summary>
+/// and CRUD for approval limits / SLA policies. Storage is the real W1 tables via Store redirects.</summary>
 public static class ApprovalsArea
 {
     public const string LimitsKind="approval_limit",SlaKind="sla_policy",DecisionKind="approval_decision";
@@ -60,7 +59,14 @@ public static class ApprovalsArea
         var payload=extraPayload?.DeepClone().AsObject()??new JsonObject();
         payload["amountSar"]=amountSar;payload["total"]=amountSar;
         if(hash!="")payload["fileContentHash"]=hash;
-        return FinancialCore.CreateMutualApproval(c,tx,kind,titleAr,bodyAr,"OPS","FIN",1,referenceId,payload,actorName);
+        // WMRG / RWC1d: company (and platform) scope must sit on the request so in-scope non-admins see it.
+        string sponsor=payload.S("sponsorId",payload.S("companyId"));
+        string platform=payload.S("platform");
+        var created=FinancialCore.CreateMutualApproval(c,tx,kind,titleAr,bodyAr,"OPS","FIN",1,referenceId,payload,actorName);
+        if(sponsor!=""){created["sponsorId"]=sponsor;created["companyId"]=payload.S("companyId",sponsor);payload["sponsorId"]=sponsor;payload["companyId"]=created.S("companyId");}
+        if(platform!=""){created["platform"]=platform;payload["platform"]=platform;}
+        if(sponsor!=""||platform!=""){created["payload"]=payload;Store.Save(c,"approval_request",created,tx);}
+        return created;
     }
 
     /// <summary>Canonical SHA-256 hex of stable payload fields (amount + reference + optional extras).</summary>
@@ -205,8 +211,7 @@ public static class ApprovalsArea
     {
         DemandOrg(actor);
         EnsureDefaultLimits(c,tx);
-        var rows=SchemaApprovals.ListLimits(c,tx);
-        if(rows.Count==0)rows=Store.List(c,LimitsKind,tx);
+        var rows=Store.List(c,LimitsKind,tx);
         return new(rows.OrderBy(l=>l.S("rank")).ThenBy(l=>l.S("department")).Select(l=>(JsonNode?)WithLimitActions(actor,l)).ToArray());
     }
 
@@ -223,11 +228,11 @@ public static class ApprovalsArea
             if(limit.HasValue)J.Need(limit.Value>=0&&limit.Value==J.Money(limit.Value),"حد الاعتماد غير صالح.");
             var row=new JsonObject
             {
-                ["id"]="approval-limit:"+rank+":"+department,["rank"]=rank,["department"]=department,
+                ["id"]=Guid.TryParse(node.S("id"),out _)?node.S("id"):SchemaSql.GuidText(SchemaSql.NewId()),
+                ["rank"]=rank,["department"]=department,
                 ["limitSar"]=limit.HasValue?JsonValue.Create(limit.Value):null,["unlimited"]=!limit.HasValue,
                 ["updatedBy"]=actor.Identity!.Name!,["updatedAt"]=DateTimeOffset.UtcNow.ToString("O")
             };
-            SchemaApprovals.UpsertLimit(c,tx,row);
             Store.Save(c,LimitsKind,row,tx);
         }
         Store.Audit(c,tx,"admin.approval_limits_updated","approval_limit",actor.Identity!.Name!);
@@ -238,8 +243,7 @@ public static class ApprovalsArea
     {
         DemandOrg(actor);
         EnsureDefaultSla(c,tx);
-        var rows=SchemaApprovals.ListSla(c,tx);
-        if(rows.Count==0)rows=Store.List(c,SlaKind,tx);
+        var rows=Store.List(c,SlaKind,tx);
         return new(rows.OrderBy(s=>s.S("requestType")).Select(s=>(JsonNode?)WithSlaActions(actor,s)).ToArray());
     }
 
@@ -255,10 +259,10 @@ public static class ApprovalsArea
             J.Need(type.Length is >=2 and <=80&&days is >=1 and <=30,"سياسة مهلة غير صالحة.");
             var row=new JsonObject
             {
-                ["id"]="sla-policy:"+type,["requestType"]=type,["workingDays"]=days,["autoApprove"]=false,
+                ["id"]=Guid.TryParse(node.S("id"),out _)?node.S("id"):SchemaSql.GuidText(SchemaSql.NewId()),
+                ["requestType"]=type,["workingDays"]=days,["autoApprove"]=false,
                 ["updatedBy"]=actor.Identity!.Name!,["updatedAt"]=DateTimeOffset.UtcNow.ToString("O")
             };
-            SchemaApprovals.UpsertSla(c,tx,row);
             Store.Save(c,SlaKind,row,tx);
         }
         Store.Audit(c,tx,"admin.sla_policies_updated","sla_policy",actor.Identity!.Name!);
@@ -292,8 +296,7 @@ public static class ApprovalsArea
     static bool IsOverdue(DbConnection c,DbTransaction? tx,JsonObject req)
     {
         if(!DateTimeOffset.TryParse(req.S("createdAt"),out var created))return false;
-        var policies=SchemaApprovals.ListSla(c,tx);
-        if(policies.Count==0)policies=Store.List(c,SlaKind,tx);
+        var policies=Store.List(c,SlaKind,tx);
         var byType=policies.ToDictionary(s=>s.S("requestType"),s=>(int)s.N("workingDays",3),StringComparer.OrdinalIgnoreCase);
         int days=byType.GetValueOrDefault(req.S("kind"),byType.GetValueOrDefault("default",3));
         return WorkingDaysBetween(created,DateTimeOffset.UtcNow)>=days;
@@ -310,17 +313,16 @@ public static class ApprovalsArea
     public static void EnsureLimitsSeeded(DbConnection c,DbTransaction? tx)=>EnsureDefaultLimits(c,tx);
     static void EnsureDefaultLimits(DbConnection c,DbTransaction? tx)
     {
-        if(SchemaApprovals.HasLimits(c,tx)||Store.List(c,LimitsKind,tx).Count>0)return;
+        if(Store.List(c,LimitsKind,tx).Count>0)return;
         void Seed(DbTransaction t)
         {
             foreach(var (rank,department,limit) in DefaultLimits)
             {
                 var row=new JsonObject
                 {
-                    ["id"]="approval-limit:"+rank+":"+department,["rank"]=rank,["department"]=department,
+                    ["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["rank"]=rank,["department"]=department,
                     ["limitSar"]=limit.HasValue?JsonValue.Create(limit.Value):null,["unlimited"]=!limit.HasValue
                 };
-                SchemaApprovals.UpsertLimit(c,t,row);
                 Store.Save(c,LimitsKind,row,t);
             }
         }
@@ -330,11 +332,10 @@ public static class ApprovalsArea
 
     static void EnsureDefaultSla(DbConnection c,DbTransaction? tx)
     {
-        if(SchemaApprovals.HasSla(c,tx)||Store.List(c,SlaKind,tx).Any(s=>s.S("requestType")=="default"))return;
+        if(Store.List(c,SlaKind,tx).Any(s=>s.S("requestType")=="default"))return;
         void Seed(DbTransaction t)
         {
-            var row=new JsonObject{["id"]="sla-policy:default",["requestType"]="default",["workingDays"]=3,["autoApprove"]=false};
-            SchemaApprovals.UpsertSla(c,t,row);
+            var row=new JsonObject{["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["requestType"]="default",["workingDays"]=3,["autoApprove"]=false};
             Store.Save(c,SlaKind,row,t);
         }
         if(tx!=null){Seed(tx);return;}

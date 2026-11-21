@@ -66,10 +66,11 @@ public static class SharedRiderConsolidation
         string payloadHash=ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",rider),("period",period),("reason",reason.Trim()));
         var req=ApprovalsArea.OpenMoneyOutDual(c,tx,actor,"shared_rider_release",doc.S("id"),amount,payloadHash,
             "اعتماد فك حجز مندوب مشترك","طلب فك حجز مندوب عمل مشترك — بانتظار اعتماد شخصين.",
-            new(){["rider"]=rider,["period"]=period,["reason"]=reason.Trim()});
+            new(){["rider"]=rider,["period"]=period,["reason"]=reason.Trim(),["companyId"]=doc.S("companyId"),["sponsorId"]=doc.S("companyId"),["payloadHash"]=payloadHash});
         doc["releaseRequestedAt"]=DateTimeOffset.UtcNow.ToString("O");
         doc["releaseRequestedBy"]=actor.Identity!.Name;
         doc["releaseRequestId"]=req.S("id");
+        doc["releasePayloadHash"]=payloadHash;
         Store.Save(c,Kind,doc,tx);
         Store.Audit(c,tx,"pay.consolidation_release_requested",doc.S("id"),actor.Identity!.Name!);
         return req;
@@ -79,8 +80,9 @@ public static class SharedRiderConsolidation
     {
         J.Need(reason.Trim().Length is >2 and <=500,"سبب الإفراج مطلوب.");
         var doc=Store.Get(c,Id(rider,period),Kind,tx)?.Clone()??throw new ApiError("سجل التجميع غير موجود.",404);
-        // Same gate as bank mark-sent: recorded two-person decision; bypass never satisfies.
-        ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,actor,ApprovalsArea.DualSharedRiderRelease,doc.S("id"));
+        // Same gate as bank mark-sent: recorded two-person decision; when request-release froze a payload hash, verify it.
+        string? expectedHash=string.IsNullOrWhiteSpace(doc.S("releasePayloadHash"))?null:doc.S("releasePayloadHash");
+        ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,actor,ApprovalsArea.DualSharedRiderRelease,doc.S("id"),expectedHash);
         doc["released"]=true;doc["status"]="released";doc["releaseReason"]=reason.Trim();doc["releasedBy"]=actor.Identity!.Name;doc["releasedAt"]=DateTimeOffset.UtcNow.ToString("O");
         doc["combinedNet"]=J.Money(CombinedNet(doc));
         Store.Save(c,Kind,doc,tx);Store.Audit(c,tx,"pay.consolidation_released",doc.S("id"),actor.Identity!.Name!);

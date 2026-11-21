@@ -14,7 +14,9 @@ public static partial class AccessPolicy
         if(string.IsNullOrWhiteSpace(needed)||string.IsNullOrWhiteSpace(grantScope))return false;
         if(string.Equals(grantScope,needed,StringComparison.OrdinalIgnoreCase))return true;
         // M-0677 / answers: pay approvals (+ invoice on every platform) — not shared-rider or Jahez.
-        if(string.Equals(grantScope,ScopePayApprovals,StringComparison.OrdinalIgnoreCase)
+        // W1 seed scope is pay.approvals; API grant scope is pay_approvals.
+        if((string.Equals(grantScope,ScopePayApprovals,StringComparison.OrdinalIgnoreCase)
+            ||string.Equals(grantScope,"pay.approvals",StringComparison.OrdinalIgnoreCase))
            &&needed is ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or "pay.approve" or "approvals.decide")
             return true;
         if(string.Equals(grantScope,ScopeInvoiceApprovals,StringComparison.OrdinalIgnoreCase)
@@ -67,7 +69,7 @@ public static partial class AccessPolicy
             ||scope.StartsWith("approvals.dual.",StringComparison.Ordinal),"نطاق منح التجاوز غير صالح.");
         var grant=new JsonObject
         {
-            ["id"]="approval-bypass:"+Guid.NewGuid().ToString("N"),
+            ["id"]=SchemaSql.GuidText(SchemaSql.NewId()),
             ["userId"]=user.S("id"),["username"]=user.S("username"),
             ["scope"]=scope,
             ["from"]=from.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),

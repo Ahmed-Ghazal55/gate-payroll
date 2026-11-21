@@ -102,4 +102,48 @@ public sealed class MoneyOutDualRuntimeTests
         var paid=f.Store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,custodian,reqId,new(){["reference"]="SYN-ADV-PAY"}));
         Assert.AreEqual("paid",paid.S("status"));
     }
+
+    [TestMethod]
+    public void DualRequestsPersistCompanyScope_AndReleaseHashRejectsChangedPayload()
+    {
+        using var f=new PayFixture();
+        string rider="2000000193",period="2026-10",company=FinancialCore.Sponsors[0].Id;
+        string consolId=SharedRiderConsolidation.Id(rider,period);
+        f.Store.Write((c,tx)=>{
+            var doc=SharedRiderConsolidation.Ensure(c,tx,rider,period,company);
+            doc["apps"]=new JsonObject{["a"]=new JsonObject{["net"]=80,["apps"]=new JsonArray("ninja")}};
+            Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
+            return true;
+        });
+        var opened=f.Store.Write((c,tx)=>SharedRiderConsolidation.RequestRelease(c,tx,PayFixture.Maker,rider,period,"سبب الطلب الأصلي"));
+        Assert.AreEqual(company,opened.S("companyId",opened.S("sponsorId")));
+        Assert.IsTrue(f.Store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"approvals","request")} WHERE id=@id",("@id",opened.S("id")))!)==1));
+        // Scoped non-admin in the same company department sees the request.
+        var scoped=UserAccess.Principal(new JsonObject
+        {
+            ["username"]="synthetic-scoped-fin",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=4,
+            ["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(company),["accountCodes"]=new JsonArray(),["platforms"]=new JsonArray("Ninja"),["categoryCodes"]=new JsonArray()},
+            ["customPermissions"]=new JsonArray(ApprovalsArea.DualSharedRiderRelease,"approvals.decide","approvals.view")
+        });
+        Assert.IsTrue(f.Store.Read(c=>FinancialScopes.Approval(scoped,opened,c)));
+        f.Store.Write((c,tx)=>ApprovalsArea.Decide(c,tx,Checker,opened.S("id"),new(){["decision"]="approve",["note"]="hash bound"}));
+        // Corrupt the frozen payload hash → release must refuse (same gate as bank file hash).
+        f.Store.Write((c,tx)=>{
+            var doc=Store.Get(c,consolId,SharedRiderConsolidation.Kind,tx)!;
+            doc["releasePayloadHash"]="deadbeef";
+            Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
+            return true;
+        });
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>SharedRiderConsolidation.Release(c,tx,Checker,rider,period,"سبب الطلب الأصلي"))).Status);
+        // Restore the real frozen hash from the approval request → release proceeds.
+        f.Store.Write((c,tx)=>{
+            var doc=Store.Get(c,consolId,SharedRiderConsolidation.Kind,tx)!;
+            doc["releasePayloadHash"]=opened.S("fileContentHash");
+            Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
+            return true;
+        });
+        var released=f.Store.Write((c,tx)=>SharedRiderConsolidation.Release(c,tx,Checker,rider,period,"سبب الطلب الأصلي"));
+        Assert.IsTrue(released.B("released"));
+        Assert.IsTrue(f.Store.Read(c=>SchemaApprovals.ListDecisions(c,null).Any(d=>d.S("requestId")==opened.S("id")&&d.S("outcome")=="approved")));
+    }
 }

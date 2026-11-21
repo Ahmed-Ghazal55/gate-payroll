@@ -195,4 +195,38 @@ public sealed class MoneyWriteGuardsTests
             FinancialCore.CreateJournalLine("2110",company,0,10)),"synthetic",originSponsorId:company,creditorSponsorId:company));
         Assert.IsTrue(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")=="legacy-accrual-ok")));
     }
+
+    [TestMethod]
+    public void PrefixedPayCycleAndPayrollReferencesResolveActualSourceRunMode()
+    {
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
+        const string liveId="cycle-prefix-live",simId="cycle-prefix-sim",runLive="run-prefix-live",runSim="run-prefix-sim";
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,PayCycles.Kind,new(){["id"]=liveId,["companyId"]=company,["period"]="2026-10",["status"]="approved",["runMode"]=0},tx);
+            Store.Save(c,PayCycles.Kind,new(){["id"]=simId,["companyId"]=company,["period"]="2026-10",["status"]="approved",["runMode"]=1},tx);
+            Store.Save(c,"run",new(){["id"]=runLive,["sponsorId"]=company,["period"]="2026-10",["runMode"]=0},tx);
+            Store.Save(c,"run",new(){["id"]=runSim,["sponsorId"]=company,["period"]="2026-10",["runMode"]=1},tx);
+            return true;
+        });
+        JsonArray Lines()=>new(FinancialCore.CreateJournalLine("1210",company,10,0),FinancialCore.CreateJournalLine("3101",company,0,10));
+        foreach(string prefix in new[]{"PAY-CYCLE:","PAYROLL:","PAY-RUN:","SAL-PAY-RUN:"})
+        {
+            string liveRef=prefix+(prefix.StartsWith("PAY-CYCLE",StringComparison.Ordinal)?liveId:runLive);
+            string simRef=prefix+(prefix.StartsWith("PAY-CYCLE",StringComparison.Ordinal)?simId:runSim);
+            if(prefix.StartsWith("PAY-CYCLE",StringComparison.Ordinal))
+            {
+                f.Store.Write((c,tx)=>FinancialCore.PostJournal(c,tx,"pay_cycle","Prefixed live","2026-10",liveRef+("_reversal"),Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company));
+                Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>
+                    FinancialCore.PostJournal(c,tx,"pay_cycle","Prefixed sim","2026-10",simRef,Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company))).Status);
+            }
+            else
+            {
+                f.Store.Write((c,tx)=>FinancialCore.PostJournal(c,tx,"payroll_accrual","Prefixed live run","2026-10",liveRef,Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company));
+                Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>
+                    FinancialCore.PostJournal(c,tx,"payroll_accrual","Prefixed sim run","2026-10",simRef,Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company))).Status);
+            }
+        }
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>
+            FinancialCore.PostJournal(c,tx,"pay_cycle","Missing prefixed source","2026-10","PAY-CYCLE:missing-source-id",Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company))).Status);
+    }
 }

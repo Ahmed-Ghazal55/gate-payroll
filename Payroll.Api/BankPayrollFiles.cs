@@ -204,7 +204,7 @@ public static class BankPayrollFiles
         if(!comparison)
             ApprovalsArea.OpenMoneyOutDual(c,tx,user,"bank_sent",payoutRef,total,fileHash,
                 "اعتماد إرسال ملف بنك","ملف رواتب جاهز للإرسال — بانتظار اعتماد شخصين.",
-                new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To});
+                new(){["sponsorId"]=request.Sponsor,["companyId"]=request.Sponsor,["from"]=request.From,["to"]=request.To});
         // M1 / U-W2-31: payout journal only when explicitly marked sent — never on plain export or parallel «لا يُرسل».
         if(!comparison&&(input.B("markSent")||input.B("sent")||input.S("action")=="mark_sent"))
         {

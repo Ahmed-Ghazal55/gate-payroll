@@ -417,7 +417,7 @@ public static class FinancialCore
     {
         var req = new JsonObject
         {
-            ["id"] = Guid.NewGuid().ToString("N"),
+            ["id"] = SchemaSql.GuidText(SchemaSql.NewId()),
             ["kind"] = requestKind,
             ["titleAr"] = titleAr,
             ["bodyAr"] = bodyAr,
@@ -434,6 +434,11 @@ public static class FinancialCore
         // WC1H: bank payout dual stores the file content hash on the request so mark-sent can re-check it.
         string fileHash=payload.S("fileContentHash");
         if(fileHash!="")req["fileContentHash"]=fileHash;
+        // WMRG: persist company/platform scope on the request (also mirrored into payload by SaveRequest).
+        if(payload.S("sponsorId")!="")req["sponsorId"]=payload.S("sponsorId");
+        if(payload.S("companyId")!="")req["companyId"]=payload.S("companyId");
+        if(req.S("companyId")==""&&req.S("sponsorId")!="")req["companyId"]=req.S("sponsorId");
+        if(payload.S("platform")!="")req["platform"]=payload.S("platform");
         string? dual = ApprovalsArea.DualForKind(requestKind);
         if (dual != null) req["dualPermission"] = dual;
         Store.Save(c, "approval_request", req, tx);

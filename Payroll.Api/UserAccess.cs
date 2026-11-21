@@ -358,7 +358,10 @@ public static class UserAccess
         var former = new JsonArray(FormerUsernames(u).Append(old).Distinct(StringComparer.OrdinalIgnoreCase).Select(n => (JsonNode?)n).ToArray());
         u["username"] = next; u["formerUsernames"] = former; u["securityVersion"] = Guid.NewGuid().ToString("N");
         Store.Save(c, "user", u, tx);
-        // Dated bypass grants follow the person, not the old name.
+        // Dated bypass grants follow the person; auth.user.username drives SQL bypass list joins.
+        if(SchemaSql.TableExists(c,tx,"auth","user"))
+            SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"auth","user")} SET username=@n WHERE username=@old OR username=@oldNorm",
+                ("@n",next),("@old",old),("@oldNorm",Normalize(old)));
         foreach (var grant in Store.List(c, AccessPolicy.BypassGrantKind, tx).Where(g => g.S("userId") == id || Normalize(g.S("username")) == Normalize(old)))
         { grant["username"] = next; Store.Save(c, AccessPolicy.BypassGrantKind, grant, tx); }
         Store.Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = "admin.username_changed", ["entityId"] = id, ["actor"] = actor.Identity!.Name, ["at"] = DateTimeOffset.UtcNow.ToString("O"), ["from"] = old, ["to"] = next, ["reason"] = reason }, tx);

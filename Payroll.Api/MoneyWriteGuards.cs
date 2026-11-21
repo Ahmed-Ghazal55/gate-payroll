@@ -102,29 +102,95 @@ public static class MoneyWriteGuards
         Demand(runMode,blocked,EffectForJournal(transactionType,credited,blocked));
     }
 
-    /// <summary>WC1I: read run_mode from the referenced source row only; unknown/missing reference → 0 (live).</summary>
+    /// <summary>Known posting prefixes that point at a run_mode source row. Unresolvable prefixed refs are rejected (never default to live).</summary>
+    public static readonly string[] RunModeSourcePrefixes=["PAY-CYCLE:","PAYROLL:","PAY-RUN:","SAL-PAY-RUN:"];
+    static readonly System.Collections.Concurrent.ConcurrentDictionary<string,byte> AmbientRunModes=new(StringComparer.Ordinal);
+
+    /// <summary>Register an in-flight source row's run_mode (e.g. payroll approve before the run document is saved).</summary>
+    public static void NoteSourceRunMode(string sourceId,byte runMode)
+    {
+        if(!string.IsNullOrWhiteSpace(sourceId))AmbientRunModes[sourceId]=runMode;
+    }
+    public static void ClearSourceRunMode(string sourceId)
+    {
+        if(!string.IsNullOrWhiteSpace(sourceId))AmbientRunModes.TryRemove(sourceId,out _);
+    }
+
+    /// <summary>WMRG / RWC1d: parse posting prefixes (PAY-CYCLE:… etc.) and read run_mode from the actual source row.</summary>
     public static byte ResolveLegacyRunMode(DbConnection c,DbTransaction tx,string? reference)
     {
         if(string.IsNullOrWhiteSpace(reference))return 0;
-        var cycle=Store.Get(c,reference,PayCycles.Kind,tx);
-        if(cycle!=null)return cycle.N("runMode")==1||cycle.S("runMode")=="1"?(byte)1:(byte)0;
-        var run=Store.Get(c,reference,"run",tx);
-        if(run!=null)return run.N("runMode")==1||run.S("runMode")=="1"?(byte)1:(byte)0;
-        if(!Guid.TryParse(reference,out _)||!SchemaSql.TableExists(c,tx,"sal","pay_run"))return 0;
-        object? mode=SchemaSql.Scalar(c,tx,$"""
+        var (prefixed,rest)=StripRunModePrefix(reference);
+        foreach(string sourceId in SourceIdCandidates(rest))
+        {
+            if(AmbientRunModes.TryGetValue(sourceId,out var ambient))return ambient;
+            if(TryReadDocumentRunMode(c,tx,sourceId,out var mode))return mode;
+            if(TryReadSalPayRunMode(c,tx,sourceId,out mode))return mode;
+        }
+        if(prefixed)
+            throw new ApiError("مرجع الترحيل غير قابل للحل؛ لا يُفترض وضع التشغيل الحي لمرجع غير معروف.",409);
+        return 0;
+    }
+
+    public static (bool Prefixed,string SourceId) StripRunModePrefix(string reference)
+    {
+        foreach(string prefix in RunModeSourcePrefixes)
+            if(reference.StartsWith(prefix,StringComparison.OrdinalIgnoreCase))
+                return (true,reference[prefix.Length..]);
+        return (false,reference);
+    }
+
+    /// <summary>Cycle ids are pay-cycle:…; PayPosting then appends :salary:… / :debtRef / _reversal. Try longest id first.</summary>
+    public static IEnumerable<string> SourceIdCandidates(string rest)
+    {
+        if(string.IsNullOrWhiteSpace(rest))yield break;
+        var seen=new HashSet<string>(StringComparer.Ordinal);
+        var list=new List<string>();
+        void Add(string value){if(value!=""&&seen.Add(value))list.Add(value);}
+        Add(rest);
+        int under=rest.IndexOf('_');
+        if(under>0)Add(rest[..under]);
+        for(int i=rest.Length-1;i>=0;i--)
+            if(rest[i]==':')Add(rest[..i]);
+        foreach(var id in list)yield return id;
+    }
+
+    static bool TryReadDocumentRunMode(DbConnection c,DbTransaction tx,string id,out byte mode)
+    {
+        mode=0;
+        var cycle=Store.Get(c,id,PayCycles.Kind,tx);
+        if(cycle!=null){mode=cycle.N("runMode")==1||cycle.S("runMode")=="1"?(byte)1:(byte)0;return true;}
+        var run=Store.Get(c,id,"run",tx);
+        if(run!=null){mode=run.N("runMode")==1||run.S("runMode")=="1"?(byte)1:(byte)0;return true;}
+        return false;
+    }
+
+    static bool TryReadSalPayRunMode(DbConnection c,DbTransaction tx,string id,out byte mode)
+    {
+        mode=0;
+        // Bind D-format text: N-format document ids parse as Guid but SQL uniqueidentifier rejects raw N strings (8169).
+        if(!Guid.TryParse(id,out var gid)||!SchemaSql.TableExists(c,tx,"sal","pay_run"))return false;
+        object? value=SchemaSql.Scalar(c,tx,$"""
             SELECT run_mode FROM {SchemaSql.Q(c,"sal","pay_run")} WHERE id=@id
-            """,("@id",reference));
-        return mode is not null and not DBNull&&Convert.ToInt32(mode)==1?(byte)1:(byte)0;
+            """,("@id",SchemaSql.GuidText(gid)));
+        if(value is null or DBNull)return false;
+        mode=Convert.ToInt32(value)==1?(byte)1:(byte)0;
+        return true;
     }
 
     public static bool IsSalSimulationSource(DbConnection c,DbTransaction tx,string reference)
     {
-        // sal.pay_run.id is uniqueidentifier — skip legacy string refs (opening keys, bank-payout:…, etc.).
-        if(string.IsNullOrWhiteSpace(reference)||!Guid.TryParse(reference,out _)||!SchemaSql.TableExists(c,tx,"sal","pay_run"))return false;
-        object? mode=SchemaSql.Scalar(c,tx,$"""
-            SELECT run_mode FROM {SchemaSql.Q(c,"sal","pay_run")} WHERE id=@id
-            """,("@id",reference));
-        return mode is not null and not DBNull&&Convert.ToInt32(mode)==1;
+        if(string.IsNullOrWhiteSpace(reference)||!SchemaSql.TableExists(c,tx,"sal","pay_run"))return false;
+        var (_,rest)=StripRunModePrefix(reference);
+        foreach(string sourceId in SourceIdCandidates(rest))
+        {
+            if(!Guid.TryParse(sourceId,out var gid))continue;
+            object? mode=SchemaSql.Scalar(c,tx,$"""
+                SELECT run_mode FROM {SchemaSql.Q(c,"sal","pay_run")} WHERE id=@id
+                """,("@id",SchemaSql.GuidText(gid)));
+            if(mode is not null and not DBNull)return Convert.ToInt32(mode)==1;
+        }
+        return false;
     }
 
     public static bool ResolveLegacyPayoutBlocked(DbConnection c,DbTransaction tx,string period,string? companyId)
