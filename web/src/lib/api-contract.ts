@@ -9422,6 +9422,264 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pay/apps/ninja/live/daily-performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja daily performance per account and day with coverage (L1) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                reportDate: string;
+                                captainId: string;
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                riderProfileId: string;
+                                riderClientAssignmentId?: string;
+                                sourceId?: string;
+                                sourceRowNumber?: number;
+                                orders?: number;
+                                hours?: number;
+                                ownerUnifiedNumber?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                requestedFrom: string;
+                                requestedTo: string;
+                                firstDay: string;
+                                lastDay: string;
+                                total: number;
+                                hasGapAtPeriodEnd: boolean;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/ninja/live/daily-deductions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja daily deductions per actual rider of each day with coverage (L1) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                reportDate: string;
+                                captainId: string;
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                actualRiderProfileId: string;
+                                riderClientAssignmentId?: string;
+                                sourceId?: string;
+                                sourceRowNumber?: number;
+                                collectedAmount?: number;
+                                deductionsAmount?: number;
+                                ownerUnifiedNumber?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                requestedFrom: string;
+                                requestedTo: string;
+                                firstDay: string;
+                                lastDay: string;
+                                total: number;
+                                hasGapAtPeriodEnd: boolean;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/ninja/live/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja account payment method / pay scheme from Omar (L1 / U-W2-14) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                accountStatus?: string;
+                                accountPaymentModel?: string;
+                                assignmentPaymentModel?: string;
+                                payScheme: string;
+                                ownerEmployeeId?: string;
+                                ownerUnifiedNumber: string;
+                                openAssignmentId?: string;
+                                openActualRiderProfileId?: string;
+                                ninjaRiderType?: string;
+                                openEffectiveFrom?: string;
+                                openEffectiveTo?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                total: number;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/ninja/live/account-bearers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja account owner vs actual rider periods with holder dates (L1 / U-W2-12/13) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                assignmentId: string;
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                owningSponsorId?: string;
+                                owningUnifiedNumber: string;
+                                ownerEmployeeId: string;
+                                ownerRiderProfileId?: string;
+                                actualRiderProfileId: string;
+                                holderRiderProfileId?: string;
+                                effectiveFrom: string;
+                                effectiveTo?: string;
+                                assignmentPaymentModel?: string;
+                                assignmentStatus?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                total: number;
+                                requestedFrom: string;
+                                requestedTo: string;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/operations/{kind}": {
         parameters: {
             query?: never;
