@@ -40,6 +40,14 @@ public static partial class AccessPolicy
         J.Need(Administrator(actor)||Has(actor,"users.manage"),"منح تجاوز الاعتماد لمدير الصلاحيات فقط.",403);
         string username=UserAccess.Normalize(input.Required("username"));
         var user=Store.List(c,"user",tx).FirstOrDefault(u=>UserAccess.Normalize(u.S("username"))==username)??throw new ApiError("المستخدم غير موجود.",404);
+        // Granter must be a real document user before the auth.user bridge (never invent Admin for strangers).
+        string granterName=actor.Identity?.Name??"";
+        if(granterName!=""&&UserAccess.Find(c,granterName,tx)==null)
+        {
+            string role=actor.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value??"Reviewer";
+            if(!UserAccess.Roles.Contains(role))role="Reviewer";
+            Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]=granterName,["role"]=role,["status"]="active",["department"]=UserAccess.ResolveRoleDef(role).DefaultDepartment,["rankLevel"]=UserAccess.ResolveRoleDef(role).DefaultRankLevel},tx);
+        }
         string fromRaw=input.Required("from"),toRaw=input.Required("to"),reason=input.S("reason").Trim();
         J.Need(DateOnly.TryParseExact(fromRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var from),"تاريخ البداية غير صالح.");
         J.Need(DateOnly.TryParseExact(toRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var to)&&to>=from&&to<=Today().AddDays(365),"تاريخ النهاية غير صالح.");
