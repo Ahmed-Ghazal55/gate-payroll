@@ -18,8 +18,9 @@ public sealed class HungerStationPostingTests
     [TestMethod]
     public void ApprovalIsIndependentAndTheGatePreventsPostingUntilEnabled()
     {
-        using var f=new HungerStationInvoiceTests.Fixture();string id=Import(f);var self=f.Store.Read(c=>HungerStationInvoices.Proposal(c,Maker,id));Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.ApproveInvoice(c,tx,Maker,id,Confirm(self))));
-        var approved=Approve(f,id);Assert.AreEqual("approved",approved.S("approvalStatus"));Assert.AreEqual("blocked_by_gate",approved.S("accountingStatus"));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"journal").Count));
+        using var f=new HungerStationInvoiceTests.Fixture();string id=Import(f);var self=f.Store.Read(c=>HungerStationInvoices.Proposal(c,Maker,id));
+        // BR §35: invoice approve is permission-only; gate still blocks posting until enabled.
+        var approved=f.Store.Write((c,tx)=>HungerStationInvoices.ApproveInvoice(c,tx,Maker,id,Confirm(self)));Assert.AreEqual("approved",approved.S("approvalStatus"));Assert.AreEqual("blocked_by_gate",approved.S("accountingStatus"));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"journal").Count));
         Gate(f,true);var posted=Approve(f,id);Assert.AreEqual("posted",posted.S("accountingStatus"));var original=f.Store.Read(c=>Store.Get(c,posted.S("journalEntryId"),"journal"))!;
         Assert.AreEqual(1150m,original["lines"]!.AsArray().OfType<JsonObject>().Sum(l=>l.N("debit")));Assert.IsTrue(original["lines"]!.AsArray().OfType<JsonObject>().Any(l=>l.S("accountCode")=="411102"));
         Approve(f,id);Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"journal").Count));
@@ -50,8 +51,8 @@ public sealed class HungerStationPostingTests
         Assert.ThrowsExactly<ApiError>(()=>Approve(f,id));
         var claim=f.Store.Read(c=>Store.List(c,"platform_dispute").Single(d=>d.S("invoiceId")==id&&d.S("category")=="CAR"));
         JsonObject Reject()=>new(){["mode"]="dispute",["disputeId"]=claim.S("id"),["outcome"]="platform_rejected",["platformReference"]="synthetic-platform-rejection",["reason"]="Synthetic platform rejected the claim"};
-        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,Maker,id,Reject())));
-        var escalated=f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,Checker,id,Reject()));Assert.AreEqual("escalated",escalated.S("status"));
+        // BR §35: dispute resolve is permission-based (not dual money-out).
+        var escalated=f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,Maker,id,Reject()));Assert.AreEqual("escalated",escalated.S("status"));
         var posted=Approve(f,id);Assert.AreEqual("posted",posted.S("accountingStatus"));Assert.IsTrue(posted.B("settlementHold"));
         var lines=f.Store.Read(c=>Store.Get(c,posted.S("journalEntryId"),"journal")!["lines"]!.AsArray().OfType<JsonObject>().ToList());
         Assert.AreEqual(lines.Sum(l=>l.N("debit")),lines.Sum(l=>l.N("credit")));Assert.AreEqual(50m,lines.Where(l=>l.S("accountCode")=="112803").Sum(l=>l.N("debit")));
@@ -74,8 +75,9 @@ public sealed class HungerStationPostingTests
         using var f=new HungerStationInvoiceTests.Fixture();string id=Import(f);Gate(f,true);var posted=Approve(f,id);string journalId=posted.S("journalEntryId"),original=f.Store.Read(c=>Store.Get(c,journalId,"journal")!.ToJsonString());
         f.Store.Write((c,tx)=>{Store.Save(c,"accounting_period",new(){["id"]="synthetic-closed",["companyId"]=FinancialCore.Sponsors[0].Id,["period"]="2026-10",["status"]="closed"},tx);return true;});
         Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.RequestReversal(c,tx,Maker,id,new(){["period"]="2026-10",["reason"]="Synthetic correction"})));
-        var request=f.Store.Write((c,tx)=>HungerStationInvoices.RequestReversal(c,tx,Maker,id,new(){["period"]="2026-11",["reason"]="Synthetic correction"}));Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.ApproveReversal(c,tx,Maker,id,request.S("id"))));
-        var approved=f.Store.Write((c,tx)=>HungerStationInvoices.ApproveReversal(c,tx,Checker,id,request.S("id")));var reverse=f.Store.Read(c=>Store.Get(c,approved.S("journalEntryId"),"journal"))!;Assert.AreEqual(journalId,reverse.S("reversesJournalId"));Assert.AreEqual("2026-11",reverse.S("period"));Assert.AreEqual(original,f.Store.Read(c=>Store.Get(c,journalId,"journal")!.ToJsonString()));
+        var request=f.Store.Write((c,tx)=>HungerStationInvoices.RequestReversal(c,tx,Maker,id,new(){["period"]="2026-11",["reason"]="Synthetic correction"}));
+        // BR §35: reversal approve is permission-only; original journal body stays immutable.
+        var approved=f.Store.Write((c,tx)=>HungerStationInvoices.ApproveReversal(c,tx,Maker,id,request.S("id")));var reverse=f.Store.Read(c=>Store.Get(c,approved.S("journalEntryId"),"journal"))!;Assert.AreEqual(journalId,reverse.S("reversesJournalId"));Assert.AreEqual("2026-11",reverse.S("period"));Assert.AreEqual(original,f.Store.Read(c=>Store.Get(c,journalId,"journal")!.ToJsonString()));
         var next=f.Input(HungerStationInvoiceTests.Workbook(f.Cr()));next["replacesInvoiceId"]=id;string replacement=Import(f,next);Assert.AreNotEqual(id,replacement);var corrected=Approve(f,replacement);Assert.AreEqual("2026-11",f.Store.Read(c=>Store.Get(c,corrected.S("journalEntryId"),"journal")!.S("period")));Assert.AreEqual(3,f.Store.Read(c=>Store.List(c,"journal").Count));
     }
 }

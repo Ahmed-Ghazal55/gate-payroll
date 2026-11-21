@@ -13,7 +13,7 @@ public static partial class AccessPolicy
         !string.IsNullOrWhiteSpace(actor.FindFirstValue("approvalExceptionReason"));
     // Pure when tx is null (allowedActions). Every committed exception use is audited in
     // the same transaction and stamps the operation's actual stored document.
-    public static bool Independent(ClaimsPrincipal actor,string maker,string operation,DbConnection? c=null,DbTransaction? tx=null,JsonObject? record=null,DateTimeOffset? evidenceAt=null)
+    public static bool Independent(ClaimsPrincipal actor,string maker,string operation,DbConnection? c=null,DbTransaction? tx=null,JsonObject? record=null,DateTimeOffset? evidenceAt=null,string? scope=null)
     {
         if(!SamePerson(actor,maker))return true;
         if(evidenceAt is {} approved)
@@ -27,20 +27,20 @@ public static partial class AccessPolicy
                    ||(a.S("action")=="approval.self_exception"&&string.Equals(actor.Identity.Name,"ghazal",StringComparison.OrdinalIgnoreCase)
                       &&string.CompareOrdinal(a.S("approvalExceptionUntil"),used.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"))>=0)));
         }
-        // BR §35: new self-approvals use dated bypass grants only. ApprovalException claims no longer open new approvals; historical self_exception audits stay valid above.
-        // M-0667: SystemAdmin holds the maker-checker exception by default; every use is audited for the monthly self-approval report.
+        // BR §35 / WC1H: self-approvals need a dated bypass grant whose scope explicitly matches,
+        // or SystemAdmin (M-0667) — every use is audited. Omitting scope is never a wildcard.
         bool systemAdmin=actor.IsInRole("SystemAdmin");
-        var grant=c!=null?ActiveBypassGrant(c,tx,actor.Identity!.Name!):null;
-        bool bypass=systemAdmin||grant!=null||BypassActive(actor,c,tx);
-        if(!bypass)return false;
+        if(!systemAdmin&&(string.IsNullOrWhiteSpace(scope)||c==null))return false;
+        var grant=c!=null?ActiveBypassGrant(c,tx,actor.Identity!.Name!,scope):null;
+        if(!systemAdmin&&grant==null)return false;
         if(tx!=null)
         {
             J.Need(c!=null&&record!=null&&record.S("id")!="","استثناء الاعتماد يحتاج مستندًا وسجل مراجعة.",409);
             record!["selfApprovedException"]=true;
-            grant??=ActiveBypassGrant(c!,tx,actor.Identity!.Name!);
+            grant??=scope!=null?ActiveBypassGrant(c!,tx,actor.Identity!.Name!,scope):ActiveBypassGrant(c!,tx,actor.Identity!.Name!);
             string reason=systemAdmin?"system-admin-default":(grant?.S("reason")??actor.FindFirstValue("approvalBypassReason")??"");
             string badge=systemAdmin?"system_admin":"bypass_maker_checker";
-            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant?.S("id")??"",["reason"]=reason,["approvalBypassUntil"]=grant?.S("to")??actor.FindFirstValue("approvalBypassUntil")??"",["selfApprovedException"]=true,["badge"]=badge},tx);
+            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant?.S("id")??"",["scope"]=grant?.S("scope",scope??"")??(scope??""),["reason"]=reason,["approvalBypassUntil"]=grant?.S("to")??actor.FindFirstValue("approvalBypassUntil")??"",["selfApprovedException"]=true,["badge"]=badge},tx);
         }
         return true;
     }

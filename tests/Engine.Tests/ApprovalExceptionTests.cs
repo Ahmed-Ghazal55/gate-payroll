@@ -8,21 +8,24 @@ using Payroll;
 public sealed class ApprovalExceptionTests
 {
     static string Day(int delta=0)=>DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).AddDays(delta).ToString("yyyy-MM-dd");
-    static JsonObject User(string name="ghazal",int days=2)=>new(){["id"]="synthetic-exception-user",["username"]=name,["role"]="FinancialAccountant",["department"]="OPS",["approvalExceptionUntil"]=Day(days),["approvalExceptionReason"]="Temporary audited acceptance testing"};
+    static JsonObject User(string name="ghazal",int days=2)=>new(){["id"]="synthetic-exception-user",["username"]=name,["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=5,["approvalExceptionUntil"]=Day(days),["approvalExceptionReason"]="Temporary audited acceptance testing"};
     [TestMethod]
     public void DatedExceptionClaimsNoLongerOpenNewApprovalsWithoutBypassGrant()
     {
-        using var f=new PayFixture();var user=User();var actor=UserAccess.Principal(user);
-        var request=new JsonObject{["id"]="synthetic-self-request",["requestedBy"]="ghazal",["targetDepartment"]="FIN",["requiredRankLevel"]=5};
+        using var f=new PayFixture();
+        var user=User();user["customPermissions"]=new JsonArray("approvals.dual.payment_out","approvals.decide");
+        var actor=UserAccess.Principal(user);
+        // BR §35 / M-0672: dated exception alone is not a bypass; dual money-out still needs Independent or grant.
+        var request=new JsonObject{["id"]="synthetic-self-request",["requestedBy"]="ghazal",["targetDepartment"]="FIN",["requiredRankLevel"]=5,["dualPermission"]="approvals.dual.payment_out"};
         Assert.IsTrue(AccessPolicy.ApprovalException(actor),"legacy claim fields still parse");
-        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>AccessPolicy.ValidateApproval(actor,request,new())).Status,"dated exception alone cannot self-approve");
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>AccessPolicy.ValidateApproval(actor,request,new(),"approvals.decide",dualPermission:"approvals.dual.payment_out")).Status,"dated exception alone cannot self-approve");
         f.Store.Write((c,tx)=>{Store.Save(c,"user",user,tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="ghazal",["from"]=Day(0),["to"]=Day(2),["reason"]="§35 grant replaces dated exception"});return true;});
-        f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(actor,request,new(),c:c,tx:tx);Store.Save(c,"approval_request",request,tx);return true;});
+        f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(actor,request,new(),"approvals.decide",c,tx,dualPermission:"approvals.dual.payment_out");Store.Save(c,"approval_request",request,tx);return true;});
         Assert.IsTrue(f.Store.Read(c=>Store.Get(c,request.S("id"),"approval_request")!.B("selfApprovedException")));
         var audits=f.Store.Read(c=>Store.List(c,"audit").Where(a=>a.S("action")=="approval.bypass_maker_checker").ToList());
         Assert.IsTrue(audits.Count>=1);Assert.IsTrue(audits.All(a=>a.S("badge")=="bypass_maker_checker"&&a.S("maker")=="ghazal"));
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"audit").Count(a=>a.S("action")=="approval.self_exception"&&a.S("recordId")==request.S("id"))),"new approvals never write self_exception");
-        user["deniedPermissions"]=new JsonArray("approvals.decide");Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>AccessPolicy.ValidateApproval(UserAccess.Principal(user),request,new())).Status);
+        user["deniedPermissions"]=new JsonArray("approvals.decide");Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>AccessPolicy.ValidateApproval(UserAccess.Principal(user),request,new(),"approvals.decide",dualPermission:"approvals.dual.payment_out")).Status);
     }
     [TestMethod]
     public void ExceptionConfigurationRefusesNewDatesAndAllowsClear()
@@ -62,12 +65,14 @@ public sealed class ApprovalExceptionTests
         foreach(string line in File.ReadLines(path))
         {
             if(Path.GetFileName(path).StartsWith("AccessPolicy.")||!raw.IsMatch(line))continue;
-            // Ownership of mutable drafts is an authorization check, not maker/checker.
+            // Ownership of mutable drafts / "my queue" filters are authorization, not maker/checker.
             // Jahez Approve uses AccessPolicy.Independent for createdBy (not a raw inequality gate).
-            bool ownership=Path.GetFileName(path) is "ManualJournals.cs" or "PaySettings.Lifecycle.cs"&&(line.Contains("المسودة لصاحبها")||line.Contains("bool author="))
-                ||Path.GetFileName(path)=="NotifyTasksApi.cs"&&(line.Contains("createdBy")||line.Contains("assignee"));
-            bool viaIndependent=Path.GetFileName(path)=="JahezReconciliation.cs"&&line.Contains("AccessPolicy.Independent");
-            Assert.IsTrue(ownership||viaIndependent,"Raw maker comparison bypasses AccessPolicy.Independent: "+Path.GetFileName(path)+" :: "+line.Trim());
+            string file=Path.GetFileName(path);
+            bool ownership=file is "ManualJournals.cs" or "PaySettings.Lifecycle.cs"&&(line.Contains("المسودة لصاحبها")||line.Contains("bool author="))
+                ||file=="NotifyTasksApi.cs"&&(line.Contains("createdBy")||line.Contains("assignee"));
+            bool mineQueue=file=="ApprovalsArea.cs"&&line.Contains("mineOnly");
+            bool viaIndependent=file=="JahezReconciliation.cs"&&line.Contains("AccessPolicy.Independent");
+            Assert.IsTrue(ownership||mineQueue||viaIndependent,"Raw maker comparison bypasses AccessPolicy.Independent: "+file+" :: "+line.Trim());
         }
     }
 }

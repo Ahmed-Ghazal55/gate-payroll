@@ -4050,6 +4050,36 @@
         }
       }
     },
+    "/api/advance-requests/{id}/request-payout": {
+      "post": {
+        "tags": [
+          "Debts and advances"
+        ],
+        "summary": "Open two-person dual approval before advance payout",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/advance-requests/{id}/payout": {
       "post": {
         "tags": [
@@ -14599,6 +14629,54 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/shared-riders/{rider}/{period}/request-release": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Open two-person dual approval to release a held shared rider",
+        "parameters": [
+          {
+            "name": "rider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
                 }
               }
             }
@@ -25264,85 +25342,6 @@
             }
           }
         ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/approvals": {
-      "get": {
-        "tags": [
-          "Home"
-        ],
-        "summary": "Read approvals",
-        "parameters": [
-          {
-            "name": "department",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          },
-          {
-            "name": "status",
-            "in": "query",
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "OK",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JsonObject"
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/approvals/{id}/decide": {
-      "post": {
-        "tags": [
-          "Home"
-        ],
-        "summary": "Submit approvals {id} decide",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "$ref": "#/components/schemas/JsonObject"
-              }
-            }
-          },
-          "required": true
-        },
         "responses": {
           "200": {
             "description": "OK",

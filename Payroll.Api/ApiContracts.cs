@@ -153,6 +153,12 @@ public static class ApiContracts
         if(get&&path is "/api/workforce/saudi-payroll-employees" or "/api/workforce/terminated" or "/api/workforce/absence-cases" or "/api/workforce/legal-cases" or "/api/workforce/data-quality")return WorkforceListEnvelope();
         if(path=="/api/workforce/export"&&get)return Free();
         if(path=="/api/hr-catalogs/{kind}"&&get)return WorkforceListEnvelope();
+        if(path is "/api/sal/pay-runs/{id}/capture-ops" or "/api/sal/pay-runs/{id}/freeze-capture")return O(new(){["id"]=S(),["companyId"]=S(),["app"]=S(),["periodMonth"]=S(),["captureState"]=N(),["snapshotCount"]=N(),["requiredKinds"]=N(),["frozenAt"]=S(),["noteAr"]=S(),["allowedActions"]=A(S())},"id","captureState","allowedActions");
+        if(path=="/api/sal/tga/allocate")return O(new(){["invoiceId"]=S(),["itemId"]=S(),["allocatedTotal"]=N(),["bearers"]=A(Free()),["allowedActions"]=A(S())},"invoiceId","itemId","allocatedTotal","bearers","allowedActions");
+        if(path=="/api/sal/settlements/combine")return O(new(){["id"]=S(),["app"]=S(),["periodFrom"]=S(),["periodTo"]=S(),["invoiceCount"]=N(),["gross"]=N(),["deductions"]=N(),["net"]=N(),["allowedActions"]=A(S())},"id","app","invoiceCount","allowedActions");
+        if(path=="/api/sal/distributions/propose")return O(new(){["invoiceId"]=S(),["app"]=S(),["method"]=S(),["distributedTotal"]=N(),["rows"]=A(Free()),["allowedActions"]=A(S())},"invoiceId","app","method","distributedTotal","rows","allowedActions");
+        if(path=="/api/sal/item-bearers/assign-shared")return O(new(){["itemId"]=S(),["status"]=S(),["noteAr"]=S(),["actualRiderId"]=S(),["itemDate"]=S(),["allocations"]=A(Free()),["allowedActions"]=A(S())},"itemId","status","allowedActions");
+        if(path=="/api/sal/keeta/rejection-split")return O(new(){["erpPlatformAccountId"]=S(),["chargeTotal"]=N(),["freeQuotaPerDay"]=N(),["rateSar"]=N(),["bearers"]=A(Free())},"erpPlatformAccountId","chargeTotal","bearers");
         if(path=="/api/operations/{kind}"&&get)return OperationsPage();
         if(get&&path=="/api/operations/cities-summary")return OpsFleetPage(OpsCityRow());
         if(get&&path=="/api/operations/housing")return OpsFleetPage(OpsHousingRow());
