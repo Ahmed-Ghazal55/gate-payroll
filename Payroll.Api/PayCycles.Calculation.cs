@@ -131,8 +131,9 @@ public static partial class PayCycles
                 FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);var dp=ConfigLists.Phase(c,tx,debt.S("category"));
                 // §40.4 stage-4 sources are month-created operational debts; NegativeSalaryCarryover stays stage 8 (§40.6 instalment / confirm).
                 bool thisMonth=debt.S("effectiveFrom")==period&&debt.S("category")!="NegativeSalaryCarryover";
-                // M4: this-month takes full remaining (still capped by available); old debts keep the instalment.
-                decimal amount=J.Money(thisMonth||(debt.S("category")=="FuelOverage"&&debt.S("effectiveFrom")==period&&group.Any(l=>l.B("ineligibleKeetaSalary")))?debt.N("remainingBalance"):Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment")));
+                // M4: this-month takes full remaining (still capped by available); old debts keep the ledger instalment (RWD1c H7).
+                decimal instalment=DebtLedger.InstalmentForPayCycle(c,tx,debt);
+                decimal amount=J.Money(thisMonth||(debt.S("category")=="FuelOverage"&&debt.S("effectiveFrom")==period&&group.Any(l=>l.B("ineligibleKeetaSalary")))?debt.N("remainingBalance"):Math.Min(debt.N("remainingBalance"),instalment));
                 if(thisMonth)
                 {
                     decimal take=J.Money(Math.Min(amount,Math.Max(0,available)));

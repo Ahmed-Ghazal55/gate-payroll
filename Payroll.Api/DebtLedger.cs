@@ -72,15 +72,18 @@ public static class DebtLedger
     public static (string Code,Guid AccountId) ResolveWaiverExpense(DbConnection c,DbTransaction tx,Guid debtId)
     {
         EnsureD11WaiverAccounts(c,tx);
-        string platform;
+        string category,platform;
         using(var cmd=Store.Command(c,tx,$"SELECT category,platform FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId))))
         using(var reader=cmd.ExecuteReader())
         {
             J.Need(reader.Read(),"المديونية غير موجودة.",404);
+            category=reader["category"].ToString()!;
             platform=reader["platform"] is DBNull?"":reader["platform"].ToString()!;
         }
-        if(platform!="")
+        bool platformDebt=category.Equals("PlatformTransferredDebt",StringComparison.OrdinalIgnoreCase);
+        if(platformDebt||platform!="")
         {
+            J.Need(platform!="","منصة المديونية مطلوبة لحساب الإعفاء.",409);
             J.Need(PlatformWaiver.TryGetValue(platform,out var mapped)&&mapped is {Length:>0},"حساب إعفاء المنصة غير مربوط للمنصة: "+platform,409);
             return (mapped!,AccountId(c,tx,mapped!));
         }
@@ -378,7 +381,30 @@ public static class DebtLedger
         J.Need(instalment<=locked,"القسط يتجاوز الرصيد.",400);
         SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"debt","debt")} SET instalment=@i WHERE id=@id AND status='open'",
             ("@i",instalment),("@id",SchemaSql.GuidText(debtId)));
-        return new(){["debtId"]=SchemaSql.GuidText(debtId),["instalment"]=instalment,["balance"]=locked,["allowedActions"]=new JsonArray("reschedule","collect","waive","absorb")};
+        // Keep the document store in sync so pay-cycle calculation cannot read a stale 25 after a ledger 10.
+        string idText=SchemaSql.GuidText(debtId);
+        if(Store.Get(c,idText,"debt",tx) is {} doc)
+        {
+            doc["monthlyInstallment"]=instalment;
+            Store.Save(c,"debt",doc,tx);
+        }
+        return new(){["debtId"]=idText,["instalment"]=instalment,["balance"]=locked,["allowedActions"]=new JsonArray("reschedule","collect","waive","absorb")};
+    }
+
+    /// <summary>Instalment for pay-cycle deduction: ledger column wins over the document field.</summary>
+    public static decimal InstalmentForPayCycle(DbConnection c,DbTransaction? tx,JsonObject debt)
+    {
+        string id=debt.S("id");
+        if(Guid.TryParse(id,out var debtId))
+        {
+            object? ledger=SchemaSql.Scalar(c,tx,$"SELECT instalment FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)));
+            if(ledger is not null and not DBNull)
+            {
+                decimal inst=Convert.ToDecimal(ledger);
+                if(inst>0)return J.Money(inst);
+            }
+        }
+        return J.Money(debt.N("monthlyInstallment"));
     }
 
     public static JsonObject Ageing(DbConnection c,DbTransaction? tx,Guid companyId,ClaimsPrincipal actor)
@@ -478,14 +504,15 @@ public static class DebtLedger
 
     static void DemandCashVaultScope(ClaimsPrincipal actor,string cashCode)
     {
-        // Chart vaults use assigned accountCodes; target CoA bank/cash codes need company-wide finance scope.
-        if(FinancialCore.ChartOfAccounts.Any(a=>a.IsVault&&string.Equals(a.Code,cashCode,StringComparison.OrdinalIgnoreCase)))
+        if(AccessPolicy.Administrator(actor))return;
+        bool isVault=FinancialCore.ChartOfAccounts.Any(a=>a.IsVault&&string.Equals(a.Code,cashCode,StringComparison.OrdinalIgnoreCase));
+        if(isVault)
         {
-            FinancialScopes.DemandAccount(actor,cashCode);
+            J.Need(actor.HasClaim("finance.accountCodes",cashCode),"الحساب المالي خارج النطاق المسند للمستخدم.",403);
             return;
         }
-        J.Need(AccessPolicy.Administrator(actor)||AccessPolicy.Has(actor,"treasury.journals")||FinancialScopes.AllCompanies(actor),
-            "الحساب المالي خارج النطاق المسند للمستخدم.",403);
+        // Numeric CoA cash/bank: require at least one assigned vault (accountCodes). AllCompanies / journals-only is not enough (RWD1c M5).
+        J.Need(actor.FindAll("finance.accountCodes").Any(),"الحساب المالي خارج النطاق المسند للمستخدم.",403);
     }
 
     static string AccountCode(DbConnection c,DbTransaction tx,Guid accountId)=>
