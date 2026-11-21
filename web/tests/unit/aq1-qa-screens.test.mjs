@@ -110,6 +110,14 @@ test('workforce phone bdi and legal live connection notice', () => {
   assert.match(workforce, /يحتاج اتصال حي/);
 });
 
-test('UserProfile includes roleNameAr', () => {
-  assert.match(types, /roleNameAr\?: string/);
+test('UserProfile includes roleNameAr from ApiMe contract', () => {
+  assert.match(types, /roleNameAr\?: ApiMe\['roleNameAr'\]/);
+  assert.doesNotMatch(types, /roleNameAr\?: string;/);
+});
+
+test('admin mount loads org audit responsible only with matching permission', () => {
+  assert.match(admin, /if \(canManageOrg\) \{[\s\S]*?void loadOrgData\(\)/);
+  assert.match(admin, /if \(canViewAudit\) \{[\s\S]*?void loadAudit\(1\)/);
+  assert.match(admin, /if \(canManageOrg\) \{[\s\S]*?void loadResponsible\(/);
+  assert.match(admin, /const canViewAudit = can\('audit\.view'\) \|\| isAdmin/);
 });

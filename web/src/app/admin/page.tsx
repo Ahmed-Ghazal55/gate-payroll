@@ -160,6 +160,7 @@ function AdminPageInner() {
   const [loadingResponsible, setLoadingResponsible] = useState<boolean>(false);
 
   const canManageOrg = can('org.manage') || isAdmin;
+  const canViewAudit = can('audit.view') || isAdmin;
 
   // Load Users
   const loadUsers = async () => {
@@ -236,10 +237,13 @@ function AdminPageInner() {
 
   useEffect(() => {
     loadUsers();
-    // Header StatCards need org + audit totals on every tab
-    void loadOrgData();
-    void loadAudit(1);
-    void loadResponsible(queryOperation);
+    if (canManageOrg) {
+      void loadOrgData();
+      void loadResponsible(queryOperation);
+    }
+    if (canViewAudit) {
+      void loadAudit(1);
+    }
   }, []);
 
   useEffect(() => {
