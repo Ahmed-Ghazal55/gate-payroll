@@ -107,4 +107,31 @@ public sealed class MoneyWriteGuardsTests
             FinancialCore.PostJournal(c,tx,"opening","Synthetic cycle sim","2026-10","legacy-cycle-sim",Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company))).Status);
         Assert.IsFalse(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")=="legacy-cycle-sim")));
     }
+
+    [TestMethod]
+    public void PayoutBlockedRejectsBankCashCreditUnlessAccountingWhitelist()
+    {
+        Assert.IsTrue(MoneyWriteGuards.AccountingOnlyPurposes.Contains("payroll_accrual"));
+        Assert.IsTrue(MoneyWriteGuards.AccountingOnlyPurposes.Contains("debt_accrual"));
+        Assert.IsTrue(MoneyWriteGuards.AccountingOnlyPurposes.Contains("accrual_reversal"));
+        Assert.IsTrue(MoneyWriteGuards.IsBankOrCashAccountCode("111101"));
+        Assert.IsTrue(MoneyWriteGuards.IsBankOrCashAccountCode("111201"));
+        Assert.IsFalse(MoneyWriteGuards.IsBankOrCashAccountCode("212103"));
+
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,PayCycles.Kind,new(){["id"]="cycle-payout-acct",["companyId"]=company,["period"]="2026-10",["status"]="approved",["payoutBlocked"]=true,["runMode"]=0},tx);
+            return true;
+        });
+        // Non-payout purpose that credits a bank must still be rejected while payout is blocked.
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>
+            FinancialCore.PostJournal(c,tx,"internet_advance","Synthetic bank credit","2026-10","legacy-bank-credit",new JsonArray(
+                FinancialCore.CreateJournalLine("112503",company,10,0,targetChart:true,payChart:true),
+                FinancialCore.CreateJournalLine("111201",company,0,10,targetChart:true,payChart:true)),"synthetic",originSponsorId:company,creditorSponsorId:company,targetChart:true,payChart:true))).Status);
+        // Accrual whitelist may post even when a line credits cash/bank (accounting-only).
+        f.Store.Write((c,tx)=>FinancialCore.PostJournal(c,tx,"payroll_accrual","Synthetic accrual while blocked","2026-10","legacy-accrual-ok",new JsonArray(
+            FinancialCore.CreateJournalLine("5301",company,10,0),
+            FinancialCore.CreateJournalLine("2110",company,0,10)),"synthetic",originSponsorId:company,creditorSponsorId:company));
+        Assert.IsTrue(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")=="legacy-accrual-ok")));
+    }
 }

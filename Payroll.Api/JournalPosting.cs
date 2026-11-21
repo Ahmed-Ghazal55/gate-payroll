@@ -53,7 +53,6 @@ public static class JournalPosting
 
     static Result PostCore(DbConnection c,DbTransaction tx,Draft draft)
     {
-        MoneyWriteGuards.Demand(draft.RunMode,draft.PayoutBlocked,MoneyWriteGuards.ForJournalPurpose(draft.GuardPurpose??draft.Purpose));
         J.Need(draft.Lines.Count>=2,"القيد من سطرين على الأقل.");
         var rounded=draft.Lines.Select(l=>l with
         {
@@ -65,6 +64,8 @@ public static class JournalPosting
         J.Need(sumD==sumC,"مجموع المدين لا يساوي مجموع الدائن.");
         J.Need(rounded.All(l=>(l.Debit==0)^(l.Credit==0)&&l.Debit+l.Credit>0),"كل سطر مدين أو دائن فقط.");
         foreach(var line in rounded)DemandRiderAttribution(line);
+        var creditedCodes=rounded.Where(l=>l.Credit>0).Select(l=>AccountCode(c,tx,l.AccountId));
+        MoneyWriteGuards.Demand(draft.RunMode,draft.PayoutBlocked,MoneyWriteGuards.EffectForJournal(draft.GuardPurpose??draft.Purpose,creditedCodes,draft.PayoutBlocked));
 
         if(FindExisting(c,tx,draft) is {} existing)
         {
@@ -231,6 +232,12 @@ public static class JournalPosting
     {
         bool hasRider=line.ErpRiderId!=null,hasPlat=line.ErpPlatformAccountId!=null;
         if(hasRider||hasPlat)J.Need(hasRider&&hasPlat,"سطر المندوب يتطلب معرف المندوب ومعرف حساب المنصة معاً.",409);
+    }
+
+    static string? AccountCode(DbConnection c,DbTransaction tx,Guid accountId)
+    {
+        object? code=SchemaSql.Scalar(c,tx,$"SELECT code FROM {SchemaSql.Q(c,"fin","account")} WHERE id=@id",("@id",SchemaSql.GuidText(accountId)));
+        return code as string??code?.ToString();
     }
 
     static Result? FindExisting(DbConnection c,DbTransaction tx,Draft draft)

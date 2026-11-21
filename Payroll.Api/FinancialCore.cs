@@ -358,7 +358,7 @@ public static class FinancialCore
     {
         // WC1H: legacy journals read stored run_mode (document cycle / run / sal.pay_run); sim context + sal sim source rejected; payout_blocked from store.
         string? companyHint=string.IsNullOrWhiteSpace(originSponsorId)?(lines.Count>0?lines[0]!.S("sponsorId"):null):originSponsorId;
-        MoneyWriteGuards.DemandLegacyPostJournal(c,tx,transactionType,reference,period,companyHint);
+        MoneyWriteGuards.DemandLegacyPostJournal(c,tx,transactionType,reference,period,companyHint,lines);
         PayCycles.GuardInvoicePosting(c,tx,reference);
         J.Need(lines.Count >= 2, "القيد المحاسبي المزدوج يتطلب طرفين على الأقل.");
         J.Need(lines.OfType<JsonObject>().Count(l=>l.B("closingLegacyGroup"))<=1,"إقفال الرصيد التاريخي سطر واحد فقط.");

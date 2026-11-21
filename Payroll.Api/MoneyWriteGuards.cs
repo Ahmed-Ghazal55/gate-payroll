@@ -43,6 +43,24 @@ public static class MoneyWriteGuards
     public static void Demand(int runMode,bool payoutBlocked,MoneyEffectKind effect)
         =>Demand((byte)runMode,payoutBlocked,effect);
 
+    /// <summary>WC1H: while payout is blocked, only these purposes may credit bank/cash (accruals and their reversals).</summary>
+    public static readonly HashSet<string> AccountingOnlyPurposes=new(StringComparer.Ordinal)
+    {
+        "payroll_accrual","debt_accrual","accrual","accrual_reversal","reversal_of_accrual"
+    };
+
+    static readonly HashSet<string> BankCashTypes=new(StringComparer.Ordinal){"bank","cash"};
+
+    public static bool IsBankOrCashAccountCode(string? code)
+    {
+        if(string.IsNullOrWhiteSpace(code))return false;
+        var acc=FinanceViews.Accounts.FirstOrDefault(a=>a.S("code")==code);
+        return acc!=null&&BankCashTypes.Contains(acc.S("type"));
+    }
+
+    public static bool IsAccountingOnlyPurpose(string? purpose)=>
+        !string.IsNullOrWhiteSpace(purpose)&&AccountingOnlyPurposes.Contains(purpose);
+
     public static MoneyEffectKind ForJournalPurpose(string purpose)=>purpose switch
     {
         "bank_claim" or "direct_rider_payout" or "bank_payroll_payout"=>MoneyEffectKind.Payout,
@@ -50,10 +68,18 @@ public static class MoneyWriteGuards
         _=>MoneyEffectKind.Accounting
     };
 
+    /// <summary>Payout when a bank/cash account is credited under a blocked run, unless purpose is accounting-only whitelist.</summary>
+    public static MoneyEffectKind EffectForJournal(string purpose,IEnumerable<string?> creditedAccountCodes,bool payoutBlocked=false)
+    {
+        if(payoutBlocked&&!IsAccountingOnlyPurpose(purpose)&&creditedAccountCodes.Any(IsBankOrCashAccountCode))
+            return MoneyEffectKind.Payout;
+        return ForJournalPurpose(purpose);
+    }
+
     /// <summary>WC1H / planner 2026-11-21: legacy document-store journals read stored run_mode (not a constant 0).
     /// Reject simulation ambient context and sal simulation source ids; read payout_blocked from stored
     /// pay run / bank file when the column exists, else false.</summary>
-    public static void DemandLegacyPostJournal(DbConnection c,DbTransaction tx,string transactionType,string reference,string period,string? companyId)
+    public static void DemandLegacyPostJournal(DbConnection c,DbTransaction tx,string transactionType,string reference,string period,string? companyId,System.Text.Json.Nodes.JsonArray? lines=null)
     {
         if(InSimulationContext)
             throw new ApiError("وضع المحاكاة يمنع ترحيل القيود عبر المسار القديم.",409);
@@ -61,7 +87,10 @@ public static class MoneyWriteGuards
             throw new ApiError("مرجع المحاكاة يمنع ترحيل قيد حقيقي عبر المسار القديم.",409);
         byte runMode=ResolveLegacyRunMode(c,tx,period,companyId);
         bool blocked=ResolveLegacyPayoutBlocked(c,tx,period,companyId);
-        Demand(runMode,blocked,ForJournalPurpose(transactionType));
+        var credited=(lines??[]).OfType<System.Text.Json.Nodes.JsonObject>()
+            .Where(l=>l.N("credit")>0)
+            .Select(l=>l.S("accountCode"));
+        Demand(runMode,blocked,EffectForJournal(transactionType,credited,blocked));
     }
 
     /// <summary>Read run_mode from document cycles / document runs / sal.pay_run when present; missing → 0.</summary>
