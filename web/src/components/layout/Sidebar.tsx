@@ -122,6 +122,7 @@ function SidebarInner({
       items: [
         { id: 'payroll-apps', href: '/payroll/?tab=platforms', label: 'فواتير وتسويات المنصات' },
         { id: 'payroll-cycle', href: '/payroll/?tab=cycle', label: 'دورة الرواتب والمسير' },
+        { id: 'payroll-ninja-upload', href: '/payroll/?tab=ninja_upload', label: 'رفع فاتورة نينجا' },
         { id: 'payroll-rules', href: '/payroll/?tab=rules', label: 'الأنظمة ومحرر القواعد' },
         { id: 'payroll-deductions', href: '/payroll/?tab=deductions', label: 'الاستقطاعات الشهرية' },
         { id: 'payroll-bank', href: '/payroll/?tab=bank', label: 'التحويل والبنوك' },
@@ -138,6 +139,7 @@ function SidebarInner({
       items: [
         { id: 'debts-list', href: '/debts/?tab=debts', label: 'سجل المديونيات', permission: 'debts.view' },
         { id: 'debts-advance-requests', href: '/debts/?tab=advance_requests', label: 'طلبات السلف', permission: ['advances.request', 'advances.review'] },
+        { id: 'debts-actions', href: '/debts/?tab=actions', label: 'تحصيل وإنشاء', permission: 'debts.view' },
         { id: 'debts-statement', href: '/debts/?tab=statement', label: 'كشف حساب المندوب', permission: 'debts.view' },
         { id: 'debts-approvals', href: '/debts/?tab=approvals', label: 'منظومة الاعتمادات', permission: 'approvals.view' },
         { id: 'debts-promissory', href: '/debts/?tab=promissory', label: 'أرشيف سندات الأمر', permission: 'debts.view' },
@@ -167,6 +169,8 @@ function SidebarInner({
       items: [
         { id: 'acc-coa', href: '/accounting/?tab=coa', label: 'دليل الحسابات', permission: 'treasury.view' },
         { id: 'acc-journals', href: '/accounting/?tab=journals', label: 'سجل القيود اليومية', permission: ['finance.journal.create', 'finance.journal.approve'] },
+        { id: 'acc-manual', href: '/accounting/?tab=manual_journals', label: 'القيود اليدوية', permission: ['finance.journal.create', 'finance.journal.approve'] },
+        { id: 'acc-adjustments', href: '/accounting/?tab=adjustments', label: 'تسويات مدا والراتب', permission: 'treasury.journals' },
         { id: 'acc-trial', href: '/accounting/?tab=trial_balance', label: 'ميزان المراجعة', permission: 'treasury.journals' },
         { id: 'acc-income', href: '/accounting/?tab=income_statement', label: 'قائمة الدخل', permission: 'treasury.journals' },
       ],
@@ -220,6 +224,8 @@ function SidebarInner({
       items: [
         { id: 'admin-users', href: '/admin/?tab=users', label: 'المستخدمون والصلاحيات', permission: 'users.manage' },
         { id: 'admin-org', href: '/admin/?tab=org', label: 'الأقسام والرتب والتفويضات', permission: 'org.manage' },
+        { id: 'admin-lists', href: '/admin/?tab=lists', label: 'القوائم والإعدادات', permission: 'users.manage' },
+        { id: 'admin-bypass', href: '/admin/?tab=bypass', label: 'تجاوز الاعتماد', permission: 'users.manage' },
         { id: 'admin-audit', href: '/admin/?tab=audit', label: 'سجل التدقيق والعمليات', permission: 'audit.view' },
         { id: 'admin-settings', href: '/admin/?tab=settings', label: 'إعدادات النظام', permission: 'users.manage' },
       ],

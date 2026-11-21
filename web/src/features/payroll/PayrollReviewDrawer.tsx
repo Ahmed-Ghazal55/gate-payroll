@@ -319,7 +319,7 @@ export function PayrollReviewDrawer({
         <div className="space-y-2">
           <div className="flex items-center justify-between border-b border-[var(--line)] pb-1.5">
             <div>
-              <h4 className="text-xs font-bold text-[var(--ink)]">المرحلة 2: أقساط المديونيات والسلف (BR §32)</h4>
+              <h4 className="text-xs font-bold text-[var(--ink)]">المرحلة 2: أقساط المديونيات والسلف</h4>
               <p className="text-[10px] text-[var(--muted)]">يمكن للمراجع تعديل القسط بين 0 والحد الأقصى مع ذكر السبب.</p>
             </div>
             <span className="num font-mono text-xs text-[var(--muted)]">

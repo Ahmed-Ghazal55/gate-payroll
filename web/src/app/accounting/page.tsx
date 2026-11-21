@@ -39,6 +39,7 @@ import { api } from '../../lib/api';
 import { formatSar } from '../../lib/money';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
 import { AccountingAdjustmentsPanel } from '../../features/accounting/AccountingAdjustmentsPanel';
+import { paginateFilteredRows } from '../../features/accounting/trial-balance-paging';
 import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
 import { canShowImportStep, TREASURY_OPENING_IMPORT } from '../../features/imports/import-steps';
 import type {
@@ -428,14 +429,14 @@ function AccountingPageContent() {
         return 'new';
       },
       labelOf: (v) =>
-        v === 'excel' ? 'Excel 2024' : v === 'modified' ? 'تعديل مالي' : 'حساب جديد',
+        v === 'excel' ? 'إكسل 2024' : v === 'modified' ? 'تعديل مالي' : 'حساب جديد',
       toneOf: (v) => (v === 'excel' ? 'neutral' : v === 'modified' ? 'warning' : 'info'),
       render: (acc) => {
         const src = (acc.source || acc.sourceType || '').toLowerCase();
         if (src.includes('excel')) {
           return (
             <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-[var(--raised)] text-[var(--muted)] border border-[var(--line)]">
-              Excel 2024
+              إكسل 2024
             </span>
           );
         }
@@ -603,7 +604,7 @@ function AccountingPageContent() {
       <PageHeader
         title="المحاسبة والتقارير المالية"
         eyebrow="الدفاتر والتقارير المعتمدة"
-        description="استعرض دليل شجرة الحسابات المستهدفة (403 حسابات)، سجل القيود المزدوجة مع روابط القيود العكسية، وميزان المراجعة وقائمة الدخل."
+        description="استعرض دليل شجرة الحسابات المستهدفة، سجل القيود المزدوجة مع روابط القيود العكسية، وميزان المراجعة وقائمة الدخل."
       >
         {canShowImportStep(TREASURY_OPENING_IMPORT, { isAdmin, can }) && (
           <button
@@ -628,8 +629,8 @@ function AccountingPageContent() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="إجمالي الحسابات المستهدفة"
-          value={coaSummary.total || 403}
-          hint={`294 إكسل 2024 · 81 جديد · 28 معدل`}
+          value={coaSummary.total ?? '—'}
+          hint={`${coaSummary.sourceBreakdown?.excel2024 ?? '—'} إكسل 2024 · ${coaSummary.sourceBreakdown?.newAccounts ?? '—'} جديد · ${coaSummary.sourceBreakdown?.modified ?? '—'} معدل`}
           icon={Layers}
           trend={{ value: 'دليل 1.0', isPositive: true }}
           onClick={() => setActiveTab('coa')}
@@ -637,7 +638,7 @@ function AccountingPageContent() {
 
         <StatCard
           label="حسابات الترحيل المباشر"
-          value={coaSummary.activePosting || 227}
+          value={coaSummary.activePosting ?? '—'}
           hint="حسابات طرفية قابلة لاستقبال القيود"
           icon={CheckCircle2}
           trend={{ value: 'جاهز للترحيل', isPositive: true }}
@@ -673,8 +674,12 @@ function AccountingPageContent() {
         />
       </div>
 
-      {/* Sub Tabs Navigation */}
-      <div className="flex border-b border-[var(--line)] gap-2 overflow-x-auto no-scrollbar">
+      {/* Sub Tabs Navigation — sidebar also lists these; keep scroll affordance until full rule-3.0 cutover */}
+      <div
+        role="tablist"
+        aria-label="أقسام المحاسبة"
+        className="flex border-b border-[var(--line)] gap-2 overflow-x-auto scroll-smooth [scrollbar-width:thin]"
+      >
         <button
           type="button"
           role="tab"
@@ -686,7 +691,7 @@ function AccountingPageContent() {
               : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
           }`}
         >
-          شجرة دليل الحسابات المستهدف ({coaSummary.total || 403})
+          شجرة دليل الحسابات المستهدف ({coaSummary.total ?? '—'})
         </button>
 
         <button
@@ -1000,7 +1005,14 @@ function AccountingPageContent() {
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
-                        <span>الفترة: <strong className="text-[var(--ink)]">{trialData.from || periodMonth} — {trialData.to || periodMonth}</strong></span>
+                        <span>
+                          الفترة:{' '}
+                          <strong className="text-[var(--ink)]">
+                            <bdi dir="ltr">
+                              {trialData.from || periodMonth} — {trialData.to || periodMonth}
+                            </bdi>
+                          </strong>
+                        </span>
                       </div>
                     </div>
 
@@ -1159,7 +1171,7 @@ function AccountingPageContent() {
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition"
               >
                 <Download size={14} />
-                <span>تصدير Excel</span>
+                <span>تصدير إكسل</span>
               </button>
             </div>
           </div>
@@ -1367,7 +1379,7 @@ function AccountingPageContent() {
                 <div className="flex justify-between py-2 border-b border-[var(--line)]">
                   <span className="text-[var(--muted)]">المصدر المعتمد</span>
                   <span className="font-bold text-[var(--ink)]">
-                    {selectedAccount.sourceNote || selectedAccount.source || 'Excel 2024'}
+                    {selectedAccount.sourceNote || selectedAccount.source || 'إكسل 2024'}
                   </span>
                 </div>
 
@@ -1487,6 +1499,24 @@ function TrialBalanceTable({
   totals: Record<string, number | undefined>;
   onExport?: (visibleRows: TrialBalanceCompanyRow[]) => void;
 }) {
+  const [hideZeroRows, setHideZeroRows] = useState(true);
+  const [page, setPage] = useState(1);
+  const pageSize = 75;
+
+  const baseRows = useMemo(() => {
+    if (!hideZeroRows) return rows;
+    return rows.filter((r) => {
+      const movement =
+        Number(r.openingDebit || 0) +
+        Number(r.openingCredit || 0) +
+        Number(r.periodDebit || 0) +
+        Number(r.periodCredit || 0) +
+        Number(r.closingDebit || 0) +
+        Number(r.closingCredit || 0);
+      return movement !== 0;
+    });
+  }, [rows, hideZeroRows]);
+
   const trialCols = useMemo(
     () => [
       { key: 'code', header: 'رمز الحساب', type: 'list' as const, getValue: (r: TrialBalanceCompanyRow) => r.code || '' },
@@ -1500,22 +1530,65 @@ function TrialBalanceTable({
     ],
     []
   );
-  const tf = useTableAutoFilter<TrialBalanceCompanyRow>(rows, trialCols);
+  const tf = useTableAutoFilter<TrialBalanceCompanyRow>(baseRows, trialCols);
+
+  useEffect(() => {
+    setPage(1);
+  }, [tf.filters, tf.sortKey, tf.sortDir, hideZeroRows]);
+
+  const paging = useMemo(
+    () => paginateFilteredRows(tf.rows, page, pageSize),
+    [tf.rows, page, pageSize]
+  );
+  const { totalPages, safePage, pageRows } = paging;
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
       <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-[var(--line)] bg-[var(--raised)]/30">
         <div className="flex-1 min-w-0">
-          <AutoFilterBar controller={tf} totalCount={rows.length} />
+          <AutoFilterBar controller={tf} totalCount={baseRows.length} />
+        </div>
+        <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--muted)] shrink-0">
+          <input
+            type="checkbox"
+            checked={hideZeroRows}
+            onChange={(e) => {
+              setHideZeroRows(e.target.checked);
+              setPage(1);
+            }}
+            className="rounded border-[var(--line)]"
+          />
+          إخفاء الصفوف الصفرية
+        </label>
+        <div className="flex items-center gap-1 text-[11px] text-[var(--muted)] shrink-0">
+          <button
+            type="button"
+            disabled={safePage <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="px-2 py-0.5 rounded border border-[var(--line)] disabled:opacity-40"
+          >
+            السابق
+          </button>
+          <span className="num">
+            {safePage}/{totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className="px-2 py-0.5 rounded border border-[var(--line)] disabled:opacity-40"
+          >
+            التالي
+          </button>
         </div>
         {onExport ? (
           <button
             type="button"
-            onClick={() => onExport(tf.rows)}
+            onClick={() => onExport(paging.exportRows)}
             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition shrink-0"
           >
             <Download size={14} />
-            <span>تصدير Excel ({tf.rows.length})</span>
+            <span>تصدير إكسل ({paging.exportRows.length})</span>
           </button>
         ) : null}
       </div>
@@ -1533,7 +1606,7 @@ function TrialBalanceTable({
           </tr>
         </thead>
         <tbody className="divide-y divide-[var(--line)]">
-          {tf.rows.map((row) => {
+          {pageRows.map((row) => {
             const isGroup = !row.posting;
             return (
               <tr

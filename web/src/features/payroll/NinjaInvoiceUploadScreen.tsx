@@ -962,7 +962,7 @@ export function NinjaInvoiceUploadScreen({
                 مسار فاتورة {platformNameAr} ({isKeeta ? 'Keeta' : 'Ninja'} Invoice Stepper)
               </h2>
               <p className="text-xs text-[var(--muted)] mt-0.5">
-                دورة الفاتورة المعتمدة: رفع ← مطابقة ← تأكيد ← اعتماد ← ترحيل (BR §26, §31).
+                دورة الفاتورة المعتمدة: رفع ← مطابقة ← تأكيد ← اعتماد ← ترحيل.
               </p>
             </div>
           </div>
@@ -1077,7 +1077,7 @@ export function NinjaInvoiceUploadScreen({
       <div className="p-4 rounded-2xl border border-sky-500/20 bg-sky-500/5 text-sky-900 dark:text-sky-200 space-y-1">
         <div className="flex items-center gap-2 font-bold text-xs sm:text-sm">
           <Info size={16} className="text-sky-600 dark:text-sky-400 shrink-0" />
-          <span>المعيار الملزم (BR §31): «المعتمد هو الفاتورة — الفرق للعلم»</span>
+          <span>المعيار الملزم: «المعتمد هو الفاتورة — الفرق للعلم»</span>
         </div>
         <p className="text-xs text-sky-800/80 dark:text-sky-300/80 leading-relaxed ps-6">
           في منصة {platformNameAr}، الاستحقاق المالي المعتمد للكباتن هو ما ورد نصاً في فاتورة المنصة الصادرة؛ وفروقات الاحتساب المحسوبة بواسطة المحرك الداخلي هي للعلم والتدقيق التشغيلي مع المنصة ولا توقف الاعتماد أو الصرف.
@@ -1479,7 +1479,7 @@ export function NinjaInvoiceUploadScreen({
                 </span>
               </div>
               <p className="text-[11px] text-[var(--muted)] mt-0.5">
-                تظهر الأزرار أدناه حصراً بناءً على عقد السيرفر (allowedActions) وقواعد فصل الصلاحيات (BR §26).
+                تظهر الأزرار أدناه حصراً بناءً على صلاحيات السيرفر وقواعد فصل الصلاحيات.
               </p>
             </div>
 

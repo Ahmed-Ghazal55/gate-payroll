@@ -5,6 +5,7 @@ type ApiMe = paths['/api/me']['get']['responses'][200]['content']['application/j
 export interface UserProfile {
   username: string;
   role: string;
+  roleNameAr?: ApiMe['roleNameAr'];
   displayNameAr: string;
   permissions?: string[];
   /** From the OpenAPI User schema — never hand-written. */

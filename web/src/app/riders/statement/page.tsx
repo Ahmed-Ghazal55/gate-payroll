@@ -158,35 +158,42 @@ function RiderStatementPageInner() {
     }
   };
 
-  // Export CSV
-  const handleExportCsv = () => {
+  const handleExportExcel = async () => {
     if (!statement?.entries || statement.entries.length === 0) {
       toast('لا توجد حركات للتصدير', 'warning');
       return;
     }
 
-    const headers = ['التاريخ', 'نوع الحركة', 'البيان', 'المرجع', 'مدين (ر.س)', 'دائن (ر.س)', 'الرصيد التراكمي (ر.س)'];
-    const rows = (statement.entries || []).map((e) => [
-      e.date,
-      e.entryType,
-      `"${(e.description || '').replace(/"/g, '""')}"`,
-      e.reference || '',
-      e.debit || 0,
-      e.credit || 0,
-      e.balance || 0,
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const pFrom = statement.period?.from || fromDate;
-    const pTo = statement.period?.to || toDate;
-    a.download = `statement-${statement.iqama}-${pFrom}-to-${pTo}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('تم تصدير كشف الحساب بصيغة CSV بنجاح', 'success');
+    try {
+      const headers = ['التاريخ', 'نوع الحركة', 'البيان', 'المرجع', 'مدين (ر.س)', 'دائن (ر.س)', 'الرصيد التراكمي (ر.س)'];
+      const rows = (statement.entries || []).map((e) => [
+        e.date,
+        e.entryType,
+        e.description || '',
+        e.reference || '',
+        e.debit || 0,
+        e.credit || 0,
+        e.balance || 0,
+      ]);
+      const pFrom = statement.period?.from || fromDate;
+      const pTo = statement.period?.to || toDate;
+      const filename = `statement-${statement.iqama}-${pFrom}-to-${pTo}.xlsx`;
+      const blob = await api.exportExcel({
+        headers,
+        rows,
+        numericColumns: [4, 5, 6],
+        filename,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('تم تصدير كشف الحساب بنجاح', 'success');
+    } catch {
+      toast('تعذر تصدير كشف الحساب', 'danger');
+    }
   };
 
   const isDueToCompany = (statement?.closingBalance || 0) < 0; // عليه
@@ -226,11 +233,11 @@ function RiderStatementPageInner() {
             </button>
             <button
               type="button"
-              onClick={handleExportCsv}
+              onClick={() => void handleExportExcel()}
               className="px-3.5 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <Download size={15} />
-              <span>تصدير Excel (CSV)</span>
+              <span>تصدير إكسل</span>
             </button>
           </div>
         </div>
@@ -350,7 +357,7 @@ function RiderStatementPageInner() {
 
               <div className="p-3.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)] print:bg-white">
                 <div className="text-xs text-[var(--muted)] font-medium">إجمالي الحركات (مدين / دائن)</div>
-                <div className="text-xs font-bold num text-[var(--ink)] mt-1.5 flex justify-between">
+                <div className="text-xs font-bold num text-[var(--ink)] mt-1.5 flex justify-between gap-4">
                   <span>مدين: {formatSar(totals.debit)}</span>
                   <span>دائن: {formatSar(totals.credit)}</span>
                 </div>
@@ -381,7 +388,7 @@ function RiderStatementPageInner() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                    كروت استحقاق المنصات الشهرية وتفاصيل الاحتساب (R4.8)
+                    كروت استحقاق المنصات الشهرية وتفاصيل الاحتساب
                   </h3>
                   <p className="text-xs text-[var(--muted)] mt-0.5">
                     مصدر الاحتساب: {monthlyStatement.source === 'pay_cycle' ? 'دورة الرواتب المعتمدة' : 'مسير الرواتب القائم'} · الحالة: {monthlyStatement.status === 'approved' ? 'معتمد' : 'معاينة'}
@@ -398,7 +405,7 @@ function RiderStatementPageInner() {
                   <div className="flex items-center justify-between border-b border-[var(--line)] pb-2">
                     <div>
                       <h4 className="font-bold text-xs sm:text-sm text-[var(--ink)]">
-                        مراحل احتساب الاستقطاعات وصافي الاستحقاق (BR §29)
+                        مراحل احتساب الاستقطاعات وصافي الاستحقاق
                       </h4>
                       <p className="text-[11px] text-[var(--muted)] mt-0.5">
                         التدرج المالي المعتمد لحسم المستحقات من الإجمالي حتى الصافي النهائي.
@@ -538,11 +545,11 @@ function RiderStatementPageInner() {
             </div>
           )}
 
-          {/* Section 2: Timeline Table (Plan §3.3) */}
+          {/* Section 2: سجل الحركات */}
           <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs print:border-black print:shadow-none">
             <div className="p-4 border-b border-[var(--line)]">
               <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                سجل حركات كشف الحساب الزمني (Timeline Table)
+                سجل حركات كشف الحساب الزمني
               </h3>
               <p className="text-xs text-[var(--muted)] mt-0.5">
                 كافة قيود الاستحقاق والخصم وحركات السلف والتسويات المحاسبية مرتبة زمنياً.

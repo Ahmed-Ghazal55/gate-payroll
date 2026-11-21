@@ -36,6 +36,12 @@ body {
   display: inline-block;
 }
 
+/* Table cells must stay table-cell — inline-block on td merges adjacent num columns */
+td.num,
+th.num {
+  display: table-cell;
+}
+
 /* Accessible visible focus outline */
 :focus-visible {
   outline: 2px solid var(--focus);

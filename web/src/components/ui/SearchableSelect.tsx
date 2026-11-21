@@ -56,8 +56,10 @@ export function SearchableSelect({
   const [active, setActive] = useState(0);
   const [rect, setRect] = useState<DOMRect | null>(null);
 
-  const selected = options.find((o) => o.value === value);
-  const displayLabel = selected?.label ?? value;
+  // Empty string means "no selection" for filters — do not treat a blank option
+  // (value '') as selected, or the closed field shows «(بدون قيمة)» as if chosen.
+  const selected = value === '' ? undefined : options.find((o) => o.value === value);
+  const displayLabel = selected?.label ?? (value === '' ? '' : value);
   const matches = useMemo(() => filterSelectOptions(options, query), [options, query]);
   const shown = matches.slice(0, MAX_SHOWN);
 
@@ -146,7 +148,7 @@ export function SearchableSelect({
         disabled={disabled}
         required={required && !value}
         value={open ? query : displayLabel}
-        placeholder={displayLabel || placeholder}
+        placeholder={placeholder}
         onFocus={() => {
           onFocus?.();
           openList();
