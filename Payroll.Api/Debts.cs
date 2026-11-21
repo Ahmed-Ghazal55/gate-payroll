@@ -21,6 +21,19 @@ public static partial class Debts
 
     public static decimal PaidAmount(JsonObject debt)=>debt.N("paidAmount",Math.Max(0m,debt.N("totalAmount")-debt.N("remainingBalance")-debt.N("waivedAmount")));
     public static void DemandDisburseAvailable()=>DebtLedger.DemandDisburseAvailable();
+    public static void DemandLegacyCollectWaiverClosed(decimal waived)=>
+        J.Need(waived<=0,"إعفاء التحصيل الفردي عبر الحساب القديم ٥٢٠٢ غير متاح؛ استخدم إعفاء المديونية (D11) على دفتر الديون.",409);
+    public static byte[] SourceFileHash(byte[] file)=>System.Security.Cryptography.SHA256.HashData(file);
+    public static byte[] SourceFileHashForTests(byte[] file)=>SourceFileHash(file);
+    static byte[] ResolveImportFileHash(JsonObject input)
+    {
+        if(!string.IsNullOrWhiteSpace(input.S("dataBase64")))
+            return SourceFileHash(FinancialImports.FileBytes(input));
+        string hex=input.S("fileHash");
+        J.Need(hex.Length==64,"بصمة ملف المصدر (fileHash) مطلوبة؛ أعد المعاينة مع الملف.",400);
+        try{return Convert.FromHexString(hex);}
+        catch{throw new ApiError("بصمة ملف المصدر غير صالحة.",400);}
+    }
     public static void DemandOpeningVaultCreditClosed()=>
         throw new ApiError("صرف مديونية جديدة عبر محرك المدفوعات غير متاح بعد؛ انتظر وحدة محرك المدفوعات.",409);
     public static decimal Amount(JsonObject input, string key)
@@ -41,6 +54,8 @@ public static partial class Debts
     {
         if (!string.IsNullOrWhiteSpace(debt.S("journalEntryId"))) return;
 
+        string mode=debt.S("entryMode");
+        if(mode=="Disbursement")DemandDisburseAvailable();
         var cat = FinancialCore.ResolveCategory(debt.S("category"));
         string allocationMode = debt.S("allocationMode", "RiderFull");
         decimal totalCost = debt.N("totalCostAmount", debt.N("totalAmount"));
@@ -48,7 +63,6 @@ public static partial class Debts
         decimal riderShare = debt.N("totalAmount", totalCost - companyShare);
         string originSpId = debt.S("originSponsorId");
         string creditorSpId = debt.S("creditorSponsorId", originSpId);
-        string mode=debt.S("entryMode");
         J.Need(mode is "Disbursement" or "Accrual" or "OpeningBalance","الطلب القديم يحتاج تحديد نوع الحدث ومقابله قبل الترحيل.");
         J.Need(mode!="OpeningBalance"||companyShare==0,"الرصيد الافتتاحي ذمة على المندوب فقط؛ تحمل الشركة عن سنوات سابقة مقفل في حقوق الملكية ولا يُقيد مصروفًا في الفترة الحالية.");
         string vaultCode=debt.S("paymentVaultCode");
@@ -332,6 +346,7 @@ public static partial class Debts
 
             decimal collected = OptionalAmount(input, "collectedAmount", 0m);
             decimal waived = OptionalAmount(input, "waivedAmount", 0m);
+            DemandLegacyCollectWaiverClosed(waived);
             if(waived>0){AccessPolicy.Demand(ctx.User,"debts.waive");input.Required("waiverReason");}
             decimal totalReduction = J.Money(collected + waived);
             J.Need(totalReduction > 0, "أدخل مبلغ التحصيل أو مبلغ الإعفاء الإداري.");
@@ -357,10 +372,6 @@ public static partial class Debts
             if (collected > 0)
             {
                 lines.Add(FinancialCore.CreateJournalLine(vaultAcc.Code, collectionSp.Id, collected, 0m, $"قبض وتوريد نقدي/بنكي إلى ({vaultAcc.NameAr})", d.S("iqama"), id));
-            }
-            if (waived > 0)
-            {
-                lines.Add(FinancialCore.CreateJournalLine("5202", creditorSp.Id, waived, 0m, $"إعفاء وتنازل إداري معتمد عن جزء من المديونية ({input.S("waiverReason", "تسوية سداد")})", d.S("iqama"), id));
             }
             lines.Add(FinancialCore.CreateJournalLine(receivCode, creditorSp.Id, 0m, totalReduction, $"تخفيض الذمة المدينة للمندوب ({d.S("riderName")}) بالسداد/الإعفاء", d.S("iqama"), id));
 
@@ -537,7 +548,8 @@ public static partial class Debts
                     errors.Add($"الصف {i + 1}: {e.Message}");
                 }
             }
-            return new { filename, validCount = rows.Count, errorCount = errors.Count, rows, errors, fingerprint=errors.Count==0?FinancialImports.Issue(c,"bulk",rows,ctx.User.Identity!.Name!):"" };
+            string fileHash=Convert.ToHexString(SourceFileHash(bytes));
+            return new { filename, validCount = rows.Count, errorCount = errors.Count, rows, errors, fileHash, fingerprint=errors.Count==0?FinancialImports.Issue(c,"bulk",rows,ctx.User.Identity!.Name!):"" };
         })).WithTags("Debts and advances").WithSummary("Submit debts bulk collect preview file");
 
         // اعتماد شيت التحصيل المجمع (سواء من جدول مباشر أو بعد قراءة ملف Excel/CSV)
@@ -656,7 +668,7 @@ public static partial class Debts
                 rowIdx++;
             }
 
-            byte[] fileHash=System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input.S("fingerprint",input.S("previewToken",$"{items.Count}|{totalCollectedBatch}"))));
+            byte[] fileHash=ResolveImportFileHash(input);
             SchemaAuditNotify.Ensure(c,tx);
             string userId=SchemaApprovals.EnsureAuthUserId(c,tx,ctx.User.Identity!.Name!);
             SchemaSql.Exec(c,tx,$"""
@@ -857,9 +869,11 @@ public static partial class Debts
             decimal totalDebits = J.Money(parsedList.Sum(x => x.N("remainingBalance") + x.N("companyShareAmount")));
             decimal totalCredits = totalDebits;
 
+            string fileHash=Convert.ToHexString(SourceFileHash(bytes));
             return new
             {
                 filename,
+                fileHash,
                 fingerprint=errors.Count==0?FinancialImports.Issue(c,"opening",validRows,ctx.User.Identity!.Name!):"",
                 validCount = validRows.Count,
                 errorCount = errors.Count,
@@ -1010,7 +1024,7 @@ public static partial class Debts
                 totalCompanyExpenseImported = J.Money(totalCompanyExpenseImported + companyShare);
             }
 
-            byte[] fileHash=System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input.S("fingerprint",input.S("previewToken",$"{items.Count}|{totalRemainingImported}"))));
+            byte[] fileHash=ResolveImportFileHash(input);
             SchemaAuditNotify.Ensure(c,tx);
             string userId=SchemaApprovals.EnsureAuthUserId(c,tx,ctx.User.Identity!.Name!);
             SchemaSql.Exec(c,tx,$"""
@@ -1043,6 +1057,13 @@ public static partial class Debts
             J.Need(!Store.List(c,"ledger",tx).Any(l=>l.S("kind")=="debt_installment"&&l.S("debtId")==line.Source&&l.S("period")==result.Period&&!reversed.Contains(l.S("id"))),"قسط الفترة مرحل بالفعل.");
             if(payCycle)key+=":"+runId;
             J.Need(Store.Get(c,key,"ledger",tx)==null,"مرجع القسط موجود بالفعل.");
+
+            // W1 ledger debt: movement + journal own the balance; document remainingBalance mirrors it.
+            if(Guid.TryParse(line.Source,out var debtGuid)&&SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtGuid)))!=null)
+            {
+                PostLedgerInstalment(c,tx,d,debtGuid,amount,result,runId,key,accountingRun);
+                continue;
+            }
 
             d["paidAmount"] = J.Money(PaidAmount(d) + amount);
             d["remainingBalance"] = J.Money(d.N("remainingBalance") - amount);
@@ -1094,5 +1115,47 @@ public static partial class Debts
                 ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
             }, tx);
         }
+    }
+
+    static void PostLedgerInstalment(DbConnection c,DbTransaction tx,JsonObject d,Guid debtId,decimal amount,PayrollResult result,string runId,string key,JsonObject? accountingRun)
+    {
+        object? companyObj=SchemaSql.Scalar(c,tx,$"SELECT company_id FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)));
+        J.Need(companyObj!=null,"المديونية غير موجودة في دفتر الديون.",404);
+        Guid companyId=companyObj is Guid g?g:Guid.Parse(companyObj!.ToString()!);
+        var periodMonth=DateOnly.Parse(result.Period+"-01");
+        Guid periodId=DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth);
+        decimal locked=SchemaDebt.LockDebt(c,tx,SchemaSql.GuidText(debtId));
+        J.Need(locked>=amount,"تغير رصيد الدين في الدفتر؛ أعد المعاينة.",409);
+        Guid sourceId=SchemaSql.NewId();
+        Guid recv=DebtLedger.AccountId(c,tx,DebtLedger.ReceivableForCategory(d.S("category","CashAdvance")));
+        Guid payable=DebtLedger.AccountId(c,tx,"212103");
+        var journal=JournalPosting.Post(c,tx,new JournalPosting.Draft(
+            companyId,periodId,periodMonth,periodMonth.AddDays(Math.Min(27,DateTime.UtcNow.Day)),
+            "pay_cycle",sourceId,"debt_payroll_instalment",0,false,"payroll_engine",
+            [
+                new(payable,SchemaOrgCostCentre.NoneId,"none",amount,0m,"قسط مديونية من المسير"),
+                new(recv,SchemaOrgCostCentre.NoneId,"none",0m,amount,"تخفيض ذمة المندوب")
+            ],NarrationAr:"استقطاع قسط مديونية من المسير"));
+        SchemaSql.Exec(c,tx,$"""
+            INSERT INTO {SchemaSql.Q(c,"debt","debt_movement")}
+            (id,period_month,debt_id,company_id,occurred_on,amount,source_type,source_id,journal_id,run_mode,payout_blocked,created_by,created_at)
+            VALUES(@id,@pm,@d,@c,@on,@amt,'payroll_instalment',@sid,@j,0,0,@by,@at)
+            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pm",periodMonth.ToString("yyyy-MM-01")),("@d",SchemaSql.GuidText(debtId)),
+            ("@c",SchemaSql.GuidText(companyId)),("@on",periodMonth.ToString("yyyy-MM-dd")),("@amt",-amount),
+            ("@sid",SchemaSql.GuidText(sourceId)),("@j",SchemaSql.GuidText(journal.JournalId)),("@by","payroll_engine"),
+            ("@at",DateTimeOffset.UtcNow.ToString("O")));
+        decimal balance=Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"SELECT balance FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)))!);
+        d["paidAmount"]=J.Money(PaidAmount(d)+amount);
+        d["remainingBalance"]=balance;
+        if(balance==0)d["status"]="settled";
+        d["lastDeductionPeriod"]=result.Period;
+        Store.Save(c,"debt",d,tx);
+        Store.Save(c,"ledger",new()
+        {
+            ["id"]=key,["iqama"]=result.Iqama,["period"]=result.Period,["amount"]=-amount,["kind"]="debt_installment",
+            ["sponsorId"]=accountingRun?.S("sponsorId")??"",["accountingVersion"]=accountingRun?.N("accountingVersion")??0,
+            ["debtId"]=d.S("id"),["sourceRef"]=runId,["journalEntryId"]=SchemaSql.GuidText(journal.JournalId),
+            ["createdAt"]=DateTimeOffset.UtcNow.ToString("O")
+        },tx);
     }
 }

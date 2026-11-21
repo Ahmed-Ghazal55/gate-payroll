@@ -19,11 +19,14 @@ public static partial class PayCycles
         var periodMonth=DateOnly.Parse(cycle.S("period")+"-01");
         Guid companyId=Guid.Parse(cycle.S("companyId"));
         SchemaDebt.Ensure(c,tx);SchemaFinAccount.Ensure(c,tx);SchemaFinPeriod.Ensure(c,tx);SchemaFinJournal.Ensure(c,tx);
+        // W1 hr.company debts require an open period + ledger movement (RWD1b H7). Pre-cutover sponsor-only cycles keep the document carry.
         object? openPeriod=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","accounting_period")} WHERE company_id=@c AND period_month=@m AND state=1",
             ("@c",SchemaSql.GuidText(companyId)),("@m",periodMonth.ToString("yyyy-MM-01")));
+        object? hrCompany=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"hr","company")} WHERE id=@id",("@id",SchemaSql.GuidText(companyId)));
         if(openPeriod is null or DBNull)
         {
-            // Never auto-open a period. Without an open period, keep the legacy document-store carry (tests / pre-W1 cycles).
+            if(hrCompany is not null and not DBNull)
+                DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth); // throws 409
             string legacyId="pay-carry:"+cycle.S("id")+":"+riderKey;
             J.Need(Store.Get(c,legacyId,"debt",tx)==null,"دين العجز مسجل بالفعل.");
             Store.Save(c,"debt",new(){["id"]=legacyId,["iqama"]=riderKey,["category"]="NegativeSalaryCarryover",["creditorSponsorId"]=cycle.S("companyId"),["receivableAccountCode"]="112507",["status"]="active",["totalAmount"]=amount,["remainingBalance"]=amount,["paidAmount"]=0,["monthlyInstallment"]=0,["effectiveFrom"]=periodMonth.AddMonths(1).ToString("yyyy-MM"),["sourceRef"]=cycle.S("id"),["createdBy"]=cycle.S("createdBy"),["approvedBy"]=actor.Identity!.Name,["createdAt"]=now},tx);
@@ -57,6 +60,7 @@ public static partial class PayCycles
         Store.Save(c,"debt",new(){["id"]=SchemaSql.GuidText(debtId),["iqama"]=riderKey,["category"]="NegativeSalaryCarryover",["creditorSponsorId"]=cycle.S("companyId"),["receivableAccountCode"]="112507",["status"]="active",["totalAmount"]=amount,["remainingBalance"]=amount,["paidAmount"]=0,["monthlyInstallment"]=0,["effectiveFrom"]=periodMonth.AddMonths(1).ToString("yyyy-MM"),["sourceRef"]=cycle.S("id"),["createdBy"]=cycle.S("createdBy"),["approvedBy"]=actor.Identity!.Name,["createdAt"]=now},tx);
         row["carryDebtId"]=SchemaSql.GuidText(debtId);row["carryAmount"]=amount;
     }
+    public static void CreateCarryForTests(DbConnection c,DbTransaction tx,JsonObject cycle,JsonObject row,ClaimsPrincipal actor)=>CreateCarry(c,tx,cycle,row,actor);
     static void SettleOperatingFuel(DbConnection c,DbTransaction tx,JsonObject cycle,JsonObject row,ClaimsPrincipal actor)
     {
         foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==row.S("rider")&&d.S("type")=="fuel_recovery"))

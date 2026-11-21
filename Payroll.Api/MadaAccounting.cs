@@ -53,6 +53,8 @@ public static class MadaAccounting
     }
     public static JsonObject PayInternet(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject request,JsonObject input)
     {
+        // RWD1b H2: Internet Disbursement is cash-out; closed until the payment engine (same gate as Debts.PostCreationJournalIfNeeded).
+        DebtLedger.DemandDisburseAvailable();
         AccessPolicy.Demand(actor,"advances.payout");string company=FinancialCore.ResolveSponsor(request.S("companyId")).Id,fulfilment=request.Required("fulfilment"),vault=request.S("vaultCode",request.S("vault"));FinancialScopes.DemandSponsor(actor,company);
         J.Need(fulfilment is "cash" or "bank" or "recharge_card","طريقة تسليم النت غير صالحة.");J.Need(request.S("approvedBy")!=""&&request.S("status")=="approved","طلب معتمد مطلوب.");J.Need(AccessPolicy.Independent(actor,request.S("requestedBy"),"advance.payout",c,tx,request,scope:AccessPolicy.ScopePayApprovals),"صاحب الطلب لا يصرفه.",403);
         J.Need(input.Required("reference").Length is >2 and <=120,"مرجع الصرف غير صالح.");decimal amount=request.N("amount");J.Need(amount>0&&amount==J.Money(amount)&&request.N("monthlyInstallment")>0&&request.N("monthlyInstallment")<=amount,"مبلغ السلفة أو القسط غير صالح.");string period=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM");Open(c,tx,company,period);
