@@ -250,12 +250,54 @@ public static class WorkforceLiveQuery
         return ReadGeneric(cmd, cancellationToken).Select(MapSaudi).ToList();
     }
 
+    /// <summary>SQL text for terminated / absence / legal case lists (tests + shared WHERE builder).</summary>
+    public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewCasesSql(string kind, LiveOperationsQuery.Scope scope)
+    {
+        using var cmd = new SqlCommand();
+        string scopeSql = ScopeCasesSql(scope, cmd, "s", "e");
+        string sql = kind.Trim().ToLowerInvariant() switch
+        {
+            "terminated" => $"""
+                SELECT e.[Id], e.[IqamaNo], e.[FullNameAr], e.[Nationality], e.[PrimaryPhone], e.[Status], e.[TerminationDate], e.[StatusReason],
+                       owt.[NameAr] AS WorkTypeNameAr, gc.[NameAr] AS CityNameAr
+                FROM [app].[Employees] e
+                LEFT JOIN [app].[Sponsors] s ON s.[Id]=e.[SponsorId] AND s.[IsDeleted]=0
+                LEFT JOIN [app].[OperationalWorkTypes] owt ON owt.[Id]=e.[OperationalWorkTypeId] AND owt.[IsDeleted]=0
+                LEFT JOIN [app].[OperatingCities] oc ON oc.[Id]=e.[OperatingCityId] AND oc.[IsDeleted]=0
+                LEFT JOIN [platform].[GlobalCities] gc ON gc.[Id]=oc.[GlobalCityId] AND gc.[IsDeleted]=0
+                WHERE e.[IsDeleted]=0 AND e.[Status] IN (6,8){scopeSql}
+                ORDER BY e.[FullNameAr]
+                """,
+            "absence" => $"""
+                SELECT c.[Id], c.[CaseNumber], c.[AbsenceDate], c.[CurrentPath], c.[Status], e.[FullNameAr] AS EmployeeNameAr, e.[IqamaNo]
+                FROM [app].[EmployeeAbsenceComplianceCases] c
+                INNER JOIN [app].[Employees] e ON e.[Id]=c.[EmployeeId] AND e.[IsDeleted]=0
+                LEFT JOIN [app].[Sponsors] s ON s.[Id]=e.[SponsorId] AND s.[IsDeleted]=0
+                WHERE c.[IsDeleted]=0{scopeSql}
+                ORDER BY c.[CaseNumber]
+                """,
+            "legal" => $"""
+                SELECT c.[Id], c.[CaseNumber], c.[CaseTime], c.[Status], c.[PersonName],
+                       s.[RegistryNameAr] AS SponsorNameAr, s.[UnifiedNationalNumber] AS SponsorUnified,
+                       e.[IqamaNo], e.[FullNameAr] AS EmployeeNameAr
+                FROM [app].[HrLegalCases] c
+                LEFT JOIN [app].[Sponsors] s ON s.[Id]=c.[SponsorId] AND s.[IsDeleted]=0
+                LEFT JOIN [app].[Employees] e ON e.[Id]=c.[EmployeeId] AND e.[IsDeleted]=0
+                WHERE c.[IsDeleted]=0{scopeSql}
+                ORDER BY c.[CaseNumber]
+                """,
+            _ => throw new ImportFailure("invalid_cases_kind")
+        };
+        var names = cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList();
+        return (sql, names);
+    }
+
     public static IReadOnlyList<JsonObject> TerminatedAndFleeing(DbConnection source, LiveOperationsQuery.Scope scope, CancellationToken cancellationToken = default)
     {
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
         using var cmd = source.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        string scopeSql = ScopeSponsorSql(scope, cmd, "s");
+        string scopeSql = ScopeCasesSql(scope, cmd, "s", "e");
         cmd.CommandText = $"""
             SELECT e.[Id], e.[IqamaNo], e.[FullNameAr], e.[Nationality], e.[PrimaryPhone], e.[Status], e.[TerminationDate], e.[StatusReason],
                    owt.[NameAr] AS WorkTypeNameAr, gc.[NameAr] AS CityNameAr
@@ -276,7 +318,7 @@ public static class WorkforceLiveQuery
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
         using var cmd = source.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        string scopeSql = ScopeSponsorSql(scope, cmd, "s");
+        string scopeSql = ScopeCasesSql(scope, cmd, "s", "e");
         cmd.CommandText = $"""
             SELECT c.[Id], c.[CaseNumber], c.[AbsenceDate], c.[CurrentPath], c.[Status], e.[FullNameAr] AS EmployeeNameAr, e.[IqamaNo]
             FROM [app].[EmployeeAbsenceComplianceCases] c
@@ -294,7 +336,7 @@ public static class WorkforceLiveQuery
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
         using var cmd = source.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
-        string scopeSql = ScopeSponsorSql(scope, cmd, "s");
+        string scopeSql = ScopeCasesSql(scope, cmd, "s", "e");
         cmd.CommandText = $"""
             SELECT c.[Id], c.[CaseNumber], c.[CaseTime], c.[Status], c.[PersonName],
                    s.[RegistryNameAr] AS SponsorNameAr, s.[UnifiedNationalNumber] AS SponsorUnified,
@@ -699,6 +741,33 @@ public static class WorkforceLiveQuery
             if (scope.PlatformCodes.Count == 0) return " AND 1=0";
             string codes = InList(cmd, "@pc", scope.PlatformCodes);
             parts.Add($"plat.[PlatformCode] IN ({codes})");
+        }
+        return parts.Count == 0 ? "" : " AND " + string.Join(" AND ", parts);
+    }
+
+    /// <summary>
+    /// Company scope plus, when platform-restricted, any (current or ended) platform assignment via RiderProfiles.
+    /// Empty PlatformCodes → 1=0. Legal cases with no employee fail EXISTS (intended).
+    /// </summary>
+    static string ScopeCasesSql(LiveOperationsQuery.Scope scope, DbCommand cmd, string sponsorAlias, string employeeAlias)
+    {
+        var parts = new List<string>();
+        if (!scope.AllCompanies)
+        {
+            if (scope.SponsorUnifiedNumbers.Count == 0) return " AND 1=0";
+            string regs = InList(cmd, "@cr", scope.SponsorUnifiedNumbers);
+            parts.Add($"{sponsorAlias}.[UnifiedNationalNumber] IN ({regs})");
+        }
+        if (scope.PlatformRestricted)
+        {
+            if (scope.PlatformCodes.Count == 0)
+                parts.Add("1=0");
+            else
+            {
+                string codes = InList(cmd, "@pc", scope.PlatformCodes);
+                parts.Add(
+                    $"EXISTS (SELECT 1 FROM [app].[RiderProfiles] rpx INNER JOIN [app].[RiderClientAssignments] ax ON ax.[RiderProfileId]=rpx.[Id] AND ax.[IsDeleted]=0 INNER JOIN [app].[PlatformRiderAccounts] prax ON prax.[Id]=ax.[PlatformRiderAccountId] AND prax.[IsDeleted]=0 INNER JOIN [platform].[ClientPlatforms] cpx ON cpx.[Id]=prax.[ClientPlatformId] AND cpx.[IsDeleted]=0 WHERE rpx.[EmployeeId]={employeeAlias}.[Id] AND rpx.[IsDeleted]=0 AND cpx.[Code] IN ({codes}))");
+            }
         }
         return parts.Count == 0 ? "" : " AND " + string.Join(" AND ", parts);
     }
