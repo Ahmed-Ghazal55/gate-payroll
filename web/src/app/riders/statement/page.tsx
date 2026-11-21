@@ -230,7 +230,7 @@ function RiderStatementPageInner() {
               className="px-3.5 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <Download size={15} />
-              <span>تصدير Excel (CSV)</span>
+              <span>تصدير CSV</span>
             </button>
           </div>
         </div>
@@ -350,7 +350,7 @@ function RiderStatementPageInner() {
 
               <div className="p-3.5 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)] print:bg-white">
                 <div className="text-xs text-[var(--muted)] font-medium">إجمالي الحركات (مدين / دائن)</div>
-                <div className="text-xs font-bold num text-[var(--ink)] mt-1.5 flex justify-between">
+                <div className="text-xs font-bold num text-[var(--ink)] mt-1.5 flex justify-between gap-4">
                   <span>مدين: {formatSar(totals.debit)}</span>
                   <span>دائن: {formatSar(totals.credit)}</span>
                 </div>
@@ -538,11 +538,11 @@ function RiderStatementPageInner() {
             </div>
           )}
 
-          {/* Section 2: Timeline Table (Plan §3.3) */}
+          {/* Section 2: سجل الحركات */}
           <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs print:border-black print:shadow-none">
             <div className="p-4 border-b border-[var(--line)]">
               <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                سجل حركات كشف الحساب الزمني (Timeline Table)
+                سجل حركات كشف الحساب الزمني
               </h3>
               <p className="text-xs text-[var(--muted)] mt-0.5">
                 كافة قيود الاستحقاق والخصم وحركات السلف والتسويات المحاسبية مرتبة زمنياً.

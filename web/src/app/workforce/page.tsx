@@ -474,7 +474,13 @@ function WorkforcePageInner() {
       const res = await api.getWorkforceLegalCases();
       setLegalItems((res?.items as Record<string, unknown>[]) || []);
       setCasesSource(res?.source || '');
-      if (res?.message) setCasesError(res.message);
+      if (res?.message) {
+        setCasesError(
+          res.source && res.source !== 'live'
+            ? `${res.message} — يحتاج اتصال حي.`
+            : res.message
+        );
+      }
     } catch (err: unknown) {
       const msg =
         err instanceof ApiError
@@ -482,9 +488,13 @@ function WorkforcePageInner() {
           : err instanceof Error
           ? err.message
           : 'تعذر تحميل القضايا القانونية';
-      setCasesError(msg);
+      const liveHint =
+        err instanceof ApiError && (err.status === 502 || err.status === 503)
+          ? 'يحتاج اتصال حي للوصول لسجل القضايا من نظام عمر.'
+          : msg;
+      setCasesError(liveHint);
       setLegalItems([]);
-      toast(msg, 'danger');
+      toast(liveHint, 'danger');
     } finally {
       setLoadingCases(false);
     }
@@ -678,7 +688,7 @@ function WorkforcePageInner() {
         getValue: (r) => r.city || '',
         render: (r) => (
           <StackedCell
-            primary={r.phone || '—'}
+            primary={r.phone ? <bdi dir="ltr">{r.phone}</bdi> : '—'}
             secondary={r.city || '—'}
             tertiary={r.nationality || undefined}
           />
@@ -1426,7 +1436,13 @@ function WorkforcePageInner() {
                           {profileData.person?.iqama || '—'}
                         </span>
                         <span>•</span>
-                        <span>{profileData.person?.phone || 'بدون جوال'}</span>
+                        <span>
+                          {profileData.person?.phone ? (
+                            <bdi dir="ltr">{profileData.person.phone}</bdi>
+                          ) : (
+                            'بدون جوال'
+                          )}
+                        </span>
                         <span>•</span>
                         <span>{profileData.person?.city || 'بدون مدينة'}</span>
                         <span>•</span>
