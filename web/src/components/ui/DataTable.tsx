@@ -284,7 +284,7 @@ export function DataTable<T extends Record<string, any>>({
 
   // Remote distinct values cache (for server-paged tables with distinctEndpoint)
   const [remoteDistinct, setRemoteDistinct] = useState<
-    Record<string, { values: string[]; counts?: Record<string, number> }>
+    Record<string, { values: string[]; counts?: Record<string, number>; hasEmpty?: boolean; emptyCount?: number }>
   >({});
   const [loadingDistinct, setLoadingDistinct] = useState<Record<string, boolean>>({});
   const distinctFetchedRef = useRef<Set<string>>(new Set());
@@ -306,7 +306,7 @@ export function DataTable<T extends Record<string, any>>({
 
   const ensureDistinctLoaded = useCallback(
     (col: ColumnDef<T>) => {
-      if (!distinctEndpoint || col.filterOptions) return;
+      if (!distinctEndpoint) return;
       const cacheKey = distinctCacheKey(col);
       if (distinctFetchedRef.current.has(cacheKey)) return;
       distinctFetchedRef.current.add(cacheKey);
@@ -318,7 +318,9 @@ export function DataTable<T extends Record<string, any>>({
             ...prev,
             [cacheKey]: {
               values: res?.values || [],
-              counts: (res as any)?.counts,
+              counts: res?.counts,
+              hasEmpty: res?.hasEmpty,
+              emptyCount: res?.emptyCount,
             },
           }));
         })
@@ -388,7 +390,7 @@ export function DataTable<T extends Record<string, any>>({
       const cacheKey = distinctCacheKey(col);
       const remote = remoteDistinct[cacheKey];
       const rawValues =
-        remote && remote.values.length > 0
+        remote && (remote.values.length > 0 || (remote.emptyCount ?? 0) > 0)
           ? remote.values
           : data.map((r) => getCellRawValue(r, col));
       const colType = resolveColumnType(col);
@@ -396,7 +398,8 @@ export function DataTable<T extends Record<string, any>>({
         labelOf: col.labelOf ? (v) => col.labelOf!(v) : undefined,
         toneOf: col.toneOf ? (v) => col.toneOf!(v) : undefined,
         presetOptions: col.filterOptions,
-        includeEmpty: !remote,
+        includeEmpty: remote ? Boolean(remote.hasEmpty || (remote.emptyCount ?? 0) > 0) : true,
+        emptyCount: remote?.emptyCount,
         counts: remote?.counts,
         type: colType,
       });

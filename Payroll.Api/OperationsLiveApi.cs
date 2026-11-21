@@ -177,38 +177,36 @@ public static class OperationsLiveApi
         var aliases = AliasesFor(tab, view);
         _ = TableFilterContract.ParseFilters(ctx.Request.Query, whitelist, aliases);
 
-        if (column.Length == 0)
-            return new JsonObject { ["column"] = "", ["values"] = new JsonArray(), ["counts"] = new JsonObject() };
-
-        // Closed sets that never require a heavy scan when no filters are active
-        if (!TableFilterContract.HasContractParams(ctx.Request.Query))
-        {
-            if (tab == "fuel" && column is "status")
-                return new JsonObject { ["column"] = column, ["values"] = new JsonArray("نشطة", "غير نشطة") };
-            if (tab == "vehicles" && view == "invoices" && column is "status")
-                return new JsonObject { ["column"] = column, ["values"] = new JsonArray("مرحّل", "معكوس") };
-            if (tab == "fuel" && column is "provider" or "providerNameAr")
-                return new JsonObject { ["column"] = column, ["values"] = new JsonArray("شركة بترو اب", "شركة سيارة اب") };
-        }
-
-        if (!whitelist.Contains(column))
-            return new JsonObject { ["column"] = column, ["values"] = new JsonArray(), ["counts"] = new JsonObject() };
+        if (column.Length == 0 || !whitelist.Contains(column))
+            return new JsonObject { ["column"] = column, ["values"] = new JsonArray(), ["counts"] = new JsonObject(), ["hasEmpty"] = false, ["emptyCount"] = 0 };
 
         var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
         DateOnly month = ParseMonth(ctx);
         string mode = (ctx.Request.Query["mode"].ToString() is { Length: > 0 } m && m == "rider") ? "rider" : "vehicle";
+        var (_, _, city, status, search) = ParsePage(ctx);
+        string provider = (ctx.Request.Query["provider"].ToString() ?? "").Trim();
         List<JsonObject> rows = [];
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
         {
-            rows = store.Read(c => tab switch
+            rows = store.Read(c => (tab, view) switch
             {
-                "cities" => BuildStoreCities(c, ctx.User).Items.ToList(),
-                "housing" => ExtractItems(BuildStoreHousing(c, ctx.User, 1, 50_000, "", "", "")),
-                "vehicles" when view == "invoices" => ExtractItems(BuildStorePurchases(c, ctx.User, from, to, 1, 50_000, "")),
-                "vehicles" => ExtractItems(BuildStorePeriod(c, ctx.User, from, to, mode, 1, 50_000)),
-                "fuel" => ExtractItems(BuildStoreFuel(c, ctx.User, month, 1, 50_000)),
+                ("cities", _) => BuildStoreCities(c, ctx.User).Items.ToList(),
+                ("housing", _) => ExtractItems(BuildStoreHousing(c, ctx.User, 1, 50_000, city, status, search)),
+                ("vehicles", "invoices") => ExtractItems(BuildStorePurchases(c, ctx.User, from, to, 1, 50_000, search)),
+                ("vehicles", "oil") => new List<JsonObject>(),
+                ("vehicles", _) => ExtractItems(BuildStorePeriod(c, ctx.User, from, to, mode, 1, 50_000)),
+                ("fuel", "log") => new List<JsonObject>(),
+                ("fuel", _) => ExtractItems(BuildStoreFuel(c, ctx.User, month, 1, 50_000)),
                 _ => new List<JsonObject>()
             });
+            if (search.Length > 0 && tab is "cities" or "vehicles" or "fuel" && view != "invoices")
+            {
+                rows = rows.Where(r => TextSearch.Matches(search, string.Join(' ', r.Select(kv => kv.Value?.ToString() ?? "")))).ToList();
+            }
+            if (provider.Length > 0 && tab == "fuel" && view != "log")
+            {
+                rows = rows.Where(r => string.Equals(r.S("provider"), provider, StringComparison.OrdinalIgnoreCase) || string.Equals(r.S("providerNameAr"), provider, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
         }
         else
         {
@@ -221,12 +219,12 @@ public static class OperationsLiveApi
                     return (tab, view) switch
                     {
                         ("cities", _) => OperationsLiveQuery.CitiesSummary(erp, scope, token).Items.ToList(),
-                        ("housing", _) => OperationsLiveQuery.HousingExport(erp, "", "", "", scope, ExportTimeoutSeconds(config), token).Items.ToList(),
-                        ("vehicles", "invoices") => OperationsLiveQuery.PurchaseInvoices(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, "", scope, null, token, unpaged: true).Items.ToList(),
-                        ("vehicles", "oil") => OperationsLiveQuery.OilChangesPeriod(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, "", scope, export: true, token).Items.ToList(),
-                        ("vehicles", _) => OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, 1, OperationsLiveQuery.MaxPageSize, "", scope, detailed: true, token).Items.ToList(),
-                        ("fuel", "log") => OperationsLiveQuery.FuelAssignments(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, scope, token, unpaged: true).Items.ToList(),
-                        ("fuel", _) => OperationsLiveQuery.FuelCardsExport(erp, month, "", "", scope, ExportTimeoutSeconds(config), token).Items.ToList(),
+                        ("housing", _) => OperationsLiveQuery.HousingExport(erp, city, status, search, scope, ExportTimeoutSeconds(config), token).Items.ToList(),
+                        ("vehicles", "invoices") => OperationsLiveQuery.PurchaseInvoices(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, scope, null, token, unpaged: true).Items.ToList(),
+                        ("vehicles", "oil") => OperationsLiveQuery.OilChangesPeriod(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, scope, export: true, token).Items.ToList(),
+                        ("vehicles", _) => OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, 1, OperationsLiveQuery.MaxPageSize, search, scope, detailed: true, token).Items.ToList(),
+                        ("fuel", "log") => OperationsLiveQuery.FuelAssignments(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, scope, token, unpaged: true, search: search).Items.ToList(),
+                        ("fuel", _) => OperationsLiveQuery.FuelCardsExport(erp, month, provider, search, scope, ExportTimeoutSeconds(config), token).Items.ToList(),
                         _ => new List<JsonObject>()
                     };
                 });

@@ -2384,6 +2384,6 @@ export const api = {
       });
     }
     const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
-    return handleRequest<{ column: string; values: string[]; counts?: Record<string, number> }>(`${clean}?${q.toString()}`);
+    return handleRequest<{ column: string; values: string[]; counts?: Record<string, number>; hasEmpty?: boolean; emptyCount?: number }>(`${clean}?${q.toString()}`);
   },
 };

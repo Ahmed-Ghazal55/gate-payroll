@@ -797,6 +797,7 @@ export interface ExtractDistinctConfig {
   toneOf?: (val: any) => BadgeTone | null | undefined;
   presetOptions?: ReadonlyArray<ColumnFilterOption>;
   includeEmpty?: boolean;
+  emptyCount?: number;
   counts?: Record<string, number>;
   type?: ColumnDataType;
 }
@@ -820,7 +821,7 @@ export function extractDistinctOptions(
     string,
     { rawValue: string; label: string; count: number; tone?: BadgeTone }
   >();
-  let emptyCount = 0;
+  let emptyCount = config?.emptyCount ?? 0;
 
   // Seed preset options first so closed sets are always present
   if (config?.presetOptions) {

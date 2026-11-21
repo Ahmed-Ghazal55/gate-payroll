@@ -1335,7 +1335,12 @@ function DebtsPageContent() {
               searchable={false}
               serverSide={true}
               distinctEndpoint="/debts/distinct"
-              distinctParams={{ filters: debtsServerQuery.filtersParam }}
+              distinctParams={{
+                q: debouncedSearch || undefined,
+                status: selectedStatus !== 'all' ? selectedStatus : undefined,
+                category: selectedCategory !== 'all' ? selectedCategory : undefined,
+                filters: debtsServerQuery.filtersParam,
+              }}
               onServerQueryChange={(sq) => {
                 const next = { filtersParam: sq.filtersParam, sortParam: sq.sortParam };
                 setDebtsServerQuery(next);

@@ -381,13 +381,13 @@ public static class TableFilterContract
     {
         string col = (rawColumn ?? "").Trim();
         if (col.Length == 0)
-            return new JsonObject { ["column"] = "", ["values"] = new JsonArray(), ["counts"] = new JsonObject() };
+            return new JsonObject { ["column"] = "", ["values"] = new JsonArray(), ["counts"] = new JsonObject(), ["hasEmpty"] = false, ["emptyCount"] = 0 };
 
         string mappedCol = columnAliases != null && columnAliases.TryGetValue(col, out var alias)
             ? alias
             : col;
         if (whitelist != null && !whitelist.Contains(col) && !whitelist.Contains(mappedCol))
-            return new JsonObject { ["column"] = col, ["values"] = new JsonArray(), ["counts"] = new JsonObject() };
+            return new JsonObject { ["column"] = col, ["values"] = new JsonArray(), ["counts"] = new JsonObject(), ["hasEmpty"] = false, ["emptyCount"] = 0 };
 
         var rows = source.ToList();
         if (query != null && query.ContainsKey("filters"))
@@ -403,10 +403,15 @@ public static class TableFilterContract
         }
 
         var counts = new Dictionary<string, (string Canonical, int Count)>(StringComparer.OrdinalIgnoreCase);
+        int emptyCount = 0;
         foreach (var r in rows)
         {
             string val = GetRawString(r, mappedCol).Trim();
-            if (IsBlank(val)) continue;
+            if (IsBlank(val))
+            {
+                emptyCount++;
+                continue;
+            }
             if (counts.TryGetValue(val, out var existing))
                 counts[val] = (existing.Canonical, existing.Count + 1);
             else
@@ -428,7 +433,9 @@ public static class TableFilterContract
         {
             ["column"] = col,
             ["values"] = valuesArr,
-            ["counts"] = countsObj
+            ["counts"] = countsObj,
+            ["hasEmpty"] = emptyCount > 0,
+            ["emptyCount"] = emptyCount
         };
     }
 

@@ -132,9 +132,14 @@ public static partial class Debts
         _ = TableFilterContract.ParseFilters(query, AllowedDebtColumns, DebtColumnAliases);
         string rawCol = (query["column"].ToString() ?? "").Trim();
         if (!AllowedDebtColumns.Contains(rawCol))
-            return new JsonObject { ["column"] = rawCol, ["values"] = new JsonArray(), ["counts"] = new JsonObject() };
+            return new JsonObject { ["column"] = rawCol, ["values"] = new JsonArray(), ["counts"] = new JsonObject(), ["hasEmpty"] = false, ["emptyCount"] = 0 };
 
-        var filter = ParseFilter(query) with { Status = null, Category = null, Search = null };
+        var parsed = ParseFilter(query);
+        var filter = parsed with
+        {
+            Status = rawCol.Equals("status", StringComparison.OrdinalIgnoreCase) ? null : parsed.Status,
+            Category = rawCol.Equals("category", StringComparison.OrdinalIgnoreCase) || rawCol.Equals("categoryAr", StringComparison.OrdinalIgnoreCase) ? null : parsed.Category
+        };
         var (where, parms) = BuildWhere(c, actor, filter);
 
         if (TableFilterContract.HasContractParams(query) || !DistinctColumnMap.TryGetValue(rawCol, out string? field))
@@ -159,22 +164,36 @@ public static partial class Debts
             cmd.Parameters.Add(p);
         }
         var counts = new SortedDictionary<string, int>(StringComparer.OrdinalIgnoreCase);
-        using var reader = cmd.ExecuteReader();
-        while (reader.Read())
+        using (var reader = cmd.ExecuteReader())
         {
-            if (reader.IsDBNull(0)) continue;
-            string v = Convert.ToString(reader.GetValue(0), CultureInfo.InvariantCulture)?.Trim() ?? "";
-            if (v.Length == 0) continue;
-            int cnt = reader.IsDBNull(1) ? 1 : Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture);
-            counts[v] = counts.TryGetValue(v, out int prev) ? prev + cnt : cnt;
+            while (reader.Read())
+            {
+                if (reader.IsDBNull(0)) continue;
+                string v = Convert.ToString(reader.GetValue(0), CultureInfo.InvariantCulture)?.Trim() ?? "";
+                if (v.Length == 0) continue;
+                int cnt = reader.IsDBNull(1) ? 1 : Convert.ToInt32(reader.GetValue(1), CultureInfo.InvariantCulture);
+                counts[v] = counts.TryGetValue(v, out int prev) ? prev + cnt : cnt;
+            }
         }
+        using var emptyCmd = c.CreateCommand();
+        emptyCmd.CommandText = $"SELECT COUNT(*) FROM records WHERE {where} AND ({expr} IS NULL OR {expr} = '')";
+        foreach (var (k, v) in parms)
+        {
+            var p = emptyCmd.CreateParameter();
+            p.ParameterName = k;
+            p.Value = v ?? DBNull.Value;
+            emptyCmd.Parameters.Add(p);
+        }
+        int emptyCount = Convert.ToInt32(emptyCmd.ExecuteScalar() ?? 0, CultureInfo.InvariantCulture);
         var countsObj = new JsonObject();
         foreach (var (k, cnt) in counts) countsObj[k] = cnt;
         return new JsonObject
         {
             ["column"] = rawCol,
             ["values"] = new JsonArray(counts.Keys.Select(v => (JsonNode?)v).ToArray()),
-            ["counts"] = countsObj
+            ["counts"] = countsObj,
+            ["hasEmpty"] = emptyCount > 0,
+            ["emptyCount"] = emptyCount
         };
     }
 

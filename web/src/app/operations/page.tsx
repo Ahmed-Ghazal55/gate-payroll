@@ -895,7 +895,7 @@ function OperationsPageInner() {
           getRowId={(r) => String(r.id || Math.random())}
           serverSide
           distinctEndpoint="/operations/distinct"
-          distinctParams={{ tab, view, from, to, month, mode, filters: serverQuery.filtersParam }}
+          distinctParams={{ tab, view, from, to, month, mode, q: debouncedQ || undefined, filters: serverQuery.filtersParam }}
           onServerQueryChange={(sq) => {
             setServerQuery({ filtersParam: sq.filtersParam, sortParam: sq.sortParam });
             replaceParams({ page: '1' });

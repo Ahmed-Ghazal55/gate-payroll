@@ -1273,12 +1273,14 @@ function WorkforcePageInner() {
               serverSide
               distinctEndpoint="/workforce/distinct"
               distinctParams={{
+                q: debouncedQuery.trim() || undefined,
                 sponsorship: filters.sponsorship || undefined,
                 workType: filters.workType || undefined,
                 status: filters.status || undefined,
                 sponsorUnified: filters.sponsorUnified || undefined,
                 platform: filters.platform || undefined,
                 city: filters.city || undefined,
+                missingIban: filters.missingIban ? 'true' : undefined,
                 filters: directoryServerQuery.filtersParam,
               }}
               onServerQueryChange={(sq) => {
