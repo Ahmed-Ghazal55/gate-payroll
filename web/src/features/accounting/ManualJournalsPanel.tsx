@@ -128,45 +128,53 @@ export function ManualJournalsPanel({
     () => (selectedJournal?.lines || []).map((l, idx) => ({ ...l, _idx: idx + 1 })),
     [selectedJournal]
   );
-  const drawerLinesFilter = useTableAutoFilter(drawerLinesWithIdx, [
-    { key: 'idx', header: '#', type: 'number', getValue: (l) => l._idx },
-    {
-      key: 'accountCode',
-      header: 'الحساب',
-      type: 'list',
-      getValue: (l) => l.accountCode || '',
-      labelOf: (v) => {
-        const code = String(v ?? '');
-        const name = accountMap.get(code);
-        return name ? `${code} - ${name}` : code || '—';
+  const drawerLinesCols = useMemo(
+    () => [
+      { key: 'idx', header: '#', type: 'number' as const, getValue: (l: any) => l._idx },
+      {
+        key: 'accountCode',
+        header: 'الحساب',
+        type: 'list' as const,
+        getValue: (l: any) => l.accountCode || '',
+        labelOf: (v: unknown) => {
+          const code = String(v ?? '');
+          const name = accountMap.get(code);
+          return name ? `${code} - ${name}` : code || '—';
+        },
       },
-    },
-    { key: 'debit', header: 'مدين (ر.س)', type: 'number', getValue: (l) => Number(l.debit || 0) },
-    { key: 'credit', header: 'دائن (ر.س)', type: 'number', getValue: (l) => Number(l.credit || 0) },
-    { key: 'note', header: 'البيان / الملاحظة', type: 'text', getValue: (l) => l.note || '' },
-  ]);
+      { key: 'debit', header: 'مدين (ر.س)', type: 'number' as const, getValue: (l: any) => Number(l.debit || 0) },
+      { key: 'credit', header: 'دائن (ر.س)', type: 'number' as const, getValue: (l: any) => Number(l.credit || 0) },
+      { key: 'note', header: 'البيان / الملاحظة', type: 'text' as const, getValue: (l: any) => l.note || '' },
+    ],
+    [accountMap]
+  );
+  const drawerLinesFilter = useTableAutoFilter(drawerLinesWithIdx, drawerLinesCols);
 
   const draftLinesWithIdx = useMemo(
     () => lines.map((l, idx) => ({ ...l, _idx: idx })),
     [lines]
   );
-  const draftLinesFilter = useTableAutoFilter(draftLinesWithIdx, [
-    { key: 'idx', header: '#', type: 'number', getValue: (l) => l._idx + 1 },
-    {
-      key: 'accountCode',
-      header: 'الحساب *',
-      type: 'list',
-      getValue: (l) => l.accountCode || '',
-      labelOf: (v) => {
-        const code = String(v ?? '');
-        const name = accountMap.get(code);
-        return name ? `${code} - ${name}` : code || '—';
+  const draftLinesCols = useMemo(
+    () => [
+      { key: 'idx', header: '#', type: 'number' as const, getValue: (l: any) => l._idx + 1 },
+      {
+        key: 'accountCode',
+        header: 'الحساب *',
+        type: 'list' as const,
+        getValue: (l: any) => l.accountCode || '',
+        labelOf: (v: unknown) => {
+          const code = String(v ?? '');
+          const name = accountMap.get(code);
+          return name ? `${code} - ${name}` : code || '—';
+        },
       },
-    },
-    { key: 'debit', header: 'مدين (ر.س)', type: 'number', getValue: (l) => Number(l.debit || 0) },
-    { key: 'credit', header: 'دائن (ر.س)', type: 'number', getValue: (l) => Number(l.credit || 0) },
-    { key: 'note', header: 'ملاحظة السطر', type: 'text', getValue: (l) => l.note || '' },
-  ]);
+      { key: 'debit', header: 'مدين (ر.س)', type: 'number' as const, getValue: (l: any) => Number(l.debit || 0) },
+      { key: 'credit', header: 'دائن (ر.س)', type: 'number' as const, getValue: (l: any) => Number(l.credit || 0) },
+      { key: 'note', header: 'ملاحظة السطر', type: 'text' as const, getValue: (l: any) => l.note || '' },
+    ],
+    [accountMap]
+  );
+  const draftLinesFilter = useTableAutoFilter(draftLinesWithIdx, draftLinesCols);
 
   // Load manual journals
   const loadJournals = async () => {

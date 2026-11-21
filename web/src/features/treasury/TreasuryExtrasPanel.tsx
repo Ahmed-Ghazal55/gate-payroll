@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Wallet, Landmark, History } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -23,11 +23,18 @@ export function TreasuryExtrasPanel() {
   const [liability, setLiability] = useState({ debtId: '', paymentVaultCode: '', amount: '', sourceRef: '', period: '2026-10' });
   const [legacyJson, setLegacyJson] = useState('{}');
   const [legacyPreview, setLegacyPreview] = useState<Record<string, unknown> | null>(null);
-  const legacyEntries = legacyPreview ? formatRecordEntries(legacyPreview) : [];
-  const legacyFilter = useTableAutoFilter(legacyEntries, [
-    { key: 'key', header: 'الحقل', type: 'list', getValue: (e) => e.key || '' },
-    { key: 'value', header: 'القيمة', type: 'text', getValue: (e) => String(e.value ?? '') },
-  ]);
+  const legacyEntries = useMemo(
+    () => (legacyPreview ? formatRecordEntries(legacyPreview) : []),
+    [legacyPreview]
+  );
+  const legacyCols = useMemo(
+    () => [
+      { key: 'key', header: 'الحقل', type: 'list' as const, getValue: (e: { key: string; value: string }) => e.key || '' },
+      { key: 'value', header: 'القيمة', type: 'text' as const, getValue: (e: { key: string; value: string }) => String(e.value ?? '') },
+    ],
+    []
+  );
+  const legacyFilter = useTableAutoFilter(legacyEntries, legacyCols);
 
   if (!canMada && !canLiability && !canLegacy) {
     return <EmptyState title="صلاحية غير كافية" description="لا تملك صلاحيات مدا أو سداد الالتزام أو التوزيع القديم." />;

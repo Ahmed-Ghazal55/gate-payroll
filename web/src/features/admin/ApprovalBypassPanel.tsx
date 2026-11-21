@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, ShieldAlert, Ban } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -33,19 +33,23 @@ export function ApprovalBypassPanel() {
 
   useEffect(() => { load(); }, [load]);
 
-  const bypassFilter = useTableAutoFilter<ApprovalBypassGrant>(rows, [
-    { key: 'username', header: 'المستخدم', type: 'list', getValue: (g) => g.username || '' },
-    { key: 'period', header: 'الفترة', type: 'date', getValue: (g) => g.from || '', labelOf: (v) => String(v ?? '') },
-    { key: 'reason', header: 'السبب', type: 'text', getValue: (g) => g.reason || '' },
-    {
-      key: 'status',
-      header: 'الحالة',
-      type: 'list',
-      getValue: (g) => (g.revokedAt ? 'revoked' : 'active'),
-      labelOf: (v) => (v === 'revoked' ? 'مسحوب' : 'ساري'),
-      toneOf: (v) => (v === 'revoked' ? 'danger' : 'success'),
-    },
-  ]);
+  const bypassCols = useMemo(
+    () => [
+      { key: 'username', header: 'المستخدم', type: 'list' as const, getValue: (g: ApprovalBypassGrant) => g.username || '' },
+      { key: 'period', header: 'الفترة', type: 'date' as const, getValue: (g: ApprovalBypassGrant) => g.from || '', labelOf: (v: unknown) => String(v ?? '') },
+      { key: 'reason', header: 'السبب', type: 'text' as const, getValue: (g: ApprovalBypassGrant) => g.reason || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (g: ApprovalBypassGrant) => (g.revokedAt ? 'revoked' : 'active'),
+        labelOf: (v: unknown) => (v === 'revoked' ? 'مسحوب' : 'ساري'),
+        toneOf: (v: unknown) => (v === 'revoked' ? 'danger' : 'success'),
+      },
+    ],
+    []
+  );
+  const bypassFilter = useTableAutoFilter<ApprovalBypassGrant>(rows, bypassCols);
 
   if (!allowed) {
     return <EmptyState title="صلاحية غير كافية" description="منح تجاوز الاعتماد متاح لمدير النظام أو من يملك users.manage." />;

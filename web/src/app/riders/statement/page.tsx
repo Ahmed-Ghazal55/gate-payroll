@@ -50,15 +50,20 @@ function RiderStatementPageInner() {
   const [monthlyStatement, setMonthlyStatement] = useState<MonthlyRiderStatement | null>(null);
   const [profile, setProfile] = useState<RiderProfile360 | null>(null);
 
-  const timelineFilter = useTableAutoFilter(statement?.entries || [], [
-    { key: 'date', header: 'التاريخ', type: 'date', getValue: (e) => e.date || '' },
-    { key: 'entryType', header: 'نوع الحركة', type: 'list', getValue: (e) => e.entryType || '' },
-    { key: 'description', header: 'البيان والتفاصيل', type: 'text', getValue: (e) => e.description || '' },
-    { key: 'reference', header: 'رقم المرجع', type: 'text', getValue: (e) => e.reference || '' },
-    { key: 'debit', header: 'مدين (له)', type: 'number', getValue: (e) => Number(e.debit ?? 0) },
-    { key: 'credit', header: 'دائن (عليه)', type: 'number', getValue: (e) => Number(e.credit ?? 0) },
-    { key: 'balance', header: 'الرصيد التراكمي', type: 'number', getValue: (e) => Number(e.balance ?? 0) },
-  ]);
+  const statementEntries = useMemo(() => statement?.entries || [], [statement?.entries]);
+  const timelineFilterCols = useMemo(
+    () => [
+      { key: 'date', header: 'التاريخ', type: 'date' as const, getValue: (e: any) => e.date || '' },
+      { key: 'entryType', header: 'نوع الحركة', type: 'list' as const, getValue: (e: any) => e.entryType || '' },
+      { key: 'description', header: 'البيان والتفاصيل', type: 'text' as const, getValue: (e: any) => e.description || '' },
+      { key: 'reference', header: 'رقم المرجع', type: 'text' as const, getValue: (e: any) => e.reference || '' },
+      { key: 'debit', header: 'مدين (له)', type: 'number' as const, getValue: (e: any) => Number(e.debit ?? 0) },
+      { key: 'credit', header: 'دائن (عليه)', type: 'number' as const, getValue: (e: any) => Number(e.credit ?? 0) },
+      { key: 'balance', header: 'الرصيد التراكمي', type: 'number' as const, getValue: (e: any) => Number(e.balance ?? 0) },
+    ],
+    []
+  );
+  const timelineFilter = useTableAutoFilter(statementEntries, timelineFilterCols);
 
   const fetchStatement = async (targetIqama?: string) => {
     const q = (targetIqama || iqama).trim();

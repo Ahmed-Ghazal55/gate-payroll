@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Plus, CheckCircle2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -52,19 +52,23 @@ export function AccountingAdjustmentsPanel({ companies }: { companies: Array<{ i
     if (s === 'administrative_charge') return 'رسم إداري';
     return s || '—';
   };
-  const adjFilter = useTableAutoFilter<Adj>(rows, [
-    { key: 'type', header: 'النوع', type: 'list', getValue: (r) => String(r.type || ''), labelOf: adjTypeLabel },
-    { key: 'reference', header: 'المرجع', type: 'text', getValue: (r) => String(r.reference || '') },
-    { key: 'amount', header: 'المبلغ', type: 'number', getValue: (r) => Number(r.amount || 0) },
-    {
-      key: 'status',
-      header: 'الحالة',
-      type: 'list',
-      getValue: (r) => String(r.status || ''),
-      labelOf: (v) => (v === 'approved' ? 'معتمد' : v === 'draft' ? 'مسودة' : String(v ?? '—')),
-      toneOf: (v) => (v === 'approved' ? 'success' : v === 'draft' ? 'warning' : 'neutral'),
-    },
-  ]);
+  const adjCols = useMemo(
+    () => [
+      { key: 'type', header: 'النوع', type: 'list' as const, getValue: (r: Adj) => String(r.type || ''), labelOf: adjTypeLabel },
+      { key: 'reference', header: 'المرجع', type: 'text' as const, getValue: (r: Adj) => String(r.reference || '') },
+      { key: 'amount', header: 'المبلغ', type: 'number' as const, getValue: (r: Adj) => Number(r.amount || 0) },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (r: Adj) => String(r.status || ''),
+        labelOf: (v: unknown) => (v === 'approved' ? 'معتمد' : v === 'draft' ? 'مسودة' : String(v ?? '—')),
+        toneOf: (v: unknown) => (v === 'approved' ? 'success' : v === 'draft' ? 'warning' : 'neutral'),
+      },
+    ],
+    []
+  );
+  const adjFilter = useTableAutoFilter<Adj>(rows, adjCols);
 
   if (!canCreate && !canApprove) {
     return <EmptyState title="صلاحية غير كافية" description="تسويات مدا/الراتب/الرسوم الإدارية تحتاج صلاحية قيود." />;

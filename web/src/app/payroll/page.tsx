@@ -1946,7 +1946,7 @@ function PayrollPageInner() {
   );
   const policiesFilter = useTableAutoFilter(policies, policiesFilterCols);
 
-  const ledgerRows = ledgerData?.rows || [];
+  const ledgerRows = useMemo(() => ledgerData?.rows || [], [ledgerData?.rows]);
   const ledgerFilterCols = useMemo(
     () => [
       { key: 'period', header: 'الفترة', type: 'date' as const, getValue: (r: any) => r.period || '' },

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   SlidersHorizontal,
   Plus,
@@ -84,44 +84,49 @@ export function ConfigListsPanel() {
 
   const activeGroup = groups.find((g) => g.group === activeGroupKey) || groups[0];
 
-  const configFilter = useTableAutoFilter<ConfigListItem>(activeGroup?.items || [], [
-    { key: 'code', header: 'الكود', type: 'text', getValue: (it) => it.code || '' },
-    { key: 'nameAr', header: 'الاسم بالعربي', type: 'text', getValue: (it) => it.nameAr || '' },
-    ...(activeGroup?.fields || []).map((f) => ({
-      key: `field_${f.key}`,
-      header: f.labelAr,
-      type: (f.type === 'number' ? 'number' : f.type === 'bool' || f.type === 'select' ? 'list' : 'text') as
-        | 'text'
-        | 'number'
-        | 'list',
-      getValue: (it: ConfigListItem) => {
-        const raw = it.values?.[f.key];
-        if (f.type === 'bool') return raw ? 'yes' : 'no';
-        if (f.type === 'number') return Number(raw ?? 0);
-        return String(raw ?? '');
+  const activeGroupItems = useMemo(() => activeGroup?.items || [], [activeGroup?.items]);
+  const configCols = useMemo(
+    () => [
+      { key: 'code', header: 'الكود', type: 'text' as const, getValue: (it: ConfigListItem) => it.code || '' },
+      { key: 'nameAr', header: 'الاسم بالعربي', type: 'text' as const, getValue: (it: ConfigListItem) => it.nameAr || '' },
+      ...(activeGroup?.fields || []).map((f) => ({
+        key: `field_${f.key}`,
+        header: f.labelAr,
+        type: (f.type === 'number' ? 'number' : f.type === 'bool' || f.type === 'select' ? 'list' : 'text') as
+          | 'text'
+          | 'number'
+          | 'list',
+        getValue: (it: ConfigListItem) => {
+          const raw = it.values?.[f.key];
+          if (f.type === 'bool') return raw ? 'yes' : 'no';
+          if (f.type === 'number') return Number(raw ?? 0);
+          return String(raw ?? '');
+        },
+        labelOf:
+          f.type === 'bool'
+            ? (v: unknown) => (v === 'yes' ? 'نعم' : 'لا')
+            : undefined,
+      })),
+      {
+        key: 'active',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (it: ConfigListItem) => (it.active ? 'active' : 'inactive'),
+        labelOf: (v: unknown) => (v === 'active' ? 'نشط' : 'معطل'),
+        toneOf: (v: unknown) => (v === 'active' ? 'success' : 'neutral'),
       },
-      labelOf:
-        f.type === 'bool'
-          ? (v: unknown) => (v === 'yes' ? 'نعم' : 'لا')
-          : undefined,
-    })),
-    {
-      key: 'active',
-      header: 'الحالة',
-      type: 'list',
-      getValue: (it) => (it.active ? 'active' : 'inactive'),
-      labelOf: (v) => (v === 'active' ? 'نشط' : 'معطل'),
-      toneOf: (v) => (v === 'active' ? 'success' : 'neutral'),
-    },
-    {
-      key: 'status',
-      header: 'الاعتماد المالي',
-      type: 'list',
-      getValue: (it) => (it.status === 'pending_approval' ? 'pending_approval' : 'approved'),
-      labelOf: (v) => (v === 'pending_approval' ? 'بانتظار الاعتماد' : 'معتمد'),
-      toneOf: (v) => (v === 'pending_approval' ? 'warning' : 'success'),
-    },
-  ]);
+      {
+        key: 'status',
+        header: 'الاعتماد المالي',
+        type: 'list' as const,
+        getValue: (it: ConfigListItem) => (it.status === 'pending_approval' ? 'pending_approval' : 'approved'),
+        labelOf: (v: unknown) => (v === 'pending_approval' ? 'بانتظار الاعتماد' : 'معتمد'),
+        toneOf: (v: unknown) => (v === 'pending_approval' ? 'warning' : 'success'),
+      },
+    ],
+    [activeGroup?.fields]
+  );
+  const configFilter = useTableAutoFilter<ConfigListItem>(activeGroupItems, configCols);
 
   const handleOpenAdd = () => {
     setEditingItem(null);

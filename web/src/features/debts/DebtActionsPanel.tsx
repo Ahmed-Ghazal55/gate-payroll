@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Banknote, Plus, RefreshCw } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -35,13 +35,17 @@ export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: str
 
   useEffect(() => { loadSettlements(); }, [loadSettlements]);
 
-  const settlementFilter = useTableAutoFilter<Record<string, unknown>>(settlements, [
-    { key: 'receiptRef', header: 'السند', type: 'text', getValue: (s) => String(s.receiptRef || '') },
-    { key: 'debtId', header: 'الدين', type: 'text', getValue: (s) => String(s.debtId || '') },
-    { key: 'collectedAmount', header: 'محصّل', type: 'number', getValue: (s) => Number(s.collectedAmount || 0) },
-    { key: 'waivedAmount', header: 'إعفاء', type: 'number', getValue: (s) => Number(s.waivedAmount || 0) },
-    { key: 'date', header: 'التاريخ', type: 'date', getValue: (s) => String(s.collectionDate || s.createdAt || '') },
-  ]);
+  const settlementCols = useMemo(
+    () => [
+      { key: 'receiptRef', header: 'السند', type: 'text' as const, getValue: (s: Record<string, unknown>) => String(s.receiptRef || '') },
+      { key: 'debtId', header: 'الدين', type: 'text' as const, getValue: (s: Record<string, unknown>) => String(s.debtId || '') },
+      { key: 'collectedAmount', header: 'محصّل', type: 'number' as const, getValue: (s: Record<string, unknown>) => Number(s.collectedAmount || 0) },
+      { key: 'waivedAmount', header: 'إعفاء', type: 'number' as const, getValue: (s: Record<string, unknown>) => Number(s.waivedAmount || 0) },
+      { key: 'date', header: 'التاريخ', type: 'date' as const, getValue: (s: Record<string, unknown>) => String(s.collectionDate || s.createdAt || '') },
+    ],
+    []
+  );
+  const settlementFilter = useTableAutoFilter<Record<string, unknown>>(settlements, settlementCols);
 
   if (!canView) {
     return <EmptyState title="صلاحية غير كافية" description="عرض التحصيلات يحتاج صلاحية ديون." />;

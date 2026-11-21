@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { api, type DebtDeductionsView, type PayCycleItem } from '../../lib/api';
 import { useToast } from '../../components/ui/Toast';
 import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
@@ -48,30 +48,34 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
     }
   };
 
-  const rows: Row[] = view?.rows ?? [];
+  const rows: Row[] = useMemo(() => view?.rows ?? [], [view?.rows]);
   const pending = rows.filter((r) => r.status === 'pending');
   const canApproveMore = (cycle.allowedActions ?? []).includes('approve_salaries') && cycle.stage >= 7;
 
-  const debtStageFilter = useTableAutoFilter<Row>(rows, [
-    { key: 'rider', header: 'المندوب', type: 'text', getValue: (r) => r.rider || '' },
-    { key: 'salaryNet', header: 'صافي الراتب', type: 'number', getValue: (r) => Number(r.salaryNet ?? 0) },
-    {
-      key: 'items',
-      header: 'الديون',
-      type: 'text',
-      getValue: (r) =>
-        (r.items || []).map((it) => `${it.labelAr || it.category} ${it.amount}`).join(' | ') || 'لا توجد',
-    },
-    {
-      key: 'status',
-      header: 'الحالة',
-      type: 'list',
-      getValue: (r) => r.status || '',
-      labelOf: (v) => STATUS_AR[String(v ?? '')] ?? String(v ?? '—'),
-      toneOf: (v) =>
-        v === 'confirmed' ? 'success' : v === 'pending' ? 'warning' : 'neutral',
-    },
-  ]);
+  const debtStageCols = useMemo(
+    () => [
+      { key: 'rider', header: 'المندوب', type: 'text' as const, getValue: (r: Row) => r.rider || '' },
+      { key: 'salaryNet', header: 'صافي الراتب', type: 'number' as const, getValue: (r: Row) => Number(r.salaryNet ?? 0) },
+      {
+        key: 'items',
+        header: 'الديون',
+        type: 'text' as const,
+        getValue: (r: Row) =>
+          (r.items || []).map((it) => `${it.labelAr || it.category} ${it.amount}`).join(' | ') || 'لا توجد',
+      },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (r: Row) => r.status || '',
+        labelOf: (v: unknown) => STATUS_AR[String(v ?? '')] ?? String(v ?? '—'),
+        toneOf: (v: unknown) =>
+          v === 'confirmed' ? 'success' : v === 'pending' ? 'warning' : 'neutral',
+      },
+    ],
+    []
+  );
+  const debtStageFilter = useTableAutoFilter<Row>(rows, debtStageCols);
 
   return (
     <section id="debt-deduction-stage" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 space-y-3">

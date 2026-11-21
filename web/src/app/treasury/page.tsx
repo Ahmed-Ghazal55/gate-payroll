@@ -304,66 +304,83 @@ function TreasuryPageContent() {
     );
   }, [selectedAccount, journals]);
 
-  const vaultsFilter = useTableAutoFilter<FinanceAccount>(vaultAccounts, [
-    { key: 'code', header: 'رمز الحساب', type: 'list', getValue: (a) => a.code || '' },
-    { key: 'nameAr', header: 'اسم البنك / الخزينة', type: 'text', getValue: (a) => a.nameAr || '' },
-    {
-      key: 'type',
-      header: 'النوع والوظيفة',
-      type: 'list',
-      getValue: (a) => (a.code?.startsWith('111') ? 'bank' : 'cash'),
-      labelOf: (v) => (v === 'bank' ? 'حساب بنكي رئيسي' : 'صندوق نقدية تشغيلي'),
-    },
-    { key: 'sponsorName', header: 'الجهة الكفيلة', type: 'list', getValue: (a) => (a as any).sponsorName || 'عام' },
-    {
-      key: 'netBalance',
-      header: 'الرصيد الصافي الفعلي',
-      type: 'number',
-      getValue: (a) => Number(a.netBalance ?? 0),
-      toneOf: (v) => (Number(v ?? 0) < 0 ? 'danger' : 'success'),
-    },
-    { key: 'naturalSideAr', header: 'طبيعة الحساب', type: 'list', getValue: (a) => a.naturalSideAr || '' },
-  ]);
+  const vaultsCols = useMemo(
+    () => [
+      { key: 'code', header: 'رمز الحساب', type: 'list' as const, getValue: (a: FinanceAccount) => a.code || '' },
+      { key: 'nameAr', header: 'اسم البنك / الخزينة', type: 'text' as const, getValue: (a: FinanceAccount) => a.nameAr || '' },
+      {
+        key: 'type',
+        header: 'النوع والوظيفة',
+        type: 'list' as const,
+        getValue: (a: FinanceAccount) => (a.code?.startsWith('111') ? 'bank' : 'cash'),
+        labelOf: (v: unknown) => (v === 'bank' ? 'حساب بنكي رئيسي' : 'صندوق نقدية تشغيلي'),
+      },
+      { key: 'sponsorName', header: 'الجهة الكفيلة', type: 'list' as const, getValue: (a: FinanceAccount) => (a as any).sponsorName || 'عام' },
+      {
+        key: 'netBalance',
+        header: 'الرصيد الصافي الفعلي',
+        type: 'number' as const,
+        getValue: (a: FinanceAccount) => Number(a.netBalance ?? 0),
+        toneOf: (v: unknown) => (Number(v ?? 0) < 0 ? 'danger' : 'success'),
+      },
+      { key: 'naturalSideAr', header: 'طبيعة الحساب', type: 'list' as const, getValue: (a: FinanceAccount) => a.naturalSideAr || '' },
+    ],
+    []
+  );
+  const vaultsFilter = useTableAutoFilter<FinanceAccount>(vaultAccounts, vaultsCols);
 
-  const payoutsFilter = useTableAutoFilter<AdvanceRequest>(advancePayouts, [
-    { key: 'id', header: 'معرف السلفة', type: 'text', getValue: (r) => r.id || '' },
-    { key: 'rider', header: 'المندوب والإقامة', type: 'text', getValue: (r) => `${r.riderName || ''} ${r.riderIqama || ''}`.trim() },
-    {
-      key: 'type',
-      header: 'النوع والخزينة المكلفة',
-      type: 'list',
-      getValue: (r) => r.type || '',
-      labelOf: (v) => (v === 'internet' ? 'سلفة إنترنت' : v === 'cash' ? 'خزينة نقدية' : 'حساب بنكي'),
-    },
-    { key: 'amount', header: 'المبلغ المعتمد', type: 'number', getValue: (r) => Number(r.amount ?? 0) },
-    { key: 'monthlyInstallment', header: 'القسط الشهري', type: 'number', getValue: (r) => Number(r.monthlyInstallment ?? 0) },
-    { key: 'approvedBy', header: 'المعتمد وتاريخه', type: 'list', getValue: (r) => r.approvedBy || '' },
-    { key: 'reason', header: 'سبب الاعتماد', type: 'text', getValue: (r) => r.coverageReason || r.reason || '' },
-  ]);
+  const payoutsCols = useMemo(
+    () => [
+      { key: 'id', header: 'معرف السلفة', type: 'text' as const, getValue: (r: AdvanceRequest) => r.id || '' },
+      { key: 'rider', header: 'المندوب والإقامة', type: 'text' as const, getValue: (r: AdvanceRequest) => `${r.riderName || ''} ${r.riderIqama || ''}`.trim() },
+      {
+        key: 'type',
+        header: 'النوع والخزينة المكلفة',
+        type: 'list' as const,
+        getValue: (r: AdvanceRequest) => r.type || '',
+        labelOf: (v: unknown) => (v === 'internet' ? 'سلفة إنترنت' : v === 'cash' ? 'خزينة نقدية' : 'حساب بنكي'),
+      },
+      { key: 'amount', header: 'المبلغ المعتمد', type: 'number' as const, getValue: (r: AdvanceRequest) => Number(r.amount ?? 0) },
+      { key: 'monthlyInstallment', header: 'القسط الشهري', type: 'number' as const, getValue: (r: AdvanceRequest) => Number(r.monthlyInstallment ?? 0) },
+      { key: 'approvedBy', header: 'المعتمد وتاريخه', type: 'list' as const, getValue: (r: AdvanceRequest) => r.approvedBy || '' },
+      { key: 'reason', header: 'سبب الاعتماد', type: 'text' as const, getValue: (r: AdvanceRequest) => r.coverageReason || r.reason || '' },
+    ],
+    []
+  );
+  const payoutsFilter = useTableAutoFilter<AdvanceRequest>(advancePayouts, payoutsCols);
 
-  const bankRecordsFilter = useTableAutoFilter(bankFilePreview?.records || [], [
-    { key: 'riderIqama', header: 'رقم الإقامة', type: 'text', getValue: (r) => r.riderIqama || '' },
-    { key: 'riderName', header: 'اسم المندوب', type: 'text', getValue: (r) => r.riderName || '' },
-    { key: 'iban', header: 'الآيبان البنكي', type: 'text', getValue: (r) => `${r.iban || ''} ${r.bankName || ''}`.trim() },
-    { key: 'amount', header: 'مبلغ الصرف المستحق', type: 'number', getValue: (r) => Number(r.amount ?? 0) },
-    {
-      key: 'status',
-      header: 'الحالة',
-      type: 'list',
-      getValue: (r) => r.status || 'excluded',
-      labelOf: (v) => (v === 'valid' ? 'جاهز للصرف' : 'مستبعد'),
-      toneOf: (v) => (v === 'valid' ? 'success' : 'warning'),
-    },
-  ]);
+  const bankRecords = useMemo(() => bankFilePreview?.records || [], [bankFilePreview?.records]);
+  const bankRecordsCols = useMemo(
+    () => [
+      { key: 'riderIqama', header: 'رقم الإقامة', type: 'text' as const, getValue: (r: any) => r.riderIqama || '' },
+      { key: 'riderName', header: 'اسم المندوب', type: 'text' as const, getValue: (r: any) => r.riderName || '' },
+      { key: 'iban', header: 'الآيبان البنكي', type: 'text' as const, getValue: (r: any) => `${r.iban || ''} ${r.bankName || ''}`.trim() },
+      { key: 'amount', header: 'مبلغ الصرف المستحق', type: 'number' as const, getValue: (r: any) => Number(r.amount ?? 0) },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (r: any) => r.status || 'excluded',
+        labelOf: (v: unknown) => (v === 'valid' ? 'جاهز للصرف' : 'مستبعد'),
+        toneOf: (v: unknown) => (v === 'valid' ? 'success' : 'warning'),
+      },
+    ],
+    []
+  );
+  const bankRecordsFilter = useTableAutoFilter(bankRecords, bankRecordsCols);
 
-  const movementsFilter = useTableAutoFilter<FinanceJournal>(journals, [
-    { key: 'id', header: 'رقم القيد', type: 'text', getValue: (j) => j.id || '' },
-    { key: 'description', header: 'البيان والوصف', type: 'text', getValue: (j) => j.description || '' },
-    { key: 'entryDate', header: 'تاريخ الحركة', type: 'date', getValue: (j) => j.entryDate?.split('T')[0] || '' },
-    { key: 'totalDebit', header: 'المبلغ الإجمالي', type: 'number', getValue: (j) => Number(j.totalDebit ?? 0) },
-    { key: 'postedBy', header: 'المسؤول', type: 'list', getValue: (j) => (j as any).postedBy || j.createdBy || 'النظام' },
-    { key: 'status', header: 'الحالة', type: 'list', getValue: () => 'posted', labelOf: () => 'مرحل', toneOf: () => 'success' },
-  ]);
+  const movementsCols = useMemo(
+    () => [
+      { key: 'id', header: 'رقم القيد', type: 'text' as const, getValue: (j: FinanceJournal) => j.id || '' },
+      { key: 'description', header: 'البيان والوصف', type: 'text' as const, getValue: (j: FinanceJournal) => j.description || '' },
+      { key: 'entryDate', header: 'تاريخ الحركة', type: 'date' as const, getValue: (j: FinanceJournal) => j.entryDate?.split('T')[0] || '' },
+      { key: 'totalDebit', header: 'المبلغ الإجمالي', type: 'number' as const, getValue: (j: FinanceJournal) => Number(j.totalDebit ?? 0) },
+      { key: 'postedBy', header: 'المسؤول', type: 'list' as const, getValue: (j: FinanceJournal) => (j as any).postedBy || j.createdBy || 'النظام' },
+      { key: 'status', header: 'الحالة', type: 'list' as const, getValue: () => 'posted', labelOf: () => 'مرحل', toneOf: () => 'success' as const },
+    ],
+    []
+  );
+  const movementsFilter = useTableAutoFilter<FinanceJournal>(journals, movementsCols);
 
   return (
     <div className="space-y-6">

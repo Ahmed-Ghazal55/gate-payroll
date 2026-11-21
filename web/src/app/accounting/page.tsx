@@ -1450,16 +1450,20 @@ function TrialBalanceTable({
   totals: Record<string, number | undefined>;
   onExport?: (visibleRows: TrialBalanceCompanyRow[]) => void;
 }) {
-  const tf = useTableAutoFilter<TrialBalanceCompanyRow>(rows, [
-    { key: 'code', header: 'رمز الحساب', type: 'list', getValue: (r) => r.code || '' },
-    { key: 'nameAr', header: 'اسم الحساب', type: 'text', getValue: (r) => r.nameAr || r.name || '' },
-    { key: 'openingDebit', header: 'افتتاح مدين', type: 'number', getValue: (r) => Number(r.openingDebit || 0) },
-    { key: 'openingCredit', header: 'افتتاح دائن', type: 'number', getValue: (r) => Number(r.openingCredit || 0) },
-    { key: 'periodDebit', header: 'فترة مدين', type: 'number', getValue: (r) => Number(r.periodDebit || 0) },
-    { key: 'periodCredit', header: 'فترة دائن', type: 'number', getValue: (r) => Number(r.periodCredit || 0) },
-    { key: 'closingDebit', header: 'إغلاق مدين', type: 'number', getValue: (r) => Number(r.closingDebit || 0) },
-    { key: 'closingCredit', header: 'إغلاق دائن', type: 'number', getValue: (r) => Number(r.closingCredit || 0) },
-  ]);
+  const trialCols = useMemo(
+    () => [
+      { key: 'code', header: 'رمز الحساب', type: 'list' as const, getValue: (r: TrialBalanceCompanyRow) => r.code || '' },
+      { key: 'nameAr', header: 'اسم الحساب', type: 'text' as const, getValue: (r: TrialBalanceCompanyRow) => r.nameAr || r.name || '' },
+      { key: 'openingDebit', header: 'افتتاح مدين', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.openingDebit || 0) },
+      { key: 'openingCredit', header: 'افتتاح دائن', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.openingCredit || 0) },
+      { key: 'periodDebit', header: 'فترة مدين', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.periodDebit || 0) },
+      { key: 'periodCredit', header: 'فترة دائن', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.periodCredit || 0) },
+      { key: 'closingDebit', header: 'إغلاق مدين', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.closingDebit || 0) },
+      { key: 'closingCredit', header: 'إغلاق دائن', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.closingCredit || 0) },
+    ],
+    []
+  );
+  const tf = useTableAutoFilter<TrialBalanceCompanyRow>(rows, trialCols);
 
   return (
     <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
@@ -1562,13 +1566,17 @@ function TrialBalanceTable({
 }
 
 function JournalDrawerLinesTable({ lines }: { lines: any[] }) {
-  const tf = useTableAutoFilter<any>(lines, [
-    { key: 'accountCode', header: 'رقم الحساب', type: 'list', getValue: (l) => l.accountCode || '' },
-    { key: 'accountNameAr', header: 'اسم الحساب', type: 'text', getValue: (l) => l.accountNameAr || '' },
-    { key: 'debit', header: 'مدين', type: 'number', getValue: (l) => Number(l.debit || 0) },
-    { key: 'credit', header: 'دائن', type: 'number', getValue: (l) => Number(l.credit || 0) },
-    { key: 'description', header: 'البيان', type: 'text', getValue: (l) => l.description || '' },
-  ]);
+  const lineCols = useMemo(
+    () => [
+      { key: 'accountCode', header: 'رقم الحساب', type: 'list' as const, getValue: (l: any) => l.accountCode || '' },
+      { key: 'accountNameAr', header: 'اسم الحساب', type: 'text' as const, getValue: (l: any) => l.accountNameAr || '' },
+      { key: 'debit', header: 'مدين', type: 'number' as const, getValue: (l: any) => Number(l.debit || 0) },
+      { key: 'credit', header: 'دائن', type: 'number' as const, getValue: (l: any) => Number(l.credit || 0) },
+      { key: 'description', header: 'البيان', type: 'text' as const, getValue: (l: any) => l.description || '' },
+    ],
+    []
+  );
+  const tf = useTableAutoFilter<any>(lines, lineCols);
 
   return (
     <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
