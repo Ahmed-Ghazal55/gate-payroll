@@ -377,8 +377,11 @@ public static partial class Debts
                 : " ORDER BY COALESCE(JSON_VALUE(body,'$.createdAt'),JSON_VALUE(body,'$.at'),JSON_VALUE(body,'$.approvedAt'),'') DESC, id DESC";
         }
         bool desc = sort.StartsWith('-');
-        string field = sort.TrimStart('-');
-        if (!Regex.IsMatch(field, "^[A-Za-z][A-Za-z0-9_]*$")) throw new ApiError("حقل الترتيب غير صالح.");
+        string field = sort.TrimStart('-').Trim();
+        if (!Regex.IsMatch(field, "^[A-Za-z][A-Za-z0-9_]*$") || !AllowedDebtColumns.Contains(field))
+            throw new ApiError("حقل الترتيب غير صالح.", 400);
+        if (DebtColumnAliases.TryGetValue(field, out var mappedField))
+            field = mappedField;
         string expr = RiderDataIndexes.FieldExpr(c, field);
         if (NumericSortFields.Contains(field))
             expr = c is SqliteConnection

@@ -1250,7 +1250,7 @@ public static class RiderAsks
                     .OrderByDescending(x => x.S("createdAt"))
                     .Take(PushNotifications.MaxRiderListItems)
                     .ToList();
-                return ApiPagination.Apply(combined, ctx.Request.Query);
+                return ApiPagination.Apply(combined, ctx.Request.Query, whitelist: ServiceRequestAllowedColumns);
             });
         }).WithTags("Riders").WithSummary("Read own advance asks and two-way service requests with status timeline and replies");
 

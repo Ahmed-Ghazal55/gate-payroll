@@ -146,9 +146,17 @@ public static class TableFilterContract
         NormalizeText("مؤرشف"), NormalizeText("مغلق"), NormalizeText("عادي")
     };
 
-    public static bool HasContractParams(IQueryCollection query) =>
+    public const int MaxFilterClauses = 30;
+    public const int MaxValuesPerClause = 500;
+    public const int MaxSortClauses = 10;
+    public const int MaxValueLength = 500;
+    public const int MaxRawQueryLength = 32_768;
+
+    public static bool HasJsonContractParams(IQueryCollection query) =>
         (query.ContainsKey("filters") && !string.IsNullOrWhiteSpace(query["filters"].ToString())) ||
         (query.ContainsKey("sort") && query["sort"].ToString().TrimStart().StartsWith('['));
+
+    public static bool HasContractParams(IQueryCollection query) => HasJsonContractParams(query);
 
     public static IReadOnlyList<FilterClause> ParseFilters(
         IQueryCollection query,
@@ -157,6 +165,8 @@ public static class TableFilterContract
     {
         string raw = (query["filters"].ToString() ?? "").Trim();
         if (raw.Length == 0) return [];
+        if (raw.Length > MaxRawQueryLength)
+            throw new ApiError("معامل الفلاتر يتجاوز الحد المسموح به.", 400);
         JsonArray? arr;
         try
         {
@@ -167,6 +177,8 @@ public static class TableFilterContract
             throw new ApiError("صيغة معامل الفلاتر (filters) غير صالحة.", 400);
         }
         if (arr == null) throw new ApiError("معامل الفلاتر (filters) يجب أن يكون مصفوفة JSON.", 400);
+        if (arr.Count > MaxFilterClauses)
+            throw new ApiError($"عدد شروط الفلترة يتجاوز الحد الأقصى ({MaxFilterClauses}).", 400);
 
         var list = new List<FilterClause>(arr.Count);
         foreach (var node in arr)
@@ -189,10 +201,21 @@ public static class TableFilterContract
 
             string? val = obj["value"]?.ToString();
             string? valTo = obj["valueTo"]?.ToString();
+            if ((val != null && val.Length > MaxValueLength) || (valTo != null && valTo.Length > MaxValueLength))
+                throw new ApiError($"طول قيمة التصفية يتجاوز الحد الأقصى ({MaxValueLength}).", 400);
             List<string>? values = null;
             if (obj["values"] is JsonArray valArr)
             {
-                values = valArr.Select(v => v?.ToString() ?? "").ToList();
+                if (valArr.Count > MaxValuesPerClause)
+                    throw new ApiError($"عدد قيم التصفية يتجاوز الحد الأقصى ({MaxValuesPerClause}).", 400);
+                values = new List<string>(valArr.Count);
+                foreach (var v in valArr)
+                {
+                    string s = v?.ToString() ?? "";
+                    if (s.Length > MaxValueLength)
+                        throw new ApiError($"طول قيمة التصفية يتجاوز الحد الأقصى ({MaxValueLength}).", 400);
+                    values.Add(s);
+                }
             }
             else if (op.Equals("in", StringComparison.OrdinalIgnoreCase) && val != null)
             {
@@ -211,6 +234,8 @@ public static class TableFilterContract
     {
         string raw = (query["sort"].ToString() ?? "").Trim();
         if (raw.Length == 0) return [];
+        if (raw.Length > MaxRawQueryLength)
+            throw new ApiError("معامل الترتيب يتجاوز الحد المسموح به.", 400);
 
         if (raw.StartsWith('['))
         {
@@ -224,6 +249,8 @@ public static class TableFilterContract
                 throw new ApiError("صيغة معامل الترتيب (sort) غير صالحة.", 400);
             }
             if (arr == null) throw new ApiError("معامل الترتيب (sort) يجب أن يكون مصفوفة JSON.", 400);
+            if (arr.Count > MaxSortClauses)
+                throw new ApiError($"عدد شروط الترتيب يتجاوز الحد الأقصى ({MaxSortClauses}).", 400);
             var list = new List<SortClause>(arr.Count);
             foreach (var node in arr)
             {
@@ -241,6 +268,8 @@ public static class TableFilterContract
                 if (dir is not ("asc" or "desc"))
                     throw new ApiError("اتجاه الترتيب يجب أن يكون asc أو desc.", 400);
                 string? tone = obj["tone"]?.ToString()?.Trim();
+                if (tone != null && tone.Length > 32)
+                    throw new ApiError("لون الترتيب غير صالح.", 400);
                 list.Add(new SortClause(mappedCol, dir, string.IsNullOrEmpty(tone) ? null : tone));
             }
             return list;
