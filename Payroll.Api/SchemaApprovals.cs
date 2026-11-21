@@ -9,6 +9,8 @@ public static class SchemaApprovals
     public static void Ensure(DbConnection c,DbTransaction? tx=null)
     {
         SchemaSql.EnsureSchemas(c,tx,"approvals","auth");
+        // decision.delegation_id FK needs org.delegation (U-W1-18b) before this unit's DDL.
+        SchemaOrgStructure.Ensure(c,tx);
         EnsureApprovalLimit(c,tx);
         EnsureBypassGrant(c,tx);
         EnsureRequest(c,tx);
