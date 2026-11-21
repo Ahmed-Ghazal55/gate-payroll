@@ -39,16 +39,20 @@ public static class SchemaDebt
             CONSTRAINT FK_debt_mov_journal FOREIGN KEY(journal_id) REFERENCES {SchemaSql.Q(c,"fin","journal")}(id) ON DELETE NO ACTION
             """);
         foreach(string table in new[]{"import_batch","collection","disbursement","waiver"})EnsureDocument(c,tx,table);
+        // Permanent file identity: same company + kind + content hash cannot open a second batch.
+        SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"debt","import_batch","UQ_debt_import_file","company_id,import_kind,file_hash","file_hash IS NOT NULL");
+        SchemaMoneyGuard.Retain(c,tx,"debt","import_batch","o.company_id=NEW.company_id AND o.import_kind=NEW.import_kind AND o.file_hash=NEW.file_hash");
         SchemaSql.EnsureTable(c,tx,"debt","import_line",$"""
             id {g} NOT NULL, import_batch_id {g} NOT NULL, period_month {SchemaSql.Date(c)} NOT NULL,
-            line_no {SchemaSql.Int(c)} NOT NULL CHECK(line_no>0), debt_id {g} NOT NULL, company_id {g} NOT NULL,
-            amount {m} NOT NULL CHECK(amount<>0),
+            line_no {SchemaSql.Int(c)} NOT NULL CHECK(line_no>0), source_row {SchemaSql.Int(c)} NOT NULL CHECK(source_row>0),
+            debt_id {g} NOT NULL, company_id {g} NOT NULL, amount {m} NOT NULL CHECK(amount<>0),
             CONSTRAINT PK_debt_import_line {SchemaSql.PrimaryKey(c)}(id),
             CONSTRAINT UQ_debt_import_line UNIQUE(import_batch_id,line_no),
+            CONSTRAINT UQ_debt_import_source_row UNIQUE(import_batch_id,source_row),
             CONSTRAINT FK_debt_import_batch FOREIGN KEY(import_batch_id,company_id,period_month) REFERENCES {SchemaSql.Q(c,"debt","import_batch")}(id,company_id,period_month) ON DELETE NO ACTION,
             CONSTRAINT FK_debt_import_line_debt FOREIGN KEY(debt_id,company_id) REFERENCES {d}(id,company_id) ON DELETE NO ACTION
             """);
-        SchemaMoneyGuard.Retain(c,tx,"debt","import_line","o.import_batch_id=NEW.import_batch_id AND o.line_no=NEW.line_no");
+        SchemaMoneyGuard.Retain(c,tx,"debt","import_line","o.import_batch_id=NEW.import_batch_id AND (o.line_no=NEW.line_no OR o.source_row=NEW.source_row)");
         SchemaMoneyGuard.Rule(c,tx,"debt","import_line","TR_debt_import_line_frozen",
             n=>$"EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_batch")} b WHERE b.id={n}.import_batch_id AND b.status>=3)",
             (o,n)=>$"{n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"id","import_batch_id","company_id","period_month")}) OR EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_batch")} b WHERE b.id={o}.import_batch_id AND b.status>=3)");

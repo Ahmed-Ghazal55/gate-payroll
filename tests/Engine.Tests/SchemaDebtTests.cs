@@ -63,7 +63,7 @@ public sealed class SchemaDebtTests
         using var c=Open(sqlServer);
         string company=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company),rider=MoneySchemaFixture.Rider(c,run,company,net:100),debt=Debt(c,company,rider:rider),batch=MoneySchemaFixture.Id(),line=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_import_batch(id,company_id,period_month,amount,reason,file_hash,import_kind) VALUES(@id,@c,'2026-11-01',100,'Synthetic import',randomblob(32),'opening')",("@id",batch),("@c",company));
-        MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_import_line(id,import_batch_id,period_month,line_no,debt_id,company_id,amount) VALUES(@id,@b,'2026-11-01',1,@d,@c,100)",("@id",line),("@b",batch),("@d",debt),("@c",company));
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_import_line(id,import_batch_id,period_month,line_no,source_row,debt_id,company_id,amount) VALUES(@id,@b,'2026-11-01',1,1,@d,@c,100)",("@id",line),("@b",batch),("@d",debt),("@c",company));
         void Apply(string kind,string source,decimal amount,string? salaryRider=null)=>MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_debt_movement(id,debt_id,company_id,period_month,occurred_on,amount,source_type,source_id,pay_run_rider_id,pay_run_period_month) VALUES(@id,@d,@c,'2026-11-01','2026-11-20',@a,@kind,@s,@r,@rp)",("@id",MoneySchemaFixture.Id()),("@d",debt),("@c",company),("@a",amount),("@kind",kind),("@s",source),("@r",(object?)salaryRider??DBNull.Value),("@rp",salaryRider is null?DBNull.Value:"2026-11-01"));
         MoneySchemaFixture.Reject(()=>Apply("import",line,100),"TR_debt_source_import");
         void Approve(string table,string id)
@@ -81,6 +81,18 @@ public sealed class SchemaDebtTests
         Apply("salary_deduction",MoneySchemaFixture.Id(),-10,rider);Apply("salary_deduction",MoneySchemaFixture.Id(),-10,rider);
         MoneySchemaFixture.Reject(()=>Apply("salary_deduction",MoneySchemaFixture.Id(),-1,rider),"Debt deductions exceed net or instalment");
         Assert.AreEqual(60m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT balance FROM debt_debt WHERE id=@id",("@id",debt))));
+    }
+    [TestMethod,DataRow(false),DataRow(true)]
+    public void DuplicateImportFileHashIsRejectedPermanentlyWithStableSourceRow(bool sqlServer)
+    {
+        using var c=Open(sqlServer);
+        string company=MoneySchemaFixture.Company(c),debt=Debt(c,company),batch=MoneySchemaFixture.Id(),hash=Convert.ToHexString(System.Security.Cryptography.RandomNumberGenerator.GetBytes(32));
+        byte[] bytes=Convert.FromHexString(hash);
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_import_batch(id,company_id,period_month,amount,reason,file_hash,import_kind) VALUES(@id,@c,'2026-11-01',100,'Synthetic import',@h,'opening')",("@id",batch),("@c",company),("@h",bytes));
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_import_line(id,import_batch_id,period_month,line_no,source_row,debt_id,company_id,amount) VALUES(@id,@b,'2026-11-01',1,10,@d,@c,100)",("@id",MoneySchemaFixture.Id()),("@b",batch),("@d",debt),("@c",company));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_import_line(id,import_batch_id,period_month,line_no,source_row,debt_id,company_id,amount) VALUES(@id,@b,'2026-11-01',2,10,@d,@c,50)",("@id",MoneySchemaFixture.Id()),("@b",batch),("@d",debt),("@c",company)),"Money row replacement is forbidden");
+        string again=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_import_batch(id,company_id,period_month,amount,reason,file_hash,import_kind) VALUES(@id,@c,'2026-11-01',100,'Repeat import',@h,'opening')",("@id",again),("@c",company),("@h",bytes)),"Money row replacement is forbidden");
     }
     [TestMethod,DataRow(false),DataRow(true)]
     public void SalaryDeductionsCannotExceedPositiveNetEvenWhenInstalmentIsHigher(bool sqlServer)
