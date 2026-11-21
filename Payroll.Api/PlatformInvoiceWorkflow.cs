@@ -15,7 +15,7 @@ public sealed class PlatformInvoiceWorkflow(string app)
     void Open(DbConnection c,DbTransaction? tx,JsonObject invoice)=>J.Need(!Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==invoice.S("companyId")&&p.S("period")==invoice.S("period")&&p.S("status")=="closed"),"الفترة المحاسبية مغلقة.");
     public JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject invoice)
     {
-        Scope(actor,"pay.view",invoice.S("companyId"));var result=invoice.Clone();var actions=new JsonArray();string id=invoice.S("id");bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+        Scope(actor,"pay.view",invoice.S("companyId"));var result=invoice.Clone();var actions=new JsonArray();string id=invoice.S("id");bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopeInvoiceApprovals);
         bool unused=!Store.List(c,PayCycles.Kind,tx).Any(p=>p.S("status") is not ("cancelled" or "reversed")&&(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==id)),open=!Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==invoice.S("companyId")&&p.S("period")==invoice.S("period")&&p.S("status")=="closed");
         var parts=Lines(c,tx,id).SelectMany(l=>(l["deductions"] as JsonArray??[]).OfType<JsonObject>()).ToList();
         var disputes=Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==id).ToList();
@@ -48,7 +48,7 @@ public sealed class PlatformInvoiceWorkflow(string app)
     }
     public JsonObject Approve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
-        var invoice=Get(c,tx,actor,id,"pay.approve");J.Need(InvoiceDiscard.Active(invoice),"الفاتورة مستبعدة.",409);J.Need(AccessPolicy.Independent(actor,invoice.S("createdBy"),"platform.invoice_approve",c,tx,invoice),"يلزم مراجع مستقل.",403);Open(c,tx,invoice);
+        var invoice=Get(c,tx,actor,id,"pay.approve");J.Need(InvoiceDiscard.Active(invoice),"الفاتورة مستبعدة.",409);J.Need(AccessPolicy.Independent(actor,invoice.S("createdBy"),"platform.invoice_approve",c,tx,invoice,scope:AccessPolicy.ScopeInvoiceApprovals),"يلزم مراجع مستقل.",403);Open(c,tx,invoice);
         if(invoice.S("approvalStatus")=="approved")return invoice;
         foreach(var line in Lines(c,tx,id))
         {
@@ -57,7 +57,7 @@ public sealed class PlatformInvoiceWorkflow(string app)
                 InvoiceDeductionClassification.EnsureMigrated(d);
                 J.Need(d.S("migrationStatus")!=InvoiceDeductionClassification.NeedsReview,"يوجد خصم يوزر متعدد المناديب يحتاج توزيعًا صريحًا.");
                 J.Need(InvoiceDeductionClassification.AllocationsOf(d).Count>0||d.S("level") is "company_level" or "rider_level" or "account_level","صنف خصومات الفاتورة أولًا.");
-                J.Need(AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve",c,tx,invoice),"يلزم مراجع مستقل.",403);
+                J.Need(AccessPolicy.Independent(actor,d.S("classifiedBy"),"platform.classification_approve",c,tx,invoice,scope:AccessPolicy.ScopeInvoiceApprovals),"يلزم مراجع مستقل.",403);
             }
             line["status"]="final";Store.Save(c,"platform_invoice_line",line,tx);
             PlatformDeductions.ConfirmClassified(c,tx,actor,invoice,line);
@@ -70,13 +70,13 @@ public sealed class PlatformInvoiceWorkflow(string app)
         var invoice=Get(c,tx,actor,id,resolve?"pay.approve":"pay.manage");J.Need(InvoiceDiscard.Active(invoice),"الفاتورة مستبعدة.",409);string reason=input.Required("reason");J.Need(reason.Length<=1000,"السبب أطول من الحد.");
         J.Need(invoice.S("journalEntryId")==""&&!Store.List(c,"pay_cycle",tx).Any(p=>p.S("status")=="approved"&&(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==id)),"الفاتورة المرحّلة تحتاج عكسًا من مسارها.");
         JsonObject d;
-        if(resolve){d=Store.Get(c,input.Required("disputeId"),"platform_dispute",tx)??throw new ApiError("الاعتراض غير موجود.",404);J.Need(d.S("invoiceId")==id&&d.S("status")=="open","الاعتراض لا يطابق الفاتورة.");J.Need(AccessPolicy.Independent(actor,d.S("createdBy"),"platform.dispute_resolve",c,tx,d),"يلزم مراجع مستقل.",403);d["status"]="resolved";d["resolutionReason"]=reason;d["resolvedBy"]=actor.Identity!.Name;}
+        if(resolve){d=Store.Get(c,input.Required("disputeId"),"platform_dispute",tx)??throw new ApiError("الاعتراض غير موجود.",404);J.Need(d.S("invoiceId")==id&&d.S("status")=="open","الاعتراض لا يطابق الفاتورة.");J.Need(AccessPolicy.Independent(actor,d.S("createdBy"),"platform.dispute_resolve",c,tx,d,scope:AccessPolicy.ScopeInvoiceApprovals),"يلزم مراجع مستقل.",403);d["status"]="resolved";d["resolutionReason"]=reason;d["resolvedBy"]=actor.Identity!.Name;}
         else d=new(){["id"]=app+"-dispute:"+Guid.NewGuid().ToString("N"),["invoiceId"]=id,["companyId"]=invoice.S("companyId"),["platform"]=Platform.Platform,["status"]="open",["reason"]=reason,["createdBy"]=actor.Identity!.Name};
         Store.Save(c,"platform_dispute",d,tx);Store.Audit(c,tx,resolve?"platform."+app+".dispute_resolved":"platform."+app+".dispute_created",d.S("id"),actor.Identity!.Name!);return d;
     }
     public JsonObject Post(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
-        var invoice=Get(c,tx,actor,id,"pay.approve");J.Need(invoice.S("accountingRole")=="principal","الفاتورة الوكيلة أو المختلطة تترحل من دورة الرواتب.");J.Need(invoice.S("approvalStatus")=="approved","اعتمد الفاتورة أولًا.");J.Need(AccessPolicy.Independent(actor,invoice.S("createdBy"),"platform.invoice_post",c,tx,invoice),"يلزم مراجع مستقل.",403);Open(c,tx,invoice);PlatformPosting.Demand(c,app,tx);
+        var invoice=Get(c,tx,actor,id,"pay.approve");J.Need(invoice.S("accountingRole")=="principal","الفاتورة الوكيلة أو المختلطة تترحل من دورة الرواتب.");J.Need(invoice.S("approvalStatus")=="approved","اعتمد الفاتورة أولًا.");J.Need(AccessPolicy.Independent(actor,invoice.S("createdBy"),"platform.invoice_post",c,tx,invoice,scope:AccessPolicy.ScopeInvoiceApprovals),"يلزم مراجع مستقل.",403);Open(c,tx,invoice);PlatformPosting.Demand(c,app,tx);
         J.Need(!Store.List(c,"platform_dispute",tx).Any(d=>d.S("invoiceId")==id&&d.S("status")!="resolved"),"احسم الاعتراض الرسمي أولًا.");
         J.Need(!Store.List(c,"pay_cycle",tx).Any(p=>p.S("status") is not ("cancelled" or "reversed")&&(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==id)),"الفاتورة مرتبطة بدورة؛ الترحيل من الدورة فقط.");
         if(invoice.S("journalEntryId")!="")return invoice;

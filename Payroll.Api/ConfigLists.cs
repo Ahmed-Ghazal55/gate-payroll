@@ -51,7 +51,7 @@ public static class ConfigLists
     {var item=Store.Get(c,ItemId(group,code),ItemKind,tx);return item?["current"] is JsonObject cur&&item.B("active")?cur:null;}
     static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,GroupDef def,List<FieldDef> fields,List<JsonObject> items)
     {
-        bool bypass=AccessPolicy.BypassForView(c,tx,actor);bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve");
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopePayApprovals);bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve");
         return new()
         {
             ["group"]=def.Group,["labelAr"]=def.LabelAr,["financial"]=def.Financial,
@@ -123,7 +123,7 @@ public static class ConfigLists
         AccessPolicy.Demand(actor,"pay.approve");Group(group);
         var item=Store.Get(c,ItemId(group,code),ItemKind,tx)?.Clone()??throw new ApiError("البند غير موجود.",404);
         var pending=item["pending"] as JsonObject??throw new ApiError("لا يوجد تعديل بانتظار الاعتماد.",409);
-        J.Need(AccessPolicy.Independent(actor,pending.S("by"),"config.item_approved",c,tx,item),"الاعتماد لشخص غير مقدم التعديل.",403);
+        J.Need(AccessPolicy.Independent(actor,pending.S("by"),"config.item_approved",c,tx,item,scope:AccessPolicy.ScopePayApprovals),"الاعتماد لشخص غير مقدم التعديل.",403);
         Apply(item,pending,Me(actor));Store.Save(c,ItemKind,item,tx);Store.Audit(c,tx,"config.item_approved",item.S("id"),Me(actor));return item;
     }
     public static JsonObject AddField(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string group,JsonObject input)

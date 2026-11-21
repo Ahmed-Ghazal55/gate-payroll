@@ -27,16 +27,16 @@ public static partial class AccessPolicy
                    ||(a.S("action")=="approval.self_exception"&&string.Equals(actor.Identity.Name,"ghazal",StringComparison.OrdinalIgnoreCase)
                       &&string.CompareOrdinal(a.S("approvalExceptionUntil"),used.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"))>=0)));
         }
-        // BR §35: new self-approvals use dated bypass grants only; grant scope must match the dual operation.
-        var grant=c!=null?ActiveBypassGrant(c,tx,actor.Identity!.Name!,scope):null;
-        bool bypass=grant!=null||(scope==null&&BypassActive(actor,c,tx));
-        if(!bypass)return false;
+        // BR §35 / WC1H: self-approvals need a dated bypass grant whose scope explicitly matches.
+        // Omitting scope is never a wildcard — Jahez and other callers must pass the dual/operation scope.
+        if(string.IsNullOrWhiteSpace(scope)||c==null)return false;
+        var grant=ActiveBypassGrant(c,tx,actor.Identity!.Name!,scope);
+        if(grant==null)return false;
         if(tx!=null)
         {
             J.Need(c!=null&&record!=null&&record.S("id")!="","استثناء الاعتماد يحتاج مستندًا وسجل مراجعة.",409);
             record!["selfApprovedException"]=true;
-            grant??=ActiveBypassGrant(c!,tx,actor.Identity!.Name!,scope);
-            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant?.S("id")??"",["scope"]=grant?.S("scope")??scope??"",["reason"]=grant?.S("reason")??actor.FindFirstValue("approvalBypassReason")??"",["approvalBypassUntil"]=grant?.S("to")??actor.FindFirstValue("approvalBypassUntil")??"",["selfApprovedException"]=true,["badge"]="bypass_maker_checker"},tx);
+            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant.S("id"),["scope"]=grant.S("scope",scope),["reason"]=grant.S("reason"),["approvalBypassUntil"]=grant.S("to"),["selfApprovedException"]=true,["badge"]="bypass_maker_checker"},tx);
         }
         return true;
     }

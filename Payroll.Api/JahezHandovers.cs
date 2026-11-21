@@ -31,7 +31,7 @@ public static class JahezHandovers
         if(!AccessPolicy.Administrator(actor)&&(actor.FindFirstValue("department")!="FIN"||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<2))throw new ApiError("استلام العهدة للمالية بالرتبة المناسبة.",403);
         if(request.N("settlementAmount")>0)FinancialScopes.DemandAccount(actor,$"MAIN.{owner.Code}.SET");if(request.N("feeAmount")>0)FinancialScopes.DemandAccount(actor,$"MAIN.{owner.Code}.FEE");
         bool same=string.Equals(request.S("submittedBy"),actor.Identity!.Name,StringComparison.OrdinalIgnoreCase);
-        J.Need(AccessPolicy.Independent(actor,request.S("submittedBy"),"jahez.handover_decide",c,tx,request),"يلزم مستلم مستقل.",403);
+        J.Need(AccessPolicy.Independent(actor,request.S("submittedBy"),"jahez.handover_decide",c,tx,request,scope:AccessPolicy.ScopeInvoiceApprovals),"يلزم مستلم مستقل.",403);
         if(approve)
         {
             J.Need(input.ContainsKey("settlementCounted")&&input.ContainsKey("feeCounted"),"أدخل العد الفعلي لكل من التصفيات والرسوم، بما فيه الصفر.");
@@ -53,7 +53,7 @@ public static class JahezHandovers
     public static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject request)
     {
         var result=request.Clone();var actions=new JsonArray();var blockers=new JsonArray();
-        bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopeInvoiceApprovals);
         if(request.S("status")=="pending")
         {
             if(!AccessPolicy.Has(actor,"treasury.jahez.receive"))blockers.Add("صلاحية استلام عهدة جاهز مطلوبة.");

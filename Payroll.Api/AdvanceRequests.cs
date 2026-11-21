@@ -107,7 +107,7 @@ public static class AdvanceRequests
     {
         AccessPolicy.Demand(actor,"advances.review");var r=Get(c,tx,id);J.Need(r.S("status")=="under_review","الطلب ليس بانتظار المراجعة.",409);
         if(input.ContainsKey("revision"))J.Need((int)input.N("revision")==(int)r.N("revision"),"تغير الطلب؛ حدّث الصفحة.",409);
-        J.Need(AccessPolicy.Independent(actor,r.S("requestedBy"),"advance.review",c,tx,r),"صاحب الطلب لا يعتمده (فصل المسؤوليات).",403);
+        J.Need(AccessPolicy.Independent(actor,r.S("requestedBy"),"advance.review",c,tx,r,scope:AccessPolicy.ScopePayApprovals),"صاحب الطلب لا يعتمده (فصل المسؤوليات).",403);
         var who=OrgDirectory.DemandResponsible(c,tx,actor,Review,r);string action=input.Required("action"),note=input.S("note").Trim();
         Notifications.CloseTasks(c,tx,Kind,id,Me(actor));
         if(action=="approve")
@@ -157,7 +157,7 @@ public static class AdvanceRequests
     public static JsonObject PayOut(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
         AccessPolicy.Demand(actor,"advances.payout");var r=Get(c,tx,id);J.Need(r.S("status")=="approved","الطلب غير معتمد للصرف.",409);
-        J.Need(AccessPolicy.Independent(actor,r.S("requestedBy"),"advance.payout",c,tx,r),"صاحب الطلب لا يصرفه.",403);var who=OrgDirectory.DemandResponsible(c,tx,actor,Payout(r.S("vaultCode",r.S("vault"))),r);
+        J.Need(AccessPolicy.Independent(actor,r.S("requestedBy"),"advance.payout",c,tx,r,scope:AccessPolicy.ScopePayApprovals),"صاحب الطلب لا يصرفه.",403);var who=OrgDirectory.DemandResponsible(c,tx,actor,Payout(r.S("vaultCode",r.S("vault"))),r);
         if(r.S("type")=="internet")
         {
             var paid=MadaAccounting.PayInternet(c,tx,actor,r,input);Notifications.CloseTasks(c,tx,Kind,id,Me(actor));Decision(r,actor,"paid",input.S("note"),who,new(){["reference"]=input.S("reference")});
@@ -198,7 +198,7 @@ public static class AdvanceRequests
     public static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject r)
     {
         var result=r.Clone();var actions=new JsonArray();var blockers=new JsonArray();
-        bool bypass=AccessPolicy.BypassForView(c,tx,actor);string status=r.S("status");string me=Me(actor);
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopePayApprovals);string status=r.S("status");string me=Me(actor);
         bool independent=AccessPolicy.IndependentForView(actor,r.S("requestedBy"),bypass);
         bool reviewer=AccessPolicy.Administrator(actor)||(AccessPolicy.Has(actor,"advances.review")&&OrgDirectory.Responsible(c,tx,Review).Any(x=>x.S("userId")==me));
         bool custodian=AccessPolicy.Administrator(actor)||(AccessPolicy.Has(actor,"advances.payout")&&OrgDirectory.Responsible(c,tx,Payout(r.S("vaultCode",r.S("vault")))).Any(x=>x.S("userId")==me));

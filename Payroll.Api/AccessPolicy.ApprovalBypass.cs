@@ -25,11 +25,12 @@ public static partial class AccessPolicy
     public static JsonObject? ActiveBypassGrant(DbConnection c,DbTransaction? tx,string username,string? scope=null)
     {
         string name=UserAccess.Normalize(username);var today=Today();
+        // scope null = any dated grant (rename / admin views). Explicit scope must match via ScopeCovers.
         return Store.List(c,BypassGrantKind,tx).Where(g=>UserAccess.Normalize(g.S("username"))==name&&g.S("revokedAt")==""
             &&DateOnly.TryParseExact(g.S("from"),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var from)
             &&DateOnly.TryParseExact(g.S("to"),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var to)
             &&from<=today&&to>=today
-            &&ScopeCovers(g.S("scope",ScopePayApprovals),scope))
+            &&(scope==null||ScopeCovers(g.S("scope",ScopePayApprovals),scope)))
             .OrderByDescending(g=>g.S("to")).FirstOrDefault();
     }
     public static bool BypassActive(ClaimsPrincipal actor,DbConnection? c=null,DbTransaction? tx=null,string? scope=null)
@@ -39,7 +40,7 @@ public static partial class AccessPolicy
         return string.Equals(actor.FindFirstValue("approvalBypass"),"1",StringComparison.Ordinal)
             &&DateOnly.TryParseExact(actor.FindFirstValue("approvalBypassUntil")??"","yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var until)
             &&until>=Today()
-            &&ScopeCovers(actor.FindFirstValue("approvalBypassScope")??ScopePayApprovals,scope);
+            &&(scope==null||ScopeCovers(actor.FindFirstValue("approvalBypassScope")??ScopePayApprovals,scope));
     }
     /// <summary>Read-only bypass check for views (allowedActions/blockers): reads the dated grant from the DB, writes no audit.
     /// Login claims never carry the grant, so views must not rely on <see cref="BypassActive(ClaimsPrincipal,DbConnection?,DbTransaction?)"/> without a connection.</summary>

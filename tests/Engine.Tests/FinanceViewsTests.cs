@@ -167,7 +167,8 @@ public sealed class FinanceViewsTests
             string payoutRef="bank-payout:"+Bw+":2026-10:2026-10";
             var checker=UserAccess.Principal(new(){["username"]="synthetic-bank-checker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5});
             store.Write((c,tx)=>{
-                var req=FinancialCore.CreateMutualApproval(c,tx,"bank_sent","اعتماد إرسال ملف بنك","مرجع اختبار", "OPS","FIN",1,payoutRef,new(){["amountSar"]=900.25m},"synthetic-admin");
+                string hash=BankPayrollFiles.FileContentHash(sent["rows"]!.AsArray().OfType<JsonObject>(),900.25m);
+                var req=FinancialCore.CreateMutualApproval(c,tx,"bank_sent","اعتماد إرسال ملف بنك","مرجع اختبار", "OPS","FIN",1,payoutRef,new(){["amountSar"]=900.25m,["fileContentHash"]=hash,["total"]=900.25m},"synthetic-admin");
                 ApprovalsArea.Decide(c,tx,checker,req.S("id"),new(){["decision"]="approve",["note"]="independent checker"});
                 return true;
             });

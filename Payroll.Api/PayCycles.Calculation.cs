@@ -220,11 +220,11 @@ public static partial class PayCycles
         cycle["riders"]=summaries;if(summaries.Count==0||summaries.OfType<JsonObject>().Any(r=>r.S("status")!="ready"))cycle["status"]="needs_decision";
     }
     static bool IndependentReview(ClaimsPrincipal actor,JsonObject row,DbConnection? c=null,DbTransaction? tx=null,JsonObject? cycle=null)=>
-        AccessPolicy.Independent(actor,row.S("reviewedBy"),"pay.salary_review",c,tx,cycle)&&Rows(row["edits"]).OfType<JsonObject>().All(e=>AccessPolicy.Independent(actor,e.S("by"),"pay.salary_edit",c,tx,cycle));
+        AccessPolicy.Independent(actor,row.S("reviewedBy"),"pay.salary_review",c,tx,cycle,scope:AccessPolicy.ScopePayApprovals)&&Rows(row["edits"]).OfType<JsonObject>().All(e=>AccessPolicy.Independent(actor,e.S("by"),"pay.salary_edit",c,tx,cycle,scope:AccessPolicy.ScopePayApprovals));
     static bool Approve(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)
     {
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=cycle.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve",c,tx,"pay.salary_approved",cycle);
-        J.Need(Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation",c,tx,cycle)),"المعتمد مستقل عن تجهيز الدورة.",403);
+        J.Need(Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation",c,tx,cycle,scope:AccessPolicy.ScopePayApprovals)),"المعتمد مستقل عن تجهيز الدورة.",403);
         // Shared riders stay out of the approval batch until consolidation is ready or released (§40.5).
         var heldShared=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&SharedRiderConsolidation.Held(r)&&!r.B("consolidationReady")).ToList();
         var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0&&!(SharedRiderConsolidation.Held(r)&&!r.B("consolidationReady"))).ToList();
