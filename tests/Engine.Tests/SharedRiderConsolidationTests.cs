@@ -15,19 +15,38 @@ public sealed class SharedRiderConsolidationTests
     }
 
     [TestMethod]
-    public void ReleaseMarksReleasedWithReason()
+    public void ReleaseRequiresRecordedTwoPersonDualWithoutBypass()
     {
         using var f=new PayFixture();
         string rider="2000000001",period="2026-10",company=FinancialCore.Sponsors[0].Id;
+        string consolId=SharedRiderConsolidation.Id(rider,period);
         f.Store.Write((c,tx)=>
         {
             var doc=SharedRiderConsolidation.Ensure(c,tx,rider,period,company);
             doc["apps"]=new JsonObject{["a"]=new JsonObject{["net"]=50,["apps"]=new JsonArray("ninja")}};
             doc["missingApps"]=new JsonArray("keeta");
+            doc["heldBy"]="synthetic-hold-maker";
             Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
             return true;
         });
         var actor=HungerStationInvoiceTests.Actor("synthetic-checker");
+        // Permission alone is not enough.
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>SharedRiderConsolidation.Release(c,tx,actor,rider,period,"وصلت فاتورة كيتا يدويًا"))).Status);
+        // Bypass / self-approval must not unlock release.
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,"user",new(){["id"]="u-shared-maker",["username"]="synthetic-hold-maker",["role"]="Admin",["customPermissions"]=new JsonArray(ApprovalsArea.DualSharedRiderRelease,"approvals.decide")},tx);
+            AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-hold-maker",["from"]=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"),["to"]=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).AddDays(7).ToString("yyyy-MM-dd"),["reason"]="shared rider bypass",["scope"]=ApprovalsArea.DualSharedRiderRelease});
+            var req=FinancialCore.CreateMutualApproval(c,tx,"shared_rider_release","اعتماد فك حجز مشترك","مرجع اختبار","OPS","FIN",1,consolId,new(){["amountSar"]=50},"synthetic-hold-maker");
+            ApprovalsArea.Decide(c,tx,UserAccess.Principal(new JsonObject{["username"]="synthetic-hold-maker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5,["customPermissions"]=new JsonArray(ApprovalsArea.DualSharedRiderRelease,"approvals.decide")}),req.S("id"),new(){["decision"]="approve",["note"]="self via bypass"});
+            return true;
+        });
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>SharedRiderConsolidation.Release(c,tx,actor,rider,period,"وصلت فاتورة كيتا يدويًا"))).Status);
+        // Two different people, no bypass — release may proceed.
+        f.Store.Write((c,tx)=>{
+            var req=FinancialCore.CreateMutualApproval(c,tx,"shared_rider_release","اعتماد فك حجز مشترك","مرجع اختبار ٢","OPS","FIN",1,consolId,new(){["amountSar"]=50},"synthetic-hold-maker");
+            ApprovalsArea.Decide(c,tx,actor,req.S("id"),new(){["decision"]="approve",["note"]="independent checker"});
+            return true;
+        });
         var released=f.Store.Write((c,tx)=>SharedRiderConsolidation.Release(c,tx,actor,rider,period,"وصلت فاتورة كيتا يدويًا"));
         Assert.IsTrue(released.B("released"));
         Assert.AreEqual("released",released.S("status"));
