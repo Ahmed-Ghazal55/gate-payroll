@@ -1,11 +1,13 @@
 'use client';
 
-import React, { useRef, useState } from 'react';
+import React, { useMemo, useRef, useState } from 'react';
 import { AlertCircle, CheckCircle2, Download, RefreshCw, Upload, X } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { Dialog } from '../../components/ui/Dialog';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
+import { formatReadableValue } from '../../lib/formatRecord';
 import type { ImportPreviewResult } from '../../lib/types';
 import { canCommitImportStep, canDownloadImportTemplate, type PageImportStep } from './import-steps';
 import { fileToBase64, parseBrowserFileToRows } from './parseBrowserFile';
@@ -133,6 +135,21 @@ export function ImportUploadDialog({ open, onClose, step, onCommitted, allowedAc
     sampleRows.length > 0
       ? Object.keys(sampleRows[0] as object).filter((k) => !k.startsWith('_')).slice(0, 6)
       : [];
+  const sampleColsKey = sampleCols.join('|');
+  const sampleTableRows = useMemo(
+    () => sampleRows.map((row, idx): Record<string, unknown> => ({ ...(row as Record<string, unknown>), __rowNo: idx + 1 })),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [preview]
+  );
+  const sampleFilterCols = useMemo(
+    () => [
+      { key: '__rowNo', header: '#', type: 'number' as const, getValue: (r: Record<string, unknown>) => Number(r.__rowNo ?? 0) },
+      ...sampleCols.map((c) => ({ key: c, header: c, type: 'text' as const, getValue: (r: Record<string, unknown>) => String(r[c] ?? '') })),
+    ],
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [sampleColsKey]
+  );
+  const sampleFilter = useTableAutoFilter(sampleTableRows, sampleFilterCols);
 
   return (
     <Dialog
@@ -255,30 +272,29 @@ export function ImportUploadDialog({ open, onClose, step, onCommitted, allowedAc
               <pre className="text-[11px] max-h-32 overflow-auto whitespace-pre-wrap text-red-700 dark:text-red-400">
                 {preview.errors
                   .slice(0, 20)
-                  .map((e) => (typeof e === 'string' ? e : JSON.stringify(e)))
+                  .map((e) => (typeof e === 'string' ? e : formatReadableValue(e)))
                   .join('\n')}
               </pre>
             )}
             {sampleCols.length > 0 && (
               <div className="overflow-x-auto max-h-48 border border-[var(--line)] rounded-lg bg-[var(--surface)]">
+                <AutoFilterBar controller={sampleFilter} totalCount={sampleTableRows.length} />
                 <table className="min-w-full text-[11px]">
                   <thead>
                     <tr className="border-b border-[var(--line)] text-[var(--ink-muted)]">
-                      <th className="p-2 text-right">#</th>
+                      <AutoFilterTh controller={sampleFilter} colKey="__rowNo" className="p-2 text-right" />
                       {sampleCols.map((c) => (
-                        <th key={c} className="p-2 text-right">
-                          {c}
-                        </th>
+                        <AutoFilterTh key={c} controller={sampleFilter} colKey={c} className="p-2 text-right" />
                       ))}
                     </tr>
                   </thead>
                   <tbody>
-                    {sampleRows.map((row, idx) => (
-                      <tr key={idx} className="border-b border-[var(--line)] last:border-0">
-                        <td className="p-2 text-[var(--ink-muted)]">{idx + 1}</td>
+                    {sampleFilter.rows.map((row) => (
+                      <tr key={String(row.__rowNo)} className="border-b border-[var(--line)] last:border-0">
+                        <td className="p-2 text-[var(--ink-muted)]">{String(row.__rowNo)}</td>
                         {sampleCols.map((c) => (
                           <td key={c} className="p-2 truncate max-w-[140px]">
-                            {String((row as Record<string, unknown>)[c] ?? '')}
+                            {formatReadableValue(row[c])}
                           </td>
                         ))}
                       </tr>

@@ -111,7 +111,9 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'name',
         header: 'المندوب',
-        getValue: (r) => `${r.name || ''} ${r.rider || ''}`,
+        type: 'text',
+        filterType: 'text',
+        getValue: (r) => `${r.name || ''} ${r.rider || ''}`.trim(),
         render: (row) => (
           <div
             onClick={() => setSelectedRow(row)}
@@ -125,7 +127,11 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'status',
         header: 'الحالة',
-        getValue: (r) => (r.status === 'ready' ? 'جاهز' : 'يحتاج قرار'),
+        type: 'list',
+        filterType: 'list',
+        getValue: (r) => r.status || 'needs_decision',
+        labelOf: (v) => (v === 'ready' ? 'جاهز' : 'يحتاج قرار'),
+        toneOf: (v) => (v === 'ready' ? 'success' : 'danger'),
         render: (row) => (
           <span
             className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -141,6 +147,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'gross',
         header: 'الإجمالي',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.gross,
         render: (row) => formatSar(row.gross),
@@ -148,6 +155,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'commission',
         header: 'العمولة',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.commission,
         render: (row) => (
@@ -159,6 +167,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'afterCommission',
         header: 'بعد العمولة',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.afterCommission,
         render: (row) => formatSar(row.afterCommission),
@@ -166,6 +175,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'phase1',
         header: 'مرحلة 1',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.phase1,
         render: (row) => (
@@ -177,6 +187,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'preliminaryDue',
         header: 'المستحق الأولي',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.preliminaryDue,
         render: (row) => (
@@ -188,6 +199,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'phase2',
         header: 'مرحلة 2',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.phase2,
         render: (row) => (
@@ -199,6 +211,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'phase3',
         header: 'مرحلة 3',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.phase3,
         render: (row) => formatSar(row.phase3),
@@ -206,8 +219,10 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'net',
         header: 'الصافي',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.net,
+        toneOf: (v) => (Number(v ?? 0) >= 0 ? 'success' : 'danger'),
         render: (row) => (
           <span
             className={`font-black ${
@@ -221,7 +236,10 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'review',
         header: 'المراجعة',
-        getValue: (r) => (r.review === 'approved' ? 'معتمد' : 'بانتظار المراجعة'),
+        type: 'list',
+        getValue: (r) => r.review || 'pending',
+        labelOf: (v) => (v === 'approved' ? 'معتمد' : 'بانتظار المراجعة'),
+        toneOf: (v) => (v === 'approved' ? 'success' : 'warning'),
         render: (row) =>
           row.review === 'approved' ? (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--money-pos)] bg-[var(--money-pos)]/10 px-2 py-0.5 rounded-full">

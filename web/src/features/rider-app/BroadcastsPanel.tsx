@@ -6,6 +6,7 @@ import { Send, UserRound, History } from 'lucide-react';
 import { api, type RiderBroadcast } from '../../lib/api';
 import { SectionTabs } from '../../components/ui/SectionTabs';
 import { DataTable, type ColumnDef } from '../../components/ui/DataTable';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Dialog } from '../../components/ui/Dialog';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { useToast } from '../../components/ui/Toast';
@@ -239,6 +240,7 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
   const [kind, setKind] = useState('');
   const [category, setCategory] = useState('');
   const [iqama, setIqama] = useState('');
+  const [serverQuery, setServerQuery] = useState<{ filtersParam?: string; sortParam?: string }>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -247,8 +249,10 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
       kind: kind || undefined,
       category: category || undefined,
       q: iqama.trim() || undefined,
+      filters: serverQuery.filtersParam,
+      sort: serverQuery.sortParam,
     }),
-    [kind, category, iqama]
+    [kind, category, iqama, serverQuery]
   );
 
   const load = useCallback(async () => {
@@ -306,19 +310,74 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
   };
 
   const columns: ColumnDef<RiderBroadcast>[] = [
-    { key: 'titleAr', header: 'العنوان', render: (b) => <span className="font-bold">{b.titleAr}</span> },
+    {
+      key: 'titleAr',
+      header: 'العنوان',
+      type: 'text',
+      filterType: 'text',
+      getValue: (b) => b.titleAr ?? '',
+      render: (b) => <span className="font-bold">{b.titleAr}</span>,
+    },
     {
       key: 'targetIqama',
       header: 'المستهدف',
-      getValue: (b) => (b.targetIqama === 'ALL' ? 'كل المناديب' : b.targetIqama),
+      type: 'text',
+      filterType: 'text',
+      getValue: (b) => b.targetIqama ?? '',
+      labelOf: (v) => (v === 'ALL' ? 'كل المناديب' : String(v ?? '')),
       render: (b) => (b.targetIqama === 'ALL' ? 'كل المناديب' : <span className="font-mono" dir="ltr">{b.targetIqama}</span>),
     },
-    { key: 'kind', header: 'النوع', getValue: (b) => KIND_LABEL[b.kind ?? ''] || b.kind || '' },
-    { key: 'category', header: 'التصنيف', getValue: (b) => CATEGORY_LABEL[b.category ?? ''] || b.category || '' },
-    { key: 'readCount', header: 'قراءات', numeric: true, getValue: (b) => b.readCount ?? 0 },
-    { key: 'ackCount', header: 'إقرارات', numeric: true, getValue: (b) => b.ackCount ?? 0 },
-    { key: 'sentBy', header: 'أرسله', getValue: (b) => b.sentBy ?? '' },
-    { key: 'createdAt', header: 'وقت الإرسال', getValue: (b) => (b.createdAt ? new Date(b.createdAt).toLocaleString('ar-SA') : '') },
+    {
+      key: 'kind',
+      header: 'النوع',
+      type: 'list',
+      filterType: 'list',
+      filterOptions: Object.entries(KIND_LABEL).map(([value, label]) => ({ value, label })),
+      getValue: (b) => b.kind ?? '',
+      labelOf: (v) => KIND_LABEL[String(v ?? '')] || String(v ?? ''),
+      render: (b) => KIND_LABEL[b.kind ?? ''] || b.kind || '',
+    },
+    {
+      key: 'category',
+      header: 'التصنيف',
+      type: 'list',
+      filterType: 'list',
+      filterOptions: Object.entries(CATEGORY_LABEL).map(([value, label]) => ({ value, label })),
+      getValue: (b) => b.category ?? '',
+      labelOf: (v) => CATEGORY_LABEL[String(v ?? '')] || String(v ?? ''),
+      render: (b) => CATEGORY_LABEL[b.category ?? ''] || b.category || '',
+    },
+    {
+      key: 'readCount',
+      header: 'قراءات',
+      type: 'number',
+      numeric: true,
+      filterType: 'number',
+      getValue: (b) => b.readCount ?? 0,
+    },
+    {
+      key: 'ackCount',
+      header: 'إقرارات',
+      type: 'number',
+      numeric: true,
+      filterType: 'number',
+      getValue: (b) => b.ackCount ?? 0,
+    },
+    {
+      key: 'sentBy',
+      header: 'أرسله',
+      type: 'list',
+      filterType: 'list',
+      getValue: (b) => b.sentBy ?? '',
+    },
+    {
+      key: 'createdAt',
+      header: 'وقت الإرسال',
+      type: 'date',
+      filterType: 'date',
+      getValue: (b) => b.createdAt ?? '',
+      render: (b) => (b.createdAt ? new Date(b.createdAt).toLocaleString('ar-SA') : ''),
+    },
   ];
 
   return (
@@ -326,39 +385,35 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
       <div className="flex flex-wrap items-center gap-3 text-xs">
         <label className="flex items-center gap-2">
           <span className="font-bold">النوع:</span>
-          <select
-            value={kind}
-            onChange={(e) => {
-              setKind(e.target.value);
-              setPage(1);
-            }}
-            className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]"
-          >
-            <option value="">الكل</option>
-            {Object.entries(KIND_LABEL).map(([k, l]) => (
-              <option key={k} value={k}>
-                {l}
-              </option>
-            ))}
-          </select>
+          <div className="w-52">
+            <SearchableSelect
+              value={kind}
+              onChange={(val) => {
+                setKind(val);
+                setPage(1);
+              }}
+              clearable
+              placeholder="الكل"
+              ariaLabel="تصفية بنوع الإشعار"
+              options={Object.entries(KIND_LABEL).map(([k, l]) => ({ value: k, label: l }))}
+            />
+          </div>
         </label>
         <label className="flex items-center gap-2">
           <span className="font-bold">التصنيف:</span>
-          <select
-            value={category}
-            onChange={(e) => {
-              setCategory(e.target.value);
-              setPage(1);
-            }}
-            className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]"
-          >
-            <option value="">الكل</option>
-            {Object.entries(CATEGORY_LABEL).map(([k, l]) => (
-              <option key={k} value={k}>
-                {l}
-              </option>
-            ))}
-          </select>
+          <div className="w-52">
+            <SearchableSelect
+              value={category}
+              onChange={(val) => {
+                setCategory(val);
+                setPage(1);
+              }}
+              clearable
+              placeholder="الكل"
+              ariaLabel="تصفية بتصنيف الإشعار"
+              options={Object.entries(CATEGORY_LABEL).map(([k, l]) => ({ value: k, label: l }))}
+            />
+          </div>
         </label>
         <label className="flex items-center gap-2">
           <span className="font-bold">إقامة:</span>
@@ -384,6 +439,12 @@ function HistoryTable({ reloadKey }: { reloadKey: number }) {
         onRetry={load}
         serverSide
         searchable={false}
+        distinctEndpoint="/rider-mobile/broadcasts/distinct"
+        distinctParams={{ ...filters(), sort: undefined }}
+        onServerQueryChange={(sq) => {
+          setServerQuery({ filtersParam: sq.filtersParam, sortParam: sq.sortParam });
+          setPage(1);
+        }}
         page={page}
         pageSize={pageSize}
         onPageChange={setPage}

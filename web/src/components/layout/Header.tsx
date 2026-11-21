@@ -36,6 +36,7 @@ import type { CompanySponsor, UserProfile } from '../../lib/types';
 import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
 import { NotificationsPanel } from './NotificationsPanel';
 import { GlobalSearchModal } from './GlobalSearchModal';
+import { SearchableSelect } from '../ui/SearchableSelect';
 import { personalSoundEnabled, setPersonalSoundEnabled, unlockNotificationSound, playPersonalChime } from '../../lib/notification-sound';
 
 function BreadcrumbsNav() {
@@ -359,36 +360,40 @@ export function Header({
         {/* Right Section: Company Scope, Period, Approvals, Bell, Theme, User */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
           {/* Company Scope Selector */}
-          <div className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs">
+          <div className="hidden md:flex items-center gap-1 text-xs">
             <Building2 size={14} className="text-[var(--muted)] shrink-0" />
-            <select
+            <SearchableSelect
+              id="header-company-scope"
               value={selectedCompany}
-              onChange={(e) => onCompanyChange && onCompanyChange(e.target.value)}
-              aria-label="نطاق الشركة"
-              className="bg-transparent font-semibold text-[var(--ink)] focus:outline-hidden cursor-pointer"
-            >
-              <option value="all">كل الشركات</option>
-              {companyOptions.map((c) => (
-                <option key={c.id || c.code} value={c.code || c.id}>
-                  {companyLabel(c)}
-                </option>
-              ))}
-            </select>
+              onChange={(v) => onCompanyChange && onCompanyChange(v)}
+              ariaLabel="نطاق الشركة"
+              placeholder="كل الشركات"
+              size="sm"
+              className="w-36"
+              options={[
+                { value: 'all', label: 'كل الشركات' },
+                ...companyOptions.map((c) => ({ value: String(c.code || c.id), label: companyLabel(c) })),
+              ]}
+            />
           </div>
 
           {/* Period Picker */}
-          <div className="hidden lg:flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs">
+          <div className="hidden lg:flex items-center gap-1 text-xs">
             <Calendar size={14} className="text-[var(--muted)] shrink-0" />
-            <select
+            <SearchableSelect
+              id="header-period-picker"
               value={selectedPeriod}
-              onChange={(e) => onPeriodChange && onPeriodChange(e.target.value)}
-              aria-label="فترة العمل"
-              className="num bg-transparent font-semibold text-[var(--ink)] focus:outline-hidden cursor-pointer"
-            >
-              <option value="2026-10">2026-10</option>
-              <option value="2026-09">2026-09</option>
-              <option value="2026-08">2026-08</option>
-            </select>
+              onChange={(v) => onPeriodChange && onPeriodChange(v)}
+              ariaLabel="فترة العمل"
+              placeholder="الفترة"
+              size="sm"
+              className="w-28"
+              options={[
+                { value: '2026-10', label: '2026-10' },
+                { value: '2026-09', label: '2026-09' },
+                { value: '2026-08', label: '2026-08' },
+              ]}
+            />
           </div>
 
           {/* Approvals Count Link */}

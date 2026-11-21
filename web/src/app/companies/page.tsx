@@ -51,6 +51,7 @@ import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { SourceBadge } from '../../components/ui/SourceBadge';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar, type AutoFilterColDef } from '../../components/ui/ColumnFilterMenu';
 import {
   BALANCES_PLACEHOLDER_AR,
   auditActionLabelAr,
@@ -837,11 +838,142 @@ function CompaniesPageContent() {
     return computeCompanyStatsTotals(matchingStats);
   }, [activeTab, filteredStatsTotals, stats, filteredCompanyIds]);
 
+  const statsFilterCols = useMemo<AutoFilterColDef<CompanyStatsItem>[]>(
+    () => [
+      {
+        key: 'nameAr',
+        header: 'الشركة / السجل',
+        type: 'text',
+        getValue: (item) => `${item.nameAr || ''} ${item.unifiedNumber || ''}`.trim(),
+      },
+      {
+        key: 'sponsored',
+        header: 'المكفولون',
+        type: 'number',
+        numeric: true,
+        getValue: (item) => item.sponsorships.total,
+      },
+      {
+        key: 'accounts',
+        header: 'الحسابات',
+        type: 'number',
+        numeric: true,
+        getValue: (item) => item.platformAccounts.total,
+      },
+      ...statsPlatformColumns.map((plat) => ({
+        key: `plat_${plat.code}`,
+        header: plat.labelAr,
+        type: 'number' as const,
+        numeric: true,
+        getValue: (item: CompanyStatsItem) => platformCountFor(item.platformAccounts.byPlatform, plat.code),
+      })),
+    ],
+    [statsPlatformColumns]
+  );
+  const statsFilter = useTableAutoFilter(filteredStatsItems, statsFilterCols);
+  const displayedStatsTotals = useMemo(
+    () => computeCompanyStatsTotals(statsFilter.rows),
+    [statsFilter.rows]
+  );
+
+  const companiesFilterCols = useMemo<AutoFilterColDef<CompanyContract>[]>(
+    () => [
+      { key: 'code', header: 'الرمز', type: 'list', getValue: (c) => c.code || '' },
+      { key: 'nameAr', header: 'المنشأة الرسمية', type: 'text', getValue: (c) => c.nameAr || '' },
+      { key: 'unifiedNumber', header: 'الرقم الموحد', type: 'text', getValue: (c) => c.unifiedNumber || '' },
+      { key: 'crNumber', header: 'السجل التجاري', type: 'text', getValue: (c) => c.crNumber || c.commercialReg || '' },
+      { key: 'entityType', header: 'نوع الكيان', type: 'list', getValue: (c) => c.entityType || '' },
+      { key: 'city', header: 'المدينة', type: 'list', getValue: (c) => c.city || '' },
+      { key: 'capitalSar', header: 'رأس المال', type: 'number', numeric: true, getValue: (c) => c.capitalSar ?? null },
+      {
+        key: 'sponsoredCount',
+        header: 'المكفولون',
+        type: 'number',
+        numeric: true,
+        getValue: (c) => statsByCompanyId.get(c.id)?.sponsorships.total ?? null,
+      },
+      { key: 'annualConfirmation', header: 'التأكيد السنوي القادم', type: 'date', getValue: (c) => c.annualConfirmation || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list',
+        getValue: (c) => c.status || 'active',
+        labelOf: (v) => (v === 'active' ? 'نشط' : 'غير نشط'),
+        toneOf: (v) => (v === 'active' ? 'success' : 'neutral'),
+      },
+    ],
+    [statsByCompanyId]
+  );
+  const companiesFilter = useTableAutoFilter(filteredCompanies, companiesFilterCols);
+
+  const crFilterCols = useMemo(
+    () => [
+      { key: 'number', header: 'رقم السجل التجاري', type: 'text' as const, getValue: (cr: (typeof allRegistrations)[number]) => cr.number || '' },
+      { key: 'companyNameAr', header: 'المنشأة التابعة', type: 'list' as const, getValue: (cr: (typeof allRegistrations)[number]) => cr.companyNameAr || '' },
+      { key: 'crType', header: 'نوع السجل', type: 'list' as const, getValue: (cr: (typeof allRegistrations)[number]) => cr.crType || '' },
+      { key: 'crVersion', header: 'النسخة', type: 'number' as const, numeric: true, getValue: (cr: (typeof allRegistrations)[number]) => cr.crVersion ?? null },
+      { key: 'city', header: 'المدينة', type: 'list' as const, getValue: (cr: (typeof allRegistrations)[number]) => cr.city || '' },
+      { key: 'issueDate', header: 'تاريخ القيد', type: 'date' as const, getValue: (cr: (typeof allRegistrations)[number]) => cr.issueDate || '' },
+      { key: 'annualConfirmation', header: 'التأكيد السنوي القادم', type: 'date' as const, getValue: (cr: (typeof allRegistrations)[number]) => cr.annualConfirmation || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (cr: (typeof allRegistrations)[number]) => cr.status || 'active',
+        labelOf: (v: unknown) => (v === 'active' ? 'نشط' : v === 'expired' ? 'منتهي' : 'غير نشط'),
+        toneOf: (v: unknown) => (v === 'active' ? 'success' : v === 'expired' ? 'danger' : 'neutral'),
+      },
+    ],
+    []
+  );
+  const crFilter = useTableAutoFilter(filteredRegistrations, crFilterCols);
+
+  const expiringFilterCols = useMemo<AutoFilterColDef<CompanyExpiringContract>[]>(
+    () => [
+      {
+        key: 'kind',
+        header: 'النوع',
+        type: 'list',
+        getValue: (item) => (item.kind === 'company_document' ? item.type || 'وثيقة شركة' : 'التأكيد السنوي للسجل التجاري'),
+      },
+      {
+        key: 'companyId',
+        header: 'المنشأة',
+        type: 'list',
+        getValue: (item) => companiesById.get(item.companyId)?.nameAr || item.companyId || '',
+      },
+      { key: 'number', header: 'رقم المستند / السجل', type: 'text', getValue: (item) => item.number || '' },
+      { key: 'dueDate', header: 'تاريخ الاستحقاق / الانتهاء', type: 'date', getValue: (item) => item.annualConfirmation || item.expiryDate || '' },
+      {
+        key: 'daysRemaining',
+        header: 'المدة المتبقية',
+        type: 'number',
+        numeric: true,
+        getValue: (item) => getDaysRemaining(item.annualConfirmation || item.expiryDate),
+      },
+      {
+        key: 'posture',
+        header: 'الموقف',
+        type: 'list',
+        getValue: (item) => {
+          const rem = getDaysRemaining(item.annualConfirmation || item.expiryDate);
+          if (rem !== null && rem <= 0) return 'expired';
+          if (rem !== null && rem <= 60) return 'expiring';
+          return 'valid';
+        },
+        labelOf: (v) => (v === 'expired' ? 'منتهي' : v === 'expiring' ? 'قرب الانتهاء' : 'ساري'),
+        toneOf: (v) => (v === 'expired' ? 'danger' : v === 'expiring' ? 'warning' : 'success'),
+      },
+    ],
+    [companiesById]
+  );
+  const expiringFilter = useTableAutoFilter(filteredExpiring, expiringFilterCols);
+
   // Export Excel / CSV
   const handleExport = async (type: 'all' | 'filtered' | 'csv') => {
     try {
       if (activeTab === 'stats' && stats) {
-        const exportSource = type === 'all' ? stats.items : filteredStatsItems;
+        const exportSource = type === 'all' ? stats.items : statsFilter.rows;
         const { headers, rows, numericColumns } = buildCompanyStatsExport(exportSource);
         if (type === 'csv') {
           const csvContent = [
@@ -874,7 +1006,7 @@ function CompaniesPageContent() {
         return;
       }
 
-      const rowsToExport = type === 'all' ? companies : filteredCompanies;
+      const rowsToExport = type === 'all' ? companies : companiesFilter.rows;
       const headers = [
         'رمز الشركة',
         'اسم المنشأة',
@@ -1427,23 +1559,27 @@ function CompaniesPageContent() {
                   </span>
                 </div>
 
+                <AutoFilterBar controller={statsFilter} totalCount={filteredStatsItems.length} />
                 <div className="overflow-x-auto">
                   <table className="w-full text-start text-xs border-collapse">
                     <thead>
                       <tr className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-bold">
-                        <th scope="col" className="py-2.5 px-3 text-start">الشركة / السجل</th>
-                        <th scope="col" className="py-2.5 px-2.5 text-start whitespace-nowrap">المكفولون</th>
-                        <th scope="col" className="py-2.5 px-2.5 text-start whitespace-nowrap">الحسابات</th>
+                        <AutoFilterTh controller={statsFilter} colKey="nameAr" className="py-2.5 px-3 text-start" />
+                        <AutoFilterTh controller={statsFilter} colKey="sponsored" className="py-2.5 px-2.5 text-start whitespace-nowrap" />
+                        <AutoFilterTh controller={statsFilter} colKey="accounts" className="py-2.5 px-2.5 text-start whitespace-nowrap" />
                         {statsPlatformColumns.map((plat) => (
-                          <th key={plat.code} scope="col" className="py-2.5 px-2 text-center whitespace-nowrap">
-                            {plat.labelAr}
-                          </th>
+                          <AutoFilterTh
+                            key={plat.code}
+                            controller={statsFilter}
+                            colKey={`plat_${plat.code}`}
+                            className="py-2.5 px-2 text-center whitespace-nowrap"
+                          />
                         ))}
                         <th scope="col" className="py-2.5 px-2.5 text-center whitespace-nowrap">القوى العاملة</th>
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-[var(--line)]/60">
-                      {filteredStatsItems.map((item) => {
+                      {statsFilter.rows.map((item) => {
                         const companyKey = item.unifiedNumber || item.companyId;
                         return (
                           <tr key={item.companyId} className="hover:bg-[var(--row-hover)] transition">
@@ -1518,28 +1654,28 @@ function CompaniesPageContent() {
                     <tfoot>
                       <tr className="border-t-2 border-[var(--line)] bg-[var(--raised)]/60 font-bold text-[var(--ink)]">
                         <td className="py-2.5 px-3 whitespace-nowrap">
-                          {isStatsFiltered ? 'إجمالي الشركات المفلترة' : 'الإجمالي العام'}
+                          {isStatsFiltered || statsFilter.activeCount > 0 ? 'إجمالي الشركات المفلترة' : 'الإجمالي العام'}
                         </td>
                         <td className="py-2.5 px-2.5 whitespace-nowrap">
-                          <div className="font-mono num">{formatNumber(filteredStatsTotals.sponsoredTotal)}</div>
+                          <div className="font-mono num">{formatNumber(displayedStatsTotals.sponsoredTotal)}</div>
                           <div className="text-[10px] font-normal text-[var(--muted)]">
-                            مناديب {formatNumber(filteredStatsTotals.sponsoredRiders)} · إداريون{' '}
-                            {formatNumber(filteredStatsTotals.sponsoredAdmins)} · نشط{' '}
-                            {formatNumber(filteredStatsTotals.sponsoredActive)}
+                            مناديب {formatNumber(displayedStatsTotals.sponsoredRiders)} · إداريون{' '}
+                            {formatNumber(displayedStatsTotals.sponsoredAdmins)} · نشط{' '}
+                            {formatNumber(displayedStatsTotals.sponsoredActive)}
                           </div>
                         </td>
                         <td className="py-2.5 px-2.5 whitespace-nowrap">
                           <div className="font-mono num text-[var(--accent)]">
-                            {formatNumber(filteredStatsTotals.platformAccountsTotal)}
+                            {formatNumber(displayedStatsTotals.platformAccountsTotal)}
                           </div>
                           <div className="text-[10px] font-normal text-[var(--muted)]">
-                            نشط {formatNumber(filteredStatsTotals.platformAccountsActive)} · مسند{' '}
-                            {formatNumber(filteredStatsTotals.platformAccountsAssigned)}
+                            نشط {formatNumber(displayedStatsTotals.platformAccountsActive)} · مسند{' '}
+                            {formatNumber(displayedStatsTotals.platformAccountsAssigned)}
                           </div>
                         </td>
                         {statsPlatformColumns.map((plat) => (
                           <td key={plat.code} className="py-2.5 px-2 text-center font-mono num">
-                            {formatNumber(platformCountFor(filteredStatsTotals.byPlatform, plat.code))}
+                            {formatNumber(platformCountFor(displayedStatsTotals.byPlatform, plat.code))}
                           </td>
                         ))}
                         <td className="py-2.5 px-2.5 text-center">—</td>
@@ -1607,32 +1743,33 @@ function CompaniesPageContent() {
           aria-labelledby="tab-companies"
           className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs overflow-hidden"
         >
+          <AutoFilterBar controller={companiesFilter} totalCount={filteredCompanies.length} />
           <div className="overflow-x-auto">
             <table className="w-full text-start text-xs border-collapse">
               <thead>
                 <tr className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-bold">
-                  <th scope="col" className="py-3 px-4 text-start">الرمز</th>
-                  <th scope="col" className="py-3 px-4 text-start">المنشأة الرسمية</th>
-                  <th scope="col" className="py-3 px-4 text-start">الرقم الموحد</th>
-                  <th scope="col" className="py-3 px-4 text-start">السجل التجاري</th>
-                  <th scope="col" className="py-3 px-4 text-start">نوع الكيان</th>
-                  <th scope="col" className="py-3 px-4 text-start">المدينة</th>
-                  <th scope="col" className="py-3 px-4 text-start">رأس المال</th>
-                  <th scope="col" className="py-3 px-4 text-start">المكفولون</th>
-                  <th scope="col" className="py-3 px-4 text-start">التأكيد السنوي القادم</th>
-                  <th scope="col" className="py-3 px-4 text-start">الحالة</th>
+                  <AutoFilterTh controller={companiesFilter} colKey="code" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={companiesFilter} colKey="nameAr" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={companiesFilter} colKey="unifiedNumber" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={companiesFilter} colKey="crNumber" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={companiesFilter} colKey="entityType" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={companiesFilter} colKey="city" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={companiesFilter} colKey="capitalSar" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={companiesFilter} colKey="sponsoredCount" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={companiesFilter} colKey="annualConfirmation" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={companiesFilter} colKey="status" className="py-3 px-4 text-start" />
                   <th scope="col" className="py-3 px-4 text-center">إجراءات</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]/60">
-                {filteredCompanies.length === 0 ? (
+                {companiesFilter.rows.length === 0 ? (
                   <tr>
                     <td colSpan={11} className="py-12 text-center text-[var(--muted)]">
                       لا توجد منشآت مطابقة للبحث الحالي.
                     </td>
                   </tr>
                 ) : (
-                  filteredCompanies.map((c) => {
+                  companiesFilter.rows.map((c) => {
                     const daysRemaining = getDaysRemaining(c.annualConfirmation);
                     const isExpiring = daysRemaining !== null && daysRemaining <= 60;
                     const liveItem = statsByCompanyId.get(c.id);
@@ -1788,29 +1925,30 @@ function CompaniesPageContent() {
           aria-labelledby="tab-cr"
           className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs overflow-hidden"
         >
+          <AutoFilterBar controller={crFilter} totalCount={filteredRegistrations.length} />
           <div className="overflow-x-auto">
             <table className="w-full text-start text-xs border-collapse">
               <thead>
                 <tr className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-bold">
-                  <th scope="col" className="py-3 px-4 text-start">رقم السجل التجاري</th>
-                  <th scope="col" className="py-3 px-4 text-start">المنشأة التابعة</th>
-                  <th scope="col" className="py-3 px-4 text-start">نوع السجل</th>
-                  <th scope="col" className="py-3 px-4 text-start">النسخة</th>
-                  <th scope="col" className="py-3 px-4 text-start">المدينة</th>
-                  <th scope="col" className="py-3 px-4 text-start">تاريخ القيد</th>
-                  <th scope="col" className="py-3 px-4 text-start">التأكيد السنوي القادم</th>
-                  <th scope="col" className="py-3 px-4 text-start">الحالة</th>
+                  <AutoFilterTh controller={crFilter} colKey="number" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={crFilter} colKey="companyNameAr" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={crFilter} colKey="crType" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={crFilter} colKey="crVersion" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={crFilter} colKey="city" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={crFilter} colKey="issueDate" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={crFilter} colKey="annualConfirmation" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={crFilter} colKey="status" className="py-3 px-4 text-start" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]/60">
-                {filteredRegistrations.length === 0 ? (
+                {crFilter.rows.length === 0 ? (
                   <tr>
                     <td colSpan={8} className="py-12 text-center text-[var(--muted)]">
                       لا توجد سجلات تجارية مطابقة للبحث الحالي.
                     </td>
                   </tr>
                 ) : (
-                  filteredRegistrations.map((cr) => {
+                  crFilter.rows.map((cr) => {
                     const rem = getDaysRemaining(cr.annualConfirmation);
                     const isExpired = rem !== null && rem <= 0;
                     const isExpiring = rem !== null && rem > 0 && rem <= 60;
@@ -1886,28 +2024,29 @@ function CompaniesPageContent() {
             <span className="text-xs text-[var(--muted)]">نافذة التنبيه: 60 يومًا</span>
           </div>
 
+          <AutoFilterBar controller={expiringFilter} totalCount={filteredExpiring.length} />
           <div className="overflow-x-auto">
             <table className="w-full text-start text-xs border-collapse">
               <thead>
                 <tr className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-bold">
-                  <th scope="col" className="py-3 px-4 text-start">النوع</th>
-                  <th scope="col" className="py-3 px-4 text-start">المنشأة</th>
-                  <th scope="col" className="py-3 px-4 text-start">رقم المستند / السجل</th>
-                  <th scope="col" className="py-3 px-4 text-start">تاريخ الاستحقاق / الانتهاء</th>
-                  <th scope="col" className="py-3 px-4 text-start">المدة المتبقية</th>
-                  <th scope="col" className="py-3 px-4 text-start">الموقف</th>
+                  <AutoFilterTh controller={expiringFilter} colKey="kind" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={expiringFilter} colKey="companyId" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={expiringFilter} colKey="number" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={expiringFilter} colKey="dueDate" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={expiringFilter} colKey="daysRemaining" className="py-3 px-4 text-start" />
+                  <AutoFilterTh controller={expiringFilter} colKey="posture" className="py-3 px-4 text-start" />
                   <th scope="col" className="py-3 px-4 text-center">المرفق / إجراء</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]/60">
-                {filteredExpiring.length === 0 ? (
+                {expiringFilter.rows.length === 0 ? (
                   <tr>
                     <td colSpan={7} className="py-12 text-center text-[var(--muted)]">
                       لا توجد سجلات أو وثائق منتهية أو مستحقة خلال نافذة التنبيه الحالية.
                     </td>
                   </tr>
                 ) : (
-                  filteredExpiring.map((item) => {
+                  expiringFilter.rows.map((item) => {
                     const comp = companiesById.get(item.companyId);
                     const dueDate = item.annualConfirmation || item.expiryDate;
                     const rem = getDaysRemaining(dueDate);

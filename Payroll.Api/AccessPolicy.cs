@@ -93,7 +93,7 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/system/",StringComparison.Ordinal))return false;
         if(path=="/api/riders/lookup")return method=="GET"; // RiderLookup.Allowed re-checks the picker permissions in the handler.
         if(path=="/api/riders/data-quality"||path=="/api/riders")return method=="GET"?Has("riders.view"):method=="POST"&&Has("riders.edit");
-        if(path=="/api/workforce"||path=="/api/workforce/summary"||path=="/api/workforce/export"||path=="/api/workforce/data-quality"||path=="/api/workforce/saudi-payroll-employees"||path=="/api/workforce/terminated"||path=="/api/workforce/absence-cases")return method=="GET"&&Has("riders.view");
+        if(path=="/api/workforce"||path=="/api/workforce/summary"||path=="/api/workforce/distinct"||path=="/api/workforce/export"||path=="/api/workforce/data-quality"||path=="/api/workforce/saudi-payroll-employees"||path=="/api/workforce/terminated"||path=="/api/workforce/absence-cases")return method=="GET"&&Has("riders.view");
         if(path=="/api/workforce/legal-cases")return method=="GET"&&Has("riders.legal_cases.view");
         if(path.StartsWith("/api/workforce/",StringComparison.Ordinal)&&path.EndsWith("/360",StringComparison.Ordinal))return method=="GET"&&Has("riders.view_360")&&Has("debts.view");
         if(path.StartsWith("/api/hr-catalogs/",StringComparison.Ordinal))return method=="GET"&&Has("riders.view");

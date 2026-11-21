@@ -45,18 +45,311 @@ public static class OperationsLiveApi
             .WithTags("Operations").WithSummary("Export housing list");
         api.MapGet("/operations/vehicles/period-report/export", (HttpContext ctx) => ExportPeriod(store, config, env, ctx))
             .WithTags("Operations").WithSummary("Export vehicles period report");
+        api.MapGet("/operations/vehicles/oil-changes/export", (HttpContext ctx) => ExportOilChanges(store, config, env, ctx))
+            .WithTags("Operations").WithSummary("Export vehicle oil changes");
+        api.MapGet("/operations/vehicles/purchase-invoices/export", (HttpContext ctx) => ExportPurchases(store, config, env, ctx))
+            .WithTags("Operations").WithSummary("Export vehicle purchase invoices");
         api.MapGet("/operations/fuel-cards/export", (HttpContext ctx) => ExportFuel(store, config, env, ctx))
             .WithTags("Operations").WithSummary("Export fuel cards");
+        api.MapGet("/operations/fuel-log/export", (HttpContext ctx) => ExportFuelLog(store, config, env, ctx))
+            .WithTags("Operations").WithSummary("Export fuel card assignment log");
+        api.MapGet("/operations/distinct", (HttpContext ctx) => DistinctValues(store, config, env, ctx))
+            .WithTags("Operations").WithSummary("Distinct column values for operations table filters");
+    }
+
+    static readonly HashSet<string> CitiesColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id", "code", "nameAr", "nameEn", "status", "regs", "registrationNames", "activeRegistrations",
+        "veh", "vehiclesCars", "vehiclesMotorbikes", "vehiclesTotal", "riders", "ridersTotal",
+        "apps", "appsWorking", "acc", "accountsTotal", "accountsActive", "accountsAssigned"
+    };
+
+    static readonly HashSet<string> HousingColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id", "code", "nameAr", "city", "cityCode", "rooms", "roomsCount", "capacity",
+        "res", "residentsTotal", "per", "ridersPerRoom", "status"
+    };
+
+    static readonly HashSet<string> VehiclesPeriodColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id", "vehicleId", "assetNumber", "plate", "plateNumberAr", "vehicleType", "city",
+        "rider", "riderNameAr", "iqama", "days", "operatingDays", "parts", "sparePartsCost",
+        "collect", "amountToCollect", "oil", "oilChangesCount", "oilChangesCost", "oilMileage"
+    };
+
+    static readonly HashSet<string> PurchaseInvoiceColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id", "num", "receiptNumber", "supInv", "supplierInvoiceNumber", "sup", "supplierNameAr",
+        "date", "invoiceDate", "receivedAt", "subtotal", "taxAmount", "total", "totalAmount", "status"
+    };
+
+    static readonly HashSet<string> OilChangeColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id", "plate", "plateNumberAr", "vehicleType", "date", "performedAt", "odo", "odometer",
+        "liters", "oilLiters", "oil", "oilCost", "filter", "filterCost", "labor", "laborCost",
+        "other", "otherCost", "total", "totalCost"
+    };
+
+    static readonly HashSet<string> FuelColumns = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "id", "cardName", "provider", "providerNameAr", "cardNotes", "card", "cardNumber",
+        "rider", "riderNameAr", "iqama", "plate", "plateNumber", "liters", "before",
+        "amountBeforeTax", "vat", "total", "totalInclVat", "transactionCount", "fuelType",
+        "status", "from", "effectiveFrom", "to", "effectiveTo", "assignmentReason", "endReason"
+    };
+
+    static readonly TableFilterContract.FilterOptions OpsFilterOptions = new(
+        CompositeColumns: new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["riderNameAr"] = ["riderNameAr", "iqama"],
+            ["rider"] = ["riderNameAr", "iqama"]
+        });
+
+    static IReadOnlySet<string> WhitelistFor(string tab, string view) => (tab, view) switch
+    {
+        ("cities", _) => CitiesColumns,
+        ("housing", _) => HousingColumns,
+        ("vehicles", "invoices") => PurchaseInvoiceColumns,
+        ("vehicles", "oil") => OilChangeColumns,
+        ("vehicles", _) => VehiclesPeriodColumns,
+        ("fuel", _) => FuelColumns,
+        _ => CitiesColumns
+    };
+
+    static IReadOnlyDictionary<string, string> AliasesFor(string tab, string view) => (tab, view) switch
+    {
+        ("cities", _) => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["regs"] = "registrationNames",
+            ["veh"] = "vehiclesTotal",
+            ["riders"] = "ridersTotal",
+            ["apps"] = "appsWorking",
+            ["acc"] = "accountsTotal"
+        },
+        ("housing", _) => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["rooms"] = "roomsCount",
+            ["res"] = "residentsTotal",
+            ["per"] = "ridersPerRoom"
+        },
+        ("vehicles", "invoices") => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["num"] = "receiptNumber",
+            ["supInv"] = "supplierInvoiceNumber",
+            ["sup"] = "supplierNameAr",
+            ["date"] = "invoiceDate",
+            ["total"] = "totalAmount"
+        },
+        ("vehicles", "oil") => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["plate"] = "plateNumberAr",
+            ["date"] = "performedAt",
+            ["odo"] = "odometer",
+            ["liters"] = "oilLiters",
+            ["oil"] = "oilCost",
+            ["filter"] = "filterCost",
+            ["labor"] = "laborCost",
+            ["other"] = "otherCost",
+            ["total"] = "totalCost"
+        },
+        ("vehicles", _) => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["plate"] = "plateNumberAr",
+            ["rider"] = "riderNameAr",
+            ["days"] = "operatingDays",
+            ["parts"] = "sparePartsCost",
+            ["collect"] = "amountToCollect",
+            ["oil"] = "oilChangesCost"
+        },
+        ("fuel", _) => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["card"] = "cardNumber",
+            ["rider"] = "riderNameAr",
+            ["plate"] = "plateNumber",
+            ["before"] = "amountBeforeTax",
+            ["total"] = "totalInclVat",
+            ["from"] = "effectiveFrom",
+            ["to"] = "effectiveTo"
+        },
+        _ => new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+    };
+
+    static object DistinctValues(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "operations.view");
+        string column = (ctx.Request.Query["column"].ToString() ?? "").Trim();
+        string tab = (ctx.Request.Query["tab"].ToString() ?? "cities").Trim().ToLowerInvariant();
+        string view = (ctx.Request.Query["view"].ToString() ?? "").Trim().ToLowerInvariant();
+        var whitelist = WhitelistFor(tab, view);
+        var aliases = AliasesFor(tab, view);
+        _ = TableFilterContract.ParseFilters(ctx.Request.Query, whitelist, aliases);
+
+        if (column.Length == 0 || !whitelist.Contains(column))
+            return new JsonObject { ["column"] = column, ["values"] = new JsonArray(), ["counts"] = new JsonObject(), ["hasEmpty"] = false, ["emptyCount"] = 0 };
+
+        var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
+        DateOnly month = ParseMonth(ctx);
+        string mode = (ctx.Request.Query["mode"].ToString() is { Length: > 0 } m && m == "rider") ? "rider" : "vehicle";
+        var (_, _, city, status, search) = ParsePage(ctx);
+        string provider = (ctx.Request.Query["provider"].ToString() ?? "").Trim();
+        List<JsonObject> rows = [];
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+        {
+            rows = store.Read(c => (tab, view) switch
+            {
+                ("cities", _) => BuildStoreCities(c, ctx.User).Items.ToList(),
+                ("housing", _) => ExtractItems(BuildStoreHousing(c, ctx.User, 1, 50_000, city, status, search)),
+                ("vehicles", "invoices") => ExtractItems(BuildStorePurchases(c, ctx.User, from, to, 1, 50_000, search)),
+                ("vehicles", "oil") => new List<JsonObject>(),
+                ("vehicles", _) => ExtractItems(BuildStorePeriod(c, ctx.User, from, to, mode, 1, 50_000)),
+                ("fuel", "log") => new List<JsonObject>(),
+                ("fuel", _) => ExtractItems(BuildStoreFuel(c, ctx.User, month, 1, 50_000)),
+                _ => new List<JsonObject>()
+            });
+            if (search.Length > 0 && tab is "cities" or "vehicles" or "fuel" && view != "invoices")
+            {
+                rows = rows.Where(r => TextSearch.Matches(search, string.Join(' ', r.Select(kv => kv.Value?.ToString() ?? "")))).ToList();
+            }
+            if (provider.Length > 0 && tab == "fuel" && view != "log")
+            {
+                rows = rows.Where(r => string.Equals(r.S("provider"), provider, StringComparison.OrdinalIgnoreCase) || string.Equals(r.S("providerNameAr"), provider, StringComparison.OrdinalIgnoreCase)).ToList();
+            }
+        }
+        else
+        {
+            rows = LiveRead(ctx, token =>
+            {
+                using var erp = OpenErp(config);
+                return store.Read(c =>
+                {
+                    var scope = Operations.LiveScope(c, ctx.User);
+                    return (tab, view) switch
+                    {
+                        ("cities", _) => OperationsLiveQuery.CitiesSummary(erp, scope, token).Items.ToList(),
+                        ("housing", _) => OperationsLiveQuery.HousingExport(erp, city, status, search, scope, ExportTimeoutSeconds(config), token).Items.ToList(),
+                        ("vehicles", "invoices") => OperationsLiveQuery.PurchaseInvoices(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, scope, null, token, unpaged: true).Items.ToList(),
+                        ("vehicles", "oil") => OperationsLiveQuery.OilChangesPeriod(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, scope, export: true, token).Items.ToList(),
+                        ("vehicles", _) => OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, 1, OperationsLiveQuery.MaxPageSize, search, scope, detailed: true, token).Items.ToList(),
+                        ("fuel", "log") => OperationsLiveQuery.FuelAssignments(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, scope, token, unpaged: true, search: search).Items.ToList(),
+                        ("fuel", _) => OperationsLiveQuery.FuelCardsExport(erp, month, provider, search, scope, ExportTimeoutSeconds(config), token).Items.ToList(),
+                        _ => new List<JsonObject>()
+                    };
+                });
+            }, "operations-distinct", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
+        }
+        return TableFilterContract.BuildDistinct(rows, column, ctx.Request.Query, whitelist, aliases, options: OpsFilterOptions);
+    }
+
+    static (IReadOnlyList<JsonObject> Items, long Total, JsonNode? Summary) ApplyContractAndPage(
+        IReadOnlyList<JsonObject> sourceItems,
+        long sourceTotal,
+        JsonNode? baseSummary,
+        int page,
+        int pageSize,
+        IQueryCollection query,
+        string tab,
+        string view,
+        bool alreadyPaged)
+    {
+        var whitelist = WhitelistFor(tab, view);
+        var aliases = AliasesFor(tab, view);
+        var filters = TableFilterContract.ParseFilters(query, whitelist, aliases);
+        var sorts = TableFilterContract.ParseSort(query, whitelist, aliases);
+        if (filters.Count == 0 && sorts.Count == 0)
+            return (sourceItems, sourceTotal, baseSummary);
+
+        var rows = sourceItems.ToList();
+        if (filters.Count > 0) rows = TableFilterContract.ApplyFilters(rows, filters, options: OpsFilterOptions);
+        if (sorts.Count > 0) rows = TableFilterContract.ApplySort(rows, sorts, options: OpsFilterOptions);
+        long total = rows.Count;
+        var summary = filters.Count > 0 ? BuildFilteredSummary(tab, view, rows, baseSummary) : baseSummary;
+        if (!alreadyPaged)
+        {
+            int skip = Math.Max(0, (page - 1) * pageSize);
+            rows = rows.Skip(skip).Take(pageSize).ToList();
+        }
+        return (rows, total, summary);
+    }
+
+    static JsonNode? BuildFilteredSummary(string tab, string view, IReadOnlyList<JsonObject> rows, JsonNode? baseSummary)
+    {
+        long SumLong(string key) => rows.Sum(r => (long)r.N(key));
+        decimal SumDec(string key) => rows.Sum(r => r.N(key));
+        bool AnyNonNull(string key) => rows.Any(r => r[key] != null);
+
+        return (tab, view) switch
+        {
+            ("cities", _) => new JsonObject
+            {
+                ["activeCities"] = rows.Count,
+                ["totalVehicles"] = AnyNonNull("vehiclesTotal") ? SumLong("vehiclesTotal") : (JsonNode?)null,
+                ["totalRiders"] = AnyNonNull("ridersTotal") ? SumLong("ridersTotal") : (JsonNode?)null,
+                ["platformAccountsActive"] = AnyNonNull("accountsActive") ? SumLong("accountsActive") : (JsonNode?)null,
+                ["platformAccountsAssigned"] = AnyNonNull("accountsAssigned") ? SumLong("accountsAssigned") : (JsonNode?)null
+            },
+            ("housing", _) => BuildFilteredHousingSummary(rows),
+            ("vehicles", "invoices") => new JsonObject
+            {
+                ["invoicesTotal"] = (long)rows.Count,
+                ["totalAmount"] = SumDec("totalAmount")
+            },
+            ("vehicles", "oil") => new JsonObject
+            {
+                ["oilChangesCount"] = (long)rows.Count,
+                ["oilChangesCost"] = SumDec("totalCost"),
+                ["totalLiters"] = SumDec("oilLiters")
+            },
+            ("vehicles", _) => new JsonObject
+            {
+                ["vehiclesOperating"] = (long)rows.Count,
+                ["totalOperatingDays"] = AnyNonNull("operatingDays") ? SumDec("operatingDays") : (JsonNode?)null,
+                ["sparePartsCost"] = AnyNonNull("sparePartsCost") ? SumDec("sparePartsCost") : (JsonNode?)null,
+                ["amountToCollect"] = AnyNonNull("amountToCollect") ? SumDec("amountToCollect") : (JsonNode?)null,
+                ["oilChangesCost"] = AnyNonNull("oilChangesCost") ? SumDec("oilChangesCost") : (JsonNode?)null
+            },
+            ("fuel", "log") => new JsonObject
+            {
+                ["assignmentsTotal"] = (long)rows.Count
+            },
+            ("fuel", _) => new JsonObject
+            {
+                ["activeCards"] = (long)rows.Count(r => OperationsLiveQuery.FuelStatusLabel(r.S("status")) == "نشطة"),
+                ["consumingRiders"] = (long)rows.Where(r => r.N("liters") > 0 && r.S("iqama") != "").Select(r => r.S("iqama")).Distinct().Count(),
+                ["totalLiters"] = SumDec("liters"),
+                ["totalInclVat"] = SumDec("totalInclVat"),
+                ["capExceeded"] = null,
+                ["capExceededSource"] = OperationsLiveQuery.NoSourceYet
+            },
+            _ => baseSummary
+        };
+    }
+
+    static JsonObject BuildFilteredHousingSummary(IReadOnlyList<JsonObject> rows)
+    {
+        long rooms = rows.Sum(r => (long)r.N("roomsCount"));
+        bool hasResidents = rows.Any(r => r["residentsTotal"] != null);
+        long residents = hasResidents ? rows.Sum(r => (long)r.N("residentsTotal")) : 0;
+        long capacity = rows.Sum(r => (long)r.N("capacity"));
+        return new JsonObject
+        {
+            ["housingsTotal"] = (long)rows.Count,
+            ["roomsTotal"] = rooms,
+            ["residentsTotal"] = hasResidents ? residents : (JsonNode?)null,
+            ["occupancyPercent"] = hasResidents ? (capacity <= 0 ? 0.0 : Math.Round(100.0 * residents / capacity, 1)) : (JsonNode?)null
+        };
     }
 
     static object Cities(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
+        _ = TableFilterContract.ParseFilters(ctx.Request.Query, CitiesColumns, AliasesFor("cities", ""));
+        _ = TableFilterContract.ParseSort(ctx.Request.Query, CitiesColumns, AliasesFor("cities", ""));
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
             return store.Read(c =>
             {
                 var page = BuildStoreCities(c, ctx.User);
-                return Envelope(new { items = page.Items, total = page.Total, summary = page.Summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                var (items, total, summary) = ApplyContractAndPage(page.Items, page.Total, page.Summary, 1, 200, ctx.Request.Query, "cities", "", alreadyPaged: true);
+                return Envelope(new { items, total, summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
             });
         return LiveRead(ctx, token =>
         {
@@ -64,7 +357,8 @@ public static class OperationsLiveApi
             return store.Read(c =>
             {
                 var page = OperationsLiveQuery.CitiesSummary(erp, Operations.LiveScope(c, ctx.User), token);
-                return Envelope(new { items = page.Items, total = page.Total, summary = page.Summary }, Operations.SourceLive, page.AsOf, Actions(ctx.User));
+                var (items, total, summary) = ApplyContractAndPage(page.Items, page.Total, page.Summary, 1, 200, ctx.Request.Query, "cities", "", alreadyPaged: true);
+                return Envelope(new { items, total, summary }, Operations.SourceLive, page.AsOf, Actions(ctx.User));
             });
         }, "operations-cities");
     }
@@ -99,18 +393,34 @@ public static class OperationsLiveApi
     static object Housing(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
+        _ = TableFilterContract.ParseFilters(ctx.Request.Query, HousingColumns, AliasesFor("housing", ""));
+        _ = TableFilterContract.ParseSort(ctx.Request.Query, HousingColumns, AliasesFor("housing", ""));
         var (page, pageSize, city, status, search) = ParsePage(ctx);
+        bool hasContract = TableFilterContract.HasContractParams(ctx.Request.Query);
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
-            return store.Read(c => Envelope(BuildStoreHousing(c, ctx.User, page, pageSize, city, status, search), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
+            return store.Read(c =>
+            {
+                if (!hasContract)
+                    return Envelope(BuildStoreHousing(c, ctx.User, page, pageSize, city, status, search), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                var full = BuildStoreHousing(c, ctx.User, 1, 50_000, city, status, search);
+                var node = JsonSerializer.SerializeToNode(full, JsonSerializerOptions.Web)!.AsObject();
+                var all = ExtractItems(full);
+                var (items, total, summary) = ApplyContractAndPage(all, all.Count, node["summary"], page, pageSize, ctx.Request.Query, "housing", "", alreadyPaged: false);
+                return Envelope(new { items, total, page, pageSize, summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+            });
         return LiveRead(ctx, token =>
         {
             using var erp = OpenErp(config);
             return store.Read(c =>
             {
-                var result = OperationsLiveQuery.HousingPage(erp, page, pageSize, city, status, search, Operations.LiveScope(c, ctx.User), token);
-                return Envelope(new { items = result.Items, total = result.Total, page, pageSize, summary = result.Summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                var scope = Operations.LiveScope(c, ctx.User);
+                var result = hasContract
+                    ? OperationsLiveQuery.HousingExport(erp, city, status, search, scope, ExportTimeoutSeconds(config), token)
+                    : OperationsLiveQuery.HousingPage(erp, page, pageSize, city, status, search, scope, token);
+                var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "housing", "", alreadyPaged: !hasContract);
+                return Envelope(new { items, total, page, pageSize, summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
             });
-        }, "operations-housing");
+        }, "operations-housing", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static object HousingRooms(Store store, IConfiguration config, IHostEnvironment env, string id, HttpContext ctx)
@@ -151,12 +461,24 @@ public static class OperationsLiveApi
     static object PeriodReport(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
+        _ = TableFilterContract.ParseFilters(ctx.Request.Query, VehiclesPeriodColumns, AliasesFor("vehicles", ""));
+        _ = TableFilterContract.ParseSort(ctx.Request.Query, VehiclesPeriodColumns, AliasesFor("vehicles", ""));
         var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
         string mode = (ctx.Request.Query["mode"].ToString() is { Length: > 0 } m ? m : "vehicle").Trim();
         if (mode is not ("vehicle" or "rider")) throw new ApiError("وضع العرض يجب أن يكون vehicle أو rider.");
         var (page, pageSize, _, _, search) = ParsePage(ctx);
+        bool hasContract = TableFilterContract.HasContractParams(ctx.Request.Query);
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
-            return store.Read(c => Envelope(BuildStorePeriod(c, ctx.User, from, to, mode, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
+            return store.Read(c =>
+            {
+                if (!hasContract)
+                    return Envelope(BuildStorePeriod(c, ctx.User, from, to, mode, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                var full = BuildStorePeriod(c, ctx.User, from, to, mode, 1, 50_000);
+                var node = JsonSerializer.SerializeToNode(full, JsonSerializerOptions.Web)!.AsObject();
+                var all = ExtractItems(full);
+                var (items, total, summary) = ApplyContractAndPage(all, all.Count, node["summary"], page, pageSize, ctx.Request.Query, "vehicles", "", alreadyPaged: false);
+                return Envelope(new { items, total, page, pageSize, summary, mode, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+            });
         return LiveRead(ctx, token =>
         {
             using var erp = OpenErp(config);
@@ -164,15 +486,18 @@ public static class OperationsLiveApi
             {
                 try
                 {
-                    var result = OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, page, pageSize, search, Operations.LiveScope(c, ctx.User), detailed: false, token);
+                    var result = hasContract
+                        ? OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), detailed: true, token)
+                        : OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, page, pageSize, search, Operations.LiveScope(c, ctx.User), detailed: false, token);
                     AssertNoVin(result.Items);
+                    var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "vehicles", "", alreadyPaged: !hasContract);
                     return Envelope(new
                     {
-                        items = result.Items,
-                        total = result.Total,
+                        items,
+                        total,
                         page,
                         pageSize,
-                        summary = result.Summary,
+                        summary,
                         mode,
                         from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                         to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
@@ -180,7 +505,7 @@ public static class OperationsLiveApi
                 }
                 catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
             });
-        }, "operations-vehicles-period");
+        }, "operations-vehicles-period", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static object Vehicle(Store store, IConfiguration config, IHostEnvironment env, string id, HttpContext ctx)
@@ -234,8 +559,11 @@ public static class OperationsLiveApi
     static object OilChangesPeriod(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
+        _ = TableFilterContract.ParseFilters(ctx.Request.Query, OilChangeColumns, AliasesFor("vehicles", "oil"));
+        _ = TableFilterContract.ParseSort(ctx.Request.Query, OilChangeColumns, AliasesFor("vehicles", "oil"));
         var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
         var (page, pageSize, _, _, search) = ParsePage(ctx);
+        bool hasContract = TableFilterContract.HasContractParams(ctx.Request.Query);
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
             return Envelope(new { items = Array.Empty<object>(), total = 0L, page, pageSize, summary = new { oilChangesCount = (long?)null, oilChangesCost = (decimal?)null, message = OperationsLiveQuery.NoSourceYet }, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
         return LiveRead(ctx, token =>
@@ -245,21 +573,36 @@ public static class OperationsLiveApi
             {
                 try
                 {
-                    var result = OperationsLiveQuery.OilChangesPeriod(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), export: false, token);
-                    return Envelope(new { items = result.Items, total = result.Total, page, pageSize, summary = result.Summary, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                    var result = hasContract
+                        ? OperationsLiveQuery.OilChangesPeriod(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), export: true, token)
+                        : OperationsLiveQuery.OilChangesPeriod(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), export: false, token);
+                    var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "vehicles", "oil", alreadyPaged: !hasContract);
+                    return Envelope(new { items, total, page, pageSize, summary, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
                 }
                 catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
             });
-        }, "operations-oil-period");
+        }, "operations-oil-period", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static object Purchases(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
+        _ = TableFilterContract.ParseFilters(ctx.Request.Query, PurchaseInvoiceColumns, AliasesFor("vehicles", "invoices"));
+        _ = TableFilterContract.ParseSort(ctx.Request.Query, PurchaseInvoiceColumns, AliasesFor("vehicles", "invoices"));
         var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
         var (page, pageSize, _, _, search) = ParsePage(ctx);
+        bool hasContract = TableFilterContract.HasContractParams(ctx.Request.Query);
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
-            return Envelope(new { items = Array.Empty<object>(), total = 0L, page, pageSize, summary = new { invoicesTotal = 0, totalAmount = 0, message = OperationsLiveQuery.NoSourceYet } }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+            return store.Read(c =>
+            {
+                if (!hasContract)
+                    return Envelope(BuildStorePurchases(c, ctx.User, from, to, page, pageSize, search), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                var full = BuildStorePurchases(c, ctx.User, from, to, 1, 50_000, search);
+                var node = JsonSerializer.SerializeToNode(full, JsonSerializerOptions.Web)!.AsObject();
+                var all = ExtractItems(full);
+                var (items, total, summary) = ApplyContractAndPage(all, all.Count, node["summary"], page, pageSize, ctx.Request.Query, "vehicles", "invoices", alreadyPaged: false);
+                return Envelope(new { items, total, page, pageSize, summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+            });
         return LiveRead(ctx, token =>
         {
             using var erp = OpenErp(config);
@@ -267,19 +610,28 @@ public static class OperationsLiveApi
             {
                 try
                 {
-                    var result = OperationsLiveQuery.PurchaseInvoices(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), null, token);
-                    return Envelope(new { items = result.Items, total = result.Total, page, pageSize, summary = result.Summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                    var result = hasContract
+                        ? OperationsLiveQuery.PurchaseInvoices(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), null, token, unpaged: true)
+                        : OperationsLiveQuery.PurchaseInvoices(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), null, token);
+                    var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "vehicles", "invoices", alreadyPaged: !hasContract);
+                    return Envelope(new { items, total, page, pageSize, summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
                 }
                 catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
             });
-        }, "operations-purchases");
+        }, "operations-purchases", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static object PurchaseDetail(Store store, IConfiguration config, IHostEnvironment env, string id, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
-            throw new ApiError("فاتورة المشتريات غير موجودة.", 404);
+            return store.Read(c =>
+            {
+                if (!FinancialScopes.AllCompanies(ctx.User)) throw new ApiError("فاتورة المشتريات غير موجودة.", 404);
+                var hit = Store.Get(c, id, "purchase_invoice") ?? throw new ApiError("فاتورة المشتريات غير موجودة.", 404);
+                if (hit["isDeleted"]?.GetValue<bool>() == true) throw new ApiError("فاتورة المشتريات غير موجودة.", 404);
+                return Envelope(MapStorePurchaseRow(hit), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+            });
         DateOnly from = new(2020, 1, 1);
         DateOnly to = DateOnly.FromDateTime(DateTime.UtcNow.AddHours(3));
         return LiveRead(ctx, token =>
@@ -300,27 +652,46 @@ public static class OperationsLiveApi
     static object Fuel(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
+        _ = TableFilterContract.ParseFilters(ctx.Request.Query, FuelColumns, AliasesFor("fuel", ""));
+        _ = TableFilterContract.ParseSort(ctx.Request.Query, FuelColumns, AliasesFor("fuel", ""));
         DateOnly month = ParseMonth(ctx);
         string provider = (ctx.Request.Query["provider"].ToString() ?? "").Trim();
         var (page, pageSize, _, _, search) = ParsePage(ctx);
+        bool hasContract = TableFilterContract.HasContractParams(ctx.Request.Query);
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
-            return store.Read(c => Envelope(BuildStoreFuel(c, ctx.User, month, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
+            return store.Read(c =>
+            {
+                if (!hasContract)
+                    return Envelope(BuildStoreFuel(c, ctx.User, month, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                var full = BuildStoreFuel(c, ctx.User, month, 1, 50_000);
+                var node = JsonSerializer.SerializeToNode(full, JsonSerializerOptions.Web)!.AsObject();
+                var all = ExtractItems(full);
+                var (items, total, summary) = ApplyContractAndPage(all, all.Count, node["summary"], page, pageSize, ctx.Request.Query, "fuel", "", alreadyPaged: false);
+                return Envelope(new { items, total, page, pageSize, summary, month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture) }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+            });
         return LiveRead(ctx, token =>
         {
             using var erp = OpenErp(config);
             return store.Read(c =>
             {
-                var result = OperationsLiveQuery.FuelCards(erp, month, provider, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
-                return Envelope(new { items = result.Items, total = result.Total, page, pageSize, summary = result.Summary, month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture) }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                var scope = Operations.LiveScope(c, ctx.User);
+                var result = hasContract
+                    ? OperationsLiveQuery.FuelCardsExport(erp, month, provider, search, scope, ExportTimeoutSeconds(config), token)
+                    : OperationsLiveQuery.FuelCards(erp, month, provider, page, pageSize, search, scope, token);
+                var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "fuel", "", alreadyPaged: !hasContract);
+                return Envelope(new { items, total, page, pageSize, summary, month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture) }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
             });
-        }, "operations-fuel");
+        }, "operations-fuel", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static object FuelLog(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
+        _ = TableFilterContract.ParseFilters(ctx.Request.Query, FuelColumns, AliasesFor("fuel", "log"));
+        _ = TableFilterContract.ParseSort(ctx.Request.Query, FuelColumns, AliasesFor("fuel", "log"));
         var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
-        var (page, pageSize, _, _, _) = ParsePage(ctx);
+        var (page, pageSize, _, _, search) = ParsePage(ctx);
+        bool hasContract = TableFilterContract.HasContractParams(ctx.Request.Query);
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
             return Envelope(new { items = Array.Empty<object>(), total = 0L, page, pageSize, summary = new { assignmentsTotal = 0 } }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
         return LiveRead(ctx, token =>
@@ -330,12 +701,15 @@ public static class OperationsLiveApi
             {
                 try
                 {
-                    var result = OperationsLiveQuery.FuelAssignments(erp, from, to, page, pageSize, Operations.LiveScope(c, ctx.User), token);
-                    return Envelope(new { items = result.Items, total = result.Total, page, pageSize, summary = result.Summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                    var result = hasContract
+                        ? OperationsLiveQuery.FuelAssignments(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, Operations.LiveScope(c, ctx.User), token, unpaged: true, search: search)
+                        : OperationsLiveQuery.FuelAssignments(erp, from, to, page, pageSize, Operations.LiveScope(c, ctx.User), token, unpaged: false, search: search);
+                    var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "fuel", "log", alreadyPaged: !hasContract);
+                    return Envelope(new { items, total, page, pageSize, summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
                 }
                 catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
             });
-        }, "operations-fuel-log");
+        }, "operations-fuel-log", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
 
     static IResult ExportCities(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
@@ -350,6 +724,7 @@ public static class OperationsLiveApi
                 using var erp = OpenErp(config);
                 return store.Read(c => OperationsLiveQuery.CitiesSummary(erp, Operations.LiveScope(c, ctx.User), token).Items.ToList());
             }, "operations-cities-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
+        items = TableFilterContract.Apply(items, ctx.Request.Query, CitiesColumns, AliasesFor("cities", ""));
         var cols = new[] { "المدينة", "الحالة", "السجلات", "سيارات", "دراجات", "مناديب", "تطبيقات", "حسابات إجمالي", "نشط", "مسند" }.Select(h => new ExcelColumn(h)).ToArray();
         var rows = items.Select(r => new object?[] { r.S("nameAr"), r.S("status"), r.S("registrationNames"), r.N("vehiclesCars"), r.N("vehiclesMotorbikes"), r.N("ridersTotal"), r.S("appsWorking"), r.N("accountsTotal"), r.N("accountsActive"), r.N("accountsAssigned") }).ToList();
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-cities.xlsx");
@@ -370,6 +745,7 @@ public static class OperationsLiveApi
                 using var erp = OpenErp(config);
                 return store.Read(c => OperationsLiveQuery.HousingExport(erp, city, status, search, Operations.LiveScope(c, ctx.User), ExportTimeoutSeconds(config), token).Items.ToList());
             }, "operations-housing-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
+        items = TableFilterContract.Apply(items, ctx.Request.Query, HousingColumns, AliasesFor("housing", ""));
         var cols = new[] { "السكن", "المدينة", "غرف", "سعة", "مقيمون", "لكل غرفة", "الحالة" }.Select(h => new ExcelColumn(h)).ToArray();
         var rows = items.Select(r => new object?[] { r.S("nameAr"), r.S("city"), r.N("roomsCount"), r.N("capacity"), r.N("residentsTotal"), r.N("ridersPerRoom"), r.S("status") }).ToList();
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-housing.xlsx");
@@ -381,20 +757,26 @@ public static class OperationsLiveApi
         bool detailed = (ctx.Request.Query["detail"].ToString() ?? "").Equals("detailed", StringComparison.OrdinalIgnoreCase);
         var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
         string mode = (ctx.Request.Query["mode"].ToString() is { Length: > 0 } m ? m : "vehicle").Trim();
+        string search = (ctx.Request.Query["q"].ToString() is { Length: > 0 } q ? q : ctx.Request.Query["search"].ToString() ?? "").Trim();
         List<JsonObject> items;
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
+        {
             items = store.Read(c => ExtractItems(BuildStorePeriod(c, ctx.User, from, to, mode, 1, 50_000)).ToList());
+            if (search.Length > 0)
+                items = items.Where(r => TextSearch.Matches(search, $"{r.S("plateNumberAr")} {r.S("assetNumber")} {r.S("riderNameAr")} {r.S("iqama")} {r.S("city")}")).ToList();
+        }
         else
             items = LiveRead(ctx, token =>
             {
                 using var erp = OpenErp(config);
                 return store.Read(c =>
                 {
-                    var result = OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, 1, OperationsLiveQuery.MaxPageSize, "", Operations.LiveScope(c, ctx.User), detailed: true, token);
+                    var result = OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), detailed: true, token);
                     AssertNoVin(result.Items);
                     return result.Items.ToList();
                 });
             }, "operations-vehicles-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
+        items = TableFilterContract.Apply(items, ctx.Request.Query, VehiclesPeriodColumns, AliasesFor("vehicles", ""), options: OpsFilterOptions);
         var headers = detailed
             ? new[] { "لوحة", "نوع", "مندوب", "إقامة", "مدينة", "أيام", "قطع غيار", "استقطاع", "تغييرات زيت", "تكلفة زيت", "عداد" }
             : new[] { "لوحة", "نوع", "مندوب", "أيام", "قطع غيار", "استقطاع", "تكلفة زيت" };
@@ -405,24 +787,91 @@ public static class OperationsLiveApi
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, detailed ? "operations-vehicles-detailed.xlsx" : "operations-vehicles-summary.xlsx");
     }
 
+    static IResult ExportOilChanges(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "operations.view");
+        var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
+        string search = (ctx.Request.Query["q"].ToString() is { Length: > 0 } q ? q : ctx.Request.Query["search"].ToString() ?? "").Trim();
+        List<JsonObject> items;
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            items = [];
+        else
+            items = LiveRead(ctx, token =>
+            {
+                using var erp = OpenErp(config);
+                return store.Read(c => OperationsLiveQuery.OilChangesPeriod(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), export: true, token).Items.ToList());
+            }, "operations-oil-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
+        items = TableFilterContract.Apply(items, ctx.Request.Query, OilChangeColumns, AliasesFor("vehicles", "oil"));
+        var cols = new[] { "اللوحة", "التاريخ", "العداد", "لترات", "تكلفة الزيت", "الفلتر", "أجور", "أخرى", "الإجمالي" }.Select(h => new ExcelColumn(h)).ToArray();
+        var rows = items.Select(r => new object?[] { r.S("plateNumberAr"), r.S("performedAt"), r["odometer"]?.ToString(), r["oilLiters"]?.ToString(), r["oilCost"]?.ToString(), r["filterCost"]?.ToString(), r["laborCost"]?.ToString(), r["otherCost"]?.ToString(), r["totalCost"]?.ToString() }).ToList();
+        return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-oil-changes.xlsx");
+    }
+
+    static IResult ExportPurchases(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "operations.view");
+        var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
+        string search = (ctx.Request.Query["q"].ToString() is { Length: > 0 } q ? q : ctx.Request.Query["search"].ToString() ?? "").Trim();
+        List<JsonObject> items;
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            items = store.Read(c => ExtractItems(BuildStorePurchases(c, ctx.User, from, to, 1, 50_000, search)).ToList());
+        else
+            items = LiveRead(ctx, token =>
+            {
+                using var erp = OpenErp(config);
+                return store.Read(c => OperationsLiveQuery.PurchaseInvoices(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), null, token, unpaged: true).Items.ToList());
+            }, "operations-purchases-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
+        items = TableFilterContract.Apply(items, ctx.Request.Query, PurchaseInvoiceColumns, AliasesFor("vehicles", "invoices"));
+        var cols = new[] { "رقم الاستلام", "فاتورة المورد", "المورد", "تاريخ الفاتورة", "تاريخ الاستلام", "الإجمالي", "الحالة" }.Select(h => new ExcelColumn(h)).ToArray();
+        var rows = items.Select(r => new object?[] { r.S("receiptNumber"), r.S("supplierInvoiceNumber"), r.S("supplierNameAr"), r.S("invoiceDate"), r.S("receivedAt"), r["totalAmount"]?.ToString(), r.S("status") }).ToList();
+        return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-purchases.xlsx");
+    }
+
     static IResult ExportFuel(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "operations.view");
         DateOnly month = ParseMonth(ctx);
         string provider = (ctx.Request.Query["provider"].ToString() ?? "").Trim();
-        string search = (ctx.Request.Query["q"].ToString() ?? "").Trim();
+        string search = (ctx.Request.Query["q"].ToString() is { Length: > 0 } q ? q : ctx.Request.Query["search"].ToString() ?? "").Trim();
         List<JsonObject> items;
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
+        {
             items = store.Read(c => ExtractItems(BuildStoreFuel(c, ctx.User, month, 1, 50_000)).ToList());
+            if (provider.Length > 0)
+                items = items.Where(r => string.Equals(r.S("provider"), provider, StringComparison.OrdinalIgnoreCase) || string.Equals(r.S("providerNameAr"), provider, StringComparison.OrdinalIgnoreCase)).ToList();
+            if (search.Length > 0)
+                items = items.Where(r => TextSearch.Matches(search, $"{r.S("cardNumber")} {r.S("cardName")} {r.S("cardNotes")} {r.S("riderNameAr")} {r.S("iqama")} {r.S("plateNumber")}")).ToList();
+        }
         else
             items = LiveRead(ctx, token =>
             {
                 using var erp = OpenErp(config);
                 return store.Read(c => OperationsLiveQuery.FuelCardsExport(erp, month, provider, search, Operations.LiveScope(c, ctx.User), ExportTimeoutSeconds(config), token).Items.ToList());
             }, "operations-fuel-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
-        var cols = new[] { "بطاقة", "مزود", "لوحة", "مندوب", "لتر", "قبل الضريبة", "ضريبة", "إجمالي", "سقف" }.Select(h => new ExcelColumn(h)).ToArray();
-        var rows = items.Select(r => new object?[] { r.S("cardNumber"), r.S("provider"), r.S("plateNumber"), r.S("riderNameAr"), r["liters"]?.ToString(), r["amountBeforeTax"]?.ToString(), r["vat"]?.ToString(), r["totalInclVat"]?.ToString(), OperationsLiveQuery.NoSourceYet }).ToList();
+        items = TableFilterContract.Apply(items, ctx.Request.Query, FuelColumns, AliasesFor("fuel", ""), options: OpsFilterOptions);
+        var cols = new[] { "اسم البطاقة", "رقم البطاقة", "لوحة", "مندوب", "رقم الإقامة", "لتر", "قبل الضريبة", "ضريبة", "إجمالي", "سقف", "الحالة" }.Select(h => new ExcelColumn(h)).ToArray();
+        var rows = items.Select(r => new object?[] { r.S("cardName", r.S("providerNameAr", r.S("provider"))), r.S("cardNumber"), r.S("plateNumber"), r.S("riderNameAr"), r.S("iqama"), r["liters"]?.ToString(), r["amountBeforeTax"]?.ToString(), r["vat"]?.ToString(), r["totalInclVat"]?.ToString(), OperationsLiveQuery.NoSourceYet, OperationsLiveQuery.FuelStatusLabel(r.S("status")) }).ToList();
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-fuel.xlsx");
+    }
+
+    static IResult ExportFuelLog(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "operations.view");
+        var (from, to) = ParsePeriod(ctx, defaultCurrentMonth: true);
+        string search = (ctx.Request.Query["q"].ToString() is { Length: > 0 } q ? q : ctx.Request.Query["search"].ToString() ?? "").Trim();
+        List<JsonObject> items;
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+            items = [];
+        else
+            items = LiveRead(ctx, token =>
+            {
+                using var erp = OpenErp(config);
+                return store.Read(c => OperationsLiveQuery.FuelAssignments(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, Operations.LiveScope(c, ctx.User), token, unpaged: true, search: search).Items.ToList());
+            }, "operations-fuel-log-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
+        items = TableFilterContract.Apply(items, ctx.Request.Query, FuelColumns, AliasesFor("fuel", "log"), options: OpsFilterOptions);
+        var cols = new[] { "اسم البطاقة", "رقم البطاقة", "المندوب", "رقم الإقامة", "المركبة", "من", "إلى", "سبب التسليم", "سبب الإنهاء" }.Select(h => new ExcelColumn(h)).ToArray();
+        var rows = items.Select(r => new object?[] { r.S("cardName", r.S("providerNameAr", r.S("provider"))), r.S("cardNumber"), r.S("riderNameAr"), r.S("iqama"), r.S("plateNumber"), r.S("effectiveFrom"), r.S("effectiveTo"), r.S("assignmentReason"), r.S("endReason") }).ToList();
+        return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-fuel-log.xlsx");
     }
 
     static OperationsLiveQuery.PageResult BuildStoreCities(DbConnection c, ClaimsPrincipal user)
@@ -530,23 +979,32 @@ public static class OperationsLiveApi
     static object BuildStoreFuel(DbConnection c, ClaimsPrincipal user, DateOnly month, int page, int pageSize)
     {
         _ = month;
-        var rows = Operations.List(c, user, "fuel_usage").Select(r => new JsonObject
+        var rows = Operations.List(c, user, "fuel_usage").Select(r =>
         {
-            ["id"] = r.S("id"),
-            ["cardNumber"] = r.S("fuelCardId"),
-            ["provider"] = "",
-            ["plateNumber"] = "",
-            ["riderNameAr"] = "",
-            ["iqama"] = r.S("riderId"),
-            ["liters"] = r.N("liters"),
-            ["amountBeforeTax"] = r.N("amountBeforeTax"),
-            ["vat"] = r.N("vat"),
-            ["totalInclVat"] = r.N("amount", r.N("totalAmount")),
-            ["transactionCount"] = null,
-            ["fuelType"] = r.S("fuelType"),
-            ["cap"] = null,
-            ["capSource"] = OperationsLiveQuery.NoSourceYet,
-            ["status"] = "active"
+            string provider = r.S("provider");
+            string providerAr = OperationsLiveQuery.FuelProviderNameAr(provider);
+            string notes = r.S("cardNotes", r.S("notes"));
+            return new JsonObject
+            {
+                ["id"] = r.S("id"),
+                ["cardNumber"] = r.S("fuelCardId"),
+                ["provider"] = provider,
+                ["providerNameAr"] = providerAr,
+                ["cardName"] = !string.IsNullOrWhiteSpace(notes) ? notes : providerAr,
+                ["cardNotes"] = notes,
+                ["plateNumber"] = "",
+                ["riderNameAr"] = "",
+                ["iqama"] = r.S("riderId"),
+                ["liters"] = r.N("liters"),
+                ["amountBeforeTax"] = r.N("amountBeforeTax"),
+                ["vat"] = r.N("vat"),
+                ["totalInclVat"] = r.N("amount", r.N("totalAmount")),
+                ["transactionCount"] = null,
+                ["fuelType"] = r.S("fuelType"),
+                ["cap"] = null,
+                ["capSource"] = OperationsLiveQuery.NoSourceYet,
+                ["status"] = OperationsLiveQuery.FuelStatusLabel(r.S("status", "active"))
+            };
         }).ToList();
         int skip = (page - 1) * pageSize;
         var items = rows.Skip(skip).Take(pageSize).ToList();
@@ -561,6 +1019,54 @@ public static class OperationsLiveApi
         };
         return new { items, total = rows.Count, page, pageSize, summary, month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture) };
     }
+
+    static object BuildStorePurchases(DbConnection c, ClaimsPrincipal user, DateOnly from, DateOnly to, int page, int pageSize, string search)
+    {
+        if (!FinancialScopes.AllCompanies(user))
+            return new { items = Array.Empty<object>(), total = 0L, page, pageSize, summary = new JsonObject { ["invoicesTotal"] = 0, ["totalAmount"] = 0, ["message"] = "فواتير المشتريات بلا عمود شركة — مخفية لنطاق شركة" } };
+        var stored = Store.List(c, "purchase_invoice").ToList();
+        if (stored.Count == 0)
+            return new { items = Array.Empty<object>(), total = 0L, page, pageSize, summary = new JsonObject { ["invoicesTotal"] = 0, ["totalAmount"] = 0, ["message"] = OperationsLiveQuery.NoSourceYet } };
+        var matched = stored
+            .Where(r => r["isDeleted"]?.GetValue<bool>() != true)
+            .Where(r =>
+            {
+                DateOnly? invDate = DateOnly.TryParse(r.S("invoiceDate"), CultureInfo.InvariantCulture, DateTimeStyles.None, out var d) ? d : null;
+                DateTimeOffset? recAt = DateTimeOffset.TryParse(r.S("receivedAt"), CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var dt) ? dt : null;
+                return OperationsLiveQuery.PurchaseInvoiceInPeriod(invDate, recAt, from, to);
+            })
+            .Select(MapStorePurchaseRow)
+            .Where(r => search.Length == 0
+                || r.S("receiptNumber").Contains(search, StringComparison.OrdinalIgnoreCase)
+                || r.S("supplierInvoiceNumber").Contains(search, StringComparison.OrdinalIgnoreCase)
+                || r.S("supplierNameAr").Contains(search, StringComparison.OrdinalIgnoreCase))
+            .OrderByDescending(r => r.S("receivedAt"))
+            .ThenByDescending(r => r.S("invoiceDate"))
+            .ThenByDescending(r => r.S("receiptNumber"))
+            .ToList();
+        int skip = (page - 1) * pageSize;
+        var items = matched.Skip(skip).Take(pageSize).ToList();
+        var summary = new JsonObject
+        {
+            ["invoicesTotal"] = matched.Count,
+            ["totalAmount"] = matched.Sum(r => r.N("totalAmount"))
+        };
+        return new { items, total = (long)matched.Count, page, pageSize, summary };
+    }
+
+    static JsonObject MapStorePurchaseRow(JsonObject r) => new()
+    {
+        ["id"] = r.S("id"),
+        ["receiptNumber"] = r.S("receiptNumber"),
+        ["supplierInvoiceNumber"] = r.S("supplierInvoiceNumber"),
+        ["invoiceDate"] = r.S("invoiceDate"),
+        ["receivedAt"] = r.S("receivedAt"),
+        ["subtotal"] = r.N("subtotal"),
+        ["taxAmount"] = r.N("taxAmount"),
+        ["totalAmount"] = r.N("totalAmount"),
+        ["status"] = OperationsLiveQuery.PurchaseStatusLabel(r.S("status")),
+        ["supplierNameAr"] = r.S("supplierNameAr")
+    };
 
     static void AssertNoVin(IEnumerable<JsonObject> items)
     {
