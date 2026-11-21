@@ -64,12 +64,13 @@ public static class TreasuryVaultCountsApi
             companyId=r.GetValue(0).ToString()!;registrationId=r.GetValue(1).ToString()!;boxAccountId=r.GetValue(2).ToString()!;
         }
         FinancialScopes.DemandSponsor(actor,companyId);
+        DemandTreasuryAccount(actor,companyId,boxAccountId,c,tx);
         DateOnly countedOn=ParseDay(input.Required("countedOn"));
         DateOnly periodMonth=new(countedOn.Year,countedOn.Month,1);
         decimal counted=J.Money(PayValues.Number(input,"countedAmount",0));
         J.Need(counted>=0,"مبلغ الجرد لا يكون سالبًا.");
+        // Book balance is server-authored as of the count date's period; callers never supply it.
         decimal book=BookBalance(c,tx,companyId,boxAccountId,periodMonth);
-        if(input.ContainsKey("bookBalance"))book=J.Money(PayValues.Number(input,"bookBalance"));
         string id=SchemaSql.GuidText(SchemaSql.NewId());
         string actorName=actor.Identity!.Name!;
         SchemaSql.Exec(c,tx,$"""
@@ -217,6 +218,12 @@ public static class TreasuryVaultCountsApi
             VALUES(@id,@c,@m,1,{SchemaSql.NowLiteral(c)})
             """,("@id",SchemaSql.GuidText(id)),("@c",companyId),("@m",month.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)));
         return id;
+    }
+    static void DemandTreasuryAccount(ClaimsPrincipal actor,string companyId,string accountId,DbConnection c,DbTransaction tx)
+    {
+        object? codeObj=SchemaSql.Scalar(c,tx,$"SELECT code FROM {SchemaSql.Q(c,"fin","account")} WHERE id=@id",("@id",accountId));
+        string code=codeObj?.ToString()??"";
+        J.Need(code!=""&&FinancialScopes.TargetAccount(actor,companyId,code),"الحساب المالي خارج النطاق المسند للمستخدم.",403);
     }
     static DateOnly ParseDay(string raw)
     {

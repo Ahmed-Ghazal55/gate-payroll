@@ -48,7 +48,9 @@ public static class TreasuryBalancesApi
                 string code=r.GetString(0);string name=r.IsDBNull(1)?code:r.GetString(1);
                 decimal bal=J.Money(Convert.ToDecimal(r.GetValue(2),CultureInfo.InvariantCulture));
                 string type=chartType.GetValueOrDefault(code,"");
-                string kind=type is "cash" or "bank"?type:code.StartsWith("1112",StringComparison.Ordinal)?"bank":code.StartsWith("1111",StringComparison.Ordinal)?"cash":"custody";
+                string kind=ClassifyTreasuryKind(code,type);
+                if(kind=="")continue; // never "everything else is custody" — skip revenue/liability/etc.
+                if(!FinancialScopes.TargetAccount(actor,company.Id,code))continue;
                 children.Add(new JsonObject
                 {
                     ["id"]="account:"+company.Id+":"+code,["kind"]=kind,["accountCode"]=code,
@@ -114,6 +116,17 @@ public static class TreasuryBalancesApi
 
     internal static bool IsTogary(params string?[] parts)=>
         parts.Any(p=>!string.IsNullOrWhiteSpace(p)&&(p!.Contains("togary",StringComparison.OrdinalIgnoreCase)||p.Contains("تجار",StringComparison.Ordinal)||p.Contains("التجارية",StringComparison.Ordinal)));
+
+    /// <summary>Chart type/code ranges only: cash, bank, defined custody. Never dump residual accounts into custody.</summary>
+    internal static string ClassifyTreasuryKind(string code,string type)
+    {
+        if(type is "cash" or "bank")return type;
+        if(code.StartsWith("1111",StringComparison.Ordinal))return "cash";
+        if(code.StartsWith("1112",StringComparison.Ordinal))return "bank";
+        // Defined custody: employee/supervisor عهدة 112302–112306 and cash-transfer clearing 114101/114104/114106.
+        if(code is "112302" or "112304" or "112305" or "112306" or "114101" or "114104" or "114106")return "custody";
+        return "";
+    }
 
     static DateOnly ParseMonth(string? periodMonth)
     {
