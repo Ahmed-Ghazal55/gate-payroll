@@ -85,7 +85,7 @@ try{
  let policy=await req('/api/policies',{name:'Approved pay',kind:'approved_pay',platform:'all',effectiveFrom:'2026-10',config:{}});await req(`/api/policies/${policy.id}/approve`,{});
  await req('/api/riders',{...rider,policyId:policy.id});
  await seedWorkRows(req,[{sourceRef:'enterprise-row',iqama:iq,name:'Synthetic Rider',accountId:'1234567890123456',from:'2026-10-01',to:'2026-10-31',orders:1,riderPay:500,isValid:true,platform:'Keeta',period:'2026-10'}]);
- const debt=await req('/api/debts',{iqama:iq,category:'Advance',creditorSponsorId:'BW',totalAmount:600,monthlyInstallment:400,sourceRef:'agreed-advance',agreementReviewed:true,effectiveFrom:'2026-10'});
+ const debt=await req('/api/debts',{iqama:iq,category:'Advance',entryMode:'OpeningBalance',creditorSponsorId:'BW',totalAmount:600,monthlyInstallment:400,sourceRef:'agreed-advance',agreementReviewed:true,effectiveFrom:'2026-10',openingReviewed:true});
  let pay=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(pay.payable,100);assert.equal((await req('/api/debts'))[0].remainingBalance,600);
  await put('/api/debts/'+debt.id,{monthlyInstallment:200,agreementReviewed:true});await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:pay.fingerprint},400);
  pay=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(pay.payable,300);await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:pay.fingerprint});await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:pay.fingerprint},400);
@@ -109,7 +109,8 @@ try{
  await req('/api/promissory-notes',{iqama:iq,noteNumber:'NFZ-1',amount:5000},400); // Dormant by default
 
  // 1. Create HR Service (WorkPermit) with SharedSplit: totalCost 9600, companyShare 4600 -> riderShare 5000 on BW
- const wpDebt=await req('/api/debts',{iqama:iq,category:'WorkPermit',allocationMode:'SharedSplit',totalCostAmount:9600,companyShareAmount:4600,monthlyInstallment:1000,creditorSponsorId:'BW',entryMode:'Disbursement',paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'HR-WP-001',agreementReviewed:true,effectiveFrom:'2026-10'});
+ await req('/api/debts',{iqama:iq,category:'WorkPermit',allocationMode:'SharedSplit',totalCostAmount:9600,companyShareAmount:4600,monthlyInstallment:1000,creditorSponsorId:'BW',entryMode:'Disbursement',paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'HR-WP-DISBURSE-BLOCKED',agreementReviewed:true,effectiveFrom:'2026-10'},409);
+ const wpDebt=await req('/api/debts',{iqama:iq,category:'WorkPermit',allocationMode:'SharedSplit',totalCostAmount:9600,companyShareAmount:4600,monthlyInstallment:1000,creditorSponsorId:'BW',entryMode:'Accrual',sourceRef:'HR-WP-001',agreementReviewed:true,effectiveFrom:'2026-10'});
  assert.equal(wpDebt.totalAmount,5000);assert.equal(wpDebt.companyShareAmount,4600);assert.equal(wpDebt.remainingBalance,5000);assert.ok(wpDebt.journalNumber);
 
  // 2. Collect 1500 cash into Express internal cashbox (MAIN.EX.SET) + 500 Administrative Waiver (5202) -> auto Inter-CR clearing (1310)
@@ -192,11 +193,11 @@ try{
  // 9. Treasury & Chart of Accounts Hierarchy + Jahez Box Financial Isolation + Operation-Specific Account Filtering
  // 9.a: Reject using Jahez Cashbox (SUP.*), Jahez Fee Account (*.FEE), or PetroApp (PETRO.*) in HR Requests or Advances
  await req('/api/debts',{iqama:iq,category:'WorkPermit',totalAmount:9600,monthlyInstallment:1000,paymentVaultCode:'SUP.BW.SET',sourceRef:'BAD-HR-SUP',agreementReviewed:true},400);
- await req('/api/debts',{iqama:iq,category:'Advance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'SUP.BW.SET',sourceRef:'BAD-ADV-SUP',agreementReviewed:true},400);
+ await req('/api/debts',{iqama:iq,category:'Advance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'SUP.BW.SET',sourceRef:'BAD-ADV-SUP',agreementReviewed:true},409);
  await req('/api/debts',{iqama:iq,category:'WorkPermit',totalAmount:9600,monthlyInstallment:1000,paymentVaultCode:'MAIN.BW.FEE',sourceRef:'BAD-HR-FEE',agreementReviewed:true},400);
  await req('/api/debts',{iqama:iq,category:'WorkPermit',totalAmount:9600,monthlyInstallment:1000,paymentVaultCode:'PETRO.BW',sourceRef:'BAD-HR-PETRO',agreementReviewed:true},400);
- await req('/api/debts',{iqama:iq,category:'CashAdvance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'BANK.BW',sourceRef:'BAD-CASH-BANK',agreementReviewed:true},400);
- await req('/api/debts',{iqama:iq,category:'BankAdvance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'BAD-BANK-MAIN',agreementReviewed:true},400);
+ await req('/api/debts',{iqama:iq,category:'CashAdvance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'BANK.BW',sourceRef:'BAD-CASH-BANK',agreementReviewed:true},409);
+ await req('/api/debts',{iqama:iq,category:'BankAdvance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'BAD-BANK-MAIN',agreementReviewed:true},409);
  // Reject collecting an HR debt into Jahez Cashbox or Fee account or PetroApp
  await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:100,targetVaultCode:'SUP.EX.SET',receiptRef:'BAD-COL-SUP'},400);
  await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:100,targetVaultCode:'MAIN.EX.FEE',receiptRef:'BAD-COL-FEE'},400);
@@ -222,7 +223,7 @@ try{
  assert.equal(coaAfter.find(a=>a.code==='1113').netBalance,200); // Parent group 1113 rolls up MAIN.*.FEE
 
  // 9.d: CompanyFull HR Order appears in Rider 360 Statement without increasing rider debt balance
- await req('/api/debts',{iqama:iq,category:'MedicalInsurance',allocationMode:'CompanyFull',totalCostAmount:1000,creditorSponsorId:'BW',entryMode:'Disbursement',paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'HR-MED-COMP',agreementReviewed:true});
+ await req('/api/debts',{iqama:iq,category:'MedicalInsurance',allocationMode:'CompanyFull',totalCostAmount:1000,creditorSponsorId:'BW',entryMode:'Accrual',sourceRef:'HR-MED-COMP',agreementReviewed:true});
  const stUpdated=await req(`/api/finance/statement/rider/${iq}`);
  assert.ok(stUpdated.statementLines.some(l=>l.type==='company_borne_service'&&l.companyBorneAmount===1000&&l.debit===0));
  assert.ok(stUpdated.journalEntries.length>=4);

@@ -37,8 +37,9 @@ public sealed class R9ReviewTests
             f.Store.Write((c,tx)=>{var d=Store.Get(c,debt,"debt",tx)!;d["remainingBalance"]=500;d["totalAmount"]=500;d["monthlyInstallment"]=500;Store.Save(c,"debt",d,tx);
                 string company=input.S("companyId");FinancialCore.PostJournal(c,tx,"opening","Synthetic additional debt opening","2026-10","synthetic-more-opening",new JsonArray(FinancialCore.CreateJournalLine("1210",company,450,0,iqama:Rider,debtId:debt),FinancialCore.CreateJournalLine("3101",company,0,450)),"synthetic-checker");return true;});
             var cycle=PayCycleTests.Through(f,input);string id=cycle.S("id");Assert.AreEqual(190m,cycle["riders"]![0]!.N("net"));
-            PayCycleTests.Advance(f,id,7,true);Assert.AreEqual(500m,f.Store.Read(c=>Store.Get(c,debt,"debt")!.N("remainingBalance")));
-            cycle=PayCycleTests.Advance(f,id,8,true);Assert.AreEqual(310m,f.Store.Read(c=>Store.Get(c,debt,"debt")!.N("remainingBalance")));Assert.AreEqual("active",f.Store.Read(c=>Store.Get(c,debt,"debt")!.S("status")));
+            // Cap at positive net: confirm 190 before salary approval, then approve posts the take.
+            PayCycleTests.ConfirmDebts(f,id);cycle=PayCycleTests.Advance(f,id,7,true);
+            Assert.AreEqual(310m,f.Store.Read(c=>Store.Get(c,debt,"debt")!.N("remainingBalance")));Assert.AreEqual("active",f.Store.Read(c=>Store.Get(c,debt,"debt")!.S("status")));
             var row=cycle["riders"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("rider")==Rider);Assert.AreEqual(0m,row.N("net"));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count(d=>d.S("category")=="NegativeSalaryCarryover")));
             int journals=f.Store.Read(c=>Store.List(c,"journal").Count);PayCycleTests.Advance(f,id,8,true);Assert.AreEqual(journals,f.Store.Read(c=>Store.List(c,"journal").Count));
         }
