@@ -25,7 +25,7 @@ public static class MoneyWriteGuards
 
     public static MoneyEffectKind ForJournalPurpose(string purpose)=>purpose switch
     {
-        "bank_claim" or "direct_rider_payout"=>MoneyEffectKind.Payout,
+        "bank_claim" or "direct_rider_payout" or "bank_payroll_payout"=>MoneyEffectKind.Payout,
         "debt_confirm" or "debt_absorb" or "debt_opening"=>MoneyEffectKind.Debt,
         _=>MoneyEffectKind.Accounting
     };

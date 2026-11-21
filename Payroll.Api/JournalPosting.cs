@@ -1,12 +1,10 @@
 using System.Data.Common;
 using System.Globalization;
-using System.Security.Cryptography;
-using System.Text;
 namespace Payroll;
 
 /// <summary>U-W2-22a: one-TX posting into fin.journal / fin.journal_line / fin.period_balance.
-/// Leaf accounts only; open period; ΣD=ΣC; MidpointRounding.AwayFromZero to 2 dp; reverse-only correction;
-/// idempotent by (source_type, source_id, company_id, purpose). Design §7.1 / BR §17 / §24 / §28.</summary>
+/// Leaf accounts only; open period locked; ΣD=ΣC; MidpointRounding.AwayFromZero to 2 dp; reverse-only correction;
+/// idempotent fingerprint includes period/date/purpose/source/reversal/rider/platform. Design §7.1 / BR §17 / §24 / §28.</summary>
 public static class JournalPosting
 {
     public const byte StatusDraft=1,StatusPosted=2,StatusReversed=3,StatusCancelled=4;
@@ -14,13 +12,48 @@ public static class JournalPosting
     public sealed record Draft(
         Guid CompanyId,Guid PeriodId,DateOnly PeriodMonth,DateOnly JournalDate,
         string SourceType,Guid SourceId,string Purpose,byte RunMode,bool PayoutBlocked,
-        string Actor,IReadOnlyList<Line> Lines,Guid? ReversesJournalId=null,string? NarrationAr=null,string? VoucherNo=null);
+        string Actor,IReadOnlyList<Line> Lines,Guid? ReversesJournalId=null,string? NarrationAr=null,string? VoucherNo=null,
+        string? GuardPurpose=null);
 
     public sealed record Result(Guid JournalId,string VoucherNo,bool AlreadyPosted);
 
     public static Result Post(DbConnection c,DbTransaction? tx,Draft draft)
     {
-        MoneyWriteGuards.Demand(draft.RunMode,draft.PayoutBlocked,MoneyWriteGuards.ForJournalPurpose(draft.Purpose));
+        if(tx!=null)return PostCore(c,tx,draft);
+        using var own=c.BeginTransaction();
+        try
+        {
+            var result=PostCore(c,own,draft);
+            own.Commit();
+            return result;
+        }
+        catch
+        {
+            try{own.Rollback();}catch{/* already failed */}
+            throw;
+        }
+    }
+
+    public static Result Reverse(DbConnection c,DbTransaction? tx,Guid originalJournalId,string actor,Guid newSourceId,string? narrationAr=null,Guid? destinationPeriodId=null,DateOnly? destinationDate=null)
+    {
+        if(tx!=null)return ReverseCore(c,tx,originalJournalId,actor,newSourceId,narrationAr,destinationPeriodId,destinationDate);
+        using var own=c.BeginTransaction();
+        try
+        {
+            var result=ReverseCore(c,own,originalJournalId,actor,newSourceId,narrationAr,destinationPeriodId,destinationDate);
+            own.Commit();
+            return result;
+        }
+        catch
+        {
+            try{own.Rollback();}catch{/* already failed */}
+            throw;
+        }
+    }
+
+    static Result PostCore(DbConnection c,DbTransaction tx,Draft draft)
+    {
+        MoneyWriteGuards.Demand(draft.RunMode,draft.PayoutBlocked,MoneyWriteGuards.ForJournalPurpose(draft.GuardPurpose??draft.Purpose));
         J.Need(draft.Lines.Count>=2,"القيد من سطرين على الأقل.");
         var rounded=draft.Lines.Select(l=>l with
         {
@@ -31,71 +64,74 @@ public static class JournalPosting
         decimal sumD=rounded.Sum(l=>l.Debit),sumC=rounded.Sum(l=>l.Credit);
         J.Need(sumD==sumC,"مجموع المدين لا يساوي مجموع الدائن.");
         J.Need(rounded.All(l=>(l.Debit==0)^(l.Credit==0)&&l.Debit+l.Credit>0),"كل سطر مدين أو دائن فقط.");
+        foreach(var line in rounded)DemandRiderAttribution(line);
 
-        // Idempotent retry: unique source key already posted → success if amounts match.
         if(FindExisting(c,tx,draft) is {} existing)
         {
-            J.Need(ExistingMatches(c,tx,existing.JournalId,rounded),"قيد بنفس المصدر موجود بمبالغ مختلفة.",409);
+            J.Need(ExistingMatches(c,tx,existing.JournalId,draft,rounded),"قيد بنفس المصدر موجود بمحتوى مختلف.",409);
             return existing with { AlreadyPosted=true };
         }
 
-        object? periodState=SchemaSql.Scalar(c,tx,$"SELECT state FROM {SchemaSql.Q(c,"fin","accounting_period")} WHERE id=@id AND company_id=@c AND period_month=@m",
-            ("@id",SchemaSql.GuidText(draft.PeriodId)),("@c",SchemaSql.GuidText(draft.CompanyId)),("@m",Month(draft.PeriodMonth)));
-        J.Need(periodState!=null&&Convert.ToInt32(periodState)==1,"الفترة المحاسبية مغلقة أو غير موجودة.",409);
-
-        foreach(var line in rounded)
-        {
-            object? leaf=SchemaSql.Scalar(c,tx,$"SELECT is_postable FROM {SchemaSql.Q(c,"fin","account")} WHERE id=@id AND is_active=1",("@id",SchemaSql.GuidText(line.AccountId)));
-            J.Need(leaf!=null&&Convert.ToInt32(leaf)==1,"الترحيل للحسابات الورقية النشطة فقط.",409);
-        }
+        LockOpenPeriod(c,tx,draft.PeriodId,draft.CompanyId,draft.PeriodMonth);
+        foreach(var line in rounded)ValidateDimensions(c,tx,draft.CompanyId,line);
 
         Guid journalId=SchemaSql.NewId();
-        // Use the GUID tail — CreateVersion7 prefixes share a timestamp, so the head is not unique within a ms.
         string voucher=draft.VoucherNo??($"J-{draft.PeriodMonth:yyyyMM}-{journalId.ToString("N")[^8..].ToUpperInvariant()}");
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
-        // Draft first — lines are frozen once the journal is posted (TR_fin_journal_line_frozen).
-        SchemaSql.Exec(c,tx,$"""
-            INSERT INTO {SchemaSql.Q(c,"fin","journal")}
-            (id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,run_mode,payout_blocked,currency_code,reverses_journal_id,narration_ar,created_by,created_at)
-            VALUES(@id,@v,@pid,@pm,@jd,@st,@sid,@cid,@purpose,@status,@rm,@pb,'SAR',@rev,@nar,@by,@at)
-            """,
-            ("@id",SchemaSql.GuidText(journalId)),("@v",voucher),("@pid",SchemaSql.GuidText(draft.PeriodId)),
-            ("@pm",Month(draft.PeriodMonth)),("@jd",Day(draft.JournalDate)),("@st",draft.SourceType),
-            ("@sid",SchemaSql.GuidText(draft.SourceId)),("@cid",SchemaSql.GuidText(draft.CompanyId)),
-            ("@purpose",draft.Purpose),("@status",StatusDraft),("@rm",draft.RunMode),("@pb",draft.PayoutBlocked?1:0),
-            ("@rev",(object?)(draft.ReversesJournalId is {} r?SchemaSql.GuidText(r):null)??DBNull.Value),
-            ("@at",now),("@by",draft.Actor),("@nar",(object?)draft.NarrationAr??DBNull.Value));
-
-        int lineNo=1;
-        foreach(var line in rounded)
+        try
         {
-            Guid lineId=SchemaSql.NewId();
             SchemaSql.Exec(c,tx,$"""
-                INSERT INTO {SchemaSql.Q(c,"fin","journal_line")}
-                (id,period_id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,app_code,erp_platform_account_id,erp_rider_id,debit,credit,narration_ar,created_by,created_at)
-                VALUES(@id,@pid,@pm,@jid,@ln,@aid,1,@cid,@cc,@app,@plat,@rider,@d,@cr,@nar,@by,@at)
+                INSERT INTO {SchemaSql.Q(c,"fin","journal")}
+                (id,voucher_no,period_id,period_month,journal_date,source_type,source_id,company_id,purpose,status,run_mode,payout_blocked,currency_code,reverses_journal_id,narration_ar,created_by,created_at)
+                VALUES(@id,@v,@pid,@pm,@jd,@st,@sid,@cid,@purpose,@status,@rm,@pb,'SAR',@rev,@nar,@by,@at)
                 """,
-                ("@id",SchemaSql.GuidText(lineId)),("@pid",SchemaSql.GuidText(draft.PeriodId)),("@pm",Month(draft.PeriodMonth)),
-                ("@jid",SchemaSql.GuidText(journalId)),("@ln",lineNo++),("@aid",SchemaSql.GuidText(line.AccountId)),
-                ("@cid",SchemaSql.GuidText(draft.CompanyId)),("@cc",SchemaSql.GuidText(line.CostCentreId)),
-                ("@app",line.AppCode),
-                ("@plat",(object?)(line.ErpPlatformAccountId is {} p?SchemaSql.GuidText(p):null)??DBNull.Value),
-                ("@rider",(object?)(line.ErpRiderId is {} er?SchemaSql.GuidText(er):null)??DBNull.Value),
-                ("@d",line.Debit),("@cr",line.Credit),("@nar",(object?)line.NarrationAr??DBNull.Value),
-                ("@by",draft.Actor),("@at",now));
-            UpsertBalance(c,tx,draft,line,now);
+                ("@id",SchemaSql.GuidText(journalId)),("@v",voucher),("@pid",SchemaSql.GuidText(draft.PeriodId)),
+                ("@pm",Month(draft.PeriodMonth)),("@jd",Day(draft.JournalDate)),("@st",draft.SourceType),
+                ("@sid",SchemaSql.GuidText(draft.SourceId)),("@cid",SchemaSql.GuidText(draft.CompanyId)),
+                ("@purpose",draft.Purpose),("@status",StatusDraft),("@rm",draft.RunMode),("@pb",draft.PayoutBlocked?1:0),
+                ("@rev",(object?)(draft.ReversesJournalId is {} r?SchemaSql.GuidText(r):null)??DBNull.Value),
+                ("@at",now),("@by",draft.Actor),("@nar",(object?)draft.NarrationAr??DBNull.Value));
+
+            int lineNo=1;
+            foreach(var line in rounded)
+            {
+                Guid lineId=SchemaSql.NewId();
+                SchemaSql.Exec(c,tx,$"""
+                    INSERT INTO {SchemaSql.Q(c,"fin","journal_line")}
+                    (id,period_id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,app_code,erp_platform_account_id,erp_rider_id,debit,credit,narration_ar,created_by,created_at)
+                    VALUES(@id,@pid,@pm,@jid,@ln,@aid,1,@cid,@cc,@app,@plat,@rider,@d,@cr,@nar,@by,@at)
+                    """,
+                    ("@id",SchemaSql.GuidText(lineId)),("@pid",SchemaSql.GuidText(draft.PeriodId)),("@pm",Month(draft.PeriodMonth)),
+                    ("@jid",SchemaSql.GuidText(journalId)),("@ln",lineNo++),("@aid",SchemaSql.GuidText(line.AccountId)),
+                    ("@cid",SchemaSql.GuidText(draft.CompanyId)),("@cc",SchemaSql.GuidText(line.CostCentreId)),
+                    ("@app",line.AppCode),
+                    ("@plat",(object?)(line.ErpPlatformAccountId is {} p?SchemaSql.GuidText(p):null)??DBNull.Value),
+                    ("@rider",(object?)(line.ErpRiderId is {} er?SchemaSql.GuidText(er):null)??DBNull.Value),
+                    ("@d",line.Debit),("@cr",line.Credit),("@nar",(object?)line.NarrationAr??DBNull.Value),
+                    ("@by",draft.Actor),("@at",now));
+                UpsertBalance(c,tx,draft,line,now);
+            }
+            SchemaSql.Exec(c,tx,$"""
+                UPDATE {SchemaSql.Q(c,"fin","journal")}
+                SET status=@posted, posted_at=@at, posted_by=@by
+                WHERE id=@id AND status=@draft
+                """,
+                ("@posted",StatusPosted),("@at",now),("@by",draft.Actor),
+                ("@id",SchemaSql.GuidText(journalId)),("@draft",StatusDraft));
+            return new(journalId,voucher,false);
         }
-        SchemaSql.Exec(c,tx,$"""
-            UPDATE {SchemaSql.Q(c,"fin","journal")}
-            SET status=@posted, posted_at=@at, posted_by=@by
-            WHERE id=@id AND status=@draft
-            """,
-            ("@posted",StatusPosted),("@at",now),("@by",draft.Actor),
-            ("@id",SchemaSql.GuidText(journalId)),("@draft",StatusDraft));
-        return new(journalId,voucher,false);
+        catch(DbException)
+        {
+            if(FindExisting(c,tx,draft) is {} raced)
+            {
+                J.Need(ExistingMatches(c,tx,raced.JournalId,draft,rounded),"قيد بنفس المصدر موجود بمحتوى مختلف.",409);
+                return raced with { AlreadyPosted=true };
+            }
+            throw new ApiError("تعذر ترحيل القيد؛ التصحيح الوحيد هو قيد عكسي.",409);
+        }
     }
 
-    public static Result Reverse(DbConnection c,DbTransaction? tx,Guid originalJournalId,string actor,Guid newSourceId,string? narrationAr=null)
+    static Result ReverseCore(DbConnection c,DbTransaction tx,Guid originalJournalId,string actor,Guid newSourceId,string? narrationAr,Guid? destinationPeriodId,DateOnly? destinationDate)
     {
         using var cmd=Store.Command(c,tx,$"""
             SELECT company_id,period_id,period_month,journal_date,source_type,purpose,run_mode,payout_blocked,status,voucher_no
@@ -104,16 +140,37 @@ public static class JournalPosting
         using var reader=cmd.ExecuteReader();
         J.Need(reader.Read(),"القيد الأصلي غير موجود.",404);
         int status=Convert.ToInt32(reader["status"]);
-        J.Need(status==StatusPosted,"العكس لقيد مرحّل فقط.",409);
-        var company=Guid.Parse(reader["company_id"].ToString()!);
-        var period=Guid.Parse(reader["period_id"].ToString()!);
-        var month=DateOnly.Parse(reader["period_month"].ToString()![..10],CultureInfo.InvariantCulture);
-        var date=DateOnly.Parse(reader["journal_date"].ToString()![..10],CultureInfo.InvariantCulture);
+        var company=ParseGuid(reader["company_id"]);
+        var originalPeriod=ParseGuid(reader["period_id"]);
+        var originalMonth=ReadDate(reader["period_month"]);
+        var originalDate=ReadDate(reader["journal_date"]);
         string sourceType=reader["source_type"].ToString()!;
         string purpose=reader["purpose"].ToString()!;
         byte runMode=(byte)Convert.ToInt32(reader["run_mode"]);
         bool blocked=Convert.ToInt32(reader["payout_blocked"])==1;
         reader.Close();
+
+        var existing=FindExisting(c,tx,new Draft(company,destinationPeriodId??originalPeriod,originalMonth,originalDate,sourceType,newSourceId,"reversal",runMode,blocked,actor,[],originalJournalId))
+            ??FindReversalByLink(c,tx,originalJournalId,newSourceId);
+        if(existing!=null)
+        {
+            J.Need(status==StatusReversed||status==StatusPosted,"حالة القيد الأصلي لا تسمح بإعادة العكس.",409);
+            return existing with { AlreadyPosted=true };
+        }
+
+        J.Need(status==StatusPosted,"العكس لقيد مرحّل فقط.",409);
+
+        Guid periodId=destinationPeriodId??originalPeriod;
+        DateOnly month=originalMonth,date=destinationDate??originalDate;
+        if(destinationPeriodId!=null||destinationDate!=null)
+        {
+            object? periodMonth=SchemaSql.Scalar(c,tx,$"SELECT period_month FROM {SchemaSql.Q(c,"fin","accounting_period")} WHERE id=@id AND company_id=@c",
+                ("@id",SchemaSql.GuidText(periodId)),("@c",SchemaSql.GuidText(company)));
+            J.Need(periodMonth!=null,"الفترة المحاسبية للعكس غير موجودة.",404);
+            month=ReadDate(periodMonth!);
+            date=destinationDate??month;
+            J.Need(date.Year==month.Year&&date.Month==month.Month,"تاريخ العكس خارج شهر الفترة المفتوحة.",400);
+        }
 
         var lines=new List<Line>();
         using(var lineCmd=Store.Command(c,tx,$"""
@@ -123,11 +180,11 @@ public static class JournalPosting
         using(var lr=lineCmd.ExecuteReader())
         while(lr.Read())
         {
-            Guid? plat=lr["erp_platform_account_id"] is DBNull?null:Guid.Parse(lr["erp_platform_account_id"].ToString()!);
-            Guid? rider=lr["erp_rider_id"] is DBNull?null:Guid.Parse(lr["erp_rider_id"].ToString()!);
+            Guid? plat=lr["erp_platform_account_id"] is DBNull?null:ParseGuid(lr["erp_platform_account_id"]);
+            Guid? rider=lr["erp_rider_id"] is DBNull?null:ParseGuid(lr["erp_rider_id"]);
             lines.Add(new(
-                Guid.Parse(lr["account_id"].ToString()!),
-                Guid.Parse(lr["cost_centre_id"].ToString()!),
+                ParseGuid(lr["account_id"]),
+                ParseGuid(lr["cost_centre_id"]),
                 lr["app_code"].ToString()!,
                 Convert.ToDecimal(lr["credit"]),
                 Convert.ToDecimal(lr["debit"]),
@@ -135,13 +192,48 @@ public static class JournalPosting
                 plat,rider));
         }
 
-        var result=Post(c,tx,new Draft(company,period,month,date,sourceType,newSourceId,"reversal",runMode,blocked,actor,lines,originalJournalId,narrationAr));
+        // Keep the original payout block and purpose effect for the reversal guard (Grok).
+        var result=PostCore(c,tx,new Draft(company,periodId,month,date,sourceType,newSourceId,"reversal",runMode,blocked,actor,lines,originalJournalId,narrationAr,GuardPurpose:purpose));
         SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"fin","journal")} SET status=@s WHERE id=@id",
             ("@s",StatusReversed),("@id",SchemaSql.GuidText(originalJournalId)));
         return result;
     }
 
-    static Result? FindExisting(DbConnection c,DbTransaction? tx,Draft draft)
+    static void LockOpenPeriod(DbConnection c,DbTransaction tx,Guid periodId,Guid companyId,DateOnly month)
+    {
+        string q=SchemaSql.Q(c,"fin","accounting_period");
+        string sql=SchemaSql.IsSql(c)
+            ?$"SELECT state FROM {q} WITH (UPDLOCK, HOLDLOCK) WHERE id=@id AND company_id=@c AND period_month=@m"
+            :$"SELECT state FROM {q} WHERE id=@id AND company_id=@c AND period_month=@m";
+        object? periodState=SchemaSql.Scalar(c,tx,sql,("@id",SchemaSql.GuidText(periodId)),("@c",SchemaSql.GuidText(companyId)),("@m",Month(month)));
+        J.Need(periodState!=null&&Convert.ToInt32(periodState)==1,"الفترة المحاسبية مغلقة أو غير موجودة.",409);
+    }
+
+    static void ValidateDimensions(DbConnection c,DbTransaction tx,Guid companyId,Line line)
+    {
+        object? leaf=SchemaSql.Scalar(c,tx,$"SELECT is_postable FROM {SchemaSql.Q(c,"fin","account")} WHERE id=@id AND is_active=1",("@id",SchemaSql.GuidText(line.AccountId)));
+        J.Need(leaf!=null&&Convert.ToInt32(leaf)==1,"الترحيل للحسابات الورقية النشطة فقط.",409);
+        object? scope=SchemaSql.Scalar(c,tx,$"SELECT company_scope FROM {SchemaSql.Q(c,"fin","account")} WHERE id=@id",("@id",SchemaSql.GuidText(line.AccountId)));
+        J.Need(scope!=null&&Convert.ToInt32(scope) is 0 or 1 or 2,"نطاق شركة الحساب غير صالح.",409);
+
+        if(line.CostCentreId==SchemaOrgCostCentre.NoneId)return;
+        using var cmd=Store.Command(c,tx,$"""
+            SELECT company_id,status FROM {SchemaSql.Q(c,"org","cost_centre")} WHERE id=@id
+            """,("@id",SchemaSql.GuidText(line.CostCentreId)));
+        using var reader=cmd.ExecuteReader();
+        J.Need(reader.Read(),"مركز التكلفة غير موجود.",409);
+        J.Need(Convert.ToInt32(reader["status"])==1,"مركز التكلفة غير نشط.",409);
+        if(reader["company_id"] is DBNull)return;
+        J.Need(ParseGuid(reader["company_id"])==companyId,"مركز التكلفة خارج نطاق شركة القيد.",409);
+    }
+
+    static void DemandRiderAttribution(Line line)
+    {
+        bool hasRider=line.ErpRiderId!=null,hasPlat=line.ErpPlatformAccountId!=null;
+        if(hasRider||hasPlat)J.Need(hasRider&&hasPlat,"سطر المندوب يتطلب معرف المندوب ومعرف حساب المنصة معاً.",409);
+    }
+
+    static Result? FindExisting(DbConnection c,DbTransaction tx,Draft draft)
     {
         object? id=SchemaSql.Scalar(c,tx,$"""
             SELECT id FROM {SchemaSql.Q(c,"fin","journal")}
@@ -149,33 +241,66 @@ public static class JournalPosting
             """,("@st",draft.SourceType),("@sid",SchemaSql.GuidText(draft.SourceId)),
             ("@cid",SchemaSql.GuidText(draft.CompanyId)),("@p",draft.Purpose),("@posted",StatusPosted));
         if(id==null)return null;
-        Guid journalId=Guid.Parse(id.ToString()!);
+        Guid journalId=ParseGuid(id);
         string voucher=(string)SchemaSql.Scalar(c,tx,$"SELECT voucher_no FROM {SchemaSql.Q(c,"fin","journal")} WHERE id=@id",("@id",SchemaSql.GuidText(journalId)))!;
         return new(journalId,voucher,true);
     }
 
-    static bool ExistingMatches(DbConnection c,DbTransaction? tx,Guid journalId,IReadOnlyList<Line> lines)
+    static Result? FindReversalByLink(DbConnection c,DbTransaction tx,Guid originalJournalId,Guid sourceId)
     {
+        object? id=SchemaSql.Scalar(c,tx,$"""
+            SELECT id FROM {SchemaSql.Q(c,"fin","journal")}
+            WHERE reverses_journal_id=@rev AND source_id=@sid AND purpose=@p AND status=@posted
+            """,("@rev",SchemaSql.GuidText(originalJournalId)),("@sid",SchemaSql.GuidText(sourceId)),
+            ("@p","reversal"),("@posted",StatusPosted));
+        if(id==null)return null;
+        Guid journalId=ParseGuid(id);
+        string voucher=(string)SchemaSql.Scalar(c,tx,$"SELECT voucher_no FROM {SchemaSql.Q(c,"fin","journal")} WHERE id=@id",("@id",SchemaSql.GuidText(journalId)))!;
+        return new(journalId,voucher,true);
+    }
+
+    static bool ExistingMatches(DbConnection c,DbTransaction tx,Guid journalId,Draft draft,IReadOnlyList<Line> lines)
+    {
+        using var header=Store.Command(c,tx,$"""
+            SELECT period_id,period_month,journal_date,purpose,source_type,source_id,reverses_journal_id
+            FROM {SchemaSql.Q(c,"fin","journal")} WHERE id=@id
+            """,("@id",SchemaSql.GuidText(journalId)));
+        using var hr=header.ExecuteReader();
+        if(!hr.Read())return false;
+        if(ParseGuid(hr["period_id"])!=draft.PeriodId)return false;
+        if(ReadDate(hr["period_month"])!=draft.PeriodMonth)return false;
+        if(ReadDate(hr["journal_date"])!=draft.JournalDate)return false;
+        if(!string.Equals(hr["purpose"].ToString(),draft.Purpose,StringComparison.Ordinal))return false;
+        if(!string.Equals(hr["source_type"].ToString(),draft.SourceType,StringComparison.Ordinal))return false;
+        if(ParseGuid(hr["source_id"])!=draft.SourceId)return false;
+        Guid? rev=hr["reverses_journal_id"] is DBNull?null:ParseGuid(hr["reverses_journal_id"]);
+        if(rev!=draft.ReversesJournalId)return false;
+        hr.Close();
+
         using var cmd=Store.Command(c,tx,$"""
-            SELECT account_id,cost_centre_id,COALESCE(app_code,'none'),debit,credit FROM {SchemaSql.Q(c,"fin","journal_line")}
-            WHERE journal_id=@id ORDER BY line_no
+            SELECT account_id,cost_centre_id,COALESCE(app_code,'none'),debit,credit,erp_platform_account_id,erp_rider_id
+            FROM {SchemaSql.Q(c,"fin","journal_line")} WHERE journal_id=@id ORDER BY line_no
             """,("@id",SchemaSql.GuidText(journalId)));
         using var reader=cmd.ExecuteReader();
-        var existing=new List<(Guid,Guid,string,decimal,decimal)>();
+        var existing=new List<Line>();
         while(reader.Read())
-            existing.Add((Guid.Parse(reader.GetValue(0).ToString()!),Guid.Parse(reader.GetValue(1).ToString()!),
-                reader.GetString(2),Convert.ToDecimal(reader.GetValue(3)),Convert.ToDecimal(reader.GetValue(4))));
+            existing.Add(new(
+                ParseGuid(reader.GetValue(0)),ParseGuid(reader.GetValue(1)),reader.GetString(2),
+                Convert.ToDecimal(reader.GetValue(3)),Convert.ToDecimal(reader.GetValue(4)),null,
+                reader.IsDBNull(5)?null:ParseGuid(reader.GetValue(5)),
+                reader.IsDBNull(6)?null:ParseGuid(reader.GetValue(6))));
         if(existing.Count!=lines.Count)return false;
         for(int i=0;i<lines.Count;i++)
         {
             var e=existing[i];var l=lines[i];
-            if(e.Item1!=l.AccountId||e.Item2!=l.CostCentreId||!string.Equals(e.Item3,l.AppCode,StringComparison.Ordinal)
-               ||e.Item4!=l.Debit||e.Item5!=l.Credit)return false;
+            if(e.AccountId!=l.AccountId||e.CostCentreId!=l.CostCentreId||!string.Equals(e.AppCode,l.AppCode,StringComparison.Ordinal)
+               ||e.Debit!=l.Debit||e.Credit!=l.Credit||e.ErpPlatformAccountId!=l.ErpPlatformAccountId||e.ErpRiderId!=l.ErpRiderId)
+                return false;
         }
         return true;
     }
 
-    static void UpsertBalance(DbConnection c,DbTransaction? tx,Draft draft,Line line,string now)
+    static void UpsertBalance(DbConnection c,DbTransaction tx,Draft draft,Line line,string now)
     {
         byte[] key=SchemaFinPeriodBalance.ComputeDimensionKey(draft.CompanyId,line.AccountId,line.CostCentreId,line.AppCode);
         object? existing=SchemaSql.Scalar(c,tx,$"""
@@ -187,7 +312,7 @@ public static class JournalPosting
         if(existing==null)
         {
             decimal opening=0,debit=line.Debit,credit=line.Credit;
-            decimal closing=nature==1?opening+debit-credit:opening+credit-debit;
+            decimal closing=J.Money(nature==1?opening+debit-credit:opening+credit-debit);
             if(SchemaSql.IsSql(c))
                 SchemaSql.Exec(c,tx,$"""
                     INSERT INTO {SchemaSql.Q(c,"fin","period_balance")}
@@ -197,7 +322,7 @@ public static class JournalPosting
                     ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@p",SchemaSql.GuidText(draft.PeriodId)),
                     ("@pm",Month(draft.PeriodMonth)),("@c",SchemaSql.GuidText(draft.CompanyId)),
                     ("@a",SchemaSql.GuidText(line.AccountId)),("@cc",SchemaSql.GuidText(line.CostCentreId)),
-                    ("@app",line.AppCode),("@o",opening),("@d",debit),("@cr",credit),("@cl",J.Money(closing)),
+                    ("@app",line.AppCode),("@o",opening),("@d",debit),("@cr",credit),("@cl",closing),
                     ("@by",draft.Actor),("@at",now));
             else
                 SchemaSql.Exec(c,tx,$"""
@@ -208,20 +333,49 @@ public static class JournalPosting
                     ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@p",SchemaSql.GuidText(draft.PeriodId)),
                     ("@pm",Month(draft.PeriodMonth)),("@c",SchemaSql.GuidText(draft.CompanyId)),
                     ("@a",SchemaSql.GuidText(line.AccountId)),("@cc",SchemaSql.GuidText(line.CostCentreId)),
-                    ("@app",line.AppCode),("@dk",key),("@o",opening),("@d",debit),("@cr",credit),("@cl",J.Money(closing)),
+                    ("@app",line.AppCode),("@dk",key),("@o",opening),("@d",debit),("@cr",credit),("@cl",closing),
                     ("@by",draft.Actor),("@at",now));
             return;
         }
         string balId=existing.ToString()!;
+        if(SchemaSql.IsSql(c))
+        {
+            SchemaSql.Exec(c,tx,$"""
+                UPDATE {SchemaSql.Q(c,"fin","period_balance")}
+                SET debit=debit+@d, credit=credit+@cr,
+                    closing=CASE WHEN @nature=1 THEN opening+debit+@d-(credit+@cr) ELSE opening+credit+@cr-(debit+@d) END,
+                    updated_by=@by, updated_at=@at
+                WHERE id=@id
+                """,("@d",line.Debit),("@cr",line.Credit),("@nature",nature),("@by",draft.Actor),("@at",now),("@id",balId));
+            return;
+        }
+        using var bal=Store.Command(c,tx,$"SELECT opening,debit,credit FROM {SchemaSql.Q(c,"fin","period_balance")} WHERE id=@id",("@id",balId));
+        using var br=bal.ExecuteReader();
+        br.Read();
+        decimal openingBal=Convert.ToDecimal(br["opening"]);
+        decimal newDebit=J.Money(Convert.ToDecimal(br["debit"])+line.Debit);
+        decimal newCredit=J.Money(Convert.ToDecimal(br["credit"])+line.Credit);
+        br.Close();
+        decimal newClosing=J.Money(nature==1?openingBal+newDebit-newCredit:openingBal+newCredit-newDebit);
         SchemaSql.Exec(c,tx,$"""
             UPDATE {SchemaSql.Q(c,"fin","period_balance")}
-            SET debit=debit+@d, credit=credit+@cr,
-                closing=CASE WHEN @nature=1 THEN opening+debit+@d-(credit+@cr) ELSE opening+credit+@cr-(debit+@d) END,
-                updated_by=@by, updated_at=@at
+            SET debit=@d, credit=@cr, closing=@cl, updated_by=@by, updated_at=@at
             WHERE id=@id
-            """,("@d",line.Debit),("@cr",line.Credit),("@nature",nature),("@by",draft.Actor),("@at",now),("@id",balId));
+            """,("@d",newDebit),("@cr",newCredit),("@cl",newClosing),("@by",draft.Actor),("@at",now),("@id",balId));
     }
 
+    static DateOnly ReadDate(object value)=>value switch
+    {
+        DateOnly d=>d,
+        DateTime dt=>DateOnly.FromDateTime(dt),
+        string s=>DateOnly.ParseExact(s.Length>=10?s[..10]:s,"yyyy-MM-dd",CultureInfo.InvariantCulture),
+        _=>DateOnly.FromDateTime(Convert.ToDateTime(value,CultureInfo.InvariantCulture))
+    };
+    static Guid ParseGuid(object value)=>value switch
+    {
+        Guid g=>g,
+        _=>Guid.Parse(value.ToString()!)
+    };
     static string Month(DateOnly d)=>d.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);
     static string Day(DateOnly d)=>d.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);
 }
