@@ -9,7 +9,13 @@ import {
 } from '../../lib/vault-labels';
 
 import React, { useState, useEffect, useMemo, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import {
+  TREASURY_TAB_LABELS,
+  buildTabRedirectUrl,
+  resolveTreasuryTab,
+  type TreasuryTab,
+} from '../../lib/page-tabs';
 import {
   Landmark,
   Coins,
@@ -56,23 +62,22 @@ import type {
 import { JahezWorkspace } from '../../features/treasury/JahezWorkspace';
 import { TreasuryExtrasPanel } from '../../features/treasury/TreasuryExtrasPanel';
 
-type TabId = 'vaults' | 'advance_payouts' | 'bank_file' | 'movements' | 'jahez' | 'extras';
+type TabId = TreasuryTab;
 
 function TreasuryPageContent() {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
 
-  const tabFromUrl = searchParams?.get('tab');
-  const resolvedTab: TabId = useMemo(() => {
-    if (tabFromUrl === 'advance_payouts') return 'advance_payouts';
-    if (tabFromUrl === 'bank_file') return 'bank_file';
-    if (tabFromUrl === 'movements') return 'movements';
-    if (tabFromUrl === 'jahez') return 'jahez';
-    if (tabFromUrl === 'extras') return 'extras';
-    return 'vaults';
-  }, [tabFromUrl]);
+  const resolvedUrlTab = resolveTreasuryTab(searchParams?.get('tab'));
+  const resolvedTab: TabId = resolvedUrlTab.tab;
+
+  useEffect(() => {
+    if (!resolvedUrlTab.legacy) return;
+    router.replace(buildTabRedirectUrl(pathname || '/treasury/', searchParams, resolvedUrlTab), { scroll: false });
+  }, [resolvedUrlTab.legacy, resolvedUrlTab.tab, pathname, router, searchParams]);
 
   const [activeTab, setActiveTab] = useState<TabId>(resolvedTab);
 
@@ -84,7 +89,9 @@ function TreasuryPageContent() {
 
   const handleTabChange = (newTab: TabId) => {
     setActiveTab(newTab);
-    router.replace(`/treasury/?tab=${newTab}`, { scroll: false });
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('tab', newTab);
+    router.replace(`${pathname || '/treasury/'}?${params.toString()}`, { scroll: false });
   };
 
   const [selectedPeriod, setSelectedPeriod] = useState<string>(() => new Date().toISOString().slice(0, 7));
@@ -401,7 +408,7 @@ function TreasuryPageContent() {
       <PageHeader
         title="البنوك والصناديق والخزن"
         description="إدارة ومتابعة أرصدة الحسابات البنكية والخزن النقدية (1110-1140)، طابور صرف السلف المعتمدة لأمناء الصناديق، وإصدار ملف صرف الرواتب البنكي (CSV)."
-        eyebrow="الخزينة والمالية"
+        eyebrow={TREASURY_TAB_LABELS[activeTab]}
         primaryAction={{
           label: 'تحديث الأرصدة',
           icon: <RefreshCw size={15} />,
@@ -435,48 +442,6 @@ function TreasuryPageContent() {
           hint={bankFilePreview ? `${bankFilePreview.validRecordsCount} سجلات جاهزة للصرف` : 'اختر تبويب ملف البنك للمعاينة'}
           icon={FileSpreadsheet}
         />
-      </div>
-
-      {/* Sub Tabs */}
-      <div className="border-b border-[var(--line)]">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-          {[
-            { id: 'vaults' as TabId, label: 'الحسابات البنكية والصناديق', count: vaultAccounts.length },
-            {
-              id: 'advance_payouts' as TabId,
-              label: 'صرف السلف المعتمدة (الأمناء)',
-              count: advancePayouts.length,
-              alert: advancePayouts.length > 0,
-            },
-            { id: 'bank_file' as TabId, label: 'ملف صرف البنك (CSV)', count: bankFilePreview?.validRecordsCount },
-            { id: 'jahez' as TabId, label: 'جاهز (مطابقة وخزينة)' },
-            { id: 'extras' as TabId, label: 'مدا والتزامات وتوزيع قديم' },
-            { id: 'movements' as TabId, label: 'سجل حركات الخزينة والقيود', count: journals.length },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              id={`tab-${tab.id}`}
-              type="button"
-              onClick={() => handleTabChange(tab.id)}
-              className={`inline-flex items-center gap-2 px-4 py-3 font-bold text-xs sm:text-sm border-b-2 transition whitespace-nowrap cursor-pointer ${
-                activeTab === tab.id
-                  ? 'border-[var(--accent)] text-[var(--accent)]'
-                  : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              <span>{tab.label}</span>
-              {tab.count !== undefined && tab.count > 0 && (
-                <span
-                  className={`num px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    tab.alert ? 'bg-[var(--danger)] text-white' : 'bg-[var(--raised)] text-[var(--ink)]'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* ======================================================== */}

@@ -2,7 +2,13 @@
 
 import React, { useCallback, useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import {
+  ADMIN_TAB_LABELS,
+  buildTabRedirectUrl,
+  resolveAdminTab,
+  type AdminTab,
+} from '../../lib/page-tabs';
 import {
   ShieldCheck,
   Users,
@@ -46,7 +52,6 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
-import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
@@ -67,16 +72,17 @@ import type {
 function AdminPageInner() {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const tabFromUrl = searchParams?.get('tab') || 'users';
-  const [activeTab, setActiveTab] = useState<string>(tabFromUrl);
+  const resolvedTab = resolveAdminTab(searchParams?.get('tab'));
+  const activeTab: AdminTab = resolvedTab.tab;
 
   useEffect(() => {
-    if (tabFromUrl && tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
-    }
-  }, [tabFromUrl]);
+    if (!resolvedTab.legacy) return;
+    router.replace(buildTabRedirectUrl(pathname || '/admin/', searchParams, resolvedTab), { scroll: false });
+  }, [resolvedTab.legacy, resolvedTab.tab, pathname, router, searchParams]);
 
   // Users State
   const [users, setUsers] = useState<any[]>([]);
@@ -589,21 +595,12 @@ function AdminPageInner() {
   );
   const auditFilter = useTableAutoFilter(auditLogs, auditFilterCols);
 
-  const sectionTabs: SectionTabItem[] = [
-    { id: 'users', label: 'المستخدمون والصلاحيات', icon: <Users size={16} /> },
-    { id: 'org', label: 'الأقسام والرتب والتفويضات', icon: <Building2 size={16} /> },
-    { id: 'lists', label: 'القوائم والإعدادات', icon: <SlidersHorizontal size={16} /> },
-    { id: 'bypass', label: 'تجاوز الاعتماد', icon: <ShieldAlert size={16} /> },
-    { id: 'audit', label: 'سجل التدقيق الشامل', icon: <History size={16} />, badge: auditTotal || undefined },
-    { id: 'settings', label: 'إعدادات المنظومة', icon: <Settings size={16} /> },
-  ];
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
         title="الإدارة والتنظيم المؤسسي"
-        eyebrow="التحكم والأمن ونظام الرتب"
+        eyebrow={ADMIN_TAB_LABELS[activeTab]}
         description="إدارة حسابات المستخدمين، سجل الأقسام والرتب والتفويضات، تعيين المشرفين وتوجيه مسؤولي مراجعة وصرف السلف، وفحص سجل التدقيق."
         primaryAction={
           activeTab === 'users'
@@ -657,9 +654,6 @@ function AdminPageInner() {
           icon={History}
         />
       </div>
-
-      {/* Section Tabs */}
-      <SectionTabs tabs={sectionTabs} activeTab={activeTab} onChange={setActiveTab} />
 
       {/* ======================================================== */}
       {/* Tab 1: المستخدمون والصلاحيات                              */}

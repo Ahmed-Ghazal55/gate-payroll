@@ -117,11 +117,12 @@ function SidebarInner({
       id: 'payroll',
       label: 'الرواتب',
       icon: <Calculator size={18} />,
-      defaultHref: '/payroll/',
+      defaultHref: '/payroll/?tab=platforms',
       permission: ['payroll.view', 'pay.view'],
       items: [
         { id: 'payroll-apps', href: '/payroll/?tab=platforms', label: 'فواتير وتسويات المنصات' },
         { id: 'payroll-cycle', href: '/payroll/?tab=cycle', label: 'دورة الرواتب والمسير' },
+        { id: 'payroll-current-cycle', href: '/payroll/?tab=current-cycle', label: 'الدورة الحالية (النظام القائم)' },
         { id: 'payroll-ninja-upload', href: '/payroll/?tab=ninja_upload', label: 'رفع فاتورة نينجا' },
         { id: 'payroll-rules', href: '/payroll/?tab=rules', label: 'الأنظمة ومحرر القواعد' },
         { id: 'payroll-deductions', href: '/payroll/?tab=deductions', label: 'الاستقطاعات الشهرية' },
@@ -133,7 +134,7 @@ function SidebarInner({
       id: 'debts',
       label: 'المديونيات والسلف',
       icon: <Receipt size={18} />,
-      defaultHref: '/debts/',
+      defaultHref: '/debts/?tab=debts',
       badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
       permission: 'debts.view',
       items: [
@@ -149,7 +150,7 @@ function SidebarInner({
       id: 'treasury',
       label: 'البنوك والصناديق والخزن',
       icon: <Landmark size={18} />,
-      defaultHref: '/treasury/',
+      defaultHref: '/treasury/?tab=vaults',
       permission: 'treasury.view',
       items: [
         { id: 'treasury-vaults', href: '/treasury/?tab=vaults', label: 'أرصدة الخزينة (1110-1140)', permission: 'treasury.view' },
@@ -164,7 +165,7 @@ function SidebarInner({
       id: 'accounting',
       label: 'المحاسبة والتقارير',
       icon: <FileSpreadsheet size={18} />,
-      defaultHref: '/accounting/',
+      defaultHref: '/accounting/?tab=coa',
       permission: ['treasury.view', 'finance.journal.create', 'finance.journal.approve', 'treasury.journals'],
       items: [
         { id: 'acc-coa', href: '/accounting/?tab=coa', label: 'دليل الحسابات', permission: 'treasury.view' },
@@ -219,7 +220,7 @@ function SidebarInner({
       id: 'admin',
       label: 'الإدارة',
       icon: <ShieldCheck size={18} />,
-      defaultHref: '/admin/',
+      defaultHref: '/admin/?tab=users',
       permission: 'users.manage',
       items: [
         { id: 'admin-users', href: '/admin/?tab=users', label: 'المستخدمون والصلاحيات', permission: 'users.manage' },

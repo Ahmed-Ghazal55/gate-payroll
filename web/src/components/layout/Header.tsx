@@ -38,6 +38,7 @@ import { NotificationsPanel } from './NotificationsPanel';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { personalSoundEnabled, setPersonalSoundEnabled, unlockNotificationSound, playPersonalChime } from '../../lib/notification-sound';
+import { getBreadcrumbTabLabel } from '../../lib/page-tabs';
 
 function BreadcrumbsNav() {
   const pathname = usePathname();
@@ -81,20 +82,10 @@ function BreadcrumbsNav() {
   }
 
   const tab = searchParams?.get('tab');
-  if (tab) {
-    const tabLabels: Record<string, string> = {
-      campaigns: 'الحملات والروابط',
-      builder: 'مصمم النماذج',
-      responses: 'مراجعة الردود',
-      accounts: 'الحسابات والأجهزة',
-      broadcasts: 'الإشعارات والإرسال',
-      statements: 'إرسال كشوف الحساب',
-      requests: 'الطلبات والمواعيد',
-      settings: 'إعدادات التطبيق',
-      analytics: 'التحليلات',
-    };
-    if (tabLabels[tab]) {
-      crumbs.push({ label: tabLabels[tab], href: '#' });
+  if (tab && parts.length > 0) {
+    const label = getBreadcrumbTabLabel(parts[0], tab);
+    if (label) {
+      crumbs.push({ label, href: '#' });
     }
   }
 
@@ -311,7 +302,7 @@ export function Header({
     {
       id: 'manual-journal',
       label: 'إنشاء قيد محاسبي',
-      href: '/accounting/?action=manual_journal',
+      href: '/accounting/?tab=manual_journals&action=manual_journal',
       icon: <FileSpreadsheet size={15} className="text-[var(--warning)]" />,
       visible: can('finance.journal.create'),
     },

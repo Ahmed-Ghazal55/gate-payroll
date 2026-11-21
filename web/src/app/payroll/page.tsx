@@ -1,9 +1,15 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { formatReadableValue, formatRecordEntries } from '../../lib/formatRecord';
+import {
+  PAYROLL_TAB_LABELS,
+  buildTabRedirectUrl,
+  resolvePayrollTab,
+  type PayrollTab,
+} from '../../lib/page-tabs';
 import {
   Calculator,
   Upload,
@@ -60,7 +66,6 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
-import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
@@ -191,19 +196,39 @@ const EFFECT_TYPES_MAP: Record<string, string> = {
 function PayrollPageInner() {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const showToast = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     toast(msg, type === 'error' ? 'danger' : type);
   };
 
-  // Main shared tabs: platforms · current-cycle · cycle · rules · deductions · bank · policies
+  // Main shared sections (sidebar-driven, page-tabs-rule 3.0):
+  // platforms · cycle · current-cycle · ninja_upload · rules · deductions · bank · policies
   type PayAppSubTab = 'settlements' | 'parent_terms' | 'internal_schemes' | 'eligibility' | 'accounts';
-  const tabFromUrl = searchParams?.get('tab') || 'platforms';
+  const resolvedTab = resolvePayrollTab(searchParams?.get('tab'));
+  const tabFromUrl: PayrollTab = resolvedTab.tab;
   const appFromUrl = searchParams?.get('app') || 'hungerstation';
   const subFromUrl = (searchParams?.get('sub') as PayAppSubTab) || 'settlements';
   const periodFromUrl = searchParams?.get('period') || new Date().toISOString().slice(0, 7);
-  const [mainTab, setMainTab] = useState<string>(tabFromUrl);
+  const [mainTab, setMainTab] = useState<PayrollTab>(tabFromUrl);
+
+  // Redirect legacy or unknown ?tab= ids cleanly while keeping all other query params (period, app, sub, etc.).
+  useEffect(() => {
+    if (!resolvedTab.legacy) return;
+    router.replace(buildTabRedirectUrl(pathname || '/payroll/', searchParams, resolvedTab), { scroll: false });
+  }, [resolvedTab.legacy, resolvedTab.tab, pathname, router, searchParams]);
+
+  const navigateMainTab = useCallback(
+    (nextTab: PayrollTab) => {
+      setMainTab(nextTab);
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('tab', nextTab);
+      router.replace(`${pathname || '/payroll/'}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
 
   // Selected App within platforms tab
   const [selectedPlatform, setSelectedPlatform] = useState<string>(appFromUrl);
@@ -217,6 +242,26 @@ function PayrollPageInner() {
 
   // Sub-tabs inside selected app
   const [appSubTab, setAppSubTab] = useState<PayAppSubTab>(subFromUrl);
+
+  const selectPlatformInUrl = useCallback(
+    (nextApp: string) => {
+      setSelectedPlatform(nextApp);
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('app', nextApp);
+      router.replace(`${pathname || '/payroll/'}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  const selectAppSubInUrl = useCallback(
+    (nextSub: PayAppSubTab) => {
+      setAppSubTab(nextSub);
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('sub', nextSub);
+      router.replace(`${pathname || '/payroll/'}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
 
   // Filters & period
   const [selectedPeriod, setSelectedPeriod] = useState<string>(periodFromUrl);
@@ -2007,18 +2052,6 @@ function PayrollPageInner() {
   );
   const ledgerRowsFilter = useTableAutoFilter(ledgerRows, ledgerFilterCols);
 
-  // Section Tabs (Shared across Payroll)
-  const sharedSectionTabs: SectionTabItem[] = [
-    { id: 'platforms', label: 'منصات التشغيل والفواتير', icon: <Calculator size={16} /> },
-    { id: 'ninja_upload', label: 'رفع فاتورة نينجا', icon: <FileSpreadsheet size={16} /> },
-    { id: 'current-cycle', label: 'الدورة الحالية (النظام القائم)', icon: <Layers size={16} />, badge: legacyPreview.length },
-    { id: 'cycle', label: 'دورة الرواتب والمسير (0-7)', icon: <RefreshCw size={16} /> },
-    { id: 'rules', label: 'محرر الأنظمة والقواعد', icon: <FileText size={16} /> },
-    { id: 'deductions', label: 'الاستقطاعات الشهرية', icon: <DollarSign size={16} /> },
-    { id: 'bank', label: 'التحويل والبنوك', icon: <Landmark size={16} /> },
-    { id: 'policies', label: 'السياسات السابقة', icon: <BookOpen size={16} />, badge: policies.length },
-  ];
-
   // Platforms List
   const platformsList = [
     { id: 'hungerstation', nameAr: 'هنقرستيشن', nameEn: 'HungerStation', tag: 'فواتير معتمدة', active: true },
@@ -2046,7 +2079,7 @@ function PayrollPageInner() {
       {/* Header */}
       <PageHeader
         title="الرواتب والمسيرات · منظومة المنصات الموحدة"
-        eyebrow="الرواتب والتعويضات"
+        eyebrow={PAYROLL_TAB_LABELS[mainTab]}
         description="إدارة ومراجعة فواتير المنصات، الدورة القائمة الفعالة للرواتب، محرر الأنظمة الداخلية، الاستقطاعات، واعتماد ملفات الصرف."
         primaryAction={
           mainTab === 'platforms' &&
@@ -2069,24 +2102,12 @@ function PayrollPageInner() {
         />
       )}
 
-      {/* Main Top Navigation Tabs */}
-      <SectionTabs
-        tabs={sharedSectionTabs}
-        activeTab={mainTab}
-        onChange={(tabId) => setMainTab(tabId)}
-      />
-
       {/* ======================================================== */}
-      {/* SECTION: NINJA / KEETA INVOICE RECONCILE (BR §26, §31)   */}
+      {/* SECTION: NINJA INVOICE RECONCILE (BR §26, §31)           */}
       {/* ======================================================== */}
       {mainTab === 'ninja_upload' && (
         <div className="space-y-6">
           <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} platform="ninja" />
-        </div>
-      )}
-      {mainTab === 'keeta_upload' && (
-        <div className="space-y-6">
-          <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} platform="keeta" />
         </div>
       )}
 
@@ -2328,7 +2349,7 @@ function PayrollPageInner() {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setSelectedPlatform(p.id)}
+                  onClick={() => selectPlatformInUrl(p.id)}
                   className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
                     isSelected
                       ? 'bg-[var(--surface)] text-[var(--accent)] shadow-xs'
@@ -2362,7 +2383,7 @@ function PayrollPageInner() {
               <button
                 key={sub.id}
                 type="button"
-                onClick={() => setAppSubTab(sub.id as any)}
+                onClick={() => selectAppSubInUrl(sub.id as PayAppSubTab)}
                 className={`py-2 px-3.5 text-xs sm:text-sm font-semibold border-b-2 transition whitespace-nowrap ${
                   appSubTab === sub.id
                     ? 'border-[var(--accent)] text-[var(--accent)]'
@@ -3453,7 +3474,7 @@ function PayrollPageInner() {
                   description="ارفع واعتمد فاتورة نينجا أولاً لتوليد مسودة المراجعة المقترحة."
                   action={{
                     label: 'انتقل لرفع فاتورة نينجا',
-                    onClick: () => setMainTab('ninja_upload'),
+                    onClick: () => navigateMainTab('ninja_upload'),
                   }}
                 />
               ) : (
@@ -3551,10 +3572,10 @@ function PayrollPageInner() {
                                   fixAct === 'classify_invoice'
                                 ) {
                                   e.preventDefault();
-                                  setMainTab('ninja_upload');
+                                  navigateMainTab('ninja_upload');
                                 } else if (fixAct === 'approve_settings') {
                                   e.preventDefault();
-                                  setMainTab('rules');
+                                  navigateMainTab('rules');
                                 }
                               }}
                               className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition inline-flex items-center gap-1.5 shadow-xs"
@@ -3569,7 +3590,7 @@ function PayrollPageInner() {
                           href="/app/payroll?tab=ninja_upload"
                           onClick={(e) => {
                             e.preventDefault();
-                            setMainTab('ninja_upload');
+                            navigateMainTab('ninja_upload');
                           }}
                           className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition inline-flex items-center gap-1.5 shadow-xs"
                         >
@@ -3644,10 +3665,10 @@ function PayrollPageInner() {
                                     b.fixAction === 'classify_invoice'
                                   ) {
                                     e.preventDefault();
-                                    setMainTab('ninja_upload');
+                                    navigateMainTab('ninja_upload');
                                   } else if (b.fixAction === 'approve_settings') {
                                     e.preventDefault();
-                                    setMainTab('rules');
+                                    navigateMainTab('rules');
                                   }
                                 }}
                                 className="px-3 py-1.5 rounded-xl bg-[var(--raised)] text-[var(--accent)] font-bold hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] transition inline-flex items-center gap-1 shrink-0"
@@ -3894,10 +3915,10 @@ function PayrollPageInner() {
                                     fixAct === 'classify_invoice'
                                   ) {
                                     e.preventDefault();
-                                    setMainTab('ninja_upload');
+                                    navigateMainTab('ninja_upload');
                                   } else if (fixAct === 'approve_settings') {
                                     e.preventDefault();
-                                    setMainTab('rules');
+                                    navigateMainTab('rules');
                                   }
                                 }}
                                 className="px-3.5 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-bold text-xs hover:bg-[var(--raised)] transition inline-flex items-center gap-1"

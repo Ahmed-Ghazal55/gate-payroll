@@ -1,7 +1,13 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import {
+  ACCOUNTING_TAB_LABELS,
+  buildTabRedirectUrl,
+  resolveAccountingTab,
+  type AccountingTab,
+} from '../../lib/page-tabs';
 import {
   FileSpreadsheet,
   Layers,
@@ -59,12 +65,30 @@ import type {
 function AccountingPageContent() {
   const { toast } = useToast();
   const { can, isAdmin } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'coa' | 'manual_journals' | 'adjustments' | 'journals' | 'trial' | 'income'>('coa');
+  const resolvedTab = resolveAccountingTab(searchParams?.get('tab'));
+  const [activeTab, setActiveTab] = useState<AccountingTab>(resolvedTab.tab);
   const [openNewManualJournal, setOpenNewManualJournal] = useState<boolean>(false);
   const [openingImportOpen, setOpeningImportOpen] = useState(false);
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
   const [importAllowedActions, setImportAllowedActions] = useState<string[] | null>(null);
+
+  const navigateTab = useCallback(
+    (nextTab: AccountingTab) => {
+      setActiveTab(nextTab);
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('tab', nextTab);
+      router.replace(`${pathname || '/accounting/'}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  useEffect(() => {
+    if (!resolvedTab.legacy) return;
+    router.replace(buildTabRedirectUrl(pathname || '/accounting/', searchParams, resolvedTab), { scroll: false });
+  }, [resolvedTab.legacy, resolvedTab.tab, pathname, router, searchParams]);
 
   useEffect(() => {
     api.getFinanceSponsors().then((res) => setCompanies(res || [])).catch(() => {});
@@ -95,22 +119,8 @@ function AccountingPageContent() {
       setOpenNewManualJournal(true);
       return;
     }
-    // Sidebar ids (trial_balance, income_statement) map to the page's internal tab ids.
-    const tab = searchParams?.get('tab');
-    if (!tab) return;
-    const tabMap: Record<string, typeof activeTab> = {
-      coa: 'coa',
-      manual_journals: 'manual_journals',
-      adjustments: 'adjustments',
-      journals: 'journals',
-      trial: 'trial',
-      trial_balance: 'trial',
-      income: 'income',
-      income_statement: 'income',
-    };
-    const mapped = tabMap[tab];
-    if (mapped) setActiveTab(mapped);
-  }, [searchParams]);
+    setActiveTab(resolvedTab.tab);
+  }, [searchParams, resolvedTab.tab]);
 
   // ==========================================
   // Data States
@@ -225,9 +235,9 @@ function AccountingPageContent() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'trial') {
+    if (activeTab === 'trial_balance') {
       loadTrialBalance();
-    } else if (activeTab === 'income') {
+    } else if (activeTab === 'income_statement') {
       loadIncomeStatement();
     }
   }, [activeTab, trialView, incomeView, selectedSponsor, periodMonth]);
@@ -603,7 +613,7 @@ function AccountingPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="المحاسبة والتقارير المالية"
-        eyebrow="الدفاتر والتقارير المعتمدة"
+        eyebrow={ACCOUNTING_TAB_LABELS[activeTab]}
         description="استعرض دليل شجرة الحسابات المستهدفة، سجل القيود المزدوجة مع روابط القيود العكسية، وميزان المراجعة وقائمة الدخل."
       >
         {canShowImportStep(TREASURY_OPENING_IMPORT, { isAdmin, can }) && (
@@ -633,7 +643,7 @@ function AccountingPageContent() {
           hint={`${coaSummary.sourceBreakdown?.excel2024 ?? '—'} إكسل 2024 · ${coaSummary.sourceBreakdown?.newAccounts ?? '—'} جديد · ${coaSummary.sourceBreakdown?.modified ?? '—'} معدل`}
           icon={Layers}
           trend={{ value: 'دليل 1.0', isPositive: true }}
-          onClick={() => setActiveTab('coa')}
+          onClick={() => navigateTab('coa')}
         />
 
         <StatCard
@@ -643,7 +653,7 @@ function AccountingPageContent() {
           icon={CheckCircle2}
           trend={{ value: 'جاهز للترحيل', isPositive: true }}
           onClick={() => {
-            setActiveTab('coa');
+            navigateTab('coa');
             setCoaPostingOnly(true);
           }}
         />
@@ -654,7 +664,7 @@ function AccountingPageContent() {
           hint="قيود مزدوجة متوازنة مع تتبع العكس"
           icon={Scale}
           trend={{ value: 'متزن', isPositive: true }}
-          onClick={() => setActiveTab('journals')}
+          onClick={() => navigateTab('journals')}
         />
 
         <StatCard
@@ -670,100 +680,8 @@ function AccountingPageContent() {
             value: incomeData?.companies?.every((c) => c.netIsComplete) ? 'مكتمل' : 'محدود النطاق',
             isPositive: incomeData?.companies?.every((c) => c.netIsComplete),
           }}
-          onClick={() => setActiveTab('income')}
+          onClick={() => navigateTab('income_statement')}
         />
-      </div>
-
-      {/* Sub Tabs Navigation — sidebar also lists these; keep scroll affordance until full rule-3.0 cutover */}
-      <div
-        role="tablist"
-        aria-label="أقسام المحاسبة"
-        className="flex border-b border-[var(--line)] gap-2 overflow-x-auto scroll-smooth [scrollbar-width:thin]"
-      >
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'coa'}
-          onClick={() => setActiveTab('coa')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'coa'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          شجرة دليل الحسابات المستهدف ({coaSummary.total ?? '—'})
-        </button>
-
-        <button
-          type="button"
-          id="subtab-manual-journals"
-          role="tab"
-          aria-selected={activeTab === 'manual_journals'}
-          onClick={() => setActiveTab('manual_journals')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'manual_journals'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          القيود اليدوية
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'adjustments'}
-          onClick={() => setActiveTab('adjustments')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'adjustments'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          تسويات مدا والراتب
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'journals'}
-          onClick={() => setActiveTab('journals')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'journals'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          سجل القيود المحاسبية ({journals.length})
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'trial'}
-          onClick={() => setActiveTab('trial')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'trial'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          ميزان المراجعة التحليلي
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'income'}
-          onClick={() => setActiveTab('income')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'income'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          قائمة الدخل والنتائج
-        </button>
       </div>
 
       {/* ======================================================== */}
@@ -915,7 +833,7 @@ function AccountingPageContent() {
       {/* ======================================================== */}
       {/* TAB 3: Trial Balance (ميزان المراجعة التحليلي)             */}
       {/* ======================================================== */}
-      {activeTab === 'trial' && (
+      {activeTab === 'trial_balance' && (
         <div className="space-y-4">
           {/* Controls toolbar */}
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
@@ -1117,7 +1035,7 @@ function AccountingPageContent() {
       {/* ======================================================== */}
       {/* TAB 4: Income Statement (قائمة الدخل والنتائج)             */}
       {/* ======================================================== */}
-      {activeTab === 'income' && (
+      {activeTab === 'income_statement' && (
         <div className="space-y-4">
           {/* Controls toolbar */}
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
