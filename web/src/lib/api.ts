@@ -1494,24 +1494,53 @@ export const api = {
     const qs = p.toString() ? `?${p.toString()}` : '';
     return fetch(`/api/operations/housing/export${qs}`, { credentials: 'include' });
   },
-  exportOperationsPeriod: (params: { from: string; to: string; mode?: string; detail?: 'summary' | 'detailed'; filters?: string; sort?: string }) => {
+  exportOperationsPeriod: (params: { from: string; to: string; mode?: string; detail?: 'summary' | 'detailed'; q?: string; filters?: string; sort?: string }) => {
     const p = new URLSearchParams();
     p.set('from', params.from);
     p.set('to', params.to);
     if (params.mode) p.set('mode', params.mode);
     if (params.detail) p.set('detail', params.detail);
+    if (params.q) p.set('q', params.q);
     if (params.filters) p.set('filters', params.filters);
     if (params.sort) p.set('sort', params.sort);
     return fetch(`/api/operations/vehicles/period-report/export?${p.toString()}`, { credentials: 'include' });
   },
-  exportOperationsFuel: (params?: { month?: string; provider?: string; filters?: string; sort?: string }) => {
+  exportOperationsOilChanges: (params: { from: string; to: string; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.q) p.set('q', params.q);
+    if (params.filters) p.set('filters', params.filters);
+    if (params.sort) p.set('sort', params.sort);
+    return fetch(`/api/operations/vehicles/oil-changes/export?${p.toString()}`, { credentials: 'include' });
+  },
+  exportOperationsPurchases: (params: { from: string; to: string; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.q) p.set('q', params.q);
+    if (params.filters) p.set('filters', params.filters);
+    if (params.sort) p.set('sort', params.sort);
+    return fetch(`/api/operations/vehicles/purchase-invoices/export?${p.toString()}`, { credentials: 'include' });
+  },
+  exportOperationsFuel: (params?: { month?: string; provider?: string; q?: string; filters?: string; sort?: string }) => {
     const p = new URLSearchParams();
     if (params?.month) p.set('month', params.month);
     if (params?.provider) p.set('provider', params.provider);
+    if (params?.q) p.set('q', params.q);
     if (params?.filters) p.set('filters', params.filters);
     if (params?.sort) p.set('sort', params.sort);
     const qs = p.toString() ? `?${p.toString()}` : '';
     return fetch(`/api/operations/fuel-cards/export${qs}`, { credentials: 'include' });
+  },
+  exportOperationsFuelLog: (params: { from: string; to: string; q?: string; filters?: string; sort?: string }) => {
+    const p = new URLSearchParams();
+    p.set('from', params.from);
+    p.set('to', params.to);
+    if (params.q) p.set('q', params.q);
+    if (params.filters) p.set('filters', params.filters);
+    if (params.sort) p.set('sort', params.sort);
+    return fetch(`/api/operations/fuel-log/export?${p.toString()}`, { credentials: 'include' });
   },
 
   getRiderAccounts: (iqama: string, params?: { page?: number; pageSize?: number }) => {

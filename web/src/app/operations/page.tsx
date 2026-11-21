@@ -846,16 +846,31 @@ function OperationsPageInner() {
           ) : null}
           {canExport && tab === 'vehicles' && view === 'period' ? (
             <>
-              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'summary', filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-vehicles-summary.xlsx'))}>
+              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'summary', q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-vehicles-summary.xlsx'))}>
                 تصدير ملخص
               </button>
-              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'detailed', filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-vehicles-detailed.xlsx'))}>
+              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'detailed', q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-vehicles-detailed.xlsx'))}>
                 تصدير تفصيلي
               </button>
             </>
           ) : null}
-          {canExport && tab === 'fuel' ? (
-            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsFuel({ month, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-fuel.xlsx'))}>
+          {canExport && tab === 'vehicles' && view === 'oil' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsOilChanges({ from, to, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-oil-changes.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'vehicles' && view === 'invoices' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPurchases({ from, to, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-purchases.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'fuel' && view !== 'log' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsFuel({ month, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-fuel.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'fuel' && view === 'log' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsFuelLog({ from, to, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-fuel-log.xlsx'))}>
               تصدير
             </button>
           ) : null}
