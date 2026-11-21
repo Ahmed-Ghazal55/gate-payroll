@@ -67,6 +67,7 @@ public sealed partial class Store
             SchemaPayPayable.Ensure(conn,tx);
             SchemaPayAllocation.Ensure(conn,tx);
             SchemaSalInvoice.Ensure(conn,tx);
+            SchemaSalDistribution.Ensure(conn,tx);
             SchemaSalPayRun.Ensure(conn,tx);
             SchemaOperationCapture.Ensure(conn,tx);
             SchemaDebt.Ensure(conn,tx);
