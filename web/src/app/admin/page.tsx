@@ -1094,18 +1094,23 @@ function AdminPageInner() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-[var(--ink)]">فحص المسؤولين المكلفين حالياً:</span>
-                    <select
+                    <SearchableSelect
+                      id="admin-responsible-op"
                       value={queryOperation}
-                      onChange={(e) => {
-                        setQueryOperation(e.target.value);
-                        loadResponsible(e.target.value);
+                      onChange={(v) => {
+                        setQueryOperation(v);
+                        loadResponsible(v);
                       }}
-                      className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-mono font-bold focus:outline-hidden"
-                    >
-                      <option value="advance.review">advance.review (مراجعة السلف)</option>
-                      <option value="advance.payout:MAIN.BW.DEBT">advance.payout:MAIN.BW.DEBT (صرف كفيل BW نقدية)</option>
-                      <option value="advance.payout:BANK.BW">advance.payout:BANK.BW (صرف كفيل BW بنك)</option>
-                    </select>
+                      ariaLabel="عملية التوجيه"
+                      placeholder="اختر العملية..."
+                      size="sm"
+                      className="w-72"
+                      options={[
+                        { value: 'advance.review', label: 'مراجعة السلف (advance.review)' },
+                        { value: 'advance.payout:MAIN.BW.DEBT', label: 'صرف كفيل البوابة نقدية (MAIN.BW.DEBT)' },
+                        { value: 'advance.payout:BANK.BW', label: 'صرف كفيل البوابة بنك (BANK.BW)' },
+                      ]}
+                    />
                   </div>
                   <button
                     type="button"
@@ -1250,18 +1255,23 @@ function AdminPageInner() {
             </div>
 
             <div className="flex items-center gap-2">
-              <select
+              <SearchableSelect
+                id="admin-audit-filter"
                 value={auditActionFilter}
-                onChange={(e) => setAuditActionFilter(e.target.value)}
-                className="bg-[var(--surface)] text-[var(--ink)] border border-[var(--line)] text-xs rounded-xl px-3 py-1.5 focus:outline-hidden"
-              >
-                <option value="all">كل التصنيفات</option>
-                <option value="advance">السلف والرتب</option>
-                <option value="platform.hs">فواتير وتسويات هنقرستيشن</option>
-                <option value="finance">الخزينة والمالية</option>
-                <option value="rider">المناديب والدليل</option>
-                <option value="admin">إدارة المستخدمين</option>
-              </select>
+                onChange={setAuditActionFilter}
+                ariaLabel="تصنيف التدقيق"
+                placeholder="كل التصنيفات"
+                size="sm"
+                className="w-52"
+                options={[
+                  { value: 'all', label: 'كل التصنيفات' },
+                  { value: 'advance', label: 'السلف والرتب' },
+                  { value: 'platform.hs', label: 'فواتير وتسويات هنقرستيشن' },
+                  { value: 'finance', label: 'الخزينة والمالية' },
+                  { value: 'rider', label: 'المناديب والدليل' },
+                  { value: 'admin', label: 'إدارة المستخدمين' },
+                ]}
+              />
             </div>
 
             <div className="flex items-center gap-2">

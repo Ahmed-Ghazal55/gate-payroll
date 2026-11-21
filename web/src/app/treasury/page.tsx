@@ -32,6 +32,7 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
@@ -466,15 +467,20 @@ function TreasuryPageContent() {
             </div>
 
             <div className="flex items-center gap-2">
-              <select
+              <SearchableSelect
+                id="treasury-vault-type"
                 value={vaultTypeFilter}
-                onChange={(e) => setVaultTypeFilter(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كافة أنواع الخزن</option>
-                <option value="bank">حسابات بنكية (1110)</option>
-                <option value="cash">صناديق نقدية وعهد (1120-1140)</option>
-              </select>
+                onChange={setVaultTypeFilter}
+                ariaLabel="نوع الخزينة"
+                placeholder="كافة أنواع الخزن"
+                size="sm"
+                className="w-52"
+                options={[
+                  { value: 'all', label: 'كافة أنواع الخزن' },
+                  { value: 'bank', label: 'حسابات بنكية (1110)' },
+                  { value: 'cash', label: 'صناديق نقدية وعهد (1120-1140)' },
+                ]}
+              />
             </div>
           </div>
 
@@ -682,19 +688,22 @@ function TreasuryPageContent() {
 
               <div>
                 <label className="block text-[11px] font-bold text-[var(--muted)] mb-1">الشركة الكفيلة:</label>
-                <select
+                <SearchableSelect
+                  id="treasury-sponsor-filter"
                   value={selectedSponsor}
-                  onChange={(e) => setSelectedSponsor(e.target.value)}
-                  className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-semibold focus:outline-hidden"
-                >
-                  <option value="all">كافة الكفلاء والشركات</option>
-                  {companies.map((c) => (
-                    <option key={c.code || c.id} value={c.code || c.id}>
-                      {c.nameAr || c.shortNameAr || c.code || c.id}
-                      {c.code ? ` (${c.code})` : ''}
-                    </option>
-                  ))}
-                </select>
+                  onChange={setSelectedSponsor}
+                  ariaLabel="الشركة الكفيلة"
+                  placeholder="كافة الكفلاء والشركات"
+                  size="sm"
+                  className="w-52"
+                  options={[
+                    { value: 'all', label: 'كافة الكفلاء والشركات' },
+                    ...companies.map((c) => ({
+                      value: c.code || c.id,
+                      label: `${c.nameAr || c.shortNameAr || c.code || c.id}${c.code ? ` (${c.code})` : ''}`,
+                    })),
+                  ]}
+                />
               </div>
               <label className="inline-flex items-center gap-2 text-xs font-bold mt-5 cursor-pointer">
                 <input type="checkbox" checked={comparisonOnly} onChange={(e) => setComparisonOnly(e.target.checked)} />

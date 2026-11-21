@@ -10,6 +10,7 @@ import { api, type ServiceRequest, type ServiceRequestsSummary } from '../../lib
 import { SectionTabs } from '../../components/ui/SectionTabs';
 import { StatCard } from '../../components/ui/StatCard';
 import { DataTable, type ColumnDef, defaultStatusTone } from '../../components/ui/DataTable';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Dialog } from '../../components/ui/Dialog';
 import { useToast } from '../../components/ui/Toast';
 
@@ -257,24 +258,25 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
         <AdvanceAsks />
       ) : (
         <>
-          <label className="flex items-center gap-2 text-xs">
+          <div className="flex items-center gap-2 text-xs">
             <span className="font-bold">الحالة:</span>
-            <select
+            <SearchableSelect
+              id="requests-status-filter"
               value={status}
-              onChange={(e) => {
-                setStatus(e.target.value);
+              onChange={(v) => {
+                setStatus(v);
                 setPage(1);
               }}
-              className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]"
-            >
-              <option value="">الكل</option>
-              {Object.entries(STATUS_LABEL).map(([k, l]) => (
-                <option key={k} value={k}>
-                  {l}
-                </option>
-              ))}
-            </select>
-          </label>
+              ariaLabel="تصفية حسب الحالة"
+              placeholder="الكل"
+              size="sm"
+              className="w-48"
+              options={[
+                { value: '', label: 'الكل' },
+                ...Object.entries(STATUS_LABEL).map(([k, l]) => ({ value: k, label: l })),
+              ]}
+            />
+          </div>
           <DataTable
             tableId="rider-app-requests"
             columns={columns}

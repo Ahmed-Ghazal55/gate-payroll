@@ -29,6 +29,7 @@ import {
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import { ErrorState, EmptyState, Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
@@ -742,29 +743,39 @@ function AccountingPageContent() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <select
+              <SearchableSelect
+                id="coa-type-filter"
                 value={coaTypeFilter}
-                onChange={(e) => setCoaTypeFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل التصنيفات (1-5)</option>
-                <option value="1">1 - الأصول</option>
-                <option value="2">2 - الخصوم</option>
-                <option value="3">3 - حقوق الملكية</option>
-                <option value="4">4 - الإيرادات</option>
-                <option value="5">5 - المصروفات</option>
-              </select>
+                onChange={setCoaTypeFilter}
+                ariaLabel="تصنيف الحساب"
+                placeholder="كل التصنيفات (1-5)"
+                size="sm"
+                className="w-44"
+                options={[
+                  { value: 'all', label: 'كل التصنيفات (1-5)' },
+                  { value: '1', label: '1 - الأصول' },
+                  { value: '2', label: '2 - الخصوم' },
+                  { value: '3', label: '3 - حقوق الملكية' },
+                  { value: '4', label: '4 - الإيرادات' },
+                  { value: '5', label: '5 - المصروفات' },
+                ]}
+              />
 
-              <select
+              <SearchableSelect
+                id="coa-source-filter"
                 value={coaSourceFilter}
-                onChange={(e) => setCoaSourceFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل المصادر</option>
-                <option value="excel">Excel 2024 ({coaSummary.sourceBreakdown.excel2024})</option>
-                <option value="modified">تعديل مالي ({coaSummary.sourceBreakdown.modified})</option>
-                <option value="new">حسابات جديدة ({coaSummary.sourceBreakdown.newAccounts})</option>
-              </select>
+                onChange={setCoaSourceFilter}
+                ariaLabel="مصدر الحساب"
+                placeholder="كل المصادر"
+                size="sm"
+                className="w-48"
+                options={[
+                  { value: 'all', label: 'كل المصادر' },
+                  { value: 'excel', label: `دليل 2024 (${coaSummary.sourceBreakdown.excel2024})` },
+                  { value: 'modified', label: `تعديل مالي (${coaSummary.sourceBreakdown.modified})` },
+                  { value: 'new', label: `حسابات جديدة (${coaSummary.sourceBreakdown.newAccounts})` },
+                ]}
+              />
 
               <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--raised)] border border-[var(--line)] text-xs text-[var(--ink)] cursor-pointer select-none">
                 <input
@@ -933,19 +944,22 @@ function AccountingPageContent() {
                 </button>
               </div>
 
-              <select
+              <SearchableSelect
+                id="trial-sponsor-filter"
                 value={selectedSponsor}
-                onChange={(e) => setSelectedSponsor(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل المنشآت والسجلات</option>
-                {companies.map((c) => (
-                  <option key={c.code || c.id} value={c.code || c.id}>
-                    {c.nameAr || c.shortNameAr || c.code || c.id}
-                    {c.code ? ` (${c.code})` : ''}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedSponsor}
+                ariaLabel="تصفية المنشأة"
+                placeholder="كل المنشآت والسجلات"
+                size="sm"
+                className="w-52"
+                options={[
+                  { value: 'all', label: 'كل المنشآت والسجلات' },
+                  ...companies.map((c) => ({
+                    value: c.code || c.id,
+                    label: `${c.nameAr || c.shortNameAr || c.code || c.id}${c.code ? ` (${c.code})` : ''}`,
+                  })),
+                ]}
+              />
 
               <input
                 type="month"
@@ -1107,19 +1121,22 @@ function AccountingPageContent() {
           {/* Controls toolbar */}
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
             <div className="flex flex-wrap items-center gap-2">
-              <select
+              <SearchableSelect
+                id="trial-sponsor-filter"
                 value={selectedSponsor}
-                onChange={(e) => setSelectedSponsor(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل المنشآت والسجلات</option>
-                {companies.map((c) => (
-                  <option key={c.code || c.id} value={c.code || c.id}>
-                    {c.nameAr || c.shortNameAr || c.code || c.id}
-                    {c.code ? ` (${c.code})` : ''}
-                  </option>
-                ))}
-              </select>
+                onChange={setSelectedSponsor}
+                ariaLabel="تصفية المنشأة"
+                placeholder="كل المنشآت والسجلات"
+                size="sm"
+                className="w-52"
+                options={[
+                  { value: 'all', label: 'كل المنشآت والسجلات' },
+                  ...companies.map((c) => ({
+                    value: c.code || c.id,
+                    label: `${c.nameAr || c.shortNameAr || c.code || c.id}${c.code ? ` (${c.code})` : ''}`,
+                  })),
+                ]}
+              />
 
               <input
                 type="month"

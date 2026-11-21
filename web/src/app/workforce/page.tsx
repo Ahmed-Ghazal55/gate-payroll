@@ -562,6 +562,28 @@ function WorkforcePageInner() {
     loadProfile360(key);
   };
 
+  const [distinctCities, setDistinctCities] = useState<string[]>([]);
+  const [distinctPlatforms, setDistinctPlatforms] = useState<string[]>([]);
+
+  useEffect(() => {
+    let active = true;
+    api
+      .getDistinctValues('/workforce/distinct', 'city')
+      .then((res) => {
+        if (active && Array.isArray(res?.values)) setDistinctCities(res.values);
+      })
+      .catch(() => {});
+    api
+      .getDistinctValues('/workforce/distinct', 'platform')
+      .then((res) => {
+        if (active && Array.isArray(res?.values)) setDistinctPlatforms(res.values);
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const companyFilterOptions = useMemo(() => {
     const map = new Map<string, string>();
     for (const c of summary?.byCompany || []) {
@@ -580,6 +602,10 @@ function WorkforcePageInner() {
 
   const platformFilterOptions = useMemo(() => {
     const map = new Map<string, string>();
+    for (const p of distinctPlatforms) {
+      const clean = String(p || '').trim();
+      if (clean && !map.has(clean)) map.set(clean, platformLabelAr(clean));
+    }
     for (const r of items) {
       const p = String(r.platform || r.platforms || '').trim();
       if (p && !map.has(p)) map.set(p, platformLabelAr(p));
@@ -591,7 +617,24 @@ function WorkforcePageInner() {
       { value: 'all', label: 'كل المنصات' },
       ...Array.from(map.entries()).map(([value, label]) => ({ value, label })),
     ];
-  }, [items, filters.platform]);
+  }, [distinctPlatforms, items, filters.platform]);
+
+  const cityFilterOptions = useMemo(() => {
+    const set = new Set<string>();
+    for (const c of distinctCities) {
+      const clean = String(c || '').trim();
+      if (clean) set.add(clean);
+    }
+    for (const r of items) {
+      const clean = String(r.city || '').trim();
+      if (clean) set.add(clean);
+    }
+    if (filters.city) set.add(filters.city);
+    return [
+      { value: 'all', label: 'كل المدن' },
+      ...Array.from(set).map((c) => ({ value: c, label: c })),
+    ];
+  }, [distinctCities, items, filters.city]);
 
   const sectionTabs: SectionTabItem[] = [
     { id: 'directory', label: 'الدليل', icon: <Users size={16} /> },
@@ -1227,12 +1270,7 @@ function WorkforcePageInner() {
                 ariaLabel="تصفية المدينة"
                 placeholder="كل المدن"
                 className="w-40"
-                options={[
-                  { value: 'all', label: 'كل المدن' },
-                  ...Array.from(new Set(items.map((r) => r.city).filter(Boolean) as string[])).map(
-                    (c) => ({ value: c, label: c })
-                  ),
-                ]}
+                options={cityFilterOptions}
               />
             </div>
             <span className="text-xs text-[var(--muted)]">

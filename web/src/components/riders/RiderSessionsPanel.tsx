@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../ui/Toast';
 import { Dialog } from '../ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../ui/EmptyState';
+import { SearchableSelect } from '../ui/SearchableSelect';
 import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../ui/ColumnFilterMenu';
 
 // R5-C1 (docs/api/mobile-sessions.md): the row id is the 16-hex prefix the server returns; nothing else identifies a session.
@@ -121,20 +122,24 @@ export function RiderSessionsPanel() {
   return (
     <div className="space-y-4" data-testid="rider-sessions">
       <div className="flex flex-wrap items-end gap-3 p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
-        <label className="text-xs text-[var(--muted)] space-y-1">
+        <div className="text-xs text-[var(--muted)] space-y-1">
           <span className="block">الحالة</span>
-          <select
+          <SearchableSelect
             id="sessions-status"
             value={status}
-            onChange={(e) => setStatus(e.target.value as typeof status)}
-            className="h-9 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 text-sm text-[var(--ink)]"
-          >
-            <option value="active">نشطة</option>
-            <option value="expired">منتهية</option>
-            <option value="revoked">ملغاة</option>
-            <option value="">الكل</option>
-          </select>
-        </label>
+            onChange={(v) => setStatus(v as typeof status)}
+            ariaLabel="حالة الجلسة"
+            placeholder="الكل"
+            size="sm"
+            className="w-36"
+            options={[
+              { value: 'active', label: 'نشطة' },
+              { value: 'expired', label: 'منتهية' },
+              { value: 'revoked', label: 'ملغاة' },
+              { value: '', label: 'الكل' },
+            ]}
+          />
+        </div>
         <label className="text-xs text-[var(--muted)] space-y-1">
           <span className="block">رقم الإقامة</span>
           <input

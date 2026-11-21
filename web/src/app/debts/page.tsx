@@ -1277,18 +1277,23 @@ function DebtsPageContent() {
                 options={categoryOptions}
               />
 
-              <select
+              <SearchableSelect
+                id="select-debt-status"
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كافة الحالات</option>
-                <option value="active">نشط وقائم</option>
-                <option value="pending_approval">بانتظار الاعتماد</option>
-                <option value="settled">مسدد بالكامل</option>
-                <option value="waived">معفي</option>
-                <option value="cancelled">ملغي / مرفوض</option>
-              </select>
+                onChange={setSelectedStatus}
+                ariaLabel="تصفية حسب الحالة"
+                placeholder="كافة الحالات"
+                className="w-40"
+                options={[
+                  { value: 'all', label: 'كافة الحالات' },
+                  { value: 'active', label: 'قائم' },
+                  { value: 'pending_approval', label: 'بانتظار الاعتماد' },
+                  { value: 'settled', label: 'مسدد بالكامل' },
+                  { value: 'waived', label: 'معفي' },
+                  { value: 'disputed', label: 'متنازع عليه' },
+                  { value: 'cancelled', label: 'ملغي / مرفوض' },
+                ]}
+              />
             </div>
           </div>
 
