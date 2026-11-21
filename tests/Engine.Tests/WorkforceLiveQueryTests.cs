@@ -31,6 +31,53 @@ public sealed class WorkforceLiveQueryTests
     }
 
     [TestMethod]
+    public void PreviewCasesSql_PlatformRestricted_IncludesExistsWithPcParams()
+    {
+        var scope = new LiveOperationsQuery.Scope(true, [], [], [], ["JAHEZ", "KEETA"], PlatformRestricted: true);
+        foreach (var kind in new[] { "terminated", "absence", "legal" })
+        {
+            var (sql, names) = WorkforceLiveQuery.PreviewCasesSql(kind, scope);
+            StringAssert.Contains(sql, "EXISTS (SELECT 1 FROM [app].[RiderProfiles] rpx");
+            StringAssert.Contains(sql, "[platform].[ClientPlatforms] cpx");
+            StringAssert.Contains(sql, "cpx.[Code] IN (");
+            StringAssert.Contains(sql, "@pc");
+            Assert.IsTrue(names.Any(n => n.StartsWith("@pc", StringComparison.Ordinal)), kind);
+            Assert.DoesNotContain("JAHEZ", sql, StringComparison.Ordinal);
+        }
+    }
+
+    [TestMethod]
+    public void PreviewCasesSql_PlatformRestrictedEmptyCodes_UsesOneEqualsZero()
+    {
+        var scope = new LiveOperationsQuery.Scope(true, [], [], [], [], PlatformRestricted: true);
+        var (sql, _) = WorkforceLiveQuery.PreviewCasesSql("terminated", scope);
+        StringAssert.Contains(sql, "1=0");
+        Assert.DoesNotContain("EXISTS (SELECT 1 FROM [app].[RiderProfiles]", sql, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void PreviewCasesSql_NotPlatformRestricted_OmitsExists()
+    {
+        var scope = new LiveOperationsQuery.Scope(true, [], [], [], ["JAHEZ"], PlatformRestricted: false);
+        var (sql, _) = WorkforceLiveQuery.PreviewCasesSql("absence", scope);
+        Assert.DoesNotContain("EXISTS (SELECT 1 FROM [app].[RiderProfiles]", sql, StringComparison.Ordinal);
+        Assert.DoesNotContain("@pc", sql, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
+    public void PreviewCasesSql_CompanyScope_StillPresent()
+    {
+        var scope = new LiveOperationsQuery.Scope(false, ["7000000001"], [], [], ["NINJA"], PlatformRestricted: true);
+        var (sql, names) = WorkforceLiveQuery.PreviewCasesSql("legal", scope);
+        StringAssert.Contains(sql, "s.[UnifiedNationalNumber] IN (");
+        StringAssert.Contains(sql, "@cr");
+        StringAssert.Contains(sql, "EXISTS (SELECT 1 FROM [app].[RiderProfiles] rpx");
+        Assert.IsTrue(names.Any(n => n.StartsWith("@cr", StringComparison.Ordinal)));
+        Assert.IsTrue(names.Any(n => n.StartsWith("@pc", StringComparison.Ordinal)));
+        Assert.DoesNotContain("7000000001", sql, StringComparison.Ordinal);
+    }
+
+    [TestMethod]
     public void StoreModeListPagesAndSummarizes()
     {
         string path = Path.Combine(Path.GetTempPath(), "gate-workforce-" + Guid.NewGuid().ToString("N"));

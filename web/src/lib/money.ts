@@ -6,5 +6,23 @@ export function formatSar(value: number | string | null | undefined): string {
   return `${n.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} ر.س`;
 }
 
+/**
+ * Directory «راتب مدد»: format finite amounts as SAR; keep non-numeric backend text
+ * (e.g. «لا يوجد مصدر بعد»); empty / masked blank → «—».
+ */
+export function formatMudadSalary(value: number | string | null | undefined): string {
+  if (value === null || value === undefined || value === '') return '—';
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? formatSar(value) : '—';
+  }
+  const text = String(value).trim();
+  if (text === '') return '—';
+  if (/^-?\d+(?:\.\d+)?$/.test(text)) {
+    const n = Number(text);
+    if (Number.isFinite(n)) return formatSar(n);
+  }
+  return text;
+}
+
 /** Alias used by some screens; same output as formatSar. */
 export const formatMoney = formatSar;
