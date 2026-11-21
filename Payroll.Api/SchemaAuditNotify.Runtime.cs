@@ -43,56 +43,76 @@ public static partial class SchemaAuditNotify
 
     public static List<JsonObject> ListChanges(DbConnection c,DbTransaction? tx)
     {
-        if(!SchemaSql.TableExists(c,tx,"audit","change_log"))return [];
         var rows=new List<JsonObject>();
-        using var cmd=Store.Command(c,tx,$"""
-            SELECT id,occurred_on,occurred_at,user_id,username,display_name_ar,action_code,entity_type,entity_ref,diff_short,source
-            FROM {SchemaSql.Q(c,"audit","change_log")}
-            ORDER BY occurred_at DESC
-            """);
-        using var r=cmd.ExecuteReader();
-        while(r.Read())
+        var seen=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if(SchemaSql.TableExists(c,tx,"audit","change_log"))
         {
-            string action=r["action_code"].ToString()??"update";
-            string at=Convert.ToDateTime(r["occurred_at"],CultureInfo.InvariantCulture).ToString("O");
-            string entity=r["entity_ref"].ToString()??"";
-            if(entity=="-")entity="";
-            string actor=r["username"]?.ToString()??"";
-            string diff=r["diff_short"].ToString()??"";
-            JsonObject? bag=null;
-            if(diff.StartsWith('{'))
+            using var cmd=Store.Command(c,tx,$"""
+                SELECT id,occurred_on,occurred_at,user_id,username,display_name_ar,action_code,entity_type,entity_ref,diff_short,source
+                FROM {SchemaSql.Q(c,"audit","change_log")}
+                ORDER BY occurred_at DESC
+                """);
+            using var r=cmd.ExecuteReader();
+            while(r.Read())
             {
-                try{bag=JsonNode.Parse(diff) as JsonObject;}
-                catch{/* truncated or legacy plain text */}
-            }
-            // Prefer the original document shape stored in diff_short (WMRG: no behaviour change beyond storage).
-            JsonObject row;
-            if(bag!=null)
-            {
-                row=(JsonObject)bag.DeepClone();
-                row["id"]=r["id"].ToString();
-                if(row.S("action")=="")row["action"]=action;
-                if(row.S("actor")=="")row["actor"]=actor;
-                if(row.S("at")=="")row["at"]=at;
-                if(row.S("entityId")==""&&entity!="")row["entityId"]=entity;
-            }
-            else
-            {
-                row=new()
+                string action=r["action_code"].ToString()??"update";
+                string at=Convert.ToDateTime(r["occurred_at"],CultureInfo.InvariantCulture).ToString("O");
+                string entity=r["entity_ref"].ToString()??"";
+                if(entity=="-")entity="";
+                string actor=r["username"]?.ToString()??"";
+                string diff=r["diff_short"].ToString()??"";
+                string label=r["display_name_ar"]?.ToString()??"";
+                JsonObject? bag=null;
+                if(diff.StartsWith('{'))
                 {
-                    ["id"]=r["id"].ToString(),
-                    ["action"]=action,
-                    ["entityId"]=entity,
-                    ["actor"]=actor,
-                    ["at"]=at
-                };
-                if(diff!=""&&diff!=action)row["change"]=new JsonObject{["diff"]=diff};
+                    try{bag=JsonNode.Parse(diff) as JsonObject;}
+                    catch{/* truncated or legacy plain text */}
+                }
+                JsonObject row;
+                if(bag!=null)
+                {
+                    row=(JsonObject)bag.DeepClone();
+                    row["id"]=r["id"].ToString();
+                    if(row.S("action")=="")row["action"]=action;
+                    if(row.S("actor")=="")row["actor"]=actor;
+                    if(row.S("at")=="")row["at"]=at;
+                    if(row.S("entityId")==""&&entity!="")row["entityId"]=entity;
+                }
+                else
+                {
+                    row=new()
+                    {
+                        ["id"]=r["id"].ToString(),
+                        ["action"]=action,
+                        ["entityId"]=entity,
+                        ["actor"]=actor,
+                        ["at"]=at
+                    };
+                    if(diff!=""&&diff!=action)row["change"]=new JsonObject{["diff"]=diff};
+                }
+                if(label!="")row["actionAr"]=row.S("actionAr",label);
+                if(row.B("selfApprovedException")==false&&action.Contains("self_",StringComparison.OrdinalIgnoreCase))
+                    row["selfApprovedException"]=true;
+                seen.Add(row.S("id"));
+                rows.Add(row);
             }
-            if(row.B("selfApprovedException")==false&&action.Contains("self_",StringComparison.OrdinalIgnoreCase))
-                row["selfApprovedException"]=true;
-            rows.Add(row);
         }
-        return rows;
+        // Union legacy document audits so history never disappears when reading new tables.
+        using(var legacy=Store.Command(c,tx,c is Microsoft.Data.Sqlite.SqliteConnection
+            ?"SELECT body FROM records WHERE kind=@kind ORDER BY rowid DESC"
+            :"SELECT body FROM records WHERE kind=@kind ORDER BY COALESCE(JSON_VALUE(body,'$.occurredAt'),JSON_VALUE(body,'$.at'),'') DESC,id DESC",
+            ("@kind","audit")))
+        using(var lr=legacy.ExecuteReader())
+        {
+            while(lr.Read())
+            {
+                var row=JsonNode.Parse(lr.GetString(0))!.AsObject();
+                string id=row.S("id");
+                if(id!=""&&!seen.Add(id))continue;
+                rows.Add(row);
+            }
+        }
+        return rows.OrderByDescending(a=>a.S("occurredAt",a.S("at"))).ToList();
     }
 
     public static JsonObject? GetChange(DbConnection c,DbTransaction? tx,string id)
@@ -110,26 +130,54 @@ public static partial class SchemaAuditNotify
         if(entityType.Length is 0 or >40)entityType=entityType.Length==0?"record":entityType[..40];
         string entityRef=row.S("entityRef",row.S("entityId",row.S("entity",row.S("recordId"))));
         if(entityRef.Length>200)entityRef=entityRef[..200];
-        // Persist original document fields under nvarchar(400). Never truncate mid-JSON — drop keys until it fits.
-        var stored=new JsonObject();
-        foreach(string key in new[]{
-            "action","actor","at","occurredAt","entityId","entity","entityRef","recordId","badge","reason",
-            "selfApprovedException","grantId","operation","maker","approvalBypassUntil","approvalExceptionUntil",
-            "rowCount","editedRowCount","total","source","actionAr","entityTypeAr","entityType","change"})
-            if(row[key]!=null)stored[key]=row[key]!.DeepClone();
-        foreach(var kv in row)
-            if(stored[kv.Key]==null&&kv.Key!="id"&&kv.Value!=null)stored[kv.Key]=kv.Value.DeepClone();
-        string diff=stored.ToJsonString();
-        while(diff.Length>400&&stored.Count>0)
+        // Evidence fields stay whole; short label is stored separately in display_name_ar / diff_short.
+        string shortLabel=row.S("actionAr");
+        if(shortLabel.Length==0)shortLabel=AuditApi.LabelAr(action);
+        if(shortLabel.Length>400)shortLabel=shortLabel[..400];
+        var evidence=new JsonObject();
+        foreach(string key in new[]{"reason","selfApprovedException","grantId","recordId","entityRef","entityId","entity","companyId","badge","operation","maker","approvalBypassUntil","approvalExceptionUntil","note","added","removed"})
+            if(row[key]!=null)evidence[key]=row[key]!.DeepClone();
+        var stored=new JsonObject
         {
-            // Drop lowest-priority trailing keys first (change, then long free-form fields).
-            string drop=stored.ContainsKey("change")?"change"
-                :stored.Select(kv=>kv.Key).LastOrDefault(k=>k is not ("action" or "actor" or "at" or "badge" or "reason" or "selfApprovedException" or "rowCount" or "editedRowCount" or "total"))
-                ??stored.Select(kv=>kv.Key).Last();
-            stored.Remove(drop);
+            ["action"]=action,
+            ["actor"]=row.S("actor"),
+            ["at"]=at.ToString("O"),
+            ["occurredAt"]=at.ToString("O"),
+            ["entityId"]=row.S("entityId",entityRef),
+            ["entityRef"]=entityRef,
+            ["actionAr"]=shortLabel,
+            ["entityTypeAr"]=entityType,
+            ["source"]=row.S("source","نظام")
+        };
+        foreach(var kv in evidence)stored[kv.Key]=kv.Value!.DeepClone();
+        if(row["change"]!=null)stored["change"]=row["change"]!.DeepClone();
+        string diff=stored.ToJsonString();
+        // Drop descriptive payload only — never reason / grant / self-approval / record refs.
+        while(diff.Length>400)
+        {
+            if(stored.ContainsKey("change"))stored.Remove("change");
+            else if(stored.ContainsKey("added"))stored.Remove("added");
+            else if(stored.ContainsKey("removed"))stored.Remove("removed");
+            else if(stored.ContainsKey("note")&&stored.S("note").Length>80)stored["note"]=stored.S("note")[..80];
+            else break;
             diff=stored.ToJsonString();
         }
-        if(diff.Length==0||diff.Length>400)diff=action;
+        string sqlId=Guid.TryParse(row.S("id"),out var gid)?SchemaSql.GuidText(gid):SchemaSql.GuidText(SchemaSql.NewId());
+        row["id"]=sqlId;
+        if(diff.Length>400)
+        {
+            // Keep mandatory evidence by dual-writing the full document into legacy records,
+            // and store only the short label in change_log.diff_short.
+            using var full=Store.Command(c,tx,"UPDATE records SET body=@body WHERE id=@id AND kind=@kind",
+                ("@id",sqlId),("@kind","audit"),("@body",row.ToJsonString()));
+            if(full.ExecuteNonQuery()==0)
+            {
+                using var insert=Store.Command(c,tx,"INSERT INTO records(id,kind,body) VALUES(@id,@kind,@body)",
+                    ("@id",sqlId),("@kind","audit"),("@body",row.ToJsonString()));
+                insert.ExecuteNonQuery();
+            }
+            diff=shortLabel;
+        }
         string source=MapSource(row.S("source"));
         string actor=row.S("actor");
         object userId=DBNull.Value;
@@ -138,8 +186,6 @@ public static partial class SchemaAuditNotify
             try{userId=SchemaApprovals.EnsureAuthUserId(c,tx,actor);}
             catch{/* username bridge optional for legacy audit writers */}
         }
-        string sqlId=Guid.TryParse(row.S("id"),out var gid)?SchemaSql.GuidText(gid):SchemaSql.GuidText(SchemaSql.NewId());
-        row["id"]=sqlId;
         string onText=at.UtcDateTime.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);
         string atText=at.UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss.fffffff",CultureInfo.InvariantCulture);
         SchemaSql.Exec(c,tx,$"""
@@ -152,7 +198,7 @@ public static partial class SchemaAuditNotify
             ("@at",atText),
             ("@uid",userId),
             ("@user",(object?)(actor==""?null:actor)??DBNull.Value),
-            ("@disp",DBNull.Value),
+            ("@disp",shortLabel),
             ("@act",action),
             ("@etype",entityType),
             ("@eref",entityRef==""?"-":entityRef),
@@ -289,38 +335,82 @@ public static partial class SchemaAuditNotify
     public static List<JsonObject> ListTasks(DbConnection c,DbTransaction? tx)
     {
         if(!SchemaSql.TableExists(c,tx,"task","item"))return [];
-        var rows=new List<JsonObject>();
-        using var cmd=Store.Command(c,tx,$"""
+        // Materialize task rows first — comments/attachments need a second query (no MARS dependency).
+        var heads=new List<(string Id,string Due,string Assignee,string Rank,string Status,string Title,string EntityType,string EntityId,string CreatedBy,string CreatedAt,string UpdatedBy)>();
+        using(var cmd=Store.Command(c,tx,$"""
             SELECT t.id,t.due_on,t.assignee_user_id,t.assignee_rank,t.status,t.title_ar,t.entity_type,t.entity_id,t.created_by,t.created_at,t.updated_by,t.updated_at,u.username
             FROM {SchemaSql.Q(c,"task","item")} t
             LEFT JOIN {SchemaSql.Q(c,"auth","user")} u ON u.id=t.assignee_user_id
             ORDER BY t.created_at DESC
-            """);
-        using var r=cmd.ExecuteReader();
-        while(r.Read())
+            """))
+        using(var r=cmd.ExecuteReader())
         {
-            string id=r["id"].ToString()??"";
-            string due=Convert.ToDateTime(r["due_on"],CultureInfo.InvariantCulture).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);
-            string created=r["created_at"] is DBNull or null?"":Convert.ToDateTime(r["created_at"],CultureInfo.InvariantCulture).ToString("O");
+            while(r.Read())
+            {
+                string due=Convert.ToDateTime(r["due_on"],CultureInfo.InvariantCulture).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);
+                string created=r["created_at"] is DBNull or null?"":Convert.ToDateTime(r["created_at"],CultureInfo.InvariantCulture).ToString("O");
+                heads.Add((
+                    r["id"].ToString()??"",
+                    due,
+                    r["username"]?.ToString()??"",
+                    r["assignee_rank"]?.ToString()??"",
+                    StatusFromSql(r["status"].ToString()??"open"),
+                    r["title_ar"].ToString()??"",
+                    r["entity_type"]?.ToString()??"",
+                    r["entity_id"] is DBNull or null?"":r["entity_id"].ToString()!,
+                    r["created_by"]?.ToString()??"",
+                    created,
+                    r["updated_by"]?.ToString()??""));
+            }
+        }
+        var rows=new List<JsonObject>();
+        foreach(var h in heads)
+        {
+            var comments=ListComments(c,tx,h.Id);
+            string companyId="";
+            var visible=new JsonArray();
+            foreach(var node in comments.OfType<JsonObject>())
+            {
+                string body=node.S("bodyAr");
+                if(body.StartsWith("__company__:",StringComparison.Ordinal)){companyId=body["__company__:".Length..];continue;}
+                visible.Add(node.DeepClone());
+            }
             rows.Add(new()
             {
-                ["id"]=id,
-                ["titleAr"]=r["title_ar"].ToString()??"",
-                ["bodyAr"]=FirstCommentBody(c,tx,id),
-                ["assignee"]=r["username"]?.ToString()??"",
-                ["rank"]=r["assignee_rank"]?.ToString()??"",
-                ["status"]=StatusFromSql(r["status"].ToString()??"open"),
-                ["entityType"]=r["entity_type"]?.ToString()??"",
-                ["entityId"]=r["entity_id"] is DBNull or null?"":r["entity_id"].ToString()!,
-                ["dueAt"]=due+"T00:00:00+03:00",
-                ["createdBy"]=r["created_by"]?.ToString()??"",
-                ["createdAt"]=created,
-                ["updatedBy"]=r["updated_by"]?.ToString()??"",
-                ["comments"]=ListComments(c,tx,id),
-                ["attachments"]=new JsonArray()
+                ["id"]=h.Id,
+                ["titleAr"]=h.Title,
+                ["bodyAr"]=visible.Count>0?visible[0]!.AsObject().S("bodyAr"):"",
+                ["assignee"]=h.Assignee,
+                ["rank"]=h.Rank,
+                ["status"]=h.Status,
+                ["companyId"]=companyId,
+                ["entityType"]=h.EntityType,
+                ["entityId"]=h.EntityId,
+                ["dueAt"]=h.Due+"T00:00:00+03:00",
+                ["createdBy"]=h.CreatedBy,
+                ["createdAt"]=h.CreatedAt,
+                ["updatedBy"]=h.UpdatedBy,
+                ["comments"]=visible,
+                ["attachments"]=ListAttachments(c,tx,h.Id)
             });
         }
         return rows;
+    }
+
+    static JsonArray ListAttachments(DbConnection c,DbTransaction? tx,string taskId)
+    {
+        var arr=new JsonArray();
+        if(!SchemaSql.TableExists(c,tx,"task","attachment"))return arr;
+        using var cmd=Store.Command(c,tx,$"SELECT file_name,file_hash,created_at FROM {SchemaSql.Q(c,"task","attachment")} WHERE task_id=@t ORDER BY created_at",("@t",taskId));
+        using var r=cmd.ExecuteReader();
+        while(r.Read())
+            arr.Add(new JsonObject
+            {
+                ["fileName"]=r["file_name"]?.ToString()??"",
+                ["fileHash"]=r["file_hash"] is byte[] b?Convert.ToHexString(b):r["file_hash"]?.ToString()??"",
+                ["at"]=r["created_at"]?.ToString()??""
+            });
+        return arr;
     }
 
     static string FirstCommentBody(DbConnection c,DbTransaction? tx,string taskId)
@@ -387,22 +477,50 @@ public static partial class SchemaAuditNotify
                 ("@st",status),("@title",row.S("titleAr","مهمة")),
                 ("@etype",(object?)(row.S("entityType")==""?null:row.S("entityType"))??DBNull.Value),
                 ("@eid",entityId),("@by",(object?)(row.S("updatedBy")==""?row.S("createdBy"):row.S("updatedBy"))??DBNull.Value));
-        string body=row.S("bodyAr");
-        if(body!=""&&SchemaSql.TableExists(c,tx,"task","comment"))
+        if(SchemaSql.TableExists(c,tx,"task","comment"))
         {
-            object? hasBody=SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"task","comment")} WHERE task_id=@t",("@t",rawId));
-            if(Convert.ToInt64(hasBody!)==0)
+            var comments=row["comments"] as JsonArray??new JsonArray();
+            if(comments.Count==0&&row.S("bodyAr")!="")
+                comments=new JsonArray(new JsonObject{["bodyAr"]=row.S("bodyAr"),["by"]=row.S("updatedBy",row.S("createdBy","system"))});
+            SchemaSql.Exec(c,tx,$"DELETE FROM {SchemaSql.Q(c,"task","comment")} WHERE task_id=@t",("@t",rawId));
+            void InsertComment(string body,string author)
             {
-                string author=row.S("createdBy",row.S("updatedBy","system"));
+                if(body=="")return;
                 string authorId;
                 try{authorId=SchemaApprovals.EnsureAuthUserId(c,tx,author);}
-                catch{authorId=SchemaSql.GuidText(SchemaSql.NewId());}
+                catch{return;}
                 SchemaSql.Exec(c,tx,$"""
                     INSERT INTO {SchemaSql.Q(c,"task","comment")}(id,task_id,author_user_id,body_ar,created_by,created_at)
                     VALUES(@id,@t,@a,@b,@by,{SchemaSql.NowLiteral(c)})
                     """,
                     ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@t",rawId),("@a",authorId),("@b",body.Length<=400?body:body[..400]),
                     ("@by",author));
+            }
+            // Persist company scope without a schema column (FINAL task.item has none).
+            if(row.S("companyId")!="")InsertComment("__company__:"+row.S("companyId"),row.S("createdBy",row.S("updatedBy","system")));
+            foreach(var node in comments.OfType<JsonObject>())
+            {
+                string body=node.S("bodyAr",node.S("body"));
+                if(body.StartsWith("__company__:",StringComparison.Ordinal))continue;
+                InsertComment(body,node.S("by",row.S("updatedBy",row.S("createdBy","system"))));
+            }
+        }
+        if(SchemaSql.TableExists(c,tx,"task","attachment"))
+        {
+            SchemaSql.Exec(c,tx,$"DELETE FROM {SchemaSql.Q(c,"task","attachment")} WHERE task_id=@t",("@t",rawId));
+            foreach(var node in (row["attachments"] as JsonArray??[]).OfType<JsonObject>())
+            {
+                string name=node.S("fileName",node.S("name"));
+                if(name=="")continue;
+                byte[] hash;
+                string hex=node.S("fileHash",node.S("hash"));
+                try{hash=hex.Length>=64?Convert.FromHexString(hex[..64]):System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(name+rawId));}
+                catch{hash=System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(name+rawId));}
+                SchemaSql.Exec(c,tx,$"""
+                    INSERT INTO {SchemaSql.Q(c,"task","attachment")}(id,task_id,file_hash,file_name,created_at)
+                    VALUES(@id,@t,@h,@n,{SchemaSql.NowLiteral(c)})
+                    """,
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@t",rawId),("@h",hash),("@n",name.Length<=200?name:name[..200]));
             }
         }
     }

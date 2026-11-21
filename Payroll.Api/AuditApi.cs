@@ -81,7 +81,7 @@ public static class AuditApi
     static JsonObject View(JsonObject a)
     {
         string action=a.S("action"),at=a.S("occurredAt",a.S("at")),entity=a.S("entityId",a.S("entityRef"));
-        return new()
+        var view=new JsonObject
         {
             ["id"]=a.S("id"),
             // Legacy contract fields (enterprise/campaigns/submissions HTTP scripts).
@@ -97,6 +97,30 @@ public static class AuditApi
             ["source"]=a.S("source","واجهة"),
             ["allowedActions"]=new JsonArray()
         };
+        foreach(string key in new[]{"companyId","reason","grantId","recordId","selfApprovedException","note","badge"})
+            if(a[key]!=null)view[key]=a[key]!.DeepClone();
+        return view;
+    }
+
+    /// <summary>Explicit read/export actions excluded from the change log (M-0606 / M-0614).</summary>
+    public static readonly HashSet<string> ReadActions=new(StringComparer.OrdinalIgnoreCase)
+    {
+        "operations.rider_accounts_read","read.iban","read.sensitive","read.export","audit.read","export.read"
+    };
+
+    public static bool IsReadAction(string action)
+        =>action.StartsWith("read.",StringComparison.OrdinalIgnoreCase)
+          ||action.EndsWith("_read",StringComparison.OrdinalIgnoreCase)
+          ||action.EndsWith(".read",StringComparison.OrdinalIgnoreCase)
+          ||ReadActions.Contains(action);
+
+    static bool InActorScope(ClaimsPrincipal actor,JsonObject row)
+    {
+        if(AccessPolicy.Administrator(actor)||FinancialScopes.AllCompanies(actor))return true;
+        string company=row.S("companyId");
+        if(company!="")return FinancialScopes.Sponsor(actor,company);
+        // Untagged historical rows stay visible only to global/admin scope.
+        return false;
     }
 
     /// <summary>Filtered change-log rows as a plain list (ApiPagination wraps when ?page= is present).</summary>
@@ -104,7 +128,8 @@ public static class AuditApi
     {
         AccessPolicy.Demand(actor,ViewPerm);
         IEnumerable<JsonObject> rows=Store.List(c,ChangeKind)
-            .Where(a=>!a.S("action").StartsWith("read.",StringComparison.OrdinalIgnoreCase))
+            .Where(a=>!IsReadAction(a.S("action")))
+            .Where(a=>InActorScope(actor,a))
             .Select(View);
         if(!string.IsNullOrWhiteSpace(from)&&DateTimeOffset.TryParse(from,out var f))
             rows=rows.Where(a=>DateTimeOffset.TryParse(a.S("occurredAt"),out var at)&&at>=f);
@@ -128,7 +153,7 @@ public static class AuditApi
     public static JsonObject SelfApprovals(DbConnection c,ClaimsPrincipal actor,string? from,string? to)
     {
         AccessPolicy.Demand(actor,ViewPerm);
-        var rows=Store.List(c,ChangeKind).Where(a=>
+        var rows=Store.List(c,ChangeKind).Where(a=>InActorScope(actor,a)).Where(a=>
             a.B("selfApprovedException")
             ||a.S("action") is "approval.self_decision" or "approval.self_exception"
             ||a.S("action").Contains("self_",StringComparison.OrdinalIgnoreCase))

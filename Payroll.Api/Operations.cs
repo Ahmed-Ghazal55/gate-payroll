@@ -232,7 +232,7 @@ public static class Operations
         api.MapGet("/riders/{iqama}/accounts",(string iqama,HttpContext ctx)=>{
             AccessPolicy.Demand(ctx.User,"operations.view");string rider=J.Iqama(iqama);
             JsonObject person=store.Read(c=>{var row=Store.Get(c,rider,"rider")??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(ctx.User,row);return row;});
-            store.Write((c,tx)=>{Store.Audit(c,tx,"operations.rider_accounts_read",rider,ctx.User.Identity?.Name??"");return true;},invalidateSummaries:false);
+            store.Write((c,tx)=>{AuditApi.NoteRead(c,tx,ctx.User.Identity?.Name??"","rider_accounts",true);return true;},invalidateSummaries:false);
             if(SourceMode(config,env)==SourceStore)
                 return store.Read(c=>Envelope(ApiPagination.Apply(RiderAccounts(c,ctx.User,rider),ctx.Request.Query,true),SourceStore,DateTimeOffset.UtcNow));
             var request=LivePageRequest(ctx.Request.Query);
