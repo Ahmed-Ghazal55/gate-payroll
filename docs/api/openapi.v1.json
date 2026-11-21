@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:32829/"
+      "url": "http://127.0.0.1:38227/"
     }
   ],
   "paths": {
@@ -16375,12 +16375,72 @@
         }
       }
     },
+    "/api/operations/vehicles/oil-changes/export": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Export vehicle oil changes",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/operations/vehicles/purchase-invoices/export": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Export vehicle purchase invoices",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/operations/fuel-cards/export": {
       "get": {
         "tags": [
           "Operations"
         ],
         "summary": "Export fuel cards",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/operations/fuel-log/export": {
+      "get": {
+        "tags": [
+          "Operations"
+        ],
+        "summary": "Export fuel card assignment log",
         "responses": {
           "200": {
             "description": "Successful response (stored wire field names)",
