@@ -195,7 +195,9 @@ public static class BankPayrollFiles
         {
             var flags=ResolveStoredMoneyFlags(c,tx,request);
             MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.BankSent);
-            AccessPolicy.Demand(user,ApprovalsArea.DualBankFile);
+            // M-0672 / WC1G: permission alone is not enough — require a recorded two-person dual decision (no bypass/self-exception).
+            string payoutRef="bank-payout:"+request.Sponsor+":"+request.From+":"+request.To;
+            ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,user,ApprovalsArea.DualBankFile,payoutRef);
             string bank=input.S("bankAccountCode",PipelineSettings.Current().S("payrollBankAccount","111101"));
             MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.Payout);
             PostPayout(c,tx,user,request,checkedRows,actor,bank);

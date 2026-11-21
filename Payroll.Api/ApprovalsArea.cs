@@ -36,6 +36,26 @@ public static class ApprovalsArea
         string client=request.S("dualPermission");
         return RequiresDual(client)?client:null;
     }
+
+    /// <summary>M-0672 / WC1G: money-out (bank mark-sent / payout) needs a persisted approvals-area
+    /// decision by two different people. Bypass and self-approval exception do not satisfy this gate.</summary>
+    public static void DemandRecordedMoneyOutDual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string dualPermission,string referenceId)
+    {
+        AccessPolicy.Demand(actor,dualPermission);
+        J.Need(RequiresDual(dualPermission)&&dualPermission is DualBankFile or DualPaymentOut,
+            "صرف الأموال يتطلب صلاحية الاعتماد الثنائي المخصصة.",403);
+        bool ok=Store.List(c,"approval_request",tx).Any(r=>
+            r.S("status")=="approved"
+            &&r.S("referenceId")==referenceId
+            &&string.Equals(ResolveDual(r),dualPermission,StringComparison.Ordinal)
+            &&!r.B("selfApprovedException")
+            &&!string.Equals(r.S("decidedBy"),r.S("requestedBy",r.S("createdBy")),StringComparison.OrdinalIgnoreCase)
+            &&Store.List(c,DecisionKind,tx).Any(d=>
+                d.S("requestId")==r.S("id")
+                &&d.S("outcome")=="approved"
+                &&string.IsNullOrWhiteSpace(d.S("bypassGrantId"))));
+        J.Need(ok,"صرف الأموال يتطلب اعتماد شخصين مختلفين مسجل في منطقة الاعتمادات دون تجاوز.",403);
+    }
     static void DemandOrg(ClaimsPrincipal actor)
     {
         if(!AccessPolicy.Has(actor,OrgPermission)&&!AccessPolicy.Has(actor,"org.manage"))

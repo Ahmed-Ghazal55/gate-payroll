@@ -161,9 +161,16 @@ public sealed class FinanceViewsTests
             string journals=store.Read(c=>new JsonArray(Store.List(c,"journal").Select(j=>(JsonNode?)j).ToArray()).ToJsonString());
             var file=store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,input));CollectionAssert.AreEqual(new byte[]{0xEF,0xBB,0xBF},file.Bytes[..3]);string csv=Encoding.UTF8.GetString(file.Bytes[3..]);Assert.IsTrue(csv.StartsWith(BankPayrollFiles.Header+"\r\n",StringComparison.Ordinal));Assert.IsTrue(csv.EndsWith("\r\n",StringComparison.Ordinal));Assert.IsFalse(csv.Replace("\r\n","").Contains('\n'));Assert.IsFalse(csv.Replace("\r\n","").Contains('\r'));StringAssert.Contains(csv,"900.25,\"Synthetic, \"\"note\"\"\r\nsecond line\"");StringAssert.Matches(file.Filename,new System.Text.RegularExpressions.Regex(@"^[0-9]+_bulkPayroll\.csv$"));
             var audit=store.Read(c=>Store.List(c,"audit").Single());Assert.AreEqual(1m,audit.N("rowCount"));Assert.AreEqual(1m,audit.N("editedRowCount"));Assert.AreEqual(900.25m,audit.N("total"));Assert.AreEqual("synthetic-admin",audit.S("actor"));Assert.AreEqual(7,audit.Count);Assert.IsFalse(audit.ToJsonString().Contains(Rider));Assert.IsFalse(audit.ToJsonString().Contains(FakeIban()));Assert.IsFalse(audit.ToJsonString().Contains("Synthetic Rider"));Assert.AreEqual(journals,store.Read(c=>new JsonArray(Store.List(c,"journal").Select(j=>(JsonNode?)j).ToArray()).ToJsonString()));
-            // M1: markSent posts payout; parallel comparison never does.
+            // M1: markSent posts payout after a recorded two-person dual decision; parallel comparison never does.
             int before=store.Read(c=>Store.List(c,"journal").Count);
             var sent=ExportInput(preview);sent["markSent"]=true;sent["bankAccountCode"]="111101";sent["rows"]![0]!["amount"]=900.25m;
+            string payoutRef="bank-payout:"+Bw+":2026-10:2026-10";
+            var checker=UserAccess.Principal(new(){["username"]="synthetic-bank-checker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5});
+            store.Write((c,tx)=>{
+                var req=FinancialCore.CreateMutualApproval(c,tx,"bank_sent","اعتماد إرسال ملف بنك","مرجع اختبار", "OPS","FIN",1,payoutRef,new(){["amountSar"]=900.25m},"synthetic-admin");
+                ApprovalsArea.Decide(c,tx,checker,req.S("id"),new(){["decision"]="approve",["note"]="independent checker"});
+                return true;
+            });
             store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,sent));
             Assert.IsTrue(store.Read(c=>Store.List(c,"journal").Count)>before);
             Assert.IsTrue(store.Read(c=>Store.List(c,"journal").Any(j=>j.S("transactionType")=="bank_payroll_payout")));
