@@ -32,14 +32,18 @@ public static class ChartOfAccountsApi
         return Convert.ToInt64(n??0L)>0;
     }
 
-    /// <summary>Live posting must honour fin.account is_active / is_postable (not only the embedded chart).</summary>
+    /// <summary>Live leaf state wins when the code is a postable fin.account row. Missing codes and seeded
+    /// parents (is_postable=0 while still active) are left to the vault/embedded chart — those parents share
+    /// codes with payroll vault accounts (e.g. 1211) and are structure, not deactivation.</summary>
     public static void DemandPostable(DbConnection c,DbTransaction? tx,string code)
     {
         if(!SchemaSql.TableExists(c,tx,"fin","account"))return;
         using var cmd=Store.Command(c,tx,$"SELECT is_active,is_postable,status FROM {T(c)} WHERE code=@code",("@code",code));
         using var r=cmd.ExecuteReader();
-        if(!r.Read())throw new ApiError("الحساب غير موجود في الدليل الحي.",400);
-        J.Need(Convert.ToInt32(r.GetValue(0))==1&&Convert.ToInt32(r.GetValue(1))==1&&Convert.ToInt32(r.GetValue(2))==1,
+        if(!r.Read())return;
+        int active=Convert.ToInt32(r.GetValue(0)),postable=Convert.ToInt32(r.GetValue(1)),status=Convert.ToInt32(r.GetValue(2));
+        if(postable==0&&active==1&&status==1)return;
+        J.Need(active==1&&postable==1&&status==1,
             "الحساب موقوف أو غير ترحيلي في الدليل الحي؛ لا يُرحّل عليه.",400);
     }
 
