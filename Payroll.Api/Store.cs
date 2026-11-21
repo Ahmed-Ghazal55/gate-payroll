@@ -58,6 +58,7 @@ public sealed partial class Store
             SchemaAuthCatalog.Ensure(conn,tx);
             SchemaOrgStructure.Ensure(conn,tx);
             SchemaApprovals.Ensure(conn,tx);
+            SchemaAuditNotify.Ensure(conn,tx);
             SchemaFormApp.Ensure(conn,tx);
             SchemaFinAccount.Ensure(conn,tx);
             SchemaFinPeriod.Ensure(conn,tx);
