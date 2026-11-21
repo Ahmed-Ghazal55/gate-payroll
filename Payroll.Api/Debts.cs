@@ -25,15 +25,35 @@ public static partial class Debts
         J.Need(waived<=0,"إعفاء التحصيل الفردي عبر الحساب القديم ٥٢٠٢ غير متاح؛ استخدم إعفاء المديونية (D11) على دفتر الديون.",409);
     public static byte[] SourceFileHash(byte[] file)=>System.Security.Cryptography.SHA256.HashData(file);
     public static byte[] SourceFileHashForTests(byte[] file)=>SourceFileHash(file);
-    static byte[] ResolveImportFileHash(JsonObject input)
+    static byte[] ResolveImportFileHash(JsonObject input,DbConnection? c=null,DbTransaction? tx=null,string? previewKind=null,string? actor=null)
     {
         if(!string.IsNullOrWhiteSpace(input.S("dataBase64")))
-            return SourceFileHash(FinancialImports.FileBytes(input));
+            return SourceFileHash(FinancialImports.FileBytes(input)); // file bytes are authoritative; ignore unsigned client hex
+        // Client-supplied hash alone is unsigned; accept only when bound to a verified preview fingerprint (kind includes hash).
         string hex=input.S("fileHash");
         J.Need(hex.Length==64,"بصمة ملف المصدر (fileHash) مطلوبة؛ أعد المعاينة مع الملف.",400);
-        try{return Convert.FromHexString(hex);}
-        catch{throw new ApiError("بصمة ملف المصدر غير صالحة.",400);}
+        string previewHash=input.S("previewFileHash");
+        string kind=(previewKind is {Length:>0}?previewKind:"opening")+":"+hex;
+        J.Need(previewHash.Length==64&&string.Equals(previewHash,hex,StringComparison.OrdinalIgnoreCase)
+            &&c!=null&&actor is {Length:>0}
+            &&input.S("fingerprint")!=""&&input["rows"] is JsonArray,
+            "بصمة ملف المصدر غير مربوطة بالمعاينة؛ أعد رفع الملف أو المعاينة.",400);
+        try
+        {
+            // Verify needs a transaction object; bind against current connection state when tx is null.
+            using var own=tx==null?c!.BeginTransaction():null;
+            try
+            {
+                FinancialImports.Verify(c!,(tx??own)!,new JsonObject{["confirm"]=true,["fingerprint"]=input.S("fingerprint"),["rows"]=input["rows"]!.DeepClone()},kind,actor!);
+                own?.Commit();
+            }
+            catch{own?.Rollback();throw;}
+            return Convert.FromHexString(hex);
+        }
+        catch(FormatException){throw new ApiError("بصمة ملف المصدر غير صالحة.",400);}
     }
+    public static byte[] ResolveImportFileHashForTests(JsonObject input,DbConnection? c=null,DbTransaction? tx=null,string? previewKind=null,string? actor=null)
+        =>ResolveImportFileHash(input,c,tx,previewKind,actor);
     public static void DemandOpeningVaultCreditClosed()=>
         throw new ApiError("صرف مديونية جديدة عبر محرك المدفوعات غير متاح بعد؛ انتظر وحدة محرك المدفوعات.",409);
     public static decimal Amount(JsonObject input, string key)
@@ -549,13 +569,18 @@ public static partial class Debts
                 }
             }
             string fileHash=Convert.ToHexString(SourceFileHash(bytes));
-            return new { filename, validCount = rows.Count, errorCount = errors.Count, rows, errors, fileHash, fingerprint=errors.Count==0?FinancialImports.Issue(c,"bulk",rows,ctx.User.Identity!.Name!):"" };
+            return new { filename, validCount = rows.Count, errorCount = errors.Count, rows, errors, fileHash, fingerprint=errors.Count==0?FinancialImports.Issue(c,"bulk:"+fileHash,rows,ctx.User.Identity!.Name!):"" };
         })).WithTags("Debts and advances").WithSummary("Submit debts bulk collect preview file");
 
         // اعتماد شيت التحصيل المجمع (سواء من جدول مباشر أو بعد قراءة ملف Excel/CSV)
         api.MapPost("/debts/bulk-collect/commit", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
-            FinancialImports.Verify(c,tx,input,"bulk",ctx.User.Identity!.Name!);
+            string bulkHash=input.S("fileHash");
+            J.Need(bulkHash.Length==64||!string.IsNullOrWhiteSpace(input.S("dataBase64")),"بصمة ملف المصدر (fileHash) مطلوبة من المعاينة.",400);
+            if(bulkHash.Length!=64&&!string.IsNullOrWhiteSpace(input.S("dataBase64")))
+                bulkHash=Convert.ToHexString(SourceFileHash(FinancialImports.FileBytes(input)));
+            FinancialImports.Verify(c,tx,input,"bulk:"+bulkHash,ctx.User.Identity!.Name!);
+            input["fileHash"]=bulkHash;input["previewFileHash"]=bulkHash;
             var items = input["rows"]?.AsArray() ?? throw new ApiError("أرسل صفوف التحصيل المجمع في الحقل rows.");
             J.Need(items.Count > 0 && items.Count <= 1000, "عدد صفوف التحصيل المجمع يجب أن يكون بين 1 و 1000 صف.");
 
@@ -668,7 +693,7 @@ public static partial class Debts
                 rowIdx++;
             }
 
-            byte[] fileHash=ResolveImportFileHash(input);
+            byte[] fileHash=ResolveImportFileHash(input,c,tx,"bulk",ctx.User.Identity!.Name!);
             SchemaAuditNotify.Ensure(c,tx);
             string userId=SchemaApprovals.EnsureAuthUserId(c,tx,ctx.User.Identity!.Name!);
             SchemaSql.Exec(c,tx,$"""
@@ -874,7 +899,7 @@ public static partial class Debts
             {
                 filename,
                 fileHash,
-                fingerprint=errors.Count==0?FinancialImports.Issue(c,"opening",validRows,ctx.User.Identity!.Name!):"",
+                fingerprint=errors.Count==0?FinancialImports.Issue(c,"opening:"+fileHash,validRows,ctx.User.Identity!.Name!):"",
                 validCount = validRows.Count,
                 errorCount = errors.Count,
                 newRidersToCreateCount = parsedList.Count(x => !x.B("riderExists")),
@@ -894,7 +919,12 @@ public static partial class Debts
 
         api.MapPost("/debts/import-opening/commit", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
-            FinancialImports.Verify(c,tx,input,"opening",ctx.User.Identity!.Name!);
+            string openingHash=input.S("fileHash");
+            J.Need(openingHash.Length==64||!string.IsNullOrWhiteSpace(input.S("dataBase64")),"بصمة ملف المصدر (fileHash) مطلوبة من المعاينة.",400);
+            if(openingHash.Length!=64&&!string.IsNullOrWhiteSpace(input.S("dataBase64")))
+                openingHash=Convert.ToHexString(SourceFileHash(FinancialImports.FileBytes(input)));
+            FinancialImports.Verify(c,tx,input,"opening:"+openingHash,ctx.User.Identity!.Name!);
+            input["fileHash"]=openingHash;input["previewFileHash"]=openingHash;
             var items = input["rows"]?.AsArray() ?? throw new ApiError("أرسل صفوف الاستيراد المعاينة في الحقل rows.");
             J.Need(items.Count > 0 && items.Count <= 2000, "عدد صفوف الاستيراد يجب أن يكون بين 1 و 2000 صف.");
 
@@ -1024,7 +1054,7 @@ public static partial class Debts
                 totalCompanyExpenseImported = J.Money(totalCompanyExpenseImported + companyShare);
             }
 
-            byte[] fileHash=ResolveImportFileHash(input);
+            byte[] fileHash=ResolveImportFileHash(input,c,tx,"opening",ctx.User.Identity!.Name!);
             SchemaAuditNotify.Ensure(c,tx);
             string userId=SchemaApprovals.EnsureAuthUserId(c,tx,ctx.User.Identity!.Name!);
             SchemaSql.Exec(c,tx,$"""
