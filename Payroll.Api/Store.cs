@@ -142,7 +142,19 @@ public sealed partial class Store
     }
     public static void Audit(DbConnection c, DbTransaction tx, string action, string entity, string actor)
     {
-        Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = action, ["entityId"] = entity, ["actor"] = actor, ["at"] = DateTimeOffset.UtcNow.ToString("O") }, tx);
+        // M-0606: short data-change row only (never call for reads). Keep legacy keys for existing readers.
+        Save(c, "audit", new()
+        {
+            ["id"] = Guid.NewGuid().ToString("N"),
+            ["action"] = action,
+            ["actionAr"] = AuditApi.LabelAr(action),
+            ["entityId"] = entity,
+            ["entityRef"] = entity,
+            ["actor"] = actor,
+            ["at"] = DateTimeOffset.UtcNow.ToString("O"),
+            ["occurredAt"] = DateTimeOffset.UtcNow.ToString("O"),
+            ["source"] = "نظام"
+        }, tx);
         Notifications.OnAudit(c,tx,action,entity,actor);
     }
 }
