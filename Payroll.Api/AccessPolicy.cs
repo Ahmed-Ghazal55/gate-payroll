@@ -204,7 +204,8 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/payroll",StringComparison.Ordinal))return method=="GET"?Has("payroll.view"):method=="POST"&&path=="/api/payroll/approve"&&Has("payroll.approve");
         if(path.StartsWith("/api/ledger",StringComparison.Ordinal))return method=="GET"&&Has("payroll.view");
         if(path.StartsWith("/api/payments/",StringComparison.Ordinal))return PaymentsApi.Allowed(user,method,path);
-        if(path=="/api/payments")return method=="POST"&&Has("payments.record");
+        // RWP1: legacy POST /api/payments posted money-out with payments.record and no dual approval (M-0672).
+        if(path=="/api/payments")return false;
         if(path=="/api/adjustments")return method=="POST"&&Has("adjustments.create");
         if(path.StartsWith("/api/policies",StringComparison.Ordinal))return method=="GET"?Has("policies.view"):Has("policies.manage");
         if((method=="GET"&&path=="/api/imports")||path=="/api/template.csv")return Has("imports.view");

@@ -270,20 +270,8 @@ api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Wri
 api.MapGet("/payroll/fingerprint", (string iqama, string period,HttpContext ctx) => store.Read(c => {var rider=Store.Get(c,J.Iqama(iqama),"rider")??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(ctx.User,rider);return new { fingerprint = Fingerprint(c,iqama,J.Period(period)) };})).WithTags("Payroll").WithSummary("Read payroll fingerprint");
 api.MapGet("/ledger", (HttpContext ctx) => store.Read(c => Store.List(c,"ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)))).WithTags("Payroll").WithSummary("Read ledger");
 api.MapGet("/ledger/{iqama}", (string iqama,HttpContext ctx) => store.Read(c => { J.Iqama(iqama); var rows = Store.List(c, "ledger").Where(x => x.S("iqama") == iqama&&FinancialScopes.Ledger(ctx.User,x)).OrderBy(x => x.S("period")).ThenBy(x => x.S("createdAt")).ToList(); return new { rows, balance = rows.Sum(x => x.N("amount")) }; })).WithTags("Payroll").WithSummary("Read ledger {iqama}");
-api.MapPost("/payments", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-{
-    string iqama = J.Iqama(input.Required("iqama")); string period = J.Period(input.Required("period")); var ledger = Store.List(c, "ledger", tx).Where(x => x.S("iqama") == iqama).ToList(); decimal amount = input.N("amount");
-    J.Need(!ledger.Any(x => string.CompareOrdinal(x.S("period"), period) > 0), "لا يمكن تسجيل دفعة بأثر رجعي قبل حركات لاحقة.");
-    J.Need(amount > 0 && amount == J.Money(amount) && amount <= ledger.Sum(x => x.N("amount")), "الدفعة يجب أن تكون موجبة ولا تتجاوز الرصيد المستحق.");
-    string reference = input.Required("sourceRef"); J.Need(!Store.List(c, "ledger", tx).Any(x => x.S("kind") == "payment" && x.S("sourceRef") == reference), "مرجع التحويل مسجل بالفعل.");
-    var rider=Store.Get(c,iqama,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);
-    var sponsor=AccountingEvents.PayrollSponsor(rider,input);
-    string vault=input.S("paymentVaultCode",FinancialCore.DefaultVaultForSponsor(sponsor.Id,"BANK"));
-    FinancialScopes.DemandSponsor(ctx.User,sponsor.Id);FinancialScopes.DemandAccount(ctx.User,vault);FinancialScopes.DemandSponsor(ctx.User,FinancialCore.ResolveVault(vault).DefaultSponsorId!);
-    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = -amount, ["kind"] = "payment", ["odooVoucherNo"]=input.S("odooVoucherNo"), ["sourceRef"] = reference, ["createdAt"] = Now(),["sponsorId"]=sponsor.Id,["paymentVaultCode"]=vault,["accountingVersion"]=AccountingEvents.Version,["onBehalf"]=input.B("onBehalf"),["onBehalfNote"]=input.S("onBehalfNote") };
-    var journal=AccountingEvents.PostPayment(c,tx,doc,sponsor.Id,vault,Actor(ctx));doc["journalEntryId"]=journal.S("id");
-    Store.Save(c, "ledger", doc, tx); Store.Audit(c, tx, "payment.record", doc.S("id"), Actor(ctx)); return doc;
-})).WithTags("Payroll").WithSummary("Submit payments");
+// RWP1 / M-0672: money-out needs two-person approval through the payment engine vouchers.
+api.MapPost("/payments", (JsonObject input, HttpContext ctx) => { _=input;_=ctx; throw new ApiError("صرف الرواتب والمدفوعات يتم عبر محرك المدفوعات باعتماد شخصين؛ المسار القديم موقوف.",409); }).WithTags("Payroll").WithSummary("Legacy payments route disabled");
 api.MapGet("/payroll/export.csv", (string period,HttpContext ctx) => store.Read(c =>
 {
     J.Period(period); var rows = Store.List(c, "run").Where(x => x.S("period") == period&&FinancialScopes.Ledger(ctx.User,x)).ToList();

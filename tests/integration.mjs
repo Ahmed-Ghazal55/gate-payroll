@@ -37,10 +37,11 @@ try{
  result=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(result.periodMovement,1300);
  await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:result.fingerprint});await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:result.fingerprint},400);
  await req('/api/adjustments',{iqama:iq,period:'2026-10',amount:-1,category:'fuel',description:'Late',sourceRef:'late'},400);
- await req('/api/payments',{sponsorId:'BW',paymentVaultCode:'BANK.BW',iqama:iq,period:'2026-10',amount:1000,sourceRef:'transfer-1'});assert.equal((await req('/api/ledger/'+iq)).balance,300);
+ await req('/api/payments',{sponsorId:'BW',paymentVaultCode:'BANK.BW',iqama:iq,period:'2026-10',amount:1000,sourceRef:'transfer-1'},409);
+ assert.equal((await req('/api/ledger/'+iq)).balance,1300);
  await seedWorkRows(req,[workRow(2000,'nov-1','2026-11')]);
- result=(await req('/api/payroll/preview?period=2026-11'))[0];assert.equal(result.openingBalance,300);assert.equal(result.closingBalance,-200);assert.equal(result.debt,200);assert.equal(result.payable,0);
- await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-11',fingerprint:result.fingerprint});assert.equal((await req('/api/ledger/'+iq)).balance,-200);
+ result=(await req('/api/payroll/preview?period=2026-11'))[0];assert.equal(result.openingBalance,1300);assert.equal(result.closingBalance,800);assert.equal(result.debt,0);assert.equal(result.payable,800);
+ await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-11',fingerprint:result.fingerprint});assert.equal((await req('/api/ledger/'+iq)).balance,800);
  const campaign=await req('/api/campaigns',{title:'Synthetic form',days:2});const token=campaign.path.split('/').at(-1);const pub='/api/public/forms/'+token;
  assert.match(await req(campaign.path,undefined,200,false),/rider-form.js/);
  const form={iqama:iq,name:'Synthetic Rider',workSystem:'tiers'};
