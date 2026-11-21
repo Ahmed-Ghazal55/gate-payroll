@@ -35,6 +35,13 @@ test('auditActionLabelAr covers API keys and keeps generic fallback', async () =
   assert.equal(mod.auditActionLabelAr('totally.unknown.action.xyz'), 'عملية إدارية مسجلة');
 });
 
+test('formatAuditActorDisplay adds @ only for real usernames', async () => {
+  const mod = await import('../../src/lib/audit-labels.ts');
+  assert.equal(mod.formatAuditActorDisplay('system'), 'النظام');
+  assert.equal(mod.formatAuditActorDisplay('system-migration'), 'ترحيل النظام');
+  assert.equal(mod.formatAuditActorDisplay('ghazal'), '@ghazal');
+});
+
 test('admin and dashboard use audit labels, raw action title, and bdi for actors', () => {
   assert.match(admin, /auditActionLabelAr/);
   assert.match(admin, /formatAuditAt/);

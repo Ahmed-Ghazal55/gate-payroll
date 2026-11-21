@@ -21,6 +21,7 @@ import { inApp } from '../lib/paths';
 import {
   auditActionLabelAr,
   auditActorLabelAr,
+  formatAuditActorDisplay,
   formatAuditAt,
 } from '../lib/audit-labels';
 import { useAuth } from '../lib/auth-context';
@@ -95,7 +96,7 @@ export default function DashboardPage() {
       toneOf: () => 'neutral',
       render: (row) => (
         <span className="px-2 py-0.5 rounded-md bg-[var(--raised)] text-xs text-[var(--muted)]">
-          <bdi dir="ltr">@{auditActorLabelAr(row.actor)}</bdi>
+          <bdi dir="ltr">{formatAuditActorDisplay(row.actor)}</bdi>
         </span>
       ),
     },

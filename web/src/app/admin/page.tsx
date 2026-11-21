@@ -37,6 +37,7 @@ import { api } from '../../lib/api';
 import {
   auditActionLabelAr,
   auditActorLabelAr,
+  formatAuditActorDisplay,
   formatAuditAt,
   shortAuditId,
 } from '../../lib/audit-labels';
@@ -1441,7 +1442,7 @@ function AdminPageInner() {
                           </span>
                         </td>
                         <td className="p-3 font-semibold text-[var(--ink)]">
-                          <bdi dir="ltr">@{auditActorLabelAr(log.actor || 'system')}</bdi>
+                          <bdi dir="ltr">{formatAuditActorDisplay(log.actor || 'system')}</bdi>
                         </td>
                         <td className="p-3 num text-xs text-[var(--muted)] whitespace-nowrap">
                           {formatAuditAt(log.at || log.createdAt)}
