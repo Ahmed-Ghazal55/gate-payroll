@@ -3,7 +3,7 @@ namespace Payroll;
 
 /// <summary>U-W1-19: audit.* / notify.* / task.* / chat.*. Design §9 / §16 / M-0606 / M-0607 / M-0614 / G2–G4.
 /// change_log is partition-ready on (occurred_on, id); no read events (source excludes 'read'); one bulk import row uses bulk_count + file_hash.</summary>
-public static class SchemaAuditNotify
+public static partial class SchemaAuditNotify
 {
     static readonly (string Code,string NameAr)[] ActionLabels=
     [

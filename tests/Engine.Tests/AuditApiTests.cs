@@ -36,9 +36,12 @@ public sealed class AuditApiTests
             Assert.IsFalse(row.ContainsKey("iban"));
             Assert.IsFalse(AccessPolicy.Allowed(Actor("x"),"GET","/api/audit"));
             Assert.IsTrue(AccessPolicy.Allowed(admin,"GET","/api/audit"));
+            // WMRG: persisted in audit.change_log (real table), surfaced via Store kind redirect.
+            Assert.IsTrue(store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"audit","change_log")} WHERE entity_ref=@r",("@r","599901"))!)>=1));
             // Read events must not create change_log rows.
             store.Write((c,tx)=>{AuditApi.NoteRead(c,tx,"audit-admin","iban",false);return true;});
             Assert.AreEqual(1,store.Read(c=>AuditApi.List(c,admin,null,null,null,null,null,1,50)["items"]!.AsArray().Count));
+            Assert.IsTrue(store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"audit","read_summary_daily")}")!)>=1));
         });
     }
 

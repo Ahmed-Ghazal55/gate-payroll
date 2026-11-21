@@ -5,7 +5,7 @@ namespace Payroll;
 /// Design §9.1 / BR §35 / M-0672 / M-0677. Dated bypass only; decision-time membership/delegation/bypass evidence.
 /// Dated overlap guard replaces the revoked_at IS NULL unique so a later non-overlapping grant is allowed.
 /// Seeds the M-0677 dated grant only when auth.user username ghazal already exists — never creates users.</summary>
-public static class SchemaApprovals
+public static partial class SchemaApprovals
 {
     public static void Ensure(DbConnection c,DbTransaction? tx=null)
     {

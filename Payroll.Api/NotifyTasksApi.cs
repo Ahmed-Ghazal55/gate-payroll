@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 namespace Payroll;
 
 /// <summary>U-W2-28: notify-settings, notify send, operational tasks. Chat must never create notify rows (G4).
-/// Reply SLA default = 3 working days then reminder (X8). U-W1-19 DDL absent → document kinds.</summary>
+/// Reply SLA default = 3 working days then reminder (X8). WMRG: storage is notify.* / task.* via Store redirects.</summary>
 public static class NotifyTasksApi
 {
     public const string SettingsKind="notify_settings",TaskKind="task_item",SettingsPerm="admin.notify.manage";
@@ -127,7 +127,7 @@ public static class NotifyTasksApi
             ?parsed:AddWorkingDays(DateTimeOffset.UtcNow,replyDays);
         var task=new JsonObject
         {
-            ["id"]="task:"+Guid.NewGuid().ToString("N"),
+            ["id"]=SchemaSql.GuidText(SchemaSql.NewId()),
             ["titleAr"]=title,
             ["bodyAr"]=input.S("bodyAr"),
             ["assignee"]=input.S("assignee",input.S("assignedTo")),

@@ -7,6 +7,7 @@ namespace Payroll;
 public static partial class AccessPolicy
 {
     public const string BypassPermission="approval.bypass_maker_checker",BypassGrantKind="approval_bypass_grant";
+    public const string ScopePayApprovals="pay_approvals",ScopeInvoiceApprovals="invoice_approvals";
     public static JsonObject? ActiveBypassGrant(DbConnection c,DbTransaction? tx,string username)
     {
         string name=UserAccess.Normalize(username);var today=Today();
@@ -45,8 +46,9 @@ public static partial class AccessPolicy
         J.Need(reason.Length is >=3 and <=500&&!reason.Any(char.IsControl),"سبب المنح مطلوب من 3 إلى 500 حرف.");
         var grant=new JsonObject
         {
-            ["id"]="approval-bypass:"+Guid.NewGuid().ToString("N"),
+            ["id"]=SchemaSql.GuidText(SchemaSql.NewId()),
             ["userId"]=user.S("id"),["username"]=user.S("username"),
+            ["scope"]=ScopePayApprovals,
             ["from"]=from.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
             ["to"]=to.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
             ["reason"]=reason,["grantedBy"]=actor.Identity!.Name,["grantedAt"]=DateTimeOffset.UtcNow.ToString("O"),

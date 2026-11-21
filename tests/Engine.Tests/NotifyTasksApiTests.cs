@@ -34,6 +34,10 @@ public sealed class NotifyTasksApiTests
             store.Write((c,tx)=>{NotifyTasksApi.EscalateOverdue(c,tx);return true;});
             Assert.AreEqual("escalated",store.Read(c=>Store.Get(c,task.S("id"),NotifyTasksApi.TaskKind)!.S("status")));
             Assert.AreNotEqual("completed",store.Read(c=>Store.Get(c,task.S("id"),NotifyTasksApi.TaskKind)!.S("status")));
+            // WMRG: real notify.subscription + task.item rows.
+            Assert.IsTrue(store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"notify","subscription")} WHERE event_type=@e",("@e","settings.reply_working_days"))!)>=1));
+            Assert.IsTrue(store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"task","item")} WHERE id=@id",("@id",task.S("id")))!)==1));
+            Assert.AreEqual("escalated",store.Read(c=>Convert.ToString(SchemaSql.Scalar(c,null,$"SELECT status FROM {SchemaSql.Q(c,"task","item")} WHERE id=@id",("@id",task.S("id")))!)));
             Assert.IsTrue(AccessPolicy.Allowed(admin,"GET","/api/admin/notify-settings"));
             Assert.IsTrue(AccessPolicy.Allowed(admin,"POST","/api/tasks"));
         });

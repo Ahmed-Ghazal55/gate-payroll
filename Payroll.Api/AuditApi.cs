@@ -5,7 +5,7 @@ using System.Text.Json.Nodes;
 namespace Payroll;
 
 /// <summary>U-W2-25: audit rebuild — data-change events only (M-0606), self-approvals report, read-summary.
-/// U-W1-19 DDL (audit.change_log / audit.read_summary_daily) is not on this branch; dual-write uses document kinds.</summary>
+/// WMRG: storage is audit.change_log / audit.read_summary_daily via Store redirects.</summary>
 public static class AuditApi
 {
     public const string ViewPerm="admin.audit.view",ReadSummaryPerm="admin.read_summary.view";
