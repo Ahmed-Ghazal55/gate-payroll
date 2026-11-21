@@ -35,7 +35,9 @@ try{
  await req(`/api/debts/${move.id}/transfer-sponsor`,{newCreditorSponsorId:'EX',expectedCreditorSponsorId:'BW',expectedRemainingBalance:800,transferRef:'bw-ex'});
  await req(`/api/debts/${move.id}/collect`,{collectedAmount:100,targetVaultCode:'MAIN.EX.DEBT',receiptRef:'after-first-transfer'});
  await req(`/api/debts/${move.id}/transfer-sponsor`,{newCreditorSponsorId:'TR',expectedCreditorSponsorId:'EX',expectedRemainingBalance:700,transferRef:'ex-tr'});
- await req(`/api/debts/${move.id}/collect`,{waivedAmount:50,targetVaultCode:'MAIN.TR.DEBT',waiverReason:'Synthetic approved waiver',receiptRef:'tr-waiver'});
+ // RWD1b New HIGH: legacy collect waive via 5202 is closed; cash collect only, D11 for waive.
+ await req(`/api/debts/${move.id}/collect`,{waivedAmount:50,targetVaultCode:'MAIN.TR.DEBT',waiverReason:'Synthetic approved waiver',receiptRef:'tr-waiver'},409);
+ await req(`/api/debts/${move.id}/collect`,{collectedAmount:50,targetVaultCode:'MAIN.TR.DEBT',receiptRef:'tr-cash'});
  const current=await req('/api/debts');assert.equal(current.find(d=>d.id===move.id).ownershipHistory.length,2);
  for(const owner of ['BW','EX','TR']){const st=await req(`/api/finance/statement/rider/${iq}?sponsorId=${owner}`);const remaining=current.filter(d=>d.creditorSponsorId===({BW:'019c18d5-62e1-7000-8000-000000000041',EX:'019c18d5-62e1-7000-8000-000000000042',TR:'019c18d5-62e1-7000-8000-000000000040'})[owner]&&['active','paused'].includes(d.status)).reduce((n,d)=>n+d.remainingBalance,0);assert.equal(st.totalRemainingDebt,remaining);assert.equal(st.reconciliationDifference,0);}
  const j=await req('/api/debts',{iqama:iq,category:'PlatformTransferredDebt',platform:'Jahez',entryMode:'Accrual',totalAmount:1200,monthlyInstallment:100,creditorSponsorId:'BW',sourceRef:'jahez-referred',agreementReviewed:true});

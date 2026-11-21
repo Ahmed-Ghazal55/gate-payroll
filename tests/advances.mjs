@@ -64,13 +64,11 @@ try{
  await acc(`/api/advance-requests/${r.id}/review`,{action:'approve',monthlyInstallment:200},400);
  await acc(`/api/advance-requests/${r.id}/review`,{action:'approve',monthlyInstallment:200,coverageReason:'Synthetic reviewed reason'});
  assert.equal((await cus('/api/advance-requests?role=payout')).length,1);
- const paid=await cus(`/api/advance-requests/${r.id}/payout`,{reference:'SYN-TRF-9'});
- assert.equal(paid.status,'paid');assert.ok(paid.debtId&&paid.journalEntryId);
- await cus(`/api/advance-requests/${r.id}/payout`,{reference:'SYN-TRF-10'},409);
- const debt=(await admin('/api/debts?iqama='+iqama)).find(d=>d.id===paid.debtId);
- assert.equal(debt.category,'BankAdvance');assert.equal(debt.monthlyInstallment,200);assert.equal(debt.paymentVaultCode,'BANK.BW');
+ // RWD1b H2: payout Disbursement closed until payment engine.
+ await cus(`/api/advance-requests/${r.id}/payout`,{reference:'SYN-TRF-9'},409);
+ assert.equal((await admin(`/api/advance-requests/${r.id}`)).status,'approved');
  const history=(await sup(`/api/advance-requests/${r.id}`)).decisions.map(d=>d.action);
- assert.deepEqual(history,['submitted','proposed','accepted_proposal','approved','paid']);
+ assert.deepEqual(history,['submitted','proposed','accepted_proposal','approved']);
  // Former supervisors lose both read access and the ability to accept/reject old proposals.
  const pending=await sup('/api/advance-requests',{riderIqama:iqama,type:'cash',amount:100,reason:'Synthetic second request'});
  await acc(`/api/advance-requests/${pending.id}/review`,{action:'propose',note:'Synthetic adjustment',proposed:{amount:80}});
@@ -83,7 +81,7 @@ try{
  await out(`/api/advance-requests/${pending.id}`,undefined,404);
  await out(`/api/advance-requests/${pending.id}/respond`,{action:'reject'},403);
  // Neither a privileged permission nor a foreign vault routing grants custody of this vault.
- await out(`/api/advance-requests/${paid.id}/payout`,{reference:'SYN-FOREIGN'},409);
+ await out(`/api/advance-requests/${r.id}/payout`,{reference:'SYN-FOREIGN'},409);
 
  // R5 review: reversed org dates refused; a FinancialAccountant reviewer gets the summary (was 500).
  await admin('/api/org/routing',{operation:'advance.review',department:'FIN',minRank:'B',users:['syn-accountant'],validFrom:'2099-12-31',validTo:'2099-01-01'},400);
