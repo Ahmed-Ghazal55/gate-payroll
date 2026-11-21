@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:46543/"
+      "url": "http://127.0.0.1:5877/"
     }
   ],
   "paths": {
@@ -119,7 +119,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -137,7 +137,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -360,7 +360,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -1199,7 +1199,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -2502,7 +2502,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3055,7 +3055,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3408,7 +3408,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3477,7 +3477,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3563,7 +3563,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3649,7 +3649,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3735,7 +3735,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -12008,7 +12008,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -20380,7 +20380,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -20398,7 +20398,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -20416,7 +20416,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -20434,7 +20434,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -20452,7 +20452,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -22146,6 +22146,126 @@
         }
       }
     },
+    "/api/auth/2fa/setup": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Start TOTP setup; secret returned once",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/2fa/verify": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Verify TOTP or single-use backup code",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/2fa/backup-codes": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Regenerate hashed backup codes",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/auth/2fa/reset": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Admin reset of TOTP with new 14-day window",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/audit": {
       "get": {
         "tags": [
@@ -22157,7 +22277,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -22267,6 +22387,56 @@
           "Administration"
         ],
         "summary": "Save system settings to ref.setting",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/archive/policies": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "List archive retention policies and restore views",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/admin/archive/restore-request": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Request temporary read-only archive restore view",
         "requestBody": {
           "content": {
             "application/json": {
@@ -22432,6 +22602,169 @@
           "Administration"
         ],
         "summary": "Update or complete an operational task",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/channels": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Poll staff chat channels in scope",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Create staff chat channel with membership",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/channels/{id}/messages": {
+      "get": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Poll channel messages",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "after",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Post staff chat message (never notifies)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/chat/channels/{id}/attachments": {
+      "post": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Post chat attachment with media limits",
         "parameters": [
           {
             "name": "id",
@@ -27086,7 +27419,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -28070,7 +28403,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -29633,7 +29966,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -31579,7 +31912,7 @@
               "string"
             ]
           },
-          "snapshot": {},
+          "snapshot": { },
           "checkpoint": {
             "$ref": "#/components/schemas/JsonElement"
           },
@@ -32702,8 +33035,8 @@
       "JsonArray": {
         "type": "array"
       },
-      "JsonElement": {},
-      "JsonNode": {},
+      "JsonElement": { },
+      "JsonNode": { },
       "JsonObject": {
         "type": "object"
       },
