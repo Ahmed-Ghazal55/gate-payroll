@@ -47,5 +47,22 @@ public sealed class PaymentSourcesTests
         var first=f.Store.Write((c,tx)=>PaymentContracts.RecognizeRent(c,tx,f.Maker,contract.S("id"),"2026-11"));var again=f.Store.Write((c,tx)=>PaymentContracts.RecognizeRent(c,tx,f.Maker,contract.S("id"),"2026-11"));
         Assert.AreEqual(100m,first.N("amount"));Assert.AreEqual(first.S("journalId"),again.S("journalId"));Assert.AreEqual(1L,f.Scalar("SELECT COUNT(*) FROM pay_rent_recognition"));
     }
+    [TestMethod][DataRow(false)][DataRow(true)]
+    public void HrFeeAndTrafficBearerSplitsStayExactAndRejectMismatches(bool sql)
+    {
+        using var f=new PaymentsEngineTests.Fixture(sql);
+        string employee=Guid.NewGuid().ToString("D"),platform=Guid.NewGuid().ToString("D");
+        var bad=new JsonObject{["idempotencyKey"]=Guid.NewGuid().ToString("N"),["companyId"]=f.Company,["period"]="2026-11",["occurredOn"]="2026-11-05",["dueOn"]="2026-11-15",["reference"]="SYN-HR",["bearer"]="split",["amount"]=100m,["riderShare"]=40m,["companyShare"]=50m,["erpEmployeeId"]=employee,["erpPlatformAccountId"]=platform,["category"]="WorkPermit",["companyExpenseAccountCode"]="526101"};
+        Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PaymentDocuments.BearerDocument(c,tx,f.Maker,"hr_fee",bad))).Status);
+        bad["companyShare"]=60m;bad["idempotencyKey"]=Guid.NewGuid().ToString("N");
+        var hr=f.Store.Write((c,tx)=>PaymentDocuments.BearerDocument(c,tx,f.Maker,"hr_fee",bad));
+        Assert.AreEqual("hr_fee",hr.S("type"));Assert.AreEqual(100m,hr.N("amount"));Assert.AreEqual(2,hr["lines"]!.AsArray().Count);
+        Assert.AreEqual(1L,f.Scalar("SELECT COUNT(*) FROM pay_hr_fee_request"));
+        Assert.AreEqual(40m,Convert.ToDecimal(f.Scalar("SELECT rider_share FROM pay_hr_fee_request")));
+        Assert.AreEqual(60m,Convert.ToDecimal(f.Scalar("SELECT company_share FROM pay_hr_fee_request")));
+        var traffic=f.Store.Write((c,tx)=>PaymentDocuments.BearerDocument(c,tx,f.Maker,"traffic_violation",new(){["idempotencyKey"]=Guid.NewGuid().ToString("N"),["companyId"]=f.Company,["period"]="2026-11",["occurredOn"]="2026-11-05",["dueOn"]="2026-11-15",["reference"]="SYN-TR",["bearer"]="rider",["amount"]=75m,["riderShare"]=75m,["companyShare"]=0m,["erpEmployeeId"]=employee,["erpPlatformAccountId"]=platform}));
+        Assert.AreEqual("traffic_violation",traffic.S("type"));Assert.AreEqual(75m,traffic.N("amount"));
+        Assert.AreEqual("112502",f.Store.Read(c=>MoneySchemaFixture.Scalar(c,null,"SELECT a.code FROM pay_document_line l JOIN fin_account a ON a.id=l.account_id WHERE l.document_id=@id AND l.active=1",("@id",traffic.S("id")))!.ToString()));
+    }
 
 }
