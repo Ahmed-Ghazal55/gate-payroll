@@ -30,6 +30,7 @@ import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import { ManualJournal, ManualJournalLine, CompanySponsor } from '../../lib/types';
 import { formatSar } from '../../lib/money';
+import { shortAuditId } from '../../lib/audit-labels';
 
 interface CoaAccountItem {
   code: string;
@@ -449,7 +450,11 @@ export function ManualJournalsPanel({
         filterable: true,
         filterType: 'text',
         getValue: (j) => j.id || '',
-        render: (j) => <span className="font-mono text-[11px] text-[var(--muted)]">{j.id}</span>,
+        render: (j) => (
+          <span className="font-mono text-[11px] text-[var(--muted)]" title={j.id}>
+            {shortAuditId(j.id)}
+          </span>
+        ),
       },
       {
         key: 'companyId',
