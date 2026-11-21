@@ -128,12 +128,24 @@ public static class SchemaTreasury
             CONSTRAINT FK_treasury_count_journal FOREIGN KEY(journal_id) REFERENCES {SchemaSql.Q(c,"fin","journal")}(id) ON DELETE NO ACTION
             """);
         // No guessed over/short accounts: the design explicitly names 422202 (over) and 542102 (short).
-        string journal=SchemaSql.Q(c,"fin","journal"),jl=SchemaSql.Q(c,"fin","journal_line"),account=SchemaSql.Q(c,"fin","account");
-        void JournalRule()=>SchemaMoneyGuard.Rule(c,tx,"treasury","vault_count","TR_vault_count_journal",n=>$"{n}.status=3 AND {n}.counted_amount<>{n}.book_balance AND NOT EXISTS(SELECT 1 FROM {journal} j JOIN {jl} l ON l.journal_id=j.id JOIN {account} a ON a.id=l.account_id WHERE j.id={n}.journal_id AND j.company_id={n}.company_id AND j.period_month={n}.period_month AND j.status=2 AND j.run_mode=0 AND j.purpose='vault_over_short' AND (({n}.counted_amount>{n}.book_balance AND a.code='422202' AND l.credit={n}.counted_amount-{n}.book_balance) OR ({n}.counted_amount<{n}.book_balance AND a.code='542102' AND l.debit={n}.book_balance-{n}.counted_amount)))");
+        // Journal must name this count, post the box counter account, match the variance amount, and be single-use.
+        string journal=SchemaSql.Q(c,"fin","journal"),jl=SchemaSql.Q(c,"fin","journal_line"),account=SchemaSql.Q(c,"fin","account"),box=SchemaSql.Q(c,"treasury","cash_box");
+        void JournalRule()=>SchemaMoneyGuard.Rule(c,tx,"treasury","vault_count","TR_vault_count_journal",n=>$"""
+            {n}.status=3 AND {n}.counted_amount<>{n}.book_balance AND NOT EXISTS(SELECT 1 FROM {journal} j JOIN {box} b ON b.id={n}.cash_box_id
+              WHERE j.id={n}.journal_id AND j.company_id={n}.company_id AND j.period_month={n}.period_month AND j.status=2 AND j.run_mode=0
+                AND j.purpose='vault_over_short' AND j.source_type='vault_count' AND j.source_id={n}.id
+                AND (({n}.counted_amount>{n}.book_balance
+                  AND EXISTS(SELECT 1 FROM {jl} l JOIN {account} a ON a.id=l.account_id WHERE l.journal_id=j.id AND a.code='422202' AND l.credit={n}.counted_amount-{n}.book_balance)
+                  AND EXISTS(SELECT 1 FROM {jl} l WHERE l.journal_id=j.id AND l.account_id=b.account_id AND l.debit={n}.counted_amount-{n}.book_balance))
+                OR ({n}.counted_amount<{n}.book_balance
+                  AND EXISTS(SELECT 1 FROM {jl} l JOIN {account} a ON a.id=l.account_id WHERE l.journal_id=j.id AND a.code='542102' AND l.debit={n}.book_balance-{n}.counted_amount)
+                  AND EXISTS(SELECT 1 FROM {jl} l WHERE l.journal_id=j.id AND l.account_id=b.account_id AND l.credit={n}.book_balance-{n}.counted_amount))))
+            """);
         // SQL Server AFTER: first-created fires first; SQLite BEFORE: last-created fires first — opposite order.
         if(SchemaSql.IsSql(c))JournalRule();
         SchemaMoneyRegister.Workflow(c,tx,"treasury","vault_count","cash_box_id","company_id","registration_id","period_month","counted_on","book_balance","counted_amount","journal_id");
         if(!SchemaSql.IsSql(c))JournalRule();
+        SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"treasury","vault_count","UQ_treasury_vault_journal","journal_id","journal_id IS NOT NULL");
     }
 
     static void EnsureJahez(DbConnection c,DbTransaction? tx)
