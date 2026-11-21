@@ -31,7 +31,9 @@ public static class PaymentDocuments
         J.Need(rider>=0&&company>=0&&rider==J.Money(rider)&&company==J.Money(company)&&rider+company==amount,"حصتا المندوب والشركة لا تساويان الإجمالي.");
         J.Need(bearer!="rider"||rider==amount,"حصة المندوب لا تطابق المتحمل.");J.Need(bearer!="company"||company==amount,"حصة الشركة لا تطابق المتحمل.");J.Need(bearer!="split"||rider>0&&company>0,"الطلب المشترك يحتاج حصتين موجبتين.");
         string employee=PaymentsEngine.Id(input.Required("erpEmployeeId")),platformAccount=PaymentsEngine.Id(input.Required("erpPlatformAccountId"));
-        var doc=input.DeepClone().AsObject();doc["type"]=type;var lines=new JsonArray();string code=type=="hr_fee"?"112506":"112502";
+        string companyId=PaymentsEngine.Id(input.Required("companyId"));
+        string platform=DemandPlatformAttribution(c,tx,actor,companyId,employee,platformAccount);
+        var doc=input.DeepClone().AsObject();doc["type"]=type;doc["platform"]=platform;var lines=new JsonArray();string code=type=="hr_fee"?"112506":"112502";
         if(rider>0)lines.Add(Line(input,code,rider,employee,platformAccount));
         if(company>0)lines.Add(Line(input,input.Required("companyExpenseAccountCode"),company,employee,platformAccount));
         doc["lines"]=lines;var saved=PaymentsEngine.Create(c,tx,actor,doc);
@@ -40,4 +42,21 @@ public static class PaymentDocuments
         return saved;
     }
     internal static JsonObject Line(JsonObject input,string code,decimal amount,string? rider=null,string? platformAccount=null)=>new(){["accountCode"]=code,["amount"]=amount,["costCentreId"]=input.S("costCentreId",SchemaOrgCostCentre.NoneId.ToString("D")),["appCode"]=input.S("appCode","none"),["erpRiderId"]=rider,["erpPlatformAccountId"]=platformAccount};
+    /// <summary>Resolve owning registration/platform/rider from the trusted platform_account record (RWP1).</summary>
+    internal static string DemandPlatformAttribution(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string companyId,string erpEmployeeId,string erpPlatformAccountId)
+    {
+        var account=Store.Get(c,erpPlatformAccountId,"platform_account",tx)??throw new ApiError("حساب المنصة غير موجود.",404);
+        string owner=account.S("companyId",account.S("sponsorId"));
+        string ownerId=FinancialCore.FindSponsor(owner)?.Id??owner;
+        J.Need(ownerId==companyId,"حساب المنصة خارج سجل المستند.",409);
+        FinancialScopes.DemandSponsor(actor,companyId);
+        var plat=PayPlatforms.For(account.S("platformCode"));
+        J.Need(FinancialScopes.Platform(actor,plat.Platform),"المنصة خارج نطاقك.",403);
+        string registered=account.S("registeredEmployeeId",account.S("registeredRiderId",account.S("erpId")));
+        bool linked=registered==erpEmployeeId;
+        if(!linked&&account["assignments"] is JsonArray assigns)
+            linked=assigns.OfType<JsonObject>().Any(a=>a.S("riderId")==erpEmployeeId||a.S("erpRiderId")==erpEmployeeId||a.S("employeeId")==erpEmployeeId);
+        J.Need(linked,"المندوب غير مرتبط بحساب المنصة.",409);
+        return plat.Platform;
+    }
 }

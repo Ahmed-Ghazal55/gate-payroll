@@ -18,6 +18,7 @@ public sealed class PaymentAdvancesTests
         f.Store.Write((c,tx)=>
         {
             Store.Save(c,"rider",new(){["id"]=Rider,["iqama"]=Rider,["name"]="Synthetic Advance Rider",["sponsorId"]=f.Company,["erpId"]=employee},tx);
+            Store.Save(c,"platform_account",new(){["id"]=platform,["companyId"]=f.Company,["sponsorId"]=f.Company,["platformCode"]="ninja",["registeredEmployeeId"]=employee},tx);
             OrgDirectory.AddSupervision(c,tx,f.Maker,new(){["supervisorUserId"]="wp-maker",["riderIqama"]=Rider,["validFrom"]="2026-01-01"});
             return true;
         });

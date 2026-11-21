@@ -52,6 +52,7 @@ public sealed class PaymentSourcesTests
     {
         using var f=new PaymentsEngineTests.Fixture(sql);
         string employee=Guid.NewGuid().ToString("D"),platform=Guid.NewGuid().ToString("D");
+        f.Store.Write((c,tx)=>{Store.Save(c,"platform_account",new(){["id"]=platform,["companyId"]=f.Company,["sponsorId"]=f.Company,["platformCode"]="ninja",["registeredEmployeeId"]=employee},tx);return true;});
         var bad=new JsonObject{["idempotencyKey"]=Guid.NewGuid().ToString("N"),["companyId"]=f.Company,["period"]="2026-11",["occurredOn"]="2026-11-05",["dueOn"]="2026-11-15",["reference"]="SYN-HR",["bearer"]="split",["amount"]=100m,["riderShare"]=40m,["companyShare"]=50m,["erpEmployeeId"]=employee,["erpPlatformAccountId"]=platform,["category"]="WorkPermit",["companyExpenseAccountCode"]="526101"};
         Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PaymentDocuments.BearerDocument(c,tx,f.Maker,"hr_fee",bad))).Status);
         bad["companyShare"]=60m;bad["idempotencyKey"]=Guid.NewGuid().ToString("N");

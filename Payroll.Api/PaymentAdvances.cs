@@ -15,19 +15,16 @@ public static class PaymentAdvances
         string employee=PaymentsEngine.Id(input.Required("erpEmployeeId")),account=PaymentsEngine.Id(input.Required("erpPlatformAccountId"));
         J.Need(rider.S("erpId",rider.S("erpRiderId"))==employee,"يلزم ربط هوية المندوب المعتمدة بمعرف نظام الموارد قبل طلب السلفة.",409);
         string type=input.Required("advanceType");J.Need(type is "cash" or "bank" or "internet" or "hs_topup","نوع السلفة غير صالح.");
-        var existing=PaymentsEngine.Rows(c,tx,$"SELECT d.id FROM {PaymentsEngine.Q(c,"advance_request")} r JOIN {PaymentsEngine.Q(c,"document")} d ON d.id=r.id LEFT JOIN {PaymentsEngine.Q(c,"payable")} p ON p.source_table='pay.document' AND p.source_id=d.id WHERE r.erp_employee_id=@r AND d.status IN (1,2,3) AND (p.id IS NULL OR p.amount_paid<p.amount_due)",("@r",employee));
-        var prior=existing.FirstOrDefault();
-        if(prior!=null)
-        {
-            var old=PaymentsEngine.Get(c,tx,actor,prior.S("id"));J.Need(old["metadata"].S("idempotencyKey")==input.S("idempotencyKey"),"للمندوب طلب سلفة مفتوح بالفعل.",409);
-        }
+        string companyId=PaymentsEngine.Id(input.Required("companyId"));
+        string platform=PaymentDocuments.DemandPlatformAttribution(c,tx,actor,companyId,employee,account);
+        DemandNoOpenAdvance(c,tx,actor,iqama,employee,input.S("idempotencyKey"));
         decimal amount=PaymentsEngine.Money(input,"amount");string fulfilment=input.S("fulfilment",type);J.Need(type!="internet"||fulfilment is "cash" or "bank" or "recharge_card","طريقة تسليم سلفة الإنترنت غير صالحة.");
         if(fulfilment=="recharge_card")
         {
             string network=input.Required("networkCode");var package=ConfigLists.Current(c,tx,"recharge_packages",input.Required("packageCode"))??throw new ApiError("الباقة غير معتمدة.");
             J.Need(ConfigLists.Current(c,tx,"recharge_networks",network)!=null&&package["values"].S("network")==network&&package["values"].N("price")==amount,"الباقة والشبكة والسعر غير متطابقة.");
         }
-        var doc=input.DeepClone().AsObject();doc["type"]=type=="hs_topup"?"hs_topup":"advance";doc["fulfilment"]=fulfilment;
+        var doc=input.DeepClone().AsObject();doc["type"]=type=="hs_topup"?"hs_topup":"advance";doc["fulfilment"]=fulfilment;doc["platform"]=platform;
         string code=type switch{"internet"=>"112503","hs_topup"=>HsTopupAccount,_=>"112501"};
         doc["lines"]=new JsonArray(PaymentDocuments.Line(input,code,amount,employee,account));var saved=PaymentsEngine.Create(c,tx,actor,doc);
         if(SchemaSql.Scalar(c,tx,$"SELECT id FROM {PaymentsEngine.Q(c,"advance_request")} WHERE id=@id",("@id",saved.S("id")))==null)
@@ -44,8 +41,24 @@ public static class PaymentAdvances
         var review=meta.DeepClone().AsObject();review["id"]=doc.S("id");review["type"]=meta.S("advanceType");
         var summary=AdvanceRequests.Summary(c,tx,actor,review);string reason=input.S("coverageReason").Trim();
         if(!summary.B("covered"))J.Need(reason.Length is >4 and <=500,"الصافي المتوقع لا يغطي السلفة أو غير معروف؛ اكتب سبب الاعتماد.");
-        J.Need(OrgDirectory.Responsible(c,tx,"advance.payout:"+meta.Required("payoutAccountCode")).Count>0,"لا يوجد مسؤول صرف مكلّف للحساب المختار.",409);
+        J.Need(OrgDirectory.Responsible(c,tx,"advance.payout:"+PayoutOp(meta.Required("payoutAccountCode"))).Count>0,"لا يوجد مسؤول صرف مكلّف للحساب المختار.",409);
 
+    }
+    internal static string PayoutOp(string accountCode)=>accountCode=="112404"?AdvanceRequests.Mada:accountCode;
+    /// <summary>BR §25.3: one open advance per rider across legacy and payment-engine routes.</summary>
+    public static void DemandNoOpenAdvance(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string iqama,string erpEmployeeId,string? idempotencyKey=null)
+    {
+        J.Need(!Store.List(c,AdvanceRequests.Kind,tx).Any(r=>r.S("riderIqama")==iqama&&r.S("status") is not ("rejected" or "cancelled" or "paid")),"للمندوب طلب سلفة مفتوح بالفعل.",409);
+        if(erpEmployeeId=="")return;
+        var existing=PaymentsEngine.Rows(c,tx,$"SELECT d.id FROM {PaymentsEngine.Q(c,"advance_request")} r JOIN {PaymentsEngine.Q(c,"document")} d ON d.id=r.id LEFT JOIN {PaymentsEngine.Q(c,"payable")} p ON p.source_table='pay.document' AND p.source_id=d.id WHERE r.erp_employee_id=@r AND d.status IN (1,2,3) AND (p.id IS NULL OR p.amount_paid<p.amount_due)",("@r",erpEmployeeId));
+        var prior=existing.FirstOrDefault();
+        if(prior==null)return;
+        if(idempotencyKey is {Length:>0})
+        {
+            var old=PaymentsEngine.Get(c,tx,actor,prior.S("id"));J.Need(old["metadata"].S("idempotencyKey")==idempotencyKey,"للمندوب طلب سلفة مفتوح بالفعل.",409);
+            return;
+        }
+        throw new ApiError("للمندوب طلب سلفة مفتوح بالفعل.",409);
     }
     internal static void RecordDebt(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject doc,JsonObject payment,Guid journal)
     {
@@ -66,6 +79,21 @@ public static class PaymentAdvances
         J.Need(doc.S("type")=="advance"&&doc["metadata"].S("advanceType")=="internet"&&doc["metadata"].S("fulfilment")=="recharge_card","السند لا يخص سلفة بطاقة إنترنت.",409);
         J.Need(PaymentsEngine.AccountCode(c,tx,payment.S("bankAccountId"))=="112404","سند البطاقة لا يصرف من رصيد مدى.",409);
         return PaymentsEngine.Pay(c,tx,actor,id);
+    }
+    internal static void RecordCardWalletWithdrawal(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject doc,JsonObject payment,Guid journal)
+    {
+        var meta=doc["metadata"]!.AsObject();
+        if(doc.S("type")!="advance"||meta.S("advanceType")!="internet"||meta.S("fulfilment")!="recharge_card")return;
+        string account=PaymentsEngine.Account(c,tx,"112404").ToString("D");
+        JsonObject? wallet=null;string kind="";
+        foreach(string table in new[]{"prepaid","fuel"})
+        {
+            wallet=PaymentsEngine.Rows(c,tx,$"SELECT id,company_id AS companyId,account_id AS accountId,kind FROM {PaymentsEngine.Q(c,PaymentWallets.Table(table))} WHERE company_id=@c AND account_id=@a AND kind='mada' AND status=1",("@c",doc.S("companyId")),("@a",account)).FirstOrDefault();
+            if(wallet!=null){kind=table;break;}
+        }
+        J.Need(wallet!=null,"لا توجد محفظة مدى للشركة لتسجيل سحب الكارت.",409);
+        if(SchemaSql.Scalar(c,tx,$"SELECT id FROM {PaymentsEngine.Q(c,PaymentWallets.Table(kind)+"_movement")} WHERE wallet_id=@w AND source_type='card_issue' AND source_id=@src",("@w",wallet!.S("id")),("@src",payment.S("id")))!=null)return;
+        PaymentWallets.Movement(c,tx,actor,kind,wallet.S("id"),doc.S("id"),payment.S("id"),journal,payment.S("paidOn")[..10],"card_issue",payment.S("id"),-payment.N("amount"));
     }
     public static JsonObject MonthClosePreview(JsonObject facts)
     {
