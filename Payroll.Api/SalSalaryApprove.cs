@@ -39,6 +39,9 @@ public static class SalSalaryApprove
             bool keetaIneligible=rider.B("keetaIneligible");
             string? payableId=null;
 
+            // Settle linked L1/L2 debt_id rows before the approval stamp (SchemaDebt source guard).
+            SettleLinkedDebts(c,tx,actor,run,rider,now);
+
             Exec(c,tx,$"""
                 UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}
                 SET salary_approved_at=@at,updated_by=@by,updated_at=@at
@@ -83,15 +86,19 @@ public static class SalSalaryApprove
 
     static string CreatePayableAndAccrual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
     {
-        decimal amount=J.Money(rider.N("salaryNet"));
-        J.Need(amount>0,"لا مستحق بلا صافٍ موجب.",400);
+        decimal netPay=J.Money(rider.N("salaryNet"));
+        J.Need(netPay>0,"لا مستحق بلا صافٍ موجب.",400);
+        // RWC4b H3/H12: post full entitlement; recoveries (old-debt confirm + linked L1/L2 debt_id) settle separately.
+        decimal confirmedDebt=J.Money(rider.N("oldDebtInstalment"));
+        decimal linkedDebt=LinkedDebtDeductions(c,tx,rider.S("id"));
+        decimal entitlement=J.Money(netPay+confirmedDebt+linkedDebt);
         string payableId=SchemaSql.GuidText(SchemaSql.NewId());
         Exec(c,tx,$"""
             INSERT INTO {SchemaSql.Q(c,"pay","payable")}
             (id,kind,source_table,source_id,company_id,erp_rider_id,amount_due,currency_code,status,period_month,created_by,created_at)
             VALUES(@id,'pay_run_rider','sal.pay_run_rider',@src,@c,@erp,@amt,'SAR',1,@pm,@by,@at)
             """,("@id",payableId),("@src",rider.S("id")),("@c",run.S("companyId")),("@erp",rider.S("erpRiderId")),
-            ("@amt",amount),("@pm",run.S("periodMonth")),("@by",actor.Identity!.Name!),("@at",now));
+            ("@amt",netPay),("@pm",run.S("periodMonth")),("@by",actor.Identity!.Name!),("@at",now));
 
         Guid company=Guid.Parse(run.S("companyId"));
         Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
@@ -103,8 +110,8 @@ public static class SalSalaryApprove
             "sal_pay_run_rider",Guid.Parse(rider.S("id")),"salary_accrual",(byte)run.N("runMode"),run.B("payoutBlocked"),
             actor.Identity!.Name!,
             [
-                new(expenseAcc,SchemaOrgCostCentre.NoneId,run.S("app"),amount,0m,"استحقاق راتب"),
-                new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,amount,"استحقاق راتب")
+                new(expenseAcc,SchemaOrgCostCentre.NoneId,run.S("app"),entitlement,0m,"استحقاق راتب"),
+                new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,entitlement,"استحقاق راتب")
             ]));
 
         Exec(c,tx,$"""
@@ -113,6 +120,59 @@ public static class SalSalaryApprove
             WHERE id=@id
             """,("@p",payableId),("@pb",run.B("payoutBlocked")?1:0),("@by",actor.Identity!.Name!),("@at",now),("@id",rider.S("id")));
         return payableId;
+    }
+
+    static decimal LinkedDebtDeductions(DbConnection c,DbTransaction tx,string riderId)
+    {
+        object? sum=SchemaSql.Scalar(c,tx,$"""
+            SELECT COALESCE(SUM(amount),0) FROM {SchemaSql.Q(c,"sal","pay_run_item")}
+            WHERE pay_run_rider_id=@r AND amount>0 AND debt_id IS NOT NULL AND item_code<>'old_debt_instalment'
+            """,("@r",riderId));
+        return sum is null or DBNull?0m:J.Money(Convert.ToDecimal(sum));
+    }
+
+    /// <summary>RWC4b H12: settle each pay_run_item.debt_id for the actual deducted amount at approval.</summary>
+    static void SettleLinkedDebts(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
+    {
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        cmd.CommandText=$"""
+            SELECT debt_id,amount,account_code FROM {SchemaSql.Q(c,"sal","pay_run_item")}
+            WHERE pay_run_rider_id=@r AND amount>0 AND debt_id IS NOT NULL AND item_code<>'old_debt_instalment'
+            """;
+        Add(cmd,"@r",rider.S("id"));
+        using var r=cmd.ExecuteReader();
+        var rows=new List<(string DebtId,decimal Amount,string Account)>();
+        while(r.Read())
+            rows.Add((r["debt_id"].ToString()!,Convert.ToDecimal(r["amount"]),r["account_code"].ToString()!));
+        r.Close();
+        foreach(var row in rows)
+        {
+            decimal locked=SchemaDebt.LockDebt(c,tx,row.DebtId);
+            decimal take=J.Money(Math.Min(row.Amount,locked));
+            if(take<=0)continue;
+            Guid company=Guid.Parse(run.S("companyId"));
+            Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
+            Guid payableAcc=AccountId(c,tx,"212103");
+            Guid debtAcc=AccountId(c,tx,row.Account is {Length:>0}?row.Account:"112507");
+            var journal=JournalPosting.Post(c,tx,new JournalPosting.Draft(
+                company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                "sal_pay_run_rider",SchemaSql.NewId(),"salary_debt_settle",(byte)run.N("runMode"),run.B("payoutBlocked"),
+                actor.Identity!.Name!,
+                [
+                    new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),take,0m,"تسوية دين مربوط"),
+                    new(debtAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,take,"تسوية دين مربوط")
+                ]));
+            string movId=SchemaSql.GuidText(SchemaSql.NewId());
+            Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"debt","debt_movement")}
+                (id,period_month,debt_id,company_id,occurred_on,amount,source_type,source_id,pay_run_rider_id,pay_run_period_month,journal_id,run_mode,payout_blocked,created_by,created_at)
+                VALUES(@id,@pm,@debt,@c,@on,@amt,'pay_item_debt_settle',@src,@rider,@pm,@j,0,@pb,@by,@at)
+                """,("@id",movId),("@pm",run.S("periodMonth")),("@debt",row.DebtId),("@c",run.S("companyId")),
+                ("@on",run.S("periodMonth")),("@amt",-take),("@src",movId),("@rider",rider.S("id")),
+                ("@j",SchemaSql.GuidText(journal.JournalId)),("@pb",run.B("payoutBlocked")?1:0),
+                ("@by",actor.Identity!.Name!),("@at",now));
+        }
     }
 
     static bool CreateNegativeCarryover(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
@@ -223,7 +283,7 @@ public static class SalSalaryApprove
     {
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
         cmd.CommandText=$"""
-            SELECT id,erp_rider_id,gross,commission,salary_net,debt_confirm_status,salary_approved_at,keeta_ineligible,created_by
+            SELECT id,erp_rider_id,gross,commission,salary_net,old_debt_instalment,debt_confirm_status,salary_approved_at,keeta_ineligible,created_by
             FROM {SchemaSql.Q(c,"sal","pay_run_rider")} WHERE id=@id AND pay_run_id=@run
             """;
         Add(cmd,"@id",riderId);Add(cmd,"@run",payRunId);
@@ -234,6 +294,7 @@ public static class SalSalaryApprove
             ["id"]=r["id"].ToString()!,["erpRiderId"]=r["erp_rider_id"].ToString()!,
             ["gross"]=Convert.ToDecimal(r["gross"]),["commission"]=Convert.ToDecimal(r["commission"]),
             ["salaryNet"]=Convert.ToDecimal(r["salary_net"]),
+            ["oldDebtInstalment"]=Convert.ToDecimal(r["old_debt_instalment"]),
             ["debtConfirmStatus"]=r["debt_confirm_status"].ToString()!,
             ["salaryApprovedAt"]=r["salary_approved_at"] is DBNull?"":r["salary_approved_at"].ToString()!,
             ["keetaIneligible"]=Convert.ToInt32(r["keeta_ineligible"])==1,
