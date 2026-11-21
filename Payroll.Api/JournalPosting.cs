@@ -8,7 +8,7 @@ namespace Payroll;
 public static class JournalPosting
 {
     public const byte StatusDraft=1,StatusPosted=2,StatusReversed=3,StatusCancelled=4;
-    public sealed record Line(Guid AccountId,Guid CostCentreId,string AppCode,decimal Debit,decimal Credit,string? NarrationAr,Guid? ErpPlatformAccountId=null,Guid? ErpRiderId=null);
+    public sealed record Line(Guid AccountId,Guid CostCentreId,string AppCode,decimal Debit,decimal Credit,string? NarrationAr,Guid? ErpPlatformAccountId=null,Guid? ErpRiderId=null,Guid? SupplierId=null);
     public sealed record Draft(
         Guid CompanyId,Guid PeriodId,DateOnly PeriodMonth,DateOnly JournalDate,
         string SourceType,Guid SourceId,string Purpose,byte RunMode,bool PayoutBlocked,
@@ -104,8 +104,8 @@ public static class JournalPosting
                 Guid lineId=SchemaSql.NewId();
                 SchemaSql.Exec(c,tx,$"""
                     INSERT INTO {SchemaSql.Q(c,"fin","journal_line")}
-                    (id,period_id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,app_code,erp_platform_account_id,erp_rider_id,debit,credit,narration_ar,created_by,created_at)
-                    VALUES(@id,@pid,@pm,@jid,@ln,@aid,1,@cid,@cc,@app,@plat,@rider,@d,@cr,@nar,@by,@at)
+                    (id,period_id,period_month,journal_id,line_no,account_id,is_postable,company_id,cost_centre_id,app_code,erp_platform_account_id,erp_rider_id,supplier_id,debit,credit,narration_ar,created_by,created_at)
+                    VALUES(@id,@pid,@pm,@jid,@ln,@aid,1,@cid,@cc,@app,@plat,@rider,@supplier,@d,@cr,@nar,@by,@at)
                     """,
                     ("@id",SchemaSql.GuidText(lineId)),("@pid",SchemaSql.GuidText(draft.PeriodId)),("@pm",Month(draft.PeriodMonth)),
                     ("@jid",SchemaSql.GuidText(journalId)),("@ln",lineNo++),("@aid",SchemaSql.GuidText(line.AccountId)),
@@ -113,7 +113,7 @@ public static class JournalPosting
                     ("@app",line.AppCode),
                     ("@plat",(object?)(line.ErpPlatformAccountId is {} p?SchemaSql.GuidText(p):null)??DBNull.Value),
                     ("@rider",(object?)(line.ErpRiderId is {} er?SchemaSql.GuidText(er):null)??DBNull.Value),
-                    ("@d",line.Debit),("@cr",line.Credit),("@nar",(object?)line.NarrationAr??DBNull.Value),
+                    ("@supplier",line.SupplierId is {} supplier?SchemaSql.GuidText(supplier):DBNull.Value),("@d",line.Debit),("@cr",line.Credit),("@nar",(object?)line.NarrationAr??DBNull.Value),
                     ("@by",draft.Actor),("@at",now));
                 UpsertBalance(c,tx,draft,line,now);
             }
@@ -180,7 +180,7 @@ public static class JournalPosting
 
         var lines=new List<Line>();
         using(var lineCmd=Store.Command(c,tx,$"""
-            SELECT account_id,cost_centre_id,COALESCE(app_code,'none') AS app_code,debit,credit,narration_ar,erp_platform_account_id,erp_rider_id
+            SELECT account_id,cost_centre_id,COALESCE(app_code,'none') AS app_code,debit,credit,narration_ar,erp_platform_account_id,erp_rider_id,supplier_id
             FROM {SchemaSql.Q(c,"fin","journal_line")} WHERE journal_id=@id ORDER BY line_no
             """,("@id",SchemaSql.GuidText(originalJournalId))))
         using(var lr=lineCmd.ExecuteReader())
@@ -195,7 +195,7 @@ public static class JournalPosting
                 Convert.ToDecimal(lr["credit"]),
                 Convert.ToDecimal(lr["debit"]),
                 narrationAr??lr["narration_ar"] as string,
-                plat,rider));
+                plat,rider,lr["supplier_id"] is DBNull?null:ParseGuid(lr["supplier_id"])));
         }
 
         // Keep the original payout block and purpose effect for the reversal guard (Grok).
@@ -222,6 +222,8 @@ public static class JournalPosting
         object? scope=SchemaSql.Scalar(c,tx,$"SELECT company_scope FROM {SchemaSql.Q(c,"fin","account")} WHERE id=@id",("@id",SchemaSql.GuidText(line.AccountId)));
         J.Need(scope!=null&&Convert.ToInt32(scope) is 0 or 1 or 2,"نطاق شركة الحساب غير صالح.",409);
 
+        if(line.SupplierId is {} supplier)
+            J.Need(SchemaSql.TableExists(c,tx,"pay","supplier")&&SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"pay","supplier")} WHERE id=@id AND company_id=@c AND status=1",("@id",SchemaSql.GuidText(supplier)),("@c",SchemaSql.GuidText(companyId)))!=null,"المورد خارج نطاق الشركة أو غير نشط.",409);
         if(line.CostCentreId==SchemaOrgCostCentre.NoneId)return;
         using var cmd=Store.Command(c,tx,$"""
             SELECT company_id,status FROM {SchemaSql.Q(c,"org","cost_centre")} WHERE id=@id
@@ -300,7 +302,7 @@ public static class JournalPosting
         hr.Close();
 
         using var cmd=Store.Command(c,tx,$"""
-            SELECT account_id,cost_centre_id,COALESCE(app_code,'none'),debit,credit,erp_platform_account_id,erp_rider_id
+            SELECT account_id,cost_centre_id,COALESCE(app_code,'none'),debit,credit,erp_platform_account_id,erp_rider_id,supplier_id
             FROM {SchemaSql.Q(c,"fin","journal_line")} WHERE journal_id=@id ORDER BY line_no
             """,("@id",SchemaSql.GuidText(journalId)));
         using var reader=cmd.ExecuteReader();
@@ -310,13 +312,13 @@ public static class JournalPosting
                 ParseGuid(reader.GetValue(0)),ParseGuid(reader.GetValue(1)),reader.GetString(2),
                 Convert.ToDecimal(reader.GetValue(3)),Convert.ToDecimal(reader.GetValue(4)),null,
                 reader.IsDBNull(5)?null:ParseGuid(reader.GetValue(5)),
-                reader.IsDBNull(6)?null:ParseGuid(reader.GetValue(6))));
+                reader.IsDBNull(6)?null:ParseGuid(reader.GetValue(6)),reader.IsDBNull(7)?null:ParseGuid(reader.GetValue(7))));
         if(existing.Count!=lines.Count)return false;
         for(int i=0;i<lines.Count;i++)
         {
             var e=existing[i];var l=lines[i];
             if(e.AccountId!=l.AccountId||e.CostCentreId!=l.CostCentreId||!string.Equals(e.AppCode,l.AppCode,StringComparison.Ordinal)
-               ||e.Debit!=l.Debit||e.Credit!=l.Credit||e.ErpPlatformAccountId!=l.ErpPlatformAccountId||e.ErpRiderId!=l.ErpRiderId)
+               ||e.Debit!=l.Debit||e.Credit!=l.Credit||e.ErpPlatformAccountId!=l.ErpPlatformAccountId||e.ErpRiderId!=l.ErpRiderId||e.SupplierId!=l.SupplierId)
                 return false;
         }
         return true;

@@ -13964,6 +13964,738 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/payments/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List scoped payment documents */
+        get: {
+            parameters: {
+                query?: {
+                    type?: string;
+                    companyId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                docNo?: string;
+                                type: string;
+                                companyId: string;
+                                supplierId?: null | string;
+                                platform?: string;
+                                reference?: string;
+                                occurredOn?: string;
+                                dueOn?: string;
+                                periodMonth?: string;
+                                amount: number;
+                                vatAmount?: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                amountPaid?: number;
+                                amountReserved?: number;
+                                availableBalance?: number;
+                                allowedActions: string[];
+                                lines?: {
+                                    id: string;
+                                    accountId: string;
+                                    costCentreId: string;
+                                    appCode?: string;
+                                    amount: number;
+                                }[];
+                                metadata?: Record<string, never>;
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a draft expense or purchase document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/documents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a payment document and allowed actions */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        /** Edit a draft with a stale-content guard while retaining previous lines */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/documents/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a payment document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/documents/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a submitted payment document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/documents/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel and retain a draft document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/documents/{id}/payment-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Atomically reserve a partial payment and open dual approval */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            paymentNo?: string;
+                            documentId: string;
+                            companyId: string;
+                            periodMonth?: string;
+                            paidOn?: string;
+                            amount: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            approvalRequestId?: string;
+                            bankAccountId?: string;
+                            reference?: string;
+                            journalId?: null | string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/vouchers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a scoped payment voucher */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            paymentNo?: string;
+                            documentId: string;
+                            companyId: string;
+                            periodMonth?: string;
+                            paidOn?: string;
+                            amount: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            approvalRequestId?: string;
+                            bankAccountId?: string;
+                            reference?: string;
+                            journalId?: null | string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/vouchers/{id}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pay a voucher after recorded independent approval */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            paymentNo?: string;
+                            documentId: string;
+                            companyId: string;
+                            periodMonth?: string;
+                            paidOn?: string;
+                            amount: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            approvalRequestId?: string;
+                            bankAccountId?: string;
+                            reference?: string;
+                            journalId?: null | string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/vouchers/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel an unpaid voucher and release its claim */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            paymentNo?: string;
+                            documentId: string;
+                            companyId: string;
+                            periodMonth?: string;
+                            paidOn?: string;
+                            amount: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            approvalRequestId?: string;
+                            bankAccountId?: string;
+                            reference?: string;
+                            journalId?: null | string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/quick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a quick payment through the document engine */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/debts/opening/decide": {
         parameters: {
             query?: never;

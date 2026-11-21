@@ -182,6 +182,7 @@ NotifyTasksApi.Map(api, store);
 AccessPolicy.MapBypass(api, store);
 RiderDirectory.Map(api, store);
 Debts.Map(api, store);
+PaymentsApi.Map(api,store);
 DebtOpeningApproval.Map(api, store);
 RiderLookup.Map(api, store);
 MobileSessions.Map(app, api, store);
