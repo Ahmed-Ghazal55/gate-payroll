@@ -63,6 +63,7 @@ const TYPE_BADGE_LABELS: Record<ColumnDataType, string> = {
 };
 
 export function ColumnFilterMenu({
+  columnKey,
   columnHeader,
   columnType,
   filter,
@@ -78,6 +79,37 @@ export function ColumnFilterMenu({
   popoverRef,
 }: ColumnFilterMenuProps) {
   const [searchTerm, setSearchTerm] = useState<string>('');
+  const propOp: FilterOperator | '' =
+    filter?.op && filter.op !== 'in' && filter.op !== 'color' ? filter.op : '';
+  const [draftOp, setDraftOp] = useState<FilterOperator | ''>(propOp);
+  const [draftValue, setDraftValue] = useState<string>(filter?.value ?? '');
+  const [draftValueTo, setDraftValueTo] = useState<string>(filter?.valueTo ?? '');
+
+  useEffect(() => {
+    setSearchTerm('');
+    setDraftOp(propOp);
+    setDraftValue(filter?.value ?? '');
+    setDraftValueTo(filter?.valueTo ?? '');
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [columnKey]);
+
+  useEffect(() => {
+    if (propOp) {
+      setDraftOp(propOp);
+      setDraftValue(filter?.value ?? '');
+      setDraftValueTo(filter?.valueTo ?? '');
+    } else if (
+      draftValue !== '' ||
+      draftValueTo !== '' ||
+      draftOp === 'thisMonth' ||
+      draftOp === 'lastMonth'
+    ) {
+      setDraftOp('');
+      setDraftValue('');
+      setDraftValueTo('');
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [propOp, filter?.value, filter?.valueTo]);
 
   const operators = useMemo(() => {
     if (columnType === 'number') return NUMBER_OPERATORS;
@@ -150,18 +182,51 @@ export function ColumnFilterMenu({
   const handleOperatorChange = (opStr: string) => {
     const nextFilter: ColumnFilterValue = { ...filter };
     if (!opStr) {
+      setDraftOp('');
+      setDraftValue('');
+      setDraftValueTo('');
       delete nextFilter.op;
       delete nextFilter.value;
       delete nextFilter.valueTo;
+      onFilterChange(isColumnFilterActive(nextFilter) ? nextFilter : undefined);
+      return;
+    }
+    const nextOp = opStr as FilterOperator;
+    setDraftOp(nextOp);
+    nextFilter.op = nextOp;
+    if (nextOp === 'thisMonth' || nextOp === 'lastMonth') {
+      setDraftValue('');
+      setDraftValueTo('');
+      delete nextFilter.value;
+      delete nextFilter.valueTo;
     } else {
-      const nextOp = opStr as FilterOperator;
-      nextFilter.op = nextOp;
-      if (nextOp === 'thisMonth' || nextOp === 'lastMonth') {
+      if (draftValue !== '') {
+        nextFilter.value = draftValue;
+      } else {
         delete nextFilter.value;
-        delete nextFilter.valueTo;
-      } else if (nextOp !== 'between') {
+      }
+      if (nextOp === 'between') {
+        if (draftValueTo !== '') {
+          nextFilter.valueTo = draftValueTo;
+        } else {
+          delete nextFilter.valueTo;
+        }
+      } else {
+        setDraftValueTo('');
         delete nextFilter.valueTo;
       }
+    }
+    const hasConditionValue =
+      nextOp === 'thisMonth' ||
+      nextOp === 'lastMonth' ||
+      (nextFilter.value !== undefined && String(nextFilter.value).trim() !== '') ||
+      (nextOp === 'between' &&
+        nextFilter.valueTo !== undefined &&
+        String(nextFilter.valueTo).trim() !== '');
+    if (!hasConditionValue) {
+      delete nextFilter.op;
+      delete nextFilter.value;
+      delete nextFilter.valueTo;
     }
     onFilterChange(isColumnFilterActive(nextFilter) ? nextFilter : undefined);
   };
@@ -173,14 +238,32 @@ export function ColumnFilterMenu({
         : columnType === 'date'
           ? 'eq'
           : 'contains';
+    const effectiveOp: FilterOperator =
+      draftOp && draftOp !== 'in' && draftOp !== 'color'
+        ? draftOp
+        : filter?.op && filter.op !== 'in' && filter.op !== 'color'
+          ? filter.op
+          : defaultOp;
+    if (!draftOp) setDraftOp(effectiveOp);
+    const nextVal = isSecond ? draftValue : val;
+    const nextValTo = isSecond ? val : draftValueTo;
+    if (isSecond) {
+      setDraftValueTo(val);
+    } else {
+      setDraftValue(val);
+    }
     const nextFilter: ColumnFilterValue = {
       ...filter,
-      op: filter?.op && filter.op !== 'in' && filter.op !== 'color' ? filter.op : defaultOp,
+      op: effectiveOp,
+      value: nextVal,
+      ...(effectiveOp === 'between' ? { valueTo: nextValTo } : {}),
     };
-    if (isSecond) {
-      nextFilter.valueTo = val;
-    } else {
-      nextFilter.value = val;
+    const hasConditionValue =
+      nextVal.trim() !== '' || (effectiveOp === 'between' && nextValTo.trim() !== '');
+    if (!hasConditionValue) {
+      delete nextFilter.op;
+      delete nextFilter.value;
+      delete nextFilter.valueTo;
     }
     onFilterChange(isColumnFilterActive(nextFilter) ? nextFilter : undefined);
   };
@@ -197,6 +280,9 @@ export function ColumnFilterMenu({
 
   const handleClearColumnFilter = () => {
     setSearchTerm('');
+    setDraftOp('');
+    setDraftValue('');
+    setDraftValueTo('');
     onFilterChange(undefined);
     if (sortDir || sortTone) {
       onSortChange(null, null);
@@ -235,8 +321,7 @@ export function ColumnFilterMenu({
         ? 'الأحدث ← الأقدم ↓'
         : 'ترتيب ي ← أ ↓';
 
-  const activeOp =
-    filter?.op && filter.op !== 'in' && filter.op !== 'color' ? filter.op : '';
+  const activeOp = draftOp;
   const needsValueInput =
     activeOp !== '' && activeOp !== 'thisMonth' && activeOp !== 'lastMonth';
   const inputType =
@@ -425,7 +510,7 @@ export function ColumnFilterMenu({
                     ? 'من...'
                     : 'القيمة...'
               }
-              value={filter?.value ?? ''}
+              value={draftValue}
               onChange={(e) => handleConditionValueChange(e.target.value, false)}
               className="w-full px-2 py-1 text-xs rounded-md border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:border-[var(--accent)] focus:outline-hidden"
             />
@@ -434,7 +519,7 @@ export function ColumnFilterMenu({
                 type={inputType}
                 aria-label={`القيمة الثانية لشرط ${columnHeader}`}
                 placeholder="إلى..."
-                value={filter?.valueTo ?? ''}
+                value={draftValueTo}
                 onChange={(e) => handleConditionValueChange(e.target.value, true)}
                 className="w-full px-2 py-1 text-xs rounded-md border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:border-[var(--accent)] focus:outline-hidden"
               />
