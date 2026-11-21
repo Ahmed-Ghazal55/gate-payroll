@@ -95,13 +95,19 @@ public sealed class ValidateGapsAndBankParallelTests
             return true;
         });
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,PayFixture.Maker,mark))).Status);
-        // Two different people, no bypass — mark-sent may post.
+        // Two different people, no bypass — mark-sent may post only when the approved file hash still matches.
         var checker=UserAccess.Principal(new JsonObject{["username"]="synthetic-pay-checker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5});
+        string fileHash=BankPayrollFiles.FileContentHash(preview["rows"]!.AsArray().OfType<JsonObject>(),preview["rows"]!.AsArray().OfType<JsonObject>().Sum(r=>r.N("amount")));
         f.Store.Write((c,tx)=>{
-            var req=FinancialCore.CreateMutualApproval(c,tx,"bank_sent","اعتماد إرسال ملف بنك","مرجع اختبار ٢","OPS","FIN",1,reference,new(){["amountSar"]=100},"synthetic-pay-maker");
+            var req=FinancialCore.CreateMutualApproval(c,tx,"bank_sent","اعتماد إرسال ملف بنك","مرجع اختبار ٢","OPS","FIN",1,reference,new(){["amountSar"]=100,["fileContentHash"]=fileHash,["total"]=100},"synthetic-pay-maker");
             ApprovalsArea.Decide(c,tx,checker,req.S("id"),new(){["decision"]="approve",["note"]="independent checker"});
             return true;
         });
+        // Amount edit after approval voids the dual decision (hash mismatch).
+        var edited=mark.DeepClone().AsObject();
+        var editedRows=edited["rows"]!.AsArray();
+        editedRows[0]!.AsObject()["amount"]=editedRows[0]!.AsObject().N("amount")+1;
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,PayFixture.Maker,edited))).Status);
         f.Store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,PayFixture.Maker,mark));
         Assert.IsTrue(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("transactionType")=="bank_payroll_payout")));
     }

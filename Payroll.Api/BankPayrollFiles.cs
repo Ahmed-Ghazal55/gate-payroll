@@ -100,6 +100,14 @@ public static class BankPayrollFiles
     }
     public const string DoNotSendMark="لا يُرسل — تشغيل موازٍ";
     static bool ComparisonOnly(JsonObject input)=>input.B("comparisonOnly")||input.B("doNotSend")||input.S("mode")=="parallel_comparison";
+    /// <summary>WC1H: dual approval for mark-sent binds to rider + account (IBAN) + amount lines and the total.</summary>
+    public static string FileContentHash(IEnumerable<JsonObject> rows,decimal total)
+    {
+        var lines=rows.Select(r=>$"{r.S("iqama")}|{r.S("iban")}|{r.N("amount").ToString("F2",CultureInfo.InvariantCulture)}")
+            .OrderBy(s=>s,StringComparer.Ordinal);
+        string canonical=string.Join("\n",lines)+"\n"+J.Money(total).ToString("F2",CultureInfo.InvariantCulture);
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+    }
     /// <summary>BR §38.5: run_mode / payout_blocked come from stored cycles, pay runs and bank files — never from the request body.</summary>
     public static (byte RunMode,bool PayoutBlocked) ResolveStoredMoneyFlags(DbConnection c,DbTransaction tx,(string Sponsor,string From,string To) request)
     {
@@ -195,9 +203,10 @@ public static class BankPayrollFiles
         {
             var flags=ResolveStoredMoneyFlags(c,tx,request);
             MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.BankSent);
-            // M-0672 / WC1G: permission alone is not enough — require a recorded two-person dual decision (no bypass/self-exception).
+            // M-0672 / WC1H: recorded two-person dual bound to this file's content hash (edits after approval void it).
             string payoutRef="bank-payout:"+request.Sponsor+":"+request.From+":"+request.To;
-            ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,user,ApprovalsArea.DualBankFile,payoutRef);
+            string fileHash=FileContentHash(checkedRows,total);
+            ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,user,ApprovalsArea.DualBankFile,payoutRef,fileHash);
             string bank=input.S("bankAccountCode",PipelineSettings.Current().S("payrollBankAccount","111101"));
             MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.Payout);
             PostPayout(c,tx,user,request,checkedRows,actor,bank);

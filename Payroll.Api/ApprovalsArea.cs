@@ -38,8 +38,9 @@ public static class ApprovalsArea
     }
 
     /// <summary>M-0672 / WC1H: money-out (bank mark-sent / payout) and shared-rider release need a
-    /// persisted approvals-area decision by two different people. Bypass never satisfies this gate.</summary>
-    public static void DemandRecordedMoneyOutDual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string dualPermission,string referenceId)
+    /// persisted approvals-area decision by two different people. Bypass never satisfies this gate.
+    /// Bank mark-sent also binds to <paramref name="expectedFileContentHash"/> when provided.</summary>
+    public static void DemandRecordedMoneyOutDual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string dualPermission,string referenceId,string? expectedFileContentHash=null)
     {
         AccessPolicy.Demand(actor,dualPermission);
         J.Need(RequiresDual(dualPermission)&&dualPermission is DualBankFile or DualPaymentOut or DualSharedRiderRelease,
@@ -52,12 +53,20 @@ public static class ApprovalsArea
             // Two distinct people — use SamePerson so former usernames count; bypass/self-exception already excluded above.
             var checkerPrincipal=new ClaimsPrincipal(new ClaimsIdentity([new System.Security.Claims.Claim(System.Security.Claims.ClaimTypes.Name,checker)],"money-out-dual"));
             if(AccessPolicy.SamePerson(checkerPrincipal,maker))return false;
+            if(!string.IsNullOrWhiteSpace(expectedFileContentHash))
+            {
+                string stored=r.S("fileContentHash");
+                if(stored==""&&r["payload"] is JsonObject payload)stored=payload.S("fileContentHash");
+                if(!string.Equals(stored,expectedFileContentHash,StringComparison.Ordinal))return false;
+            }
             return Store.List(c,DecisionKind,tx).Any(d=>
                 d.S("requestId")==r.S("id")
                 &&d.S("outcome")=="approved"
                 &&string.IsNullOrWhiteSpace(d.S("bypassGrantId")));
         });
-        J.Need(ok,"صرف الأموال يتطلب اعتماد شخصين مختلفين مسجل في منطقة الاعتمادات دون تجاوز.",403);
+        J.Need(ok,string.IsNullOrWhiteSpace(expectedFileContentHash)
+            ?"صرف الأموال يتطلب اعتماد شخصين مختلفين مسجل في منطقة الاعتمادات دون تجاوز."
+            :"صرف ملف البنك يتطلب اعتماد شخصين على نفس بصمة الملف (مناديب وحسابات ومبالغ والإجمالي)؛ أي تعديل بعد الاعتماد يبطله.",403);
     }
     static void DemandOrg(ClaimsPrincipal actor)
     {

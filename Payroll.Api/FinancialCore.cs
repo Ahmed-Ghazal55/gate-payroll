@@ -431,6 +431,9 @@ public static class FinancialCore
             ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"),
             ["amountSar"] = payload.N("amountSar", payload.N("amount", payload.N("total")))
         };
+        // WC1H: bank payout dual stores the file content hash on the request so mark-sent can re-check it.
+        string fileHash=payload.S("fileContentHash");
+        if(fileHash!="")req["fileContentHash"]=fileHash;
         string? dual = ApprovalsArea.DualForKind(requestKind);
         if (dual != null) req["dualPermission"] = dual;
         Store.Save(c, "approval_request", req, tx);
