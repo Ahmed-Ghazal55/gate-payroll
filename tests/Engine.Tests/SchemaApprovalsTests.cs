@@ -61,6 +61,23 @@ public sealed class SchemaApprovalsTests
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_approval_limit(id,rank,department,limit_amount,created_at) VALUES(@id,'A','FIN',1,datetime('now'))",("@id",MoneySchemaFixture.Id())),"UQ",sqliteToken:"UNIQUE");
     }
 
+    [TestMethod,DataRow(false),DataRow(true)]
+    public void SeedsConfirmedBypassOnlyWhenGhazalUserExists(bool sqlServer)
+    {
+        using var c=MoneySchemaFixture.Open(sqlServer);
+        SchemaAuthCatalog.Ensure(c);SchemaApprovals.Ensure(c);
+        Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_user WHERE username='ghazal'"));
+        Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_bypass_grant"));
+        string role=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM auth_role WHERE code='Admin'")!;
+        string user=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_user(id,username,role_id,security_version,status,created_at) VALUES(@id,'ghazal',@role,1,1,datetime('now'))",("@id",user),("@role",role));
+        SchemaApprovals.Ensure(c);SchemaApprovals.Ensure(c);
+        Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_bypass_grant WHERE user_id=@u AND scope='pay.approvals' AND revoked_at IS NULL",("@u",user)));
+        Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_user WHERE username='ghazal'"));
+        Assert.AreEqual("Ninja October parallel (payout_blocked=1); revoke before first real payment",
+            MoneySchemaFixture.Scalar(c,null,"SELECT reason FROM auth_bypass_grant WHERE user_id=@u",("@u",user)));
+    }
+
     [TestMethod]
     public void StoreStartupCreatesApprovalsSchema()
     {
@@ -72,6 +89,7 @@ public sealed class SchemaApprovalsTests
             store.Read(c=>{
                 Assert.IsTrue(SchemaSql.TableExists(c,null,"approvals","decision"));
                 Assert.IsTrue(SchemaSql.TableExists(c,null,"auth","bypass_grant"));
+                Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_bypass_grant"));
                 return true;
             });
         }

@@ -3,7 +3,8 @@ namespace Payroll;
 
 /// <summary>U-W1-18c: approvals.request/decision + auth.bypass_grant + auth.approval_limit.
 /// Design §9.1 / BR §35 / M-0672 / M-0677. Dated bypass only; decision-time membership/delegation/bypass evidence.
-/// Dated overlap guard replaces the revoked_at IS NULL unique so a later non-overlapping grant is allowed.</summary>
+/// Dated overlap guard replaces the revoked_at IS NULL unique so a later non-overlapping grant is allowed.
+/// Seeds the M-0677 dated grant only when auth.user username ghazal already exists — never creates users.</summary>
 public static class SchemaApprovals
 {
     public static void Ensure(DbConnection c,DbTransaction? tx=null)
@@ -99,6 +100,25 @@ public static class SchemaApprovals
         SchemaSql.CreateIndexIfMissing(c,tx,"auth","bypass_grant","IX_auth_bypass_granted_by","granted_by");
         SchemaSql.DropIndexIfExists(c,tx,"auth","bypass_grant","UQ_auth_bypass_active_scope");
         EnsureNoBypassOverlap(c,tx);
+        SeedConfirmedBypassGrant(c,tx);
+    }
+
+    /// <summary>M-0677: insert-if-missing dated self-approval exception for username ghazal when that user row already exists.</summary>
+    static void SeedConfirmedBypassGrant(DbConnection c,DbTransaction? tx)
+    {
+        string user=SchemaSql.Q(c,"auth","user");string grant=SchemaSql.Q(c,"auth","bypass_grant");
+        object? userId=SchemaSql.Scalar(c,tx,$"SELECT id FROM {user} WHERE username=@name",("@name","ghazal"));
+        if(userId is null or DBNull)return;
+        string idText=userId switch{Guid g=>SchemaSql.GuidText(g),_=>Convert.ToString(userId)!};
+        const string scope="pay.approvals";
+        const string reason="Ninja October parallel (payout_blocked=1); revoke before first real payment";
+        const string validFrom="2026-10-01T00:00:00";
+        const string validTo="2026-12-31T23:59:59";
+        object? exists=SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {grant} WHERE user_id=@u AND scope=@scope AND valid_to=@to",
+            ("@u",idText),("@scope",scope),("@to",validTo));
+        if(Convert.ToInt64(exists!)>0)return;
+        SchemaSql.Exec(c,tx,$"INSERT INTO {grant}(id,user_id,scope,valid_from,valid_to,reason,granted_by,revoked_at,created_at) VALUES(@id,@u,@scope,@from,@to,@reason,@u,NULL,{SchemaSql.NowLiteral(c)})",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@u",idText),("@scope",scope),("@from",validFrom),("@to",validTo),("@reason",reason));
     }
 
     /// <summary>Unrevoked bypass grants for one user and scope may not cover overlapping windows; expired unrevoked rows may be followed by a later grant.</summary>
