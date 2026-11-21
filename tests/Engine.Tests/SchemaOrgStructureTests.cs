@@ -10,7 +10,7 @@ public sealed class SchemaOrgStructureTests
     {
         using var c=MoneySchemaFixture.Open(sqlServer);
         SchemaAuthCatalog.Ensure(c);SchemaOrgStructure.Ensure(c);SchemaOrgStructure.Ensure(c);
-        foreach(string table in new[]{"membership","delegation","supervision","routing","sla_policy"})
+        foreach(string table in new[]{"membership","delegation","supervision","routing","routing_user","sla_policy"})
             Assert.IsTrue(SchemaSql.TableExists(c,null,"org",table),"org."+table);
         Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM org_membership"));
         Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM org_sla_policy"));
@@ -46,7 +46,10 @@ public sealed class SchemaOrgStructureTests
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO org_delegation(id,from_user_id,to_user_id,operation,valid_from,until_date,created_at) VALUES(@id,@a,@a,'advance.review','2026-01-01','2026-12-31',datetime('now'))",("@id",MoneySchemaFixture.Id()),("@a",a)),"CK",sqliteToken:"CHECK");
         MoneySchemaFixture.Exec(c,null,"INSERT INTO org_supervision(id,supervisor_user_id,rider_iqama,valid_from,created_at) VALUES(@id,@a,'2000000001','2026-01-01',datetime('now'))",("@id",MoneySchemaFixture.Id()),("@a",a));
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO org_supervision(id,supervisor_user_id,rider_iqama,valid_from,created_at) VALUES(@id,@a,'2000000001','2026-02-01',datetime('now'))",("@id",MoneySchemaFixture.Id()),("@a",a)),"UQ",sqliteToken:"org_supervision");
-        MoneySchemaFixture.Exec(c,null,"INSERT INTO org_routing(id,operation,department,min_rank,min_rank_level,users_json,valid_from,created_at) VALUES(@id,'advance.review','FIN','B',2,'[]','2026-01-01',datetime('now'))",("@id",MoneySchemaFixture.Id()));
+        string routing=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO org_routing(id,operation,department,min_rank,min_rank_level,valid_from,created_at) VALUES(@id,'advance.review','FIN','B',2,'2026-01-01',datetime('now'))",("@id",routing));
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO org_routing_user(id,routing_id,user_id,created_at) VALUES(@id,@r,@a,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@r",routing),("@a",a));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO org_routing_user(id,routing_id,user_id,created_at) VALUES(@id,@r,@a,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@r",routing),("@a",a)),"UQ",sqliteToken:"UNIQUE");
         MoneySchemaFixture.Exec(c,null,"INSERT INTO org_sla_policy(id,request_type,working_days,created_at) VALUES(@id,'advance.review',3,datetime('now'))",("@id",MoneySchemaFixture.Id()));
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO org_sla_policy(id,request_type,working_days,created_at) VALUES(@id,'advance.review',5,datetime('now'))",("@id",MoneySchemaFixture.Id())),"UQ",sqliteToken:"UNIQUE");
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO org_sla_policy(id,request_type,working_days,created_at) VALUES(@id,'other',0,datetime('now'))",("@id",MoneySchemaFixture.Id())),"CK",sqliteToken:"CHECK");

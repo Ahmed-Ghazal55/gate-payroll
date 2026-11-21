@@ -13,6 +13,7 @@ public static class SchemaOrgStructure
         EnsureDelegation(c,tx);
         EnsureSupervision(c,tx);
         EnsureRouting(c,tx);
+        EnsureRoutingUser(c,tx);
         EnsureSlaPolicy(c,tx);
     }
 
@@ -201,7 +202,6 @@ public static class SchemaOrgStructure
                   department varchar(40) NOT NULL,
                   min_rank varchar(8) NOT NULL,
                   min_rank_level {SchemaSql.Int(c)} NOT NULL,
-                  users_json {SchemaSql.Json(c)} NOT NULL,
                   valid_from {SchemaSql.Date(c)} NOT NULL,
                   valid_to {SchemaSql.Date(c)} NULL,
                   {SchemaSql.AuditCols(c)},
@@ -210,6 +210,10 @@ public static class SchemaOrgStructure
                   CONSTRAINT CK_org_routing_rank_level CHECK (min_rank_level BETWEEN 1 AND 4),
                   CONSTRAINT CK_org_routing_dates CHECK (valid_to IS NULL OR valid_to >= valid_from)
                 );
+                """);
+            SchemaSql.Exec(c,tx,$"""
+                IF COL_LENGTH(N'org.routing',N'users_json') IS NOT NULL
+                ALTER TABLE {t} DROP COLUMN users_json;
                 """);
             SchemaSql.Exec(c,tx,$"""
                 IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID(N'org.routing') AND name=N'CX_org_routing')
@@ -225,7 +229,6 @@ public static class SchemaOrgStructure
                   department TEXT NOT NULL,
                   min_rank TEXT NOT NULL,
                   min_rank_level INTEGER NOT NULL,
-                  users_json TEXT NOT NULL,
                   valid_from TEXT NOT NULL,
                   valid_to TEXT NULL,
                   created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
@@ -237,6 +240,44 @@ public static class SchemaOrgStructure
             SchemaSql.CreateIndexIfMissing(c,tx,"org","routing","CX_org_routing","valid_from,id");
         }
         SchemaSql.CreateIndexIfMissing(c,tx,"org","routing","IX_org_routing_operation","operation");
+    }
+
+    static void EnsureRoutingUser(DbConnection c,DbTransaction? tx)
+    {
+        string t=SchemaSql.Q(c,"org","routing_user");string g=SchemaSql.GuidType(c);
+        string routing=SchemaSql.Q(c,"org","routing");string user=SchemaSql.Q(c,"auth","user");
+        if(SchemaSql.IsSql(c))
+        {
+            SchemaSql.Exec(c,tx,$"""
+                IF OBJECT_ID(N'org.routing_user',N'U') IS NULL
+                CREATE TABLE {t}(
+                  id {g} NOT NULL,
+                  routing_id {g} NOT NULL,
+                  user_id {g} NOT NULL,
+                  {SchemaSql.AuditCols(c)},
+                  CONSTRAINT PK_org_routing_user PRIMARY KEY NONCLUSTERED (id),
+                  CONSTRAINT UQ_org_routing_user UNIQUE (routing_id, user_id),
+                  CONSTRAINT FK_org_routing_user_routing FOREIGN KEY (routing_id) REFERENCES {routing}(id),
+                  CONSTRAINT FK_org_routing_user_user FOREIGN KEY (user_id) REFERENCES {user}(id)
+                );
+                """);
+        }
+        else
+        {
+            SchemaSql.Exec(c,tx,$"""
+                CREATE TABLE IF NOT EXISTS {t}(
+                  id {g} NOT NULL PRIMARY KEY,
+                  routing_id {g} NOT NULL,
+                  user_id {g} NOT NULL,
+                  created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
+                  CONSTRAINT UQ_org_routing_user UNIQUE (routing_id, user_id),
+                  CONSTRAINT FK_org_routing_user_routing FOREIGN KEY (routing_id) REFERENCES {routing}(id),
+                  CONSTRAINT FK_org_routing_user_user FOREIGN KEY (user_id) REFERENCES {user}(id)
+                );
+                """);
+        }
+        SchemaSql.CreateIndexIfMissing(c,tx,"org","routing_user","IX_org_routing_user_routing_id","routing_id");
+        SchemaSql.CreateIndexIfMissing(c,tx,"org","routing_user","IX_org_routing_user_user_id","user_id");
     }
 
     static void EnsureSlaPolicy(DbConnection c,DbTransaction? tx)
