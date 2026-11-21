@@ -88,6 +88,46 @@ public sealed class ApprovalsAreaTests
     }
 
     [TestMethod]
+    public void ScopeCoversRequiresExplicitMatchingScope()
+    {
+        Assert.IsFalse(AccessPolicy.ScopeCovers(AccessPolicy.ScopePayApprovals,null));
+        Assert.IsFalse(AccessPolicy.ScopeCovers(AccessPolicy.ScopePayApprovals,""));
+        Assert.IsFalse(AccessPolicy.ScopeCovers(null,ApprovalsArea.DualBankFile));
+        Assert.IsTrue(AccessPolicy.ScopeCovers(AccessPolicy.ScopePayApprovals,ApprovalsArea.DualBankFile));
+        Assert.IsFalse(AccessPolicy.ScopeCovers(AccessPolicy.ScopePayApprovals,ApprovalsArea.DualSharedRiderRelease));
+    }
+
+    [TestMethod]
+    public void AllowedActionsApproveRequiresDepartmentAndRankLikeDecide()
+    {
+        using var f=new PayFixture();
+        string company=FinancialCore.Sponsors[0].Id;
+        var req=new JsonObject
+        {
+            ["id"]="synthetic-actions-dept",["kind"]="generic",["status"]="pending",["requestedBy"]="other",
+            ["fromDepartment"]="OPS",["targetDepartment"]="FIN",["requiredRankLevel"]=4,["amountSar"]=10,
+            ["sponsorId"]=company,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")
+        };
+        f.Store.Write((c,tx)=>{Store.Save(c,"approval_request",req,tx);return true;});
+        JsonObject ScopeUser(string name,string dept,int rank)=>new()
+        {
+            ["username"]=name,["role"]="FinancialAccountant",["department"]=dept,["rankLevel"]=rank,
+            ["customPermissions"]=new JsonArray("approvals.decide","approvals.view"),
+            ["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(company)}
+        };
+        // OPS can see the request (fromDepartment) but Decide would 403 on target FIN — approve must not be offered.
+        var wrong=UserAccess.Principal(ScopeUser("ops-viewer","OPS",5));
+        var listed=f.Store.Read(c=>ApprovalsArea.ListApprovals(c,wrong,null,false,null));
+        var item=listed["items"]!.AsArray().OfType<JsonObject>().Single(a=>a.S("id")==req.S("id"));
+        Assert.IsFalse(item["allowedActions"]!.AsArray().Any(a=>a?.ToString()=="approve"));
+        // Matching target department and rank: approve is offered.
+        var ok=UserAccess.Principal(ScopeUser("fin-viewer","FIN",5));
+        listed=f.Store.Read(c=>ApprovalsArea.ListApprovals(c,ok,null,false,null));
+        item=listed["items"]!.AsArray().OfType<JsonObject>().Single(a=>a.S("id")==req.S("id"));
+        Assert.IsTrue(item["allowedActions"]!.AsArray().Any(a=>a?.ToString()=="approve"));
+    }
+
+    [TestMethod]
     public void BypassGrantDoesNotOverrideDepartmentOrRank()
     {
         using var f=new PayFixture();

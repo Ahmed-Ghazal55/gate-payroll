@@ -307,10 +307,16 @@ public static class ApprovalsArea
             string? dual=ResolveDual(req);
             bool can=AccessPolicy.Has(actor,RequiresDual(dual)?dual!:"approvals.decide");
             bool bypass=dual!=null?AccessPolicy.BypassForView(c,tx,actor,dual):AccessPolicy.BypassForView(c,tx,actor);
-            bool independent=!RequiresDual(dual)||AccessPolicy.IndependentForView(actor,req.S("requestedBy"),bypass);
+            bool independent=!RequiresDual(dual)||AccessPolicy.IndependentForView(actor,req.S("requestedBy",req.S("createdBy")),bypass);
             bool withinLimit=AccessPolicy.WithinApprovalLimit(actor,req,c,tx);
-            if(can&&independent&&withinLimit){actions.Add("approve");actions.Add("reject");actions.Add("suspend");}
+            // Mirror Decide: department and rank must pass before Approve is offered.
+            bool deptRank=AccessPolicy.Administrator(actor)
+                ||(actor.FindFirst("department")?.Value==req.S("targetDepartment")
+                   &&int.TryParse(actor.FindFirst("rankLevel")?.Value,out int rank)
+                   &&rank>=(int)req.N("requiredRankLevel",1));
+            if(can&&independent&&withinLimit&&deptRank){actions.Add("approve");actions.Add("reject");actions.Add("suspend");}
             else if(!can)blockers.Add("صلاحية الاعتماد مطلوبة.");
+            else if(!deptRank)blockers.Add("القسم أو الرتبة لا يسمحان بالبت في الطلب.");
             else if(!withinLimit)blockers.Add("المبلغ يتجاوز حد الاعتماد للرتبة والقسم.");
             else blockers.Add("شرط الشخصين: يلزم مراجع مستقل أو منح تجاوز مؤرخ.");
         }
