@@ -38,7 +38,12 @@ public static class PaymentWallets
     internal static void RecordPayment(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject doc,JsonObject p,Guid journal)
     {
         var meta=doc["metadata"]!.AsObject();string kind=meta.S("walletKind"),id=meta.S("walletId");if(id=="")return;
+        // Only authorized wallet funding documents may increase the register (RWP1).
+        J.Need(doc.S("type") is "mada_topup" or "fuel_topup" or "prepaid_topup","ربط المحفظة مسموح لمستندات التعبئة المعتمدة فقط.",409);
+        AccessPolicy.Demand(actor,"payments.fuel.manage");
         var w=Get(c,tx,actor,kind,id);J.Need(w.S("companyId")==doc.S("companyId"),"المحفظة خارج شركة المستند.",409);
+        string walletAccount=w.S("accountId");
+        J.Need(doc["lines"]!.AsArray().OfType<JsonObject>().Any(l=>l.S("accountId")==walletAccount),"قيد المستند لا يمدين حساب المحفظة.",409);
         Movement(c,tx,actor,kind,id,doc.S("id"),p.S("id"),journal,p.S("paidOn")[..10],"funding",p.S("id"),p.N("amount"));
     }
     internal static void Movement(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string kind,string wallet,string? document,string? payment,Guid journal,string day,string sourceType,string source,decimal amount)
@@ -61,6 +66,7 @@ public static partial class PaymentsEngine
     static partial void AfterPayment(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject doc,JsonObject payment,Guid journal)
     {
         PaymentWallets.RecordPayment(c,tx,actor,doc,payment,journal);
+        PaymentAdvances.RecordCardWalletWithdrawal(c,tx,actor,doc,payment,journal);
         PaymentAdvances.RecordDebt(c,tx,actor,doc,payment,journal);
     }
 }
