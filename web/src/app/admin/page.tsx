@@ -44,6 +44,9 @@ import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { ConfigListsPanel } from '../../features/admin/ConfigListsPanel';
 import { ApprovalBypassPanel } from '../../features/admin/ApprovalBypassPanel';
+import { AdminSettingsPanel } from '../../features/admin/AdminSettingsPanel';
+import { AdminReadSummaryPanel } from '../../features/admin/AdminReadSummaryPanel';
+import { ScreenShell } from '../../components/ui/ScreenShell';
 import { RolePermissionsEditor, UserAccessDialog, type AccessCatalog, type AccessUser } from '../../features/admin/UserAccessDialog';
 import type {
   OrgCatalog,
@@ -436,14 +439,7 @@ function AdminPageInner() {
     });
   }, [auditLogs, auditActionFilter, auditSearch]);
 
-  const sectionTabs: SectionTabItem[] = [
-    { id: 'users', label: 'المستخدمون والصلاحيات', icon: <Users size={16} /> },
-    { id: 'org', label: 'الأقسام والرتب والتفويضات', icon: <Building2 size={16} /> },
-    { id: 'lists', label: 'القوائم والإعدادات', icon: <SlidersHorizontal size={16} /> },
-    { id: 'bypass', label: 'تجاوز الاعتماد', icon: <ShieldAlert size={16} /> },
-    { id: 'audit', label: 'سجل التدقيق الشامل', icon: <History size={16} />, badge: auditLogs.length },
-    { id: 'settings', label: 'إعدادات المنظومة', icon: <Settings size={16} /> },
-  ];
+  // Sidebar owns admin ?tab= entries (page-tabs-rule 3.0) — no duplicate top tab bar.
 
   return (
     <div className="space-y-6">
@@ -451,44 +447,23 @@ function AdminPageInner() {
       <PageHeader
         title="الإدارة والتنظيم المؤسسي"
         eyebrow="التحكم والأمن ونظام الرتب"
-        description="إدارة حسابات المستخدمين، سجل الأقسام والرتب والتفويضات (BR §25.1)، تعيين المشرفين وتوجيه مسؤولي مراجعة وصرف السلف، وفحص سجل التدقيق."
-        primaryAction={{
-          label: activeTab === 'org' ? 'تحديث سجل التنظيم' : 'إضافة مستخدم جديد',
-          icon: activeTab === 'org' ? <RefreshCw size={15} /> : <UserPlus size={15} />,
-          onClick: activeTab === 'org' ? loadOrgData : () => setAddUserOpen(true),
-        }}
+        description="إدارة المستخدمين والصلاحيات والأقسام وتجاوز الاعتماد وسجل التدقيق وإعدادات النظام."
+        primaryAction={
+          activeTab === 'users'
+            ? {
+                label: 'إضافة مستخدم جديد',
+                icon: <UserPlus size={15} />,
+                onClick: () => setAddUserOpen(true),
+              }
+            : activeTab === 'org'
+              ? {
+                  label: 'تحديث سجل التنظيم',
+                  icon: <RefreshCw size={15} />,
+                  onClick: loadOrgData,
+                }
+              : undefined
+        }
       />
-
-      {/* Stat Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard
-          label="إجمالي المستخدمين المسجلين"
-          value={users.length}
-          hint="حسابات نشطة في المنظومة"
-          icon={Users}
-        />
-        <StatCard
-          label="العضويات النشطة بالأقسام"
-          value={memberships.filter((m) => !m.validTo).length}
-          hint="أعضاء مثبتون بالرتب A+/A/B/C"
-          icon={Building2}
-        />
-        <StatCard
-          label="المسؤولين المكلفين بالسلف"
-          value={responsibleUsers.length}
-          hint={`مكلفون بالعملية: ${queryOperation}`}
-          icon={UserCheck}
-        />
-        <StatCard
-          label="عمليات سجل التدقيق"
-          value={auditLogs.length}
-          hint="سجل الحركات والأمان المالي"
-          icon={History}
-        />
-      </div>
-
-      {/* Section Tabs */}
-      <SectionTabs tabs={sectionTabs} activeTab={activeTab} onChange={setActiveTab} />
 
       {/* ======================================================== */}
       {/* Tab 1: المستخدمون والصلاحيات                              */}
@@ -1201,48 +1176,17 @@ function AdminPageInner() {
       {/* ======================================================== */}
       {/* Tab 4: إعدادات المنظومة                                    */}
       {/* ======================================================== */}
-      {activeTab === 'settings' && (
-        <div className="space-y-6">
-          <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
-            <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-              إعدادات الربط والمنظومة الخارجية
-            </h3>
-            <p className="text-xs text-[var(--muted)] mt-0.5">
-              تهيئة وإدارة اتصالات Firebase Cloud Messaging لإشعارات المناديب ومفاتيح التكامل الرسمية.
-            </p>
+      {activeTab === 'settings' && <AdminSettingsPanel />}
 
-            <div className="mt-4 pt-4 border-t border-[var(--line)] space-y-4 max-w-xl">
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[var(--ink)]">معرف مشروع Firebase (Project ID):</label>
-                <input
-                  type="text"
-                  placeholder="gate-payroll-app"
-                  value={fbProjectId}
-                  onChange={(e) => setFbProjectId(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="text-xs font-bold text-[var(--ink)]">البريد الإلكتروني للخدمة (Client Email):</label>
-                <input
-                  type="text"
-                  placeholder="firebase-adminsdk@gate-payroll.iam.gserviceaccount.com"
-                  value={fbClientEmail}
-                  onChange={(e) => setFbClientEmail(e.target.value)}
-                  className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
-                />
-              </div>
-
-              <div className="p-3.5 rounded-xl bg-[var(--raised)] border border-[var(--line)] text-xs text-[var(--muted)] flex items-center gap-2">
-                <ShieldCheck size={16} className="text-[var(--accent)] shrink-0" />
-                <span>
-                  مفاتيح الربط الحساسة (Private Keys) محمية بالكامل ومخزنة مشفرة داخل الخادم، ولا يتم عرضها بنصوص صريحة حفاظاً على الأمان.
-                </span>
-              </div>
-            </div>
-          </div>
-        </div>
+      {activeTab === 'read_summary' && <AdminReadSummaryPanel />}
+      {activeTab === 'notify_settings' && (
+        <ScreenShell title="إعدادات الإشعارات والمهام" description="مصفوفة التنبيهات وإرسال الإشعارات والمهام التشغيلية." />
+      )}
+      {activeTab === 'archive' && (
+        <ScreenShell title="الأرشفة" description="سياسات الاحتفاظ وطلبات استرجاع العرض للبيانات الأقدم من ثلاث سنوات." />
+      )}
+      {activeTab === 'staff_chat' && (
+        <ScreenShell title="محادثة الموظفين" description="قنوات الإدارة والأقسام مع إشراف ومنع الفيديو." />
       )}
 
       {/* Add User Dialog */}
