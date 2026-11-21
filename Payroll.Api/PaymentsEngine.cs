@@ -123,7 +123,6 @@ public static partial class PaymentsEngine
         {
             MoneyWriteGuards.Demand((int)doc.N("runMode"),doc.B("payoutBlocked"),MoneyEffectKind.Accounting);
             PaymentAdvances.DemandApproval(c,tx,actor,doc,input);
-            PaymentAdvances.DemandApproval(c,tx,actor,doc,input);
             AccessPolicy.DemandApprovalLimit(actor,doc,c,tx);approved=SchemaApprovals.EnsureAuthUserId(c,tx,Me(actor));
         }
         SchemaSql.Exec(c,tx,$"UPDATE {Q(c,"document")} SET status=@s,approved_by=@by,approved_at=@at WHERE id=@id AND status=@old",("@s",next),("@by",approved),("@at",next==3?DateTimeOffset.UtcNow.ToString("O"):(object)DBNull.Value),("@id",Id(id)),("@old",status));
