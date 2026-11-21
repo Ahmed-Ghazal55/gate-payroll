@@ -164,6 +164,7 @@ TableExcelApi.Map(api, store);
 UserAccess.Map(api, store);
 AuditApi.Map(api, store);
 AdminSettings.Map(api, store);
+NotifyTasksApi.Map(api, store);
 AccessPolicy.MapBypass(api, store);
 RiderDirectory.Map(api, store);
 Debts.Map(api, store);

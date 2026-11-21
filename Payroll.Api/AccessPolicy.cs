@@ -161,11 +161,11 @@ public static partial class AccessPolicy
         if(path=="/api/audit")return method=="GET"&&Has("admin.audit.view");
         if(path=="/api/admin/audit/self-approvals")return method=="GET"&&Has("admin.audit.view");
         if(path=="/api/admin/read-summary")return method=="GET"&&Has("admin.read_summary.view");
-        if(path=="/api/admin/settings")return method is "GET" or "PUT"&&Has("admin.settings.manage");
-        if(path=="/api/admin/notify-settings")return method is "GET" or "PUT"&&Has("admin.notify.manage");
+        if(path=="/api/admin/settings")return (method=="GET"||method=="PUT")&&Has("admin.settings.manage");
+        if(path=="/api/admin/notify-settings")return (method=="GET"||method=="PUT")&&Has("admin.notify.manage");
         if(path=="/api/notify/send")return method=="POST"&&(Has("notify.send.general")||Has("notify.send.custom"));
         if(path=="/api/tasks"||path.StartsWith("/api/tasks/",StringComparison.Ordinal))
-            return method=="GET"?Has("tasks.assign")||Has("tasks.manage"):method is "POST" or "PUT"&&(Has("tasks.assign")||Has("tasks.manage"));
+            return method=="GET"?(Has("tasks.assign")||Has("tasks.manage")):(method is "POST" or "PUT")&&(Has("tasks.assign")||Has("tasks.manage"));
         if(path.StartsWith("/api/users/",StringComparison.Ordinal)&&path.EndsWith("/effective-permissions",StringComparison.Ordinal))return method=="GET"&&Has("users.manage");
         if(path.StartsWith("/api/users/",StringComparison.Ordinal)&&path.EndsWith("/copy-permissions",StringComparison.Ordinal))return method=="POST"&&Has("users.manage");
         return false;
