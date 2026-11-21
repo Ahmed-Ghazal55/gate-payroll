@@ -243,8 +243,8 @@ public static class SchemaApprovals
     {
         Store.Save(c,ApprovalsArea.DecisionKind,row,tx);
         if(!SchemaSql.TableExists(c,tx,"approvals","decision"))return;
-        string id=row.S("id");
-        if(!Guid.TryParse(id,out _)){id=SchemaSql.GuidText(SchemaSql.NewId());row["id"]=id;}
+        // SQL uniqueidentifier needs D-format; document-kind ids may be 32-hex N-format.
+        string sqlId=SchemaSql.GuidText(SchemaSql.NewId());
         string now=row.S("decidedAt",DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture));
         string snapshot=(row["membershipSnapshot"] as JsonObject)?.ToJsonString()??"{}";
         SchemaSql.Exec(c,tx,$"""
@@ -252,7 +252,7 @@ public static class SchemaApprovals
             (id,request_id,decided_by,decided_at,outcome,membership_snapshot_json,bypass_grant_id,note_ar,dual_permission,created_at)
             VALUES(@id,@req,@by,@at,@out,@snap,@grant,@note,@dual,@at)
             """,
-            ("@id",id),("@req",row.S("requestId")),("@by",row.S("decidedBy")),("@at",now),
+            ("@id",sqlId),("@req",row.S("requestId")),("@by",row.S("decidedBy")),("@at",now),
             ("@out",row.S("outcome")),("@snap",snapshot),
             ("@grant",(object?)(string.IsNullOrWhiteSpace(row.S("bypassGrantId"))?null:row.S("bypassGrantId"))??DBNull.Value),
             ("@note",(object?)row.S("note")??DBNull.Value),
