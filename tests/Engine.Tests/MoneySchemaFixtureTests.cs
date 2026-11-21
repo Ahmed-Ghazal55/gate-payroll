@@ -11,12 +11,11 @@ public sealed class MoneySchemaFixtureTests
         using var c=MoneySchemaFixture.Payments();
         string company=MoneySchemaFixture.Company(c),payment=MoneySchemaFixture.Payment(c,company);
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM pay_payment WHERE id=@id",("@id",payment)),"Money rows cannot be deleted");
-        try
-        {
-            MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM pay_payment WHERE id=@id",("@id",payment)),"wrong-constraint");
-            Assert.Fail("Reject must fail when the constraint name does not match.");
-        }
-        catch(AssertFailedException){}
+        // Assert only around the helper call so a later Assert.Fail is not swallowed.
+        bool rejectedWrongName=false;
+        try{MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"DELETE FROM pay_payment WHERE id=@id",("@id",payment)),"wrong-constraint");}
+        catch(AssertFailedException){rejectedWrongName=true;}
+        Assert.IsTrue(rejectedWrongName,"Reject must fail when the constraint name does not match.");
     }
 
     [TestMethod]
