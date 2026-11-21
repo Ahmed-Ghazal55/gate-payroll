@@ -35,13 +35,13 @@ public static class ApiPagination
             ?? throw new InvalidOperationException("A paginated list must return an array.");
         return Apply(rows.OfType<JsonObject>(), request.Query, whitelist: whitelist);
     }
-    public static object Apply(IEnumerable<JsonObject> source, IQueryCollection query, bool always = false, IReadOnlySet<string>? whitelist = null)
+    public static object Apply(IEnumerable<JsonObject> source, IQueryCollection query, bool always = false, IReadOnlySet<string>? whitelist = null, TableFilterContract.FilterOptions? filterOptions = null)
     {
         var rows=source.ToList();
         if(!always && !query.ContainsKey("page"))
         {
             if(whitelist != null && TableFilterContract.HasJsonContractParams(query))
-                rows=TableFilterContract.Apply(rows,query,whitelist);
+                rows=TableFilterContract.Apply(rows,query,whitelist,options:filterOptions);
             return rows;
         }
         int Positive(string key,int fallback)
@@ -57,7 +57,7 @@ public static class ApiPagination
         if(whitelist != null)
         {
             if(query.ContainsKey("filters")||query.ContainsKey("sort"))
-                rows=TableFilterContract.Apply(rows,query,whitelist);
+                rows=TableFilterContract.Apply(rows,query,whitelist,options:filterOptions);
         }
         else if(query.ContainsKey("filters") && !string.IsNullOrWhiteSpace(query["filters"].ToString()))
         {

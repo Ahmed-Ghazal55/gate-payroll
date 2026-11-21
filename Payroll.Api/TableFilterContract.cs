@@ -404,9 +404,12 @@ public static class TableFilterContract
 
         var counts = new Dictionary<string, (string Canonical, int Count)>(StringComparer.OrdinalIgnoreCase);
         int emptyCount = 0;
+        string distinctField = options?.CompositeColumns != null && options.CompositeColumns.TryGetValue(mappedCol, out var compCols) && compCols.Count > 0
+            ? compCols[0]
+            : mappedCol;
         foreach (var r in rows)
         {
-            string val = GetRawString(r, mappedCol).Trim();
+            string val = GetRawString(r, distinctField).Trim();
             if (IsBlank(val))
             {
                 emptyCount++;
@@ -440,6 +443,33 @@ public static class TableFilterContract
     }
 
     static bool MatchesClause(
+        JsonObject row,
+        FilterClause clause,
+        decimal? topNThreshold,
+        DateOnly refDate,
+        FilterOptions? options = null)
+    {
+        if (options?.CompositeColumns != null &&
+            options.CompositeColumns.TryGetValue(clause.Col, out var compFields) &&
+            compFields.Count > 1)
+        {
+            var singleOpts = options with { CompositeColumns = null };
+            bool isNegated = clause.Op is "notContains" or "neq";
+            if (isNegated)
+            {
+                return compFields.All(f => MatchesSingleField(row, clause with { Col = f }, topNThreshold, refDate, singleOpts));
+            }
+            if (compFields.Any(f => MatchesSingleField(row, clause with { Col = f }, topNThreshold, refDate, singleOpts)))
+                return true;
+            // Also check space-joined composite string (e.g. "Name 2200000001")
+            string joined = string.Join(' ', compFields.Select(f => GetRawString(row, f).Trim()).Where(s => s.Length > 0));
+            var synthetic = new JsonObject { [clause.Col] = joined };
+            return MatchesSingleField(synthetic, clause, topNThreshold, refDate, singleOpts);
+        }
+        return MatchesSingleField(row, clause, topNThreshold, refDate, options);
+    }
+
+    static bool MatchesSingleField(
         JsonObject row,
         FilterClause clause,
         decimal? topNThreshold,
@@ -642,12 +672,15 @@ public static class TableFilterContract
 
     static int CompareCells(JsonObject a, JsonObject b, SortClause sort, FilterOptions? options = null)
     {
-        string rawA = GetRawString(a, sort.Col).Trim();
-        string rawB = GetRawString(b, sort.Col).Trim();
+        string sortCol = options?.CompositeColumns != null && options.CompositeColumns.TryGetValue(sort.Col, out var compCols) && compCols.Count > 0
+            ? compCols[0]
+            : sort.Col;
+        string rawA = GetRawString(a, sortCol).Trim();
+        string rawB = GetRawString(b, sortCol).Trim();
         bool blankA = IsBlank(rawA);
         bool blankB = IsBlank(rawB);
-        string dispA = blankA ? "" : DisplayLabel(a, sort.Col, rawA, options);
-        string dispB = blankB ? "" : DisplayLabel(b, sort.Col, rawB, options);
+        string dispA = blankA ? "" : DisplayLabel(a, sortCol, rawA, options);
+        string dispB = blankB ? "" : DisplayLabel(b, sortCol, rawB, options);
 
         if (!string.IsNullOrEmpty(sort.Tone))
         {

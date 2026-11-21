@@ -45,7 +45,7 @@ public static class WorkforceApi
 
     static readonly HashSet<string> WorkforceAllowedColumns = new(StringComparer.OrdinalIgnoreCase)
     {
-        "id", "erpEmployeeId", "name", "iqama", "phone", "nationality",
+        "id", "erpEmployeeId", "person", "name", "iqama", "phone", "nationality",
         "status", "statusCode", "engagementType", "workType", "workTypeNameAr", "operationalRole",
         "sponsorNameAr", "sponsor", "sponsorId", "sponsorUnified",
         "platform", "platforms", "platformWorkId", "city", "cityCode", "housing",
@@ -57,8 +57,16 @@ public static class WorkforceApi
     static readonly Dictionary<string, string> WorkforceColumnAliases = new(StringComparer.OrdinalIgnoreCase)
     {
         ["platforms"] = "platform",
-        ["sponsor"] = "sponsorNameAr"
+        ["sponsor"] = "sponsorNameAr",
+        ["person"] = "name"
     };
+
+    static readonly TableFilterContract.FilterOptions WorkforceFilterOptions = new(
+        CompositeColumns: new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["name"] = ["name", "iqama"],
+            ["person"] = ["name", "iqama"]
+        });
 
     static object List(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
@@ -76,7 +84,7 @@ public static class WorkforceApi
                 }
                 var full = StoreList(c, ctx.User, request with { Page = 1, PageSize = 50_000, Skip = 0, Take = 50_000 });
                 var all = full.Items.Select(r => StripSensitive(r, ctx.User)).ToList();
-                var filtered = TableFilterContract.Apply(all, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
+                var filtered = TableFilterContract.Apply(all, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases, options: WorkforceFilterOptions);
                 long total = filtered.Count;
                 var paged = filtered.Skip(request.Skip).Take(request.Take).ToList();
                 return Envelope(new { items = paged, total, page = request.Page, pageSize = request.PageSize, summary = full.Summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
@@ -95,7 +103,7 @@ public static class WorkforceApi
                 long total = page.Total;
                 if (hasContract)
                 {
-                    items = TableFilterContract.Apply(items, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
+                    items = TableFilterContract.Apply(items, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases, options: WorkforceFilterOptions);
                     total = items.Count;
                     items = items.Skip(request.Skip).Take(request.Take).ToList();
                 }
@@ -152,7 +160,7 @@ public static class WorkforceApi
                 });
             }, "workforce-distinct", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
         }
-        return TableFilterContract.BuildDistinct(rows, column, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
+        return TableFilterContract.BuildDistinct(rows, column, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases, options: WorkforceFilterOptions);
     }
 
     static IResult Export(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
@@ -192,7 +200,7 @@ public static class WorkforceApi
             }, "workforce-export", TimeSpan.FromSeconds(exportTimeout));
         }
         if (TableFilterContract.HasContractParams(ctx.Request.Query))
-            all = TableFilterContract.Apply(all, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases);
+            all = TableFilterContract.Apply(all, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases, options: WorkforceFilterOptions);
         bool showIban = AccessPolicy.Has(ctx.User, PermIban);
         // R1: IBAN, bank short code and bank name are three separate columns in the export.
         var headers = new[] { "الاسم", "رقم الإقامة", "الجوال", "الجنسية", "الحالة", "نوع العلاقة", "نوع العمل", "الكفيل", "المنصة", "معرف المنصة", "المدينة", "السكن", "المسمى", "نموذج الدفع", "مركبة الشركة", "الرخصة", showIban ? "الآيبان" : "الآيبان (مخفي)", "كود البنك", "اسم البنك", "تنبيه الآيبان", "راتب مدد" };

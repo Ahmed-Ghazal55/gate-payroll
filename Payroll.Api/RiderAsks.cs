@@ -1323,9 +1323,16 @@ public static class RiderAsks
 
     public static readonly HashSet<string> ServiceRequestAllowedColumns = new(StringComparer.OrdinalIgnoreCase)
     {
-        "id", "riderName", "riderIqama", "requestType", "reason", "titleAr",
+        "id", "rider", "riderName", "riderIqama", "requestType", "reason", "titleAr",
         "direction", "status", "approvalStage", "companyId", "createdAt", "decidedAt"
     };
+
+    static readonly TableFilterContract.FilterOptions ServiceRequestFilterOptions = new(
+        CompositeColumns: new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["riderName"] = ["riderName", "riderIqama"],
+            ["rider"] = ["riderName", "riderIqama"]
+        });
 
     public static object ListScopedServiceRequests(
         DbConnection c, ClaimsPrincipal user, string? requestType, string? status, string? iqama, string? group, IQueryCollection query)
@@ -1335,7 +1342,7 @@ public static class RiderAsks
         var rows = StaffServiceRequests(c, user, requestType, status, iqama);
         if (string.Equals(group, "other", StringComparison.Ordinal))
             rows = rows.Where(r => r.S("requestType") is not ("annual_leave" or "appointment")).ToList();
-        return ApiPagination.Apply(rows, query, whitelist: ServiceRequestAllowedColumns);
+        return ApiPagination.Apply(rows, query, whitelist: ServiceRequestAllowedColumns, filterOptions: ServiceRequestFilterOptions);
     }
 
     public static JsonObject DistinctServiceRequests(
@@ -1344,10 +1351,10 @@ public static class RiderAsks
         _ = TableFilterContract.ParseFilters(query, ServiceRequestAllowedColumns);
         string column = (query["column"].ToString() ?? "").Trim();
         if (!ServiceRequestAllowedColumns.Contains(column))
-            return new JsonObject { ["column"] = column, ["values"] = new JsonArray(), ["counts"] = new JsonObject() };
+            return new JsonObject { ["column"] = column, ["values"] = new JsonArray(), ["counts"] = new JsonObject(), ["hasEmpty"] = false, ["emptyCount"] = 0 };
         var rows = StaffServiceRequests(c, user, requestType, status, iqama);
         if (string.Equals(group, "other", StringComparison.Ordinal))
             rows = rows.Where(r => r.S("requestType") is not ("annual_leave" or "appointment")).ToList();
-        return TableFilterContract.BuildDistinct(rows, column, query, ServiceRequestAllowedColumns);
+        return TableFilterContract.BuildDistinct(rows, column, query, ServiceRequestAllowedColumns, options: ServiceRequestFilterOptions);
     }
 }

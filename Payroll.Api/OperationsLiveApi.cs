@@ -98,6 +98,13 @@ public static class OperationsLiveApi
         "status", "from", "effectiveFrom", "to", "effectiveTo", "assignmentReason", "endReason"
     };
 
+    static readonly TableFilterContract.FilterOptions OpsFilterOptions = new(
+        CompositeColumns: new Dictionary<string, IReadOnlyList<string>>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["riderNameAr"] = ["riderNameAr", "iqama"],
+            ["rider"] = ["riderNameAr", "iqama"]
+        });
+
     static IReadOnlySet<string> WhitelistFor(string tab, string view) => (tab, view) switch
     {
         ("cities", _) => CitiesColumns,
@@ -230,7 +237,7 @@ public static class OperationsLiveApi
                 });
             }, "operations-distinct", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
         }
-        return TableFilterContract.BuildDistinct(rows, column, ctx.Request.Query, whitelist, aliases);
+        return TableFilterContract.BuildDistinct(rows, column, ctx.Request.Query, whitelist, aliases, options: OpsFilterOptions);
     }
 
     static (IReadOnlyList<JsonObject> Items, long Total) ApplyContractAndPage(
@@ -251,8 +258,8 @@ public static class OperationsLiveApi
             return (sourceItems, sourceTotal);
 
         var rows = sourceItems.ToList();
-        if (filters.Count > 0) rows = TableFilterContract.ApplyFilters(rows, filters);
-        if (sorts.Count > 0) rows = TableFilterContract.ApplySort(rows, sorts);
+        if (filters.Count > 0) rows = TableFilterContract.ApplyFilters(rows, filters, options: OpsFilterOptions);
+        if (sorts.Count > 0) rows = TableFilterContract.ApplySort(rows, sorts, options: OpsFilterOptions);
         long total = rows.Count;
         if (!alreadyPaged)
         {
@@ -699,7 +706,7 @@ public static class OperationsLiveApi
                     return result.Items.ToList();
                 });
             }, "operations-vehicles-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
-        items = TableFilterContract.Apply(items, ctx.Request.Query, VehiclesPeriodColumns, AliasesFor("vehicles", ""));
+        items = TableFilterContract.Apply(items, ctx.Request.Query, VehiclesPeriodColumns, AliasesFor("vehicles", ""), options: OpsFilterOptions);
         var headers = detailed
             ? new[] { "لوحة", "نوع", "مندوب", "إقامة", "مدينة", "أيام", "قطع غيار", "استقطاع", "تغييرات زيت", "تكلفة زيت", "عداد" }
             : new[] { "لوحة", "نوع", "مندوب", "أيام", "قطع غيار", "استقطاع", "تكلفة زيت" };
@@ -771,7 +778,7 @@ public static class OperationsLiveApi
                 using var erp = OpenErp(config);
                 return store.Read(c => OperationsLiveQuery.FuelCardsExport(erp, month, provider, search, Operations.LiveScope(c, ctx.User), ExportTimeoutSeconds(config), token).Items.ToList());
             }, "operations-fuel-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
-        items = TableFilterContract.Apply(items, ctx.Request.Query, FuelColumns, AliasesFor("fuel", ""));
+        items = TableFilterContract.Apply(items, ctx.Request.Query, FuelColumns, AliasesFor("fuel", ""), options: OpsFilterOptions);
         var cols = new[] { "اسم البطاقة", "رقم البطاقة", "لوحة", "مندوب", "رقم الإقامة", "لتر", "قبل الضريبة", "ضريبة", "إجمالي", "سقف", "الحالة" }.Select(h => new ExcelColumn(h)).ToArray();
         var rows = items.Select(r => new object?[] { r.S("cardName", r.S("providerNameAr", r.S("provider"))), r.S("cardNumber"), r.S("plateNumber"), r.S("riderNameAr"), r.S("iqama"), r["liters"]?.ToString(), r["amountBeforeTax"]?.ToString(), r["vat"]?.ToString(), r["totalInclVat"]?.ToString(), OperationsLiveQuery.NoSourceYet, OperationsLiveQuery.FuelStatusLabel(r.S("status")) }).ToList();
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-fuel.xlsx");
@@ -791,7 +798,7 @@ public static class OperationsLiveApi
                 using var erp = OpenErp(config);
                 return store.Read(c => OperationsLiveQuery.FuelAssignments(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, Operations.LiveScope(c, ctx.User), token, unpaged: true, search: search).Items.ToList());
             }, "operations-fuel-log-export", TimeSpan.FromSeconds(ExportTimeoutSeconds(config)));
-        items = TableFilterContract.Apply(items, ctx.Request.Query, FuelColumns, AliasesFor("fuel", "log"));
+        items = TableFilterContract.Apply(items, ctx.Request.Query, FuelColumns, AliasesFor("fuel", "log"), options: OpsFilterOptions);
         var cols = new[] { "اسم البطاقة", "رقم البطاقة", "المندوب", "رقم الإقامة", "المركبة", "من", "إلى", "سبب التسليم", "سبب الإنهاء" }.Select(h => new ExcelColumn(h)).ToArray();
         var rows = items.Select(r => new object?[] { r.S("cardName", r.S("providerNameAr", r.S("provider"))), r.S("cardNumber"), r.S("riderNameAr"), r.S("iqama"), r.S("plateNumber"), r.S("effectiveFrom"), r.S("effectiveTo"), r.S("assignmentReason"), r.S("endReason") }).ToList();
         return Results.File(ExcelFiles.Write(cols, rows), ExcelFiles.Mime, "operations-fuel-log.xlsx");

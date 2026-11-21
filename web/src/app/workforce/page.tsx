@@ -689,7 +689,15 @@ function WorkforcePageInner() {
         type: 'list',
         filterType: 'list',
         filterColumn: 'companyVehicleType',
-        getValue: (r) => vehicleLabel(r),
+        getValue: (r) => r.companyVehicleType || '',
+        labelOf: (v) => {
+          const s = String(v ?? '').trim();
+          if (!s) return 'بدون مركبة شركة';
+          const low = s.toLowerCase();
+          if (low === 'car') return 'مركبة شركة · سيارة';
+          if (low === 'motorcycle') return 'مركبة شركة · دراجة نارية';
+          return `مركبة شركة · ${s}`;
+        },
         render: (r) => (
           <StackedCell
             primary={<span className="whitespace-nowrap">{r.mudadSalary || '—'}</span>}

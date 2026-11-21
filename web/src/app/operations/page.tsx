@@ -603,8 +603,8 @@ function OperationsPageInner() {
             header: 'اسم البطاقة',
             type: 'list',
             filterType: 'list',
-            filterColumn: 'providerNameAr',
-            getValue: (r) => String(r.providerNameAr || formatFuelProviderAr(r.provider)),
+            filterColumn: 'cardName',
+            getValue: (r) => String(r.cardName || r.providerNameAr || formatFuelProviderAr(r.provider) || ''),
             labelOf: (v) => formatFuelProviderAr(v),
             render: (r) => {
               const providerAr = String(r.providerNameAr || formatFuelProviderAr(r.provider));
@@ -642,8 +642,8 @@ function OperationsPageInner() {
           header: 'اسم البطاقة',
           type: 'list',
           filterType: 'list',
-          filterColumn: 'providerNameAr',
-          getValue: (r) => String(r.providerNameAr || formatFuelProviderAr(r.provider)),
+          filterColumn: 'cardName',
+          getValue: (r) => String(r.cardName || r.providerNameAr || formatFuelProviderAr(r.provider) || ''),
           labelOf: (v) => formatFuelProviderAr(v),
           render: (r) => {
             const providerAr = String(r.providerNameAr || formatFuelProviderAr(r.provider));
