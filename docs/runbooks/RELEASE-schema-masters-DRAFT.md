@@ -11,7 +11,25 @@ First boot on live creates the additive master schemas/tables/triggers and inser
 1. `dbo.records` / SQLite `records` DDL — `IF OBJECT_ID IS NULL` / `CREATE TABLE IF NOT EXISTS` (same as 0.31.0; no-op on live).
 2. `ErpDataIndexes.Ensure` — computed columns + indexes on `dbo.records` only when missing (same as 0.31.0; no row writes).
 3. `PayRunInputs.Ensure` — `pay` schema + `pay.PayRunInput` only when missing (same as 0.31.0).
-4. New masters (create-if-missing only): `SchemaRef`, `SchemaHrCompany`, `SchemaRef.EnsureLegacyAccountMapAfterCompany`, `SchemaOrgCostCentre`, `SchemaAuthCatalog`, `SchemaFormApp`, `SchemaFinAccount`, `SchemaFinPeriod`, `SchemaFinJournal`, `SchemaFinPeriodBalance`, `SchemaPayPayable`, `SchemaPayAllocation`, `SchemaSalInvoice`, `SchemaSalPayRun`, `SchemaOperationCapture`, `SchemaDebt`, `SchemaTreasury`, `SchemaBankFile`.
+4. New masters (create-if-missing only; each `Ensure` is `CREATE SCHEMA` / `CREATE TABLE` / indexes / FKs / `CREATE OR ALTER` triggers on those new objects, then insert-if-missing seeds):
+   - `SchemaRef.Ensure`
+   - `SchemaHrCompany.Ensure`
+   - `SchemaRef.EnsureLegacyAccountMapAfterCompany`
+   - `SchemaOrgCostCentre.Ensure`
+   - `SchemaAuthCatalog.Ensure`
+   - `SchemaFormApp.Ensure`
+   - `SchemaFinAccount.Ensure` (target CoA insert-if-missing from 0.31.0 JSON)
+   - `SchemaFinPeriod.Ensure`
+   - `SchemaFinJournal.Ensure`
+   - `SchemaFinPeriodBalance.Ensure`
+   - `SchemaPayPayable.Ensure`
+   - `SchemaPayAllocation.Ensure`
+   - `SchemaSalInvoice.Ensure`
+   - `SchemaSalPayRun.Ensure`
+   - `SchemaOperationCapture.Ensure`
+   - `SchemaDebt.Ensure`
+   - `SchemaTreasury.Ensure` (includes M4f vault net-box/variance trigger on new `treasury.*` only)
+   - `SchemaBankFile.Ensure` (includes inter-company settlement guards on new bank-file tables only)
 
 No `SchemaHrCompany.Ensure` outside this lock (`Companies.Seed` unchanged).
 
