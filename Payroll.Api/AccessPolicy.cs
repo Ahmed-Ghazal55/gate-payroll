@@ -248,8 +248,8 @@ public static partial class AccessPolicy
         if(ApprovalsArea.RequiresDual(dual))Demand(actor,dual!);
         string name=actor.Identity?.Name??"";
         // BR §35 / M-0672: maker≠checker only for dedicated dual money-out / shared-rider codes.
-        // M-0667: SystemAdmin self-approval still goes through Independent so the monthly audit report records it.
-        if(ApprovalsArea.RequiresDual(dual)||actor.IsInRole("SystemAdmin"))
+        // M-0667: SystemAdmin dual self-approval is audited inside Independent (badge system_admin).
+        if(ApprovalsArea.RequiresDual(dual))
             J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request,scope:dual),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
         // Bypass lifts maker≠checker only — never department, rank, approval limit, or company/platform scope.
         if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))
