@@ -230,6 +230,21 @@ public static class UserAccess
         int rank = (int)u.N("rankLevel", def.DefaultRankLevel);
         return rank is >= 1 and <= 5 ? rank : def.DefaultRankLevel;
     }
+    // OP-8 / U-W2-26: old draft codes → canonical section.resource.action codes.
+    public static readonly Dictionary<string,string> PermissionAliases=new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["finance.coa.view"]="accounting.chart.view",
+        ["finance.coa.create"]="accounting.chart.create",
+        ["finance.coa.edit"]="accounting.chart.edit",
+        ["finance.coa.deactivate"]="accounting.chart.deactivate",
+        ["mudad.view"]="people.mudad.manage",
+        ["mudad.upload"]="people.mudad.manage",
+        ["iban.view"]="people.iban.view",
+        ["saudi.salary.view"]="people.saudi_salary.view",
+        ["notify.settings.manage"]="admin.notify.manage"
+    };
+    public static string CanonicalPermission(string code)=>
+        PermissionAliases.TryGetValue(code,out var mapped)?mapped:code;
     public static string[] EffectivePermissions(JsonObject u)
     {
         string role = Role(u);
@@ -237,18 +252,77 @@ public static class UserAccess
         var def = ResolveRoleDef(role);
         // An edited role template is attached by WithRole for the current read only; never stored on the user.
         var baseline = u[RoleBaseline] is JsonArray edited ? edited.Select(p => p?.ToString() ?? "") : def.DefaultPermissions;
-        var set = new HashSet<string>(baseline, StringComparer.OrdinalIgnoreCase);
+        var set = new HashSet<string>(baseline.Select(CanonicalPermission), StringComparer.OrdinalIgnoreCase);
         if (u["customPermissions"] is JsonArray custom)
         {
             foreach (var item in custom)
             {
-                string code = item?.GetValue<string>() ?? "";
+                string code = CanonicalPermission(item?.GetValue<string>() ?? "");
                 if (PermissionsCatalog.FirstOrDefault(p => p.Code.Equals(code, StringComparison.OrdinalIgnoreCase)) is {} permission)
                     set.Add(permission.Code);
             }
         }
-        if(u["deniedPermissions"] is JsonArray denied)foreach(var permission in denied)set.Remove(permission?.GetValue<string>()??"");
-        return set.ToArray();
+        if(u["deniedPermissions"] is JsonArray denied)
+            foreach(var permission in denied)set.Remove(CanonicalPermission(permission?.GetValue<string>()??""));
+        return set.Where(code=>PermissionsCatalog.Any(p=>p.Code.Equals(code,StringComparison.OrdinalIgnoreCase))).ToArray();
+    }
+
+    public static JsonObject EffectivePermissionsView(DbConnection c,DbTransaction? tx,JsonObject u)
+    {
+        var withRole=WithRole(c,tx,u);
+        var rolePerms=withRole[RoleBaseline] is JsonArray edited
+            ?edited.Select(p=>CanonicalPermission(p?.ToString()??"")).Where(p=>p!="").Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            :ResolveRoleDef(Role(u)).DefaultPermissions;
+        var grants=(u["customPermissions"] as JsonArray??[]).Select(p=>CanonicalPermission(p?.ToString()??"")).Where(p=>p!="").ToArray();
+        var denies=(u["deniedPermissions"] as JsonArray??[]).Select(p=>CanonicalPermission(p?.ToString()??"")).Where(p=>p!="").ToArray();
+        var effective=EffectivePermissions(withRole);
+        return new()
+        {
+            ["userId"]=u.S("id"),
+            ["username"]=u.S("username"),
+            ["role"]=Role(u),
+            ["rolePermissions"]=new JsonArray(rolePerms.Select(p=>(JsonNode?)p).ToArray()),
+            ["grants"]=new JsonArray(grants.Select(p=>(JsonNode?)p).ToArray()),
+            ["denies"]=new JsonArray(denies.Select(p=>(JsonNode?)p).ToArray()),
+            ["effective"]=new JsonArray(effective.Select(p=>(JsonNode?)p).ToArray()),
+            ["aliases"]=new JsonObject(PermissionAliases.ToDictionary(kv=>kv.Key,kv=>(JsonNode?)kv.Value)),
+            ["allowedActions"]=new JsonArray("copy_permissions")
+        };
+    }
+
+    public static JsonObject CopyPermissions(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string targetId,JsonObject input)
+    {
+        AccessPolicy.Demand(actor,"users.manage");
+        var target=Store.Get(c,targetId,"user",tx)??throw new ApiError("المستخدم المستهدف غير موجود.",404);
+        string sourceUserId=input.S("sourceUserId"),sourceRole=input.S("sourceRole");
+        string[] source;
+        if(!string.IsNullOrWhiteSpace(sourceUserId))
+        {
+            var src=Store.Get(c,sourceUserId,"user",tx)??throw new ApiError("المستخدم المصدر غير موجود.",404);
+            source=EffectivePermissions(WithRole(c,tx,src));
+        }
+        else if(!string.IsNullOrWhiteSpace(sourceRole))
+        {
+            var def=ResolveRoleDef(sourceRole);
+            var edited=Store.Get(c,def.Code,RolePermissionsKind,tx);
+            source=edited?["permissions"] is JsonArray list
+                ?list.Select(p=>CanonicalPermission(p?.ToString()??"")).Where(p=>p!="").ToArray()
+                :def.DefaultPermissions;
+        }
+        else throw new ApiError("حدد مستخدماً أو دوراً مصدراً.",400);
+        var before=EffectivePermissions(WithRole(c,tx,target));
+        target["customPermissions"]=new JsonArray(source.Select(p=>(JsonNode?)p).ToArray());
+        target["deniedPermissions"]=new JsonArray();
+        target["securityVersion"]=Guid.NewGuid().ToString("N");
+        Store.Save(c,"user",target,tx);
+        Store.Audit(c,tx,"admin.copy_permissions",targetId,actor.Identity!.Name!);
+        return new()
+        {
+            ["targetUserId"]=targetId,
+            ["before"]=new JsonArray(before.Select(p=>(JsonNode?)p).ToArray()),
+            ["after"]=new JsonArray(EffectivePermissions(WithRole(c,tx,target)).Select(p=>(JsonNode?)p).ToArray()),
+            ["allowedActions"]=new JsonArray()
+        };
     }
 
     public const string RolePermissionsKind = "role_permissions", RoleBaseline = "__roleBaseline";
@@ -455,10 +529,19 @@ public static class UserAccess
         {
             roles = RolesCatalog,
             permissions = EditorPermissionsCatalog,
+            permissionAliases = PermissionAliases,
             departments = FinancialCore.DepartmentsCatalog,
             rolePermissions=store.Read(c=>Store.List(c,RolePermissionsKind).ToDictionary(r=>r.S("id"),r=>r["permissions"]?.DeepClone())),
             financialScopeCatalog=new{sponsors=FinancialCore.Sponsors,accounts=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault),categories=FinancialCore.CategoriesCatalog,platforms=new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}}
         }).WithTags("Administration").WithSummary("Read roles catalog");
+        api.MapGet("/users/{id}/effective-permissions",(string id,HttpContext ctx)=>
+        {
+            AccessPolicy.Demand(ctx.User,"users.manage");
+            return store.Read(c=>EffectivePermissionsView(c,null,Store.Get(c,id,"user")??throw new ApiError("الحساب غير موجود.",404)));
+        }).WithTags("Administration").WithSummary("Read effective permissions breakdown for a user");
+        api.MapPost("/users/{id}/copy-permissions",(string id,JsonObject input,HttpContext ctx)=>
+            store.Write((c,tx)=>CopyPermissions(c,tx,ctx.User,id,input)))
+            .WithTags("Administration").WithSummary("Copy permissions from a user or role onto a target user");
 
         api.MapGet("/admin/approval-exceptions",(HttpContext ctx)=>{J.Need(AccessPolicy.Administrator(ctx.User),"للمسؤول فقط.",403);return store.Read(c=>Store.List(c,"audit").Where(a=>a.S("action")=="approval.self_exception").OrderByDescending(a=>a.S("at")));}).WithTags("Administration").WithSummary("List every dated self-approval exception use for pre-launch review");
         api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(u => Public(WithRole(c, null, u))).ToList())).WithTags("Administration").WithSummary("Read users");
