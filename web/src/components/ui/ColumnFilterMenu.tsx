@@ -26,6 +26,8 @@ import {
   NUMBER_OPERATORS,
   TEXT_OPERATORS,
   TONE_META,
+  applyConditionValueDraftChange,
+  applyOperatorDraftChange,
   applySearchResultsSelection,
   compareColumnValues,
   computeTopNThreshold,
@@ -34,6 +36,7 @@ import {
   extractDistinctTones,
   filterSelectOptions,
   isColumnFilterActive,
+  operatorNeedsValueInput,
   resolveColumnType,
   toggleSelectAllOptions,
 } from '@/lib/columnFilter';
@@ -180,92 +183,29 @@ export function ColumnFilterMenu({
   };
 
   const handleOperatorChange = (opStr: string) => {
-    const nextFilter: ColumnFilterValue = { ...filter };
-    if (!opStr) {
-      setDraftOp('');
-      setDraftValue('');
-      setDraftValueTo('');
-      delete nextFilter.op;
-      delete nextFilter.value;
-      delete nextFilter.valueTo;
-      onFilterChange(isColumnFilterActive(nextFilter) ? nextFilter : undefined);
-      return;
-    }
-    const nextOp = opStr as FilterOperator;
-    setDraftOp(nextOp);
-    nextFilter.op = nextOp;
-    if (nextOp === 'thisMonth' || nextOp === 'lastMonth') {
-      setDraftValue('');
-      setDraftValueTo('');
-      delete nextFilter.value;
-      delete nextFilter.valueTo;
-    } else {
-      if (draftValue !== '') {
-        nextFilter.value = draftValue;
-      } else {
-        delete nextFilter.value;
-      }
-      if (nextOp === 'between') {
-        if (draftValueTo !== '') {
-          nextFilter.valueTo = draftValueTo;
-        } else {
-          delete nextFilter.valueTo;
-        }
-      } else {
-        setDraftValueTo('');
-        delete nextFilter.valueTo;
-      }
-    }
-    const hasConditionValue =
-      nextOp === 'thisMonth' ||
-      nextOp === 'lastMonth' ||
-      (nextFilter.value !== undefined && String(nextFilter.value).trim() !== '') ||
-      (nextOp === 'between' &&
-        nextFilter.valueTo !== undefined &&
-        String(nextFilter.valueTo).trim() !== '');
-    if (!hasConditionValue) {
-      delete nextFilter.op;
-      delete nextFilter.value;
-      delete nextFilter.valueTo;
-    }
-    onFilterChange(isColumnFilterActive(nextFilter) ? nextFilter : undefined);
+    const res = applyOperatorDraftChange(
+      { draftOp, draftValue, draftValueTo },
+      filter,
+      opStr
+    );
+    setDraftOp(res.draft.draftOp);
+    setDraftValue(res.draft.draftValue);
+    setDraftValueTo(res.draft.draftValueTo);
+    onFilterChange(res.nextFilter);
   };
 
   const handleConditionValueChange = (val: string, isSecond = false) => {
-    const defaultOp: FilterOperator =
-      columnType === 'number'
-        ? 'eq'
-        : columnType === 'date'
-          ? 'eq'
-          : 'contains';
-    const effectiveOp: FilterOperator =
-      draftOp && draftOp !== 'in' && draftOp !== 'color'
-        ? draftOp
-        : filter?.op && filter.op !== 'in' && filter.op !== 'color'
-          ? filter.op
-          : defaultOp;
-    if (!draftOp) setDraftOp(effectiveOp);
-    const nextVal = isSecond ? draftValue : val;
-    const nextValTo = isSecond ? val : draftValueTo;
-    if (isSecond) {
-      setDraftValueTo(val);
-    } else {
-      setDraftValue(val);
-    }
-    const nextFilter: ColumnFilterValue = {
-      ...filter,
-      op: effectiveOp,
-      value: nextVal,
-      ...(effectiveOp === 'between' ? { valueTo: nextValTo } : {}),
-    };
-    const hasConditionValue =
-      nextVal.trim() !== '' || (effectiveOp === 'between' && nextValTo.trim() !== '');
-    if (!hasConditionValue) {
-      delete nextFilter.op;
-      delete nextFilter.value;
-      delete nextFilter.valueTo;
-    }
-    onFilterChange(isColumnFilterActive(nextFilter) ? nextFilter : undefined);
+    const res = applyConditionValueDraftChange(
+      { draftOp, draftValue, draftValueTo },
+      filter,
+      columnType,
+      val,
+      isSecond
+    );
+    setDraftOp(res.draft.draftOp);
+    setDraftValue(res.draft.draftValue);
+    setDraftValueTo(res.draft.draftValueTo);
+    onFilterChange(res.nextFilter);
   };
 
   const handleToneFilterToggle = (tone: BadgeTone) => {
@@ -322,8 +262,7 @@ export function ColumnFilterMenu({
         : 'ترتيب ي ← أ ↓';
 
   const activeOp = draftOp;
-  const needsValueInput =
-    activeOp !== '' && activeOp !== 'thisMonth' && activeOp !== 'lastMonth';
+  const needsValueInput = operatorNeedsValueInput(activeOp);
   const inputType =
     columnType === 'date'
       ? 'date'

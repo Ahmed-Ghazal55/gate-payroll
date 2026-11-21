@@ -1180,3 +1180,102 @@ export function searchableFilterReduce(
     }
   }
 }
+
+export interface OperatorDraftState {
+  draftOp: FilterOperator | '';
+  draftValue: string;
+  draftValueTo: string;
+}
+
+export function operatorNeedsValueInput(op: FilterOperator | ''): boolean {
+  return op !== '' && op !== 'thisMonth' && op !== 'lastMonth';
+}
+
+export function applyOperatorDraftChange(
+  prev: OperatorDraftState,
+  currentFilter: ColumnFilterValue | undefined,
+  opStr: string
+): { draft: OperatorDraftState; nextFilter: ColumnFilterValue | undefined } {
+  const nextFilter: ColumnFilterValue = { ...currentFilter };
+  if (!opStr) {
+    delete nextFilter.op;
+    delete nextFilter.value;
+    delete nextFilter.valueTo;
+    return {
+      draft: { draftOp: '', draftValue: '', draftValueTo: '' },
+      nextFilter: isColumnFilterActive(nextFilter) ? nextFilter : undefined,
+    };
+  }
+  const nextOp = opStr as FilterOperator;
+  let draftValue = prev.draftValue;
+  let draftValueTo = prev.draftValueTo;
+  nextFilter.op = nextOp;
+  if (nextOp === 'thisMonth' || nextOp === 'lastMonth') {
+    draftValue = '';
+    draftValueTo = '';
+    delete nextFilter.value;
+    delete nextFilter.valueTo;
+  } else {
+    if (draftValue !== '') nextFilter.value = draftValue;
+    else delete nextFilter.value;
+    if (nextOp === 'between') {
+      if (draftValueTo !== '') nextFilter.valueTo = draftValueTo;
+      else delete nextFilter.valueTo;
+    } else {
+      draftValueTo = '';
+      delete nextFilter.valueTo;
+    }
+  }
+  const hasConditionValue =
+    nextOp === 'thisMonth' ||
+    nextOp === 'lastMonth' ||
+    (nextFilter.value !== undefined && String(nextFilter.value).trim() !== '') ||
+    (nextOp === 'between' &&
+      nextFilter.valueTo !== undefined &&
+      String(nextFilter.valueTo).trim() !== '');
+  if (!hasConditionValue) {
+    delete nextFilter.op;
+    delete nextFilter.value;
+    delete nextFilter.valueTo;
+  }
+  return {
+    draft: { draftOp: nextOp, draftValue, draftValueTo },
+    nextFilter: isColumnFilterActive(nextFilter) ? nextFilter : undefined,
+  };
+}
+
+export function applyConditionValueDraftChange(
+  prev: OperatorDraftState,
+  currentFilter: ColumnFilterValue | undefined,
+  columnType: ColumnDataType,
+  val: string,
+  isSecond = false
+): { draft: OperatorDraftState; nextFilter: ColumnFilterValue | undefined } {
+  const defaultOp: FilterOperator =
+    columnType === 'number' || columnType === 'date' ? 'eq' : 'contains';
+  const effectiveOp: FilterOperator =
+    prev.draftOp && prev.draftOp !== 'in' && prev.draftOp !== 'color'
+      ? prev.draftOp
+      : currentFilter?.op && currentFilter.op !== 'in' && currentFilter.op !== 'color'
+        ? currentFilter.op
+        : defaultOp;
+  const nextVal = isSecond ? prev.draftValue : val;
+  const nextValTo = isSecond ? val : prev.draftValueTo;
+  const nextFilter: ColumnFilterValue = {
+    ...currentFilter,
+    op: effectiveOp,
+    value: nextVal,
+    ...(effectiveOp === 'between' ? { valueTo: nextValTo } : {}),
+  };
+  const hasConditionValue =
+    nextVal.trim() !== '' || (effectiveOp === 'between' && nextValTo.trim() !== '');
+  if (!hasConditionValue) {
+    delete nextFilter.op;
+    delete nextFilter.value;
+    delete nextFilter.valueTo;
+  }
+  return {
+    draft: { draftOp: effectiveOp, draftValue: nextVal, draftValueTo: nextValTo },
+    nextFilter: isColumnFilterActive(nextFilter) ? nextFilter : undefined,
+  };
+}

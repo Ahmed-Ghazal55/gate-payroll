@@ -303,4 +303,197 @@ public sealed class TableFilterContractTests
         var srDistinct = f.Store.Read(c => RiderAsks.DistinctServiceRequests(c, scopedBroadcastUser, null, null, null, null, srDistinctCtx.Request.Query));
         CollectionAssert.AreEqual(new[] { "2200000011" }, srDistinct["values"]!.AsArray().Select(x => x!.ToString()).ToList());
     }
+
+    [TestMethod]
+    public void EnforcesBoundsLegacySortAndApiPaginationWhitelists()
+    {
+        using var f = new PayFixture();
+
+        // 1. Bounds: > 30 filter clauses rejected
+        var manyClauses = string.Join(",", Enumerable.Range(1, 31).Select(i => $"{{\"col\":\"status\",\"op\":\"eq\",\"value\":\"v{i}\"}}"));
+        var overFilterCtx = new DefaultHttpContext();
+        overFilterCtx.Request.QueryString = new QueryString($"?filters=[{manyClauses}]");
+        Assert.AreEqual(400, Assert.ThrowsExactly<ApiError>(() => TableFilterContract.ParseFilters(overFilterCtx.Request.Query)).Status);
+
+        // 2. Bounds: > 10 sort clauses rejected
+        var manySorts = string.Join(",", Enumerable.Range(1, 11).Select(_ => "{\"col\":\"status\",\"dir\":\"asc\"}"));
+        var overSortCtx = new DefaultHttpContext();
+        overSortCtx.Request.QueryString = new QueryString($"?sort=[{manySorts}]");
+        Assert.AreEqual(400, Assert.ThrowsExactly<ApiError>(() => TableFilterContract.ParseSort(overSortCtx.Request.Query)).Status);
+
+        // 3. Bounds: > 500 values in 'in' clause rejected
+        var manyVals = string.Join(",", Enumerable.Range(1, 501).Select(i => $"\"v{i}\""));
+        var overValsCtx = new DefaultHttpContext();
+        overValsCtx.Request.QueryString = new QueryString($"?filters=[{{\"col\":\"status\",\"op\":\"in\",\"values\":[{manyVals}]}}]");
+        Assert.AreEqual(400, Assert.ThrowsExactly<ApiError>(() => TableFilterContract.ParseFilters(overValsCtx.Request.Query)).Status);
+
+        // 4. Legacy sort=secretField rejected on Debts.ListPaged
+        var badDebtLegacySort = new DefaultHttpContext();
+        badDebtLegacySort.Request.QueryString = new QueryString("?page=1&pageSize=25&sort=secretColumn");
+        Assert.AreEqual(400, Assert.ThrowsExactly<ApiError>(() =>
+            f.Store.Read(c => Debts.ListPaged(c, PayFixture.Maker, badDebtLegacySort.Request.Query))).Status);
+
+        // 5. ApiPagination rejects filters when whitelist is null
+        var rows = new List<JsonObject> { new() { ["id"] = "1", ["secret"] = "x" } };
+        var noWlCtx = new DefaultHttpContext();
+        noWlCtx.Request.QueryString = new QueryString("?page=1&pageSize=25&filters=[{\"col\":\"secret\",\"op\":\"eq\",\"value\":\"x\"}]");
+        Assert.AreEqual(400, Assert.ThrowsExactly<ApiError>(() => ApiPagination.Apply(rows, noWlCtx.Request.Query)).Status);
+
+        // 6. TableFilterContract.HasContractParams recognizes legacy sort=col
+        var legacySortCtx = new DefaultHttpContext();
+        legacySortCtx.Request.QueryString = new QueryString("?sort=totalAmount&dir=desc");
+        Assert.IsTrue(TableFilterContract.HasContractParams(legacySortCtx.Request.Query));
+    }
+
+    [TestMethod]
+    public void AlignsDebtsStatusLabelsTonesAndDistinctEmptyCounts()
+    {
+        using var f = new PayFixture();
+        var sp1 = FinancialCore.Sponsors[0].Id;
+
+        f.Store.Write((c, tx) =>
+        {
+            Store.Save(c, "debt", new JsonObject
+            {
+                ["id"] = "D-ACT", ["iqama"] = "2200000101", ["riderName"] = "مندوب قائم",
+                ["creditorSponsorId"] = sp1, ["category"] = "CashAdvance", ["platform"] = "Jahez",
+                ["originalAmount"] = 1000m, ["remainingBalance"] = 1000m, ["status"] = "active",
+                ["createdAt"] = "2026-11-10"
+            }, tx);
+            Store.Save(c, "debt", new JsonObject
+            {
+                ["id"] = "D-WAI", ["iqama"] = "2200000102", ["riderName"] = "مندوب معفي",
+                ["creditorSponsorId"] = sp1, ["category"] = "CashAdvance", ["platform"] = "",
+                ["originalAmount"] = 500m, ["remainingBalance"] = 0m, ["status"] = "waived",
+                ["createdAt"] = "2026-11-11"
+            }, tx);
+            Store.Save(c, "debt", new JsonObject
+            {
+                ["id"] = "D-CAN", ["iqama"] = "2200000103", ["riderName"] = "مندوب ملغي",
+                ["creditorSponsorId"] = sp1, ["category"] = "CashAdvance", ["platform"] = "Jahez",
+                ["originalAmount"] = 300m, ["remainingBalance"] = 0m, ["status"] = "cancelled",
+                ["createdAt"] = "2026-11-12"
+            }, tx);
+            return true;
+        });
+
+        // Arabic text filter "قائم" matches active; "معفي" matches waived
+        var activeQ = new DefaultHttpContext();
+        activeQ.Request.QueryString = new QueryString("?page=1&pageSize=50&filters=[{\"col\":\"status\",\"op\":\"contains\",\"value\":\"قائم\"}]");
+        var activeRes = f.Store.Read(c => JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(Debts.ListPaged(c, PayFixture.Maker, activeQ.Request.Query)))!.AsObject());
+        CollectionAssert.AreEqual(new[] { "D-ACT" }, activeRes["items"]!.AsArray().Select(x => x!["id"]!.ToString()).ToList());
+
+        var waivedQ = new DefaultHttpContext();
+        waivedQ.Request.QueryString = new QueryString("?page=1&pageSize=50&filters=[{\"col\":\"status\",\"op\":\"eq\",\"value\":\"معفي\"}]");
+        var waivedRes = f.Store.Read(c => JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(Debts.ListPaged(c, PayFixture.Maker, waivedQ.Request.Query)))!.AsObject());
+        CollectionAssert.AreEqual(new[] { "D-WAI" }, waivedRes["items"]!.AsArray().Select(x => x!["id"]!.ToString()).ToList());
+
+        // Color sort by danger puts active first (NOT cancelled)
+        var sortDangerQ = new DefaultHttpContext();
+        sortDangerQ.Request.QueryString = new QueryString("?page=1&pageSize=50&sort=[{\"col\":\"status\",\"dir\":\"asc\",\"tone\":\"danger\"}]");
+        var sortDangerRes = f.Store.Read(c => JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(Debts.ListPaged(c, PayFixture.Maker, sortDangerQ.Request.Query)))!.AsObject());
+        Assert.AreEqual("D-ACT", sortDangerRes["items"]![0]!["id"]!.ToString());
+
+        // Color filter with explicit values=['active'] matches ONLY active
+        var colorExplicitQ = new DefaultHttpContext();
+        colorExplicitQ.Request.QueryString = new QueryString("?page=1&pageSize=50&filters=[{\"col\":\"status\",\"op\":\"color\",\"value\":\"danger\",\"values\":[\"active\"]}]");
+        var colorExplicitRes = f.Store.Read(c => JsonNode.Parse(System.Text.Json.JsonSerializer.Serialize(Debts.ListPaged(c, PayFixture.Maker, colorExplicitQ.Request.Query)))!.AsObject());
+        CollectionAssert.AreEqual(new[] { "D-ACT" }, colorExplicitRes["items"]!.AsArray().Select(x => x!["id"]!.ToString()).ToList());
+
+        // Distinct returns hasEmpty + emptyCount for blank platform row
+        var distinctPlatformQ = new DefaultHttpContext();
+        distinctPlatformQ.Request.QueryString = new QueryString("?column=platform");
+        var distinctPlatform = f.Store.Read(c => Debts.Distinct(c, PayFixture.Maker, distinctPlatformQ.Request.Query));
+        Assert.IsTrue(distinctPlatform["hasEmpty"]!.GetValue<bool>());
+        Assert.AreEqual(1, distinctPlatform["emptyCount"]!.GetValue<int>());
+    }
+
+    [TestMethod]
+    public void HandlesOver200RowsCompositePersonFilterSummaryRecountAndOperationsDistinct()
+    {
+        using var f = new PayFixture();
+        var sp1 = FinancialCore.Sponsors[0].Id;
+        var cfg = new ConfigurationBuilder()
+            .AddInMemoryCollection(new Dictionary<string, string?> { ["Operations:Source"] = "store" })
+            .Build();
+        var env = new TestHostEnv("Development");
+
+        f.Store.Write((c, tx) =>
+        {
+            for (int i = 1; i <= 230; i++)
+            {
+                string iq = (2300000000L + i).ToString();
+                Store.Save(c, "rider", new JsonObject
+                {
+                    ["id"] = iq, ["iqama"] = iq, ["name"] = $"مندوب رقم {i:D3}",
+                    ["sponsorId"] = sp1, ["sponsor"] = sp1, ["platforms"] = "Jahez",
+                    ["city"] = i > 210 ? "الخبر" : "الرياض",
+                    ["engagementType"] = "SponsoredInternal", ["status"] = "Active",
+                    ["iban"] = i == 225 ? "SA0380000000608010167519" : ""
+                }, tx);
+            }
+            Store.Save(c, "purchase_invoice", new JsonObject
+            {
+                ["id"] = "PI-1", ["receiptNumber"] = "REC-01", ["supplierNameAr"] = "مورد أول",
+                ["invoiceDate"] = "2026-11-10", ["receivedAt"] = "2026-11-10T10:00:00Z",
+                ["totalAmount"] = 1200m, ["status"] = "1"
+            }, tx);
+            Store.Save(c, "purchase_invoice", new JsonObject
+            {
+                ["id"] = "PI-2", ["receiptNumber"] = "REC-02", ["supplierNameAr"] = "مورد ثان",
+                ["invoiceDate"] = "2026-11-12", ["receivedAt"] = "2026-11-12T10:00:00Z",
+                ["totalAmount"] = 800m, ["status"] = "2"
+            }, tx);
+            return true;
+        });
+
+        var wfList = typeof(WorkforceApi).GetMethod("List", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var opsDistinct = typeof(OperationsLiveApi).GetMethod("DistinctValues", BindingFlags.NonPublic | BindingFlags.Static)!;
+        var opsPurchases = typeof(OperationsLiveApi).GetMethod("Purchases", BindingFlags.NonPublic | BindingFlags.Static)!;
+
+        // 1. Workforce filtering past row 200 finds all 20 rows in الخبر and recounts summary.totalCount = 20
+        var wfOver200Ctx = new DefaultHttpContext { User = PayFixture.Maker };
+        wfOver200Ctx.Request.QueryString = new QueryString("?page=1&pageSize=50&filters=[{\"col\":\"city\",\"op\":\"eq\",\"value\":\"الخبر\"}]");
+        var wfRes = (JsonObject)wfList.Invoke(null, [f.Store, cfg, env, wfOver200Ctx])!;
+        Assert.AreEqual(20L, wfRes["total"]!.GetValue<long>());
+        Assert.AreEqual(20, wfRes["summary"]!["totalCount"]!.GetValue<int>());
+
+        // 2. Composite name/iqama filter matches rider #225 by iqama even though col is "name"
+        var wfCompCtx = new DefaultHttpContext { User = PayFixture.Maker };
+        wfCompCtx.Request.QueryString = new QueryString("?page=1&pageSize=50&filters=[{\"col\":\"name\",\"op\":\"contains\",\"value\":\"2300000225\"}]");
+        var wfCompRes = (JsonObject)wfList.Invoke(null, [f.Store, cfg, env, wfCompCtx])!;
+        Assert.AreEqual(1L, wfCompRes["total"]!.GetValue<long>());
+
+        // 3. User WITHOUT riders.iban.view filtering on iban gets 0 matches (cannot infer stripped IBAN)
+        var noIbanUser = ScopedSponsorUser(sp1, "riders.view");
+        var wfIbanFilterCtx = new DefaultHttpContext { User = noIbanUser };
+        wfIbanFilterCtx.Request.QueryString = new QueryString("?page=1&pageSize=50&filters=[{\"col\":\"iban\",\"op\":\"contains\",\"value\":\"SA03\"}]");
+        var wfIbanFilterRes = (JsonObject)wfList.Invoke(null, [f.Store, cfg, env, wfIbanFilterCtx])!;
+        Assert.AreEqual(0L, wfIbanFilterRes["total"]!.GetValue<long>());
+
+        // 4. Operations purchases legacy sort + filtered KPI summary recount
+        var opsSortCtx = new DefaultHttpContext { User = PayFixture.Maker };
+        opsSortCtx.Request.QueryString = new QueryString("?from=2026-11-01&to=2026-11-30&sort=totalAmount&dir=asc");
+        var opsSortRes = (JsonObject)opsPurchases.Invoke(null, [f.Store, cfg, env, opsSortCtx])!;
+        Assert.AreEqual("PI-2", opsSortRes["items"]![0]!["id"]!.ToString());
+
+        var opsFilterCtx = new DefaultHttpContext { User = PayFixture.Maker };
+        opsFilterCtx.Request.QueryString = new QueryString("?from=2026-11-01&to=2026-11-30&filters=[{\"col\":\"supplierNameAr\",\"op\":\"eq\",\"value\":\"مورد أول\"}]");
+        var opsFilterRes = (JsonObject)opsPurchases.Invoke(null, [f.Store, cfg, env, opsFilterCtx])!;
+        Assert.AreEqual(1L, opsFilterRes["summary"]!["invoicesTotal"]!.GetValue<long>());
+        Assert.AreEqual(1200m, opsFilterRes["summary"]!["totalAmount"]!.GetValue<decimal>());
+
+        // 5. Operations distinct returns real counts & respects company scope (scoped user gets 0 purchases values)
+        var opsDistAllCtx = new DefaultHttpContext { User = PayFixture.Maker };
+        opsDistAllCtx.Request.QueryString = new QueryString("?tab=vehicles&view=invoices&from=2026-11-01&to=2026-11-30&column=status");
+        var opsDistAll = (JsonObject)opsDistinct.Invoke(null, [f.Store, cfg, env, opsDistAllCtx])!;
+        Assert.AreEqual(2, opsDistAll["values"]!.AsArray().Count);
+        Assert.AreEqual(1, opsDistAll["counts"]!["مرحّل"]!.GetValue<int>());
+
+        var opsScopedUser = ScopedSponsorUser(sp1, "operations.view");
+        var opsDistScopedCtx = new DefaultHttpContext { User = opsScopedUser };
+        opsDistScopedCtx.Request.QueryString = new QueryString("?tab=vehicles&view=invoices&from=2026-11-01&to=2026-11-30&column=status");
+        var opsDistScoped = (JsonObject)opsDistinct.Invoke(null, [f.Store, cfg, env, opsDistScopedCtx])!;
+        Assert.AreEqual(0, opsDistScoped["values"]!.AsArray().Count);
+    }
 }

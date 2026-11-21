@@ -316,6 +316,71 @@ describe('DataTable & ColumnFilterMenu Excel AutoFilter', () => {
     assert.equal(isColumnFilterActive({}), false);
   });
 
+  it('ColumnFilterMenu operator draft state preserves selected operator, renders input, and emits valid filters', async () => {
+    const {
+      applyOperatorDraftChange,
+      applyConditionValueDraftChange,
+      operatorNeedsValueInput,
+      extractDistinctOptions: extractOpts,
+    } = await import('../../src/lib/columnFilter.ts');
+    const { formatSar } = await import('../../src/lib/money.ts');
+    const { formatReadableValue } = await import('../../src/lib/formatRecord.ts');
+
+    // 1. Selecting 'contains' from undefined filter keeps draftOp open and requests value input
+    const s1 = applyOperatorDraftChange({ draftOp: '', draftValue: '', draftValueTo: '' }, undefined, 'contains');
+    assert.equal(s1.draft.draftOp, 'contains');
+    assert.equal(operatorNeedsValueInput(s1.draft.draftOp), true);
+    assert.equal(s1.nextFilter, undefined);
+
+    // 2. Typing a value emits { op: 'contains', value: 'الرياض' }
+    const s2 = applyConditionValueDraftChange(s1.draft, s1.nextFilter, 'text', 'الرياض', false);
+    assert.deepEqual(s2.nextFilter, { op: 'contains', value: 'الرياض' });
+
+    // 3. Switching operator preserves value and emits new operator
+    const s3 = applyOperatorDraftChange(s2.draft, s2.nextFilter, 'beginsWith');
+    assert.deepEqual(s3.nextFilter, { op: 'beginsWith', value: 'الرياض' });
+
+    // 4. Between operator with two values
+    const b1 = applyOperatorDraftChange({ draftOp: '', draftValue: '', draftValueTo: '' }, undefined, 'between');
+    assert.equal(b1.draft.draftOp, 'between');
+    assert.equal(operatorNeedsValueInput(b1.draft.draftOp), true);
+    const b2 = applyConditionValueDraftChange(b1.draft, b1.nextFilter, 'number', '100', false);
+    const b3 = applyConditionValueDraftChange(b2.draft, b2.nextFilter, 'number', '500', true);
+    assert.deepEqual(b3.nextFilter, { op: 'between', value: '100', valueTo: '500' });
+
+    // 5. Backspacing value keeps draftOp visible without emitting empty op
+    const b4 = applyConditionValueDraftChange(s2.draft, s2.nextFilter, 'text', '', false);
+    assert.equal(b4.draft.draftOp, 'contains');
+    assert.equal(b4.nextFilter, undefined);
+
+    // 6. Date preset 'thisMonth' emits immediately with no value input needed
+    const d1 = applyOperatorDraftChange({ draftOp: '', draftValue: '', draftValueTo: '' }, undefined, 'thisMonth');
+    assert.equal(operatorNeedsValueInput(d1.draft.draftOp), false);
+    assert.deepEqual(d1.nextFilter, { op: 'thisMonth' });
+
+    // 7. Server /distinct with emptyCount + presetOptions merges counts and includes (فارغ)
+    const merged = extractOpts(['active', 'settled'], {
+      presetOptions: [
+        { value: 'active', label: 'قائم' },
+        { value: 'settled', label: 'مسدد' },
+        { value: 'waived', label: 'معفي' },
+      ],
+      counts: { active: 12, settled: 4 },
+      includeEmpty: true,
+      emptyCount: 3,
+    });
+    assert.equal(merged.find((o) => o.value === 'active')?.count, 12);
+    assert.equal(merged.find((o) => o.value === 'waived')?.count, 0);
+    assert.deepEqual(merged.find((o) => o.value === ''), { value: '', label: '(فارغ)', count: 3 });
+
+    // 8. Shared formatSar and localized formatReadableValue
+    assert.equal(formatSar(1250), '1,250.00 ر.س');
+    assert.equal(formatSar(null), '—');
+    const readable = formatReadableValue({ amount: 500, status: 'active' });
+    assert.match(readable, /المبلغ: 500/);
+    assert.doesNotMatch(readable, /[{}]/);
+  });
+
   it('shared DataTable wires SearchableSelect, ColumnFilterMenu, TanStack Table, and distinctEndpoint fallback', () => {
     const dt = readFileSync(path.join(root, 'src/components/ui/DataTable.tsx'), 'utf8');
     const cfm = readFileSync(path.join(root, 'src/components/ui/ColumnFilterMenu.tsx'), 'utf8');

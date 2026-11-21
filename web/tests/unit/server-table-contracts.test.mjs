@@ -26,7 +26,7 @@ describe('Server-paged table generic filter/sort/distinct contract (FL2)', () =>
   it('debts table sends filters, sort, and /debts/distinct contract params on list and export', () => {
     const src = readFileSync(path.join(root, 'src/app/debts/page.tsx'), 'utf8');
     assert.match(src, /distinctEndpoint="\/debts\/distinct"/);
-    assert.match(src, /distinctParams=\{\{\s*filters:\s*debtsServerQuery\.filtersParam\s*\}\}/);
+    assert.match(src, /distinctParams=\{\{[\s\S]{0,220}q:\s*debouncedSearch[\s\S]{0,220}filters:\s*debtsServerQuery\.filtersParam[\s\S]{0,40}\}\}/);
     assert.match(src, /onServerQueryChange=/);
     assert.match(src, /filters:\s*sq\.filtersParam/);
     assert.match(src, /sort:\s*sq\.sortParam/);
@@ -92,12 +92,19 @@ describe('Server-paged table generic filter/sort/distinct contract (FL2)', () =>
   it('operations server-paged tables send filters, sort, and /operations/distinct contract params on all views and exports', () => {
     const src = readFileSync(path.join(root, 'src/app/operations/page.tsx'), 'utf8');
     assert.match(src, /distinctEndpoint="\/operations\/distinct"/);
-    assert.match(src, /distinctParams=\{\{\s*tab,\s*view,\s*from,\s*to,\s*month,\s*mode,\s*filters:\s*serverQuery\.filtersParam\s*\}\}/);
+    assert.match(src, /distinctParams=\{\{\s*tab,\s*view,\s*from,\s*to,\s*month,\s*mode,\s*q:\s*debouncedQ \|\| undefined,\s*filters:\s*serverQuery\.filtersParam\s*\}\}/);
+    assert.match(src, /loading=\{loading\}/);
+    assert.doesNotMatch(src, /\{loading \?\s*\(\s*<Skeleton/);
+    assert.match(src, /exportOperationsFuelLog\(/);
     assert.match(src, /onServerQueryChange=/);
     assert.match(src, /exportOperationsCities\(\{\s*filters:\s*serverQuery\.filtersParam,\s*sort:\s*serverQuery\.sortParam\s*\}\)/);
-    assert.match(src, /exportOperationsHousing\(\{[\s\S]{0,120}filters:\s*serverQuery\.filtersParam,\s*sort:\s*serverQuery\.sortParam/);
-    assert.match(src, /exportOperationsPeriod\(\{[\s\S]{0,160}filters:\s*serverQuery\.filtersParam,\s*sort:\s*serverQuery\.sortParam/);
-    assert.match(src, /exportOperationsFuel\(\{[\s\S]{0,120}filters:\s*serverQuery\.filtersParam,\s*sort:\s*serverQuery\.sortParam/);
+    assert.match(src, /exportOperationsHousing\(\{[\s\S]{0,160}filters:\s*serverQuery\.filtersParam,\s*sort:\s*serverQuery\.sortParam/);
+    assert.match(src, /exportOperationsPeriod\(\{[\s\S]{0,220}q:\s*debouncedQ[\s\S]{0,120}filters:\s*serverQuery\.filtersParam,\s*sort:\s*serverQuery\.sortParam/);
+    assert.match(src, /exportOperationsFuel\(\{[\s\S]{0,180}q:\s*debouncedQ[\s\S]{0,120}filters:\s*serverQuery\.filtersParam,\s*sort:\s*serverQuery\.sortParam/);
+
+    // Verify no rendered JSON.stringify in PaySettingsValidation
+    const psv = readFileSync(path.join(root, 'src/features/payroll/PaySettingsValidation.ts'), 'utf8');
+    assert.doesNotMatch(psv, /JSON\.stringify/);
 
     // Verify all operations api endpoints encode filters & sort
     for (const fn of [
