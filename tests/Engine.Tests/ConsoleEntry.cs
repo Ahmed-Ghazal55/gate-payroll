@@ -1,4 +1,17 @@
 Payroll.Vouchers.Configure(SyntheticVoucherSettings.Key);
+if(args.Contains("--schema-money-tests"))
+{
+    int passed=0,failed=0;
+    var classes=typeof(SchemaPayPayableTests).Assembly.GetTypes().Where(t=>t.Name.StartsWith("SchemaPay",StringComparison.Ordinal)||t.Name.StartsWith("SchemaSal",StringComparison.Ordinal)||t.Name is "SchemaOperationCaptureTests" or "Stage4DeductionTests" or "DebtSheetImportTests" or "FinanceViewsTests");
+    foreach(var type in classes.OrderBy(t=>t.Name))
+    foreach(var method in type.GetMethods().Where(m=>m.GetCustomAttributes(typeof(Microsoft.VisualStudio.TestTools.UnitTesting.TestMethodAttribute),true).Length>0))
+    {
+        try{method.Invoke(Activator.CreateInstance(type),null);Console.WriteLine($"PASS {type.Name}.{method.Name}");passed++;}
+        catch(System.Reflection.TargetInvocationException error){Console.Error.WriteLine($"FAIL {type.Name}.{method.Name}: {error.InnerException}");failed++;}
+    }
+    Console.WriteLine($"Money schema tests: {passed} passed, {failed} failed.");
+    return failed==0&&passed>0?0:1;
+}
 if(args.Contains("--accounting-review"))
 {
     int passed=0;
@@ -13,3 +26,4 @@ if(args.Contains("--accounting-review"))
     Console.WriteLine("PASS existing financial shared-cost SQLite test with purpose-correct HR funding.");
 }
 Console.WriteLine($"Verified {LegacyAssertions.Run()} legacy checks.");
+return Environment.ExitCode;

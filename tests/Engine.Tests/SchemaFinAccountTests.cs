@@ -1,0 +1,160 @@
+using Microsoft.Data.SqlClient;
+using Microsoft.Data.Sqlite;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Payroll;
+using System.Text.RegularExpressions;
+
+[TestClass]
+public sealed class SchemaFinAccountTests
+{
+    static SqliteConnection Open()
+    {
+        var c=new SqliteConnection("Data Source=:memory:");c.Open();
+        using(var fk=c.CreateCommand()){fk.CommandText="PRAGMA foreign_keys=ON;";fk.ExecuteNonQuery();}
+        SchemaRef.Ensure(c);SchemaHrCompany.Ensure(c);SchemaOrgCostCentre.Ensure(c);SchemaFinAccount.Ensure(c);
+        return c;
+    }
+
+    // Independent of FinanceViews / TargetCoa seed source — design §7.1 / D11 required CoA rows.
+    static readonly string[] RequiredDesignCodes=["5268","526801","526802","526803","526804","526805","526806"];
+
+    [TestMethod]
+    public void EnsureTwiceSeedsTargetChartIdempotently()
+    {
+        using var c=Open();
+        long first=Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account")!);
+        SchemaFinAccount.Ensure(c);
+        long second=Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account")!);
+        Assert.AreEqual(first,second);
+        Assert.AreEqual(SchemaFinAccount.ExpectedSeedCount(),(int)first);
+        Assert.IsTrue(first>200);
+        string id1=((string)SchemaSql.Scalar(c,null,"SELECT lower(id) FROM fin_account WHERE code='1'")!).ToLowerInvariant();
+        SchemaFinAccount.Ensure(c);
+        Assert.AreEqual(id1,((string)SchemaSql.Scalar(c,null,"SELECT lower(id) FROM fin_account WHERE code='1'")!).ToLowerInvariant());
+        Assert.AreEqual(7,Guid.Parse(id1).Version);
+        Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_postable=1")!)>0);
+        Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_postable=0")!)>0);
+        foreach(string code in RequiredDesignCodes)
+            Assert.AreEqual(1L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code=@code",("@code",code))!),code);
+        Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT is_postable FROM fin_account WHERE code='5268'")!));
+        Assert.AreEqual(6L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code LIKE '52680%' AND is_postable=1")!));
+    }
+
+    [TestMethod]
+    public void SeededIdsAreGuidVersion7()
+    {
+        using var c=Open();
+        using var cmd=c.CreateCommand();
+        cmd.CommandText="SELECT id FROM fin_account";
+        using var r=cmd.ExecuteReader();
+        int n=0;
+        while(r.Read())
+        {
+            string raw=r.GetString(0);
+            Assert.AreEqual(7,Guid.Parse(raw).Version,raw);
+            n++;
+        }
+        Assert.AreEqual(SchemaFinAccount.ExpectedSeedCount(),n);
+    }
+
+    [TestMethod]
+    public void CodeUniqueNatureAndPostableChecksRejectBadRows()
+    {
+        using var c=Open();
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at) VALUES(@id,@code,@name,1,1,0,1,1,0,1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code","1"),("@name","dup")),
+            "UQ_fin_account_code",sqliteToken:"fin_account.code");
+        SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+            "INSERT INTO fin_account(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at) VALUES(@id,@code,@name,1,@nature,0,1,1,0,1,datetime('now'))",
+            ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code","999901"),("@name","x"),("@nature",9)),
+            "CK_fin_account_nature");
+    }
+
+    [TestMethod]
+    public void SqlServerConstraintNamesMatchSqlite()
+    {
+        if(!TrySql(out var builder,out var admin))return;
+        string db="GateFinAccCk_"+Guid.NewGuid().ToString("N");
+        string dir=Path.Combine(Path.GetTempPath(),db);Directory.CreateDirectory(dir);
+        using(var q=admin.CreateCommand()){q.CommandText="CREATE DATABASE ["+db+"]";q.ExecuteNonQuery();}
+        builder.InitialCatalog=db;
+        try
+        {
+            var store=new Store(dir,builder.ToString());
+            store.Read(c=>{
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+                    "INSERT INTO fin.account(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at) VALUES(@id,@code,@name,1,1,0,1,1,0,1,SYSUTCDATETIME())",
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code","1"),("@name","dup")),
+                    "UQ_fin_account_code");
+                SchemaConstraintAssert.ThrowsNamed(()=>SchemaSql.Exec(c,null,
+                    "INSERT INTO fin.account(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at) VALUES(@id,@code,@name,1,@nature,0,1,1,0,1,SYSUTCDATETIME())",
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code","999901"),("@name","x"),("@nature",9)),
+                    "CK_fin_account_nature");
+                return true;
+            });
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            using(var q=admin.CreateCommand()){q.CommandText="ALTER DATABASE ["+db+"] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ["+db+"]";q.ExecuteNonQuery();}
+            if(Directory.Exists(dir))Directory.Delete(dir,true);admin.Dispose();
+        }
+    }
+
+    [TestMethod]
+    public void StoreStartupSeedsTargetChartWithoutTouchingLegacyRecords()
+    {
+        string dir=Path.Combine(Path.GetTempPath(),"gate-fin-acc-"+Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store=new Store(dir);
+            Assert.IsTrue(store.DataPreservationVerified);
+            store.Read(c=>{
+                Assert.AreEqual(SchemaFinAccount.ExpectedSeedCount(),Convert.ToInt32(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account")!));
+                Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM records WHERE kind IN ('journal','account')")!));
+                return true;
+            });
+        }
+        finally{SqliteConnection.ClearAllPools();if(Directory.Exists(dir))Directory.Delete(dir,true);}
+    }
+
+    [TestMethod]
+    public void SqlServerFreshRepeatAndUniqueCode()
+    {
+        if(!TrySql(out var builder,out var admin))return;
+        string db="GateFinAcc_"+Guid.NewGuid().ToString("N");
+        string dir=Path.Combine(Path.GetTempPath(),db);Directory.CreateDirectory(dir);
+        using(var q=admin.CreateCommand()){q.CommandText="CREATE DATABASE ["+db+"]";q.ExecuteNonQuery();}
+        builder.InitialCatalog=db;
+        try
+        {
+            var first=new Store(dir,builder.ToString());
+            var second=new Store(dir,builder.ToString());
+            Assert.IsTrue(first.DataPreservationVerified);Assert.IsTrue(second.DataPreservationVerified);
+            first.Read(c=>{
+                Assert.AreEqual(SchemaFinAccount.ExpectedSeedCount(),Convert.ToInt32(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin.account")!));
+                Assert.ThrowsExactly<SqlException>(()=>SchemaSql.Exec(c,null,
+                    "INSERT INTO fin.account(id,code,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at) VALUES(@id,'1',N'dup',1,1,0,1,1,0,1,SYSUTCDATETIME())",
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId()))));
+                return true;
+            });
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            using(var q=admin.CreateCommand()){q.CommandText="ALTER DATABASE ["+db+"] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE ["+db+"]";q.ExecuteNonQuery();}
+            if(Directory.Exists(dir))Directory.Delete(dir,true);admin.Dispose();
+        }
+    }
+
+    static bool TrySql(out SqlConnectionStringBuilder builder,out SqlConnection admin)
+    {
+        builder=new SqlConnectionStringBuilder();admin=null!;
+        string? configured=Environment.GetEnvironmentVariable("PAYROLL_TEST_SQL_CONNECTION");
+        if(string.IsNullOrWhiteSpace(configured)){Assert.Inconclusive("Explicit isolated loopback SQL required.");return false;}
+        builder=new SqlConnectionStringBuilder(configured);
+        Assert.IsTrue(Regex.IsMatch(builder.DataSource,@"^(tcp:)?(localhost|127\.0\.0\.1)(,[0-9]+)?$",RegexOptions.IgnoreCase));
+        builder.InitialCatalog="master";admin=new SqlConnection(builder.ToString());admin.Open();return true;
+    }
+}
