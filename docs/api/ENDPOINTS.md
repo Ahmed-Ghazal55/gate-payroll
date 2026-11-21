@@ -341,6 +341,15 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/finance/treasury/summary` | Payroll.Api/TreasurySummary.cs:47 | treasury.view | web | keep |
 | GET | `/api/payments/documents` | Payroll.Api/PaymentsApi.cs:26 | see AccessPolicy + handler | web | keep |
 | GET | `/api/payments/documents/{id}` | Payroll.Api/PaymentsApi.cs:29 | see AccessPolicy + handler | web | keep |
+| GET | `/api/payments/due-calendar` | Payroll.Api/PaymentsApi.cs:53 | see AccessPolicy + handler | none | keep |
+| GET | `/api/payments/finance-contracts` | Payroll.Api/PaymentsApi.cs:49 | see AccessPolicy + handler | none | keep |
+| GET | `/api/payments/finance-contracts/{id}/schedule` | Payroll.Api/PaymentsApi.cs:51 | see AccessPolicy + handler | none | keep |
+| GET | `/api/payments/financiers` | Payroll.Api/PaymentsApi.cs:43 | see AccessPolicy + handler | none | keep |
+| GET | `/api/payments/leases` | Payroll.Api/PaymentsApi.cs:45 | see AccessPolicy + handler | none | keep |
+| GET | `/api/payments/leases/{id}/schedule` | Payroll.Api/PaymentsApi.cs:47 | see AccessPolicy + handler | none | keep |
+| GET | `/api/payments/properties` | Payroll.Api/PaymentsApi.cs:41 | see AccessPolicy + handler | none | keep |
+| GET | `/api/payments/suppliers` | Payroll.Api/PaymentsApi.cs:38 | see AccessPolicy + handler | none | keep |
+| GET | `/api/payments/suppliers/{id}/ledger` | Payroll.Api/PaymentsApi.cs:40 | see AccessPolicy + handler | none | keep |
 | GET | `/api/payments/vouchers/{id}` | Payroll.Api/PaymentsApi.cs:34 | see AccessPolicy + handler | web | keep |
 | POST | `/api/finance/bank-file/export` | Payroll.Api/BankPayrollFiles.cs:257 | finance.bankfile.export + payroll.view | web | keep |
 | POST | `/api/finance/bank-file/preview` | Payroll.Api/BankPayrollFiles.cs:256 | finance.bankfile.export + payroll.view | web | keep |
@@ -361,12 +370,19 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/finance/opening/commit` | Payroll.Api/TreasuryEntries.cs:78 | treasury.opening | web | keep |
 | POST | `/api/finance/opening/preview` | Payroll.Api/TreasuryEntries.cs:64 | treasury.opening | web | keep |
 | POST | `/api/finance/vault-transfer` | Payroll.Api/FinancialCore.cs:677 | treasury.transfer | web | keep |
+| POST | `/api/payments/contracts/{kind}/{id}/archive` | Payroll.Api/PaymentsApi.cs:52 | see AccessPolicy + handler | none | keep |
 | POST | `/api/payments/documents` | Payroll.Api/PaymentsApi.cs:27 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/documents/{id}/approve` | Payroll.Api/PaymentsApi.cs:31 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/documents/{id}/cancel` | Payroll.Api/PaymentsApi.cs:32 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/documents/{id}/payment-requests` | Payroll.Api/PaymentsApi.cs:33 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/documents/{id}/submit` | Payroll.Api/PaymentsApi.cs:30 | see AccessPolicy + handler | web | keep |
+| POST | `/api/payments/finance-contracts` | Payroll.Api/PaymentsApi.cs:50 | see AccessPolicy + handler | none | keep |
+| POST | `/api/payments/financiers` | Payroll.Api/PaymentsApi.cs:44 | see AccessPolicy + handler | none | keep |
+| POST | `/api/payments/leases` | Payroll.Api/PaymentsApi.cs:46 | see AccessPolicy + handler | none | keep |
+| POST | `/api/payments/leases/{id}/recognize` | Payroll.Api/PaymentsApi.cs:48 | see AccessPolicy + handler | none | keep |
+| POST | `/api/payments/properties` | Payroll.Api/PaymentsApi.cs:42 | see AccessPolicy + handler | none | keep |
 | POST | `/api/payments/quick` | Payroll.Api/PaymentsApi.cs:37 | see AccessPolicy + handler | web | keep |
+| POST | `/api/payments/suppliers` | Payroll.Api/PaymentsApi.cs:39 | see AccessPolicy + handler | none | keep |
 | POST | `/api/payments/vouchers/{id}/cancel` | Payroll.Api/PaymentsApi.cs:36 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/vouchers/{id}/pay` | Payroll.Api/PaymentsApi.cs:35 | see AccessPolicy + handler | web | keep |
 | PUT | `/api/payments/documents/{id}` | Payroll.Api/PaymentsApi.cs:28 | see AccessPolicy + handler | web | keep |
