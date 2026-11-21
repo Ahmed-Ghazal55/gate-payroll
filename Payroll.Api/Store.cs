@@ -56,6 +56,7 @@ public sealed partial class Store
             SchemaRef.EnsureLegacyAccountMapAfterCompany(conn,tx);
             SchemaOrgCostCentre.Ensure(conn,tx);
             SchemaAuthCatalog.Ensure(conn,tx);
+            SchemaOrgStructure.Ensure(conn,tx);
             SchemaFormApp.Ensure(conn,tx);
             SchemaFinAccount.Ensure(conn,tx);
             SchemaFinPeriod.Ensure(conn,tx);
