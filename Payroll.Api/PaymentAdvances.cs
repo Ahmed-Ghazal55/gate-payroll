@@ -17,7 +17,7 @@ public static class PaymentAdvances
         string type=input.Required("advanceType");J.Need(type is "cash" or "bank" or "internet" or "hs_topup","نوع السلفة غير صالح.");
         string companyId=PaymentsEngine.Id(input.Required("companyId"));
         string platform=PaymentDocuments.DemandPlatformAttribution(c,tx,actor,companyId,employee,account);
-        DemandNoOpenAdvance(c,tx,actor,iqama,employee,input.S("idempotencyKey"));
+        DemandNoOpenAdvance(c,tx,actor,iqama,employee,input.S("idempotencyKey"),companyId);
         decimal amount=PaymentsEngine.Money(input,"amount");string fulfilment=input.S("fulfilment",type);J.Need(type!="internet"||fulfilment is "cash" or "bank" or "recharge_card","طريقة تسليم سلفة الإنترنت غير صالحة.");
         if(fulfilment=="recharge_card")
         {
@@ -46,7 +46,7 @@ public static class PaymentAdvances
     }
     internal static string PayoutOp(string accountCode)=>accountCode=="112404"?AdvanceRequests.Mada:accountCode;
     /// <summary>BR §25.3: one open advance per rider across legacy and payment-engine routes.</summary>
-    public static void DemandNoOpenAdvance(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string iqama,string erpEmployeeId,string? idempotencyKey=null)
+    public static void DemandNoOpenAdvance(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string iqama,string erpEmployeeId,string? idempotencyKey=null,string? companyId=null)
     {
         J.Need(!Store.List(c,AdvanceRequests.Kind,tx).Any(r=>r.S("riderIqama")==iqama&&r.S("status") is not ("rejected" or "cancelled" or "paid")),"للمندوب طلب سلفة مفتوح بالفعل.",409);
         if(erpEmployeeId=="")return;
@@ -55,7 +55,10 @@ public static class PaymentAdvances
         if(prior==null)return;
         if(idempotencyKey is {Length:>0})
         {
-            var old=PaymentsEngine.Get(c,tx,actor,prior.S("id"));J.Need(old["metadata"].S("idempotencyKey")==idempotencyKey,"للمندوب طلب سلفة مفتوح بالفعل.",409);
+            // RWP1c: same-key retry stays on the original company/document only.
+            var old=PaymentsEngine.Get(c,tx,actor,prior.S("id"));
+            J.Need(old["metadata"].S("idempotencyKey")==idempotencyKey,"للمندوب طلب سلفة مفتوح بالفعل.",409);
+            J.Need(companyId is null||old.S("companyId")==companyId,"للمندوب طلب سلفة مفتوح بالفعل.",409);
             return;
         }
         throw new ApiError("للمندوب طلب سلفة مفتوح بالفعل.",409);

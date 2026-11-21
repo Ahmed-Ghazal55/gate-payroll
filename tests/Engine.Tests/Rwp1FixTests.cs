@@ -117,6 +117,32 @@ public sealed class Rwp1FixTests
     }
 
     [TestMethod][DataRow(false)][DataRow(true)]
+    public void Row5c_SameAdvanceKeyAcrossCompaniesKeepsOneOpen(bool sql)
+    {
+        using var f=new PaymentsEngineTests.Fixture(sql);
+        string employee=Guid.NewGuid().ToString("D"),platformA=Guid.NewGuid().ToString("D"),platformB=Guid.NewGuid().ToString("D"),companyB=FinancialCore.Sponsors[1].Id,key="synthetic-retry-key-rwp1c";
+        f.Store.Write((c,tx)=>
+        {
+            SchemaSql.Exec(c,tx,$"INSERT INTO {SchemaSql.Q(c,"hr","company")}(id,code,unified_number,name_ar,status,created_at) VALUES(@id,'EX','7034861059','شركة إكسبرس',1,{SchemaSql.NowLiteral(c)})",("@id",companyB));
+            SchemaSql.Exec(c,tx,$"INSERT INTO {SchemaSql.Q(c,"fin","accounting_period")}(id,company_id,period_month,state,created_at) VALUES(@id,@c,'2026-11-01',1,{SchemaSql.NowLiteral(c)})",("@id",MoneySchemaFixture.Id()),("@c",companyB));
+            Store.Save(c,"rider",new(){["id"]=Rider,["iqama"]=Rider,["name"]="Synthetic Cross Key",["sponsorId"]=f.Company,["financeSponsorId"]="BW",["erpId"]=employee},tx);
+            Store.Save(c,"platform_account",new(){["id"]=platformA,["companyId"]=f.Company,["sponsorId"]=f.Company,["platformCode"]="ninja",["registeredEmployeeId"]=employee},tx);
+            Store.Save(c,"platform_account",new(){["id"]=platformB,["companyId"]=companyB,["sponsorId"]=companyB,["platformCode"]="ninja",["registeredEmployeeId"]=employee},tx);
+            OrgDirectory.AddSupervision(c,tx,f.Maker,new(){["supervisorUserId"]="wp-maker",["riderIqama"]=Rider,["validFrom"]="2026-01-01"});
+            return true;
+        });
+        var first=f.Store.Write((c,tx)=>PaymentAdvances.Create(c,tx,f.Maker,new(){["idempotencyKey"]=key,["companyId"]=f.Company,["period"]="2026-11",["occurredOn"]="2026-11-05",["dueOn"]="2026-11-15",["reference"]="SYN-KEY-A",["riderIqama"]=Rider,["erpEmployeeId"]=employee,["erpPlatformAccountId"]=platformA,["advanceType"]="cash",["amount"]=45m}));
+        Assert.AreEqual(45m,first.N("amount"));
+        Assert.AreEqual(f.Company,first.S("companyId"));
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PaymentAdvances.Create(c,tx,f.Maker,new(){["idempotencyKey"]=key,["companyId"]=companyB,["period"]="2026-11",["occurredOn"]="2026-11-05",["dueOn"]="2026-11-15",["reference"]="SYN-KEY-B",["riderIqama"]=Rider,["erpEmployeeId"]=employee,["erpPlatformAccountId"]=platformB,["advanceType"]="cash",["amount"]=45m}))).Status);
+        Assert.AreEqual(1L,f.Scalar("SELECT COUNT(*) FROM pay_advance_request"));
+        Assert.AreEqual(1L,f.Scalar("SELECT COUNT(*) FROM pay_document WHERE type='advance' AND status IN (1,2,3)"));
+        var retry=f.Store.Write((c,tx)=>PaymentAdvances.Create(c,tx,f.Maker,new(){["idempotencyKey"]=key,["companyId"]=f.Company,["period"]="2026-11",["occurredOn"]="2026-11-05",["dueOn"]="2026-11-15",["reference"]="SYN-KEY-A",["riderIqama"]=Rider,["erpEmployeeId"]=employee,["erpPlatformAccountId"]=platformA,["advanceType"]="cash",["amount"]=45m}));
+        Assert.AreEqual(first.S("id"),retry.S("id"));
+        Assert.AreEqual(45m,retry.N("amount"));
+    }
+
+    [TestMethod][DataRow(false)][DataRow(true)]
     public void Row6_WalletMetadataOnlyFromAuthorizedFundingDebit(bool sql)
     {
         using var f=new PaymentsEngineTests.Fixture(sql);
