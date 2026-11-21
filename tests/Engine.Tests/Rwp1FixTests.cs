@@ -117,6 +117,38 @@ public sealed class Rwp1FixTests
     }
 
     [TestMethod][DataRow(false)][DataRow(true)]
+    public void Row4d_IdempotentCreateReplayChecksSavedDocumentPlatformScope(bool sql)
+    {
+        // RWP1d Finding 4: same original body after platform access is revoked must Scope the saved doc (404), not return it.
+        // Exact numbers from Codex counterexample: amount 65, stored platform Ninja, actor platforms={Keeta}.
+        using var f=new PaymentsEngineTests.Fixture(sql);
+        string employee=Guid.NewGuid().ToString("D"),platform=Guid.NewGuid().ToString("D"),key="synthetic-key-rwp1d-replay";
+        f.Store.Write((c,tx)=>
+        {
+            SchemaSql.Exec(c,tx,$"INSERT INTO {SchemaSql.Q(c,"hr","company")}(id,code,unified_number,name_ar,status,created_at) VALUES(@id,'BW','7015658094','شركة البوابة',1,{SchemaSql.NowLiteral(c)})",("@id",Bw));
+            SchemaSql.Exec(c,tx,$"INSERT INTO {SchemaSql.Q(c,"fin","accounting_period")}(id,company_id,period_month,state,created_at) VALUES(@id,@c,'2026-11-01',1,{SchemaSql.NowLiteral(c)})",("@id",MoneySchemaFixture.Id()),("@c",Bw));
+            Store.Save(c,"platform_account",new(){["id"]=platform,["companyId"]=Bw,["sponsorId"]=Bw,["platformCode"]="ninja",["registeredEmployeeId"]=employee,["assignments"]=new JsonArray(new JsonObject{["riderId"]=employee})},tx);
+            return true;
+        });
+        var body=new JsonObject{["type"]="expense",["companyId"]=Bw,["idempotencyKey"]=key,["period"]="2026-11",["occurredOn"]="2026-11-05",["dueOn"]="2026-11-15",["reference"]="SYN-REPLAY",["lines"]=new JsonArray(new JsonObject{["accountCode"]="112501",["amount"]=65m,["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),["erpRiderId"]=employee,["erpPlatformAccountId"]=platform})};
+        var created=f.Store.Write((c,tx)=>PaymentsEngine.Create(c,tx,f.Maker,body.DeepClone().AsObject()));
+        Assert.AreEqual(65m,created.N("amount"));
+        Assert.AreEqual("Ninja",created.S("platform"));
+        Assert.AreEqual(created.S("id"),f.Store.Write((c,tx)=>PaymentsEngine.Create(c,tx,f.Maker,body.DeepClone().AsObject())).S("id"));
+        var restricted=UserAccess.Principal(new JsonObject
+        {
+            ["username"]="wp-keeta-only",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=4,
+            ["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray("BW"),["accountCodes"]=new JsonArray(),["platforms"]=new JsonArray("Keeta"),["categoryCodes"]=new JsonArray()},
+            ["customPermissions"]=new JsonArray("payments.disburse","payments.view")
+        });
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="wp-keeta-only",["username"]="wp-keeta-only",["role"]="FinancialAccountant"},tx);return true;});
+        Assert.AreEqual(404,Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>PaymentsEngine.Get(c,null,restricted,created.S("id")))).Status);
+        Assert.AreEqual(404,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PaymentsEngine.Create(c,tx,restricted,body.DeepClone().AsObject()))).Status);
+        Assert.AreEqual(1L,f.Scalar("SELECT COUNT(*) FROM pay_document WHERE idempotency_key='"+key+"'"));
+        Assert.AreEqual(65m,Convert.ToDecimal(f.Scalar("SELECT amount FROM pay_document WHERE idempotency_key='"+key+"'")));
+    }
+
+    [TestMethod][DataRow(false)][DataRow(true)]
     public void Row5c_SameAdvanceKeyAcrossCompaniesKeepsOneOpen(bool sql)
     {
         using var f=new PaymentsEngineTests.Fixture(sql);

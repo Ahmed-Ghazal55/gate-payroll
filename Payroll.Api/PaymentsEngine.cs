@@ -80,7 +80,8 @@ public static partial class PaymentsEngine
         string company=Id(input.Required("companyId")),key=Text(input,"idempotencyKey"),hash=Hash(input);
         var scope=new JsonObject{["companyId"]=company,["platform"]=input.S("platform")};Scope(actor,scope);
         object? old=SchemaSql.Scalar(c,tx,$"SELECT id FROM {Q(c,"document")} WHERE company_id=@c AND idempotency_key=@k",("@c",company),("@k",key));
-        if(old!=null){var prior=Raw(c,tx,old.ToString()!);J.Need(prior.S("contentHash")==hash,"مفتاح العملية مستخدم بمحتوى مختلف.",409);return Actions(c,tx,actor,prior);}
+        // RWP1d: replay must Scope the saved document (resolved platform), not only the request body.
+        if(old!=null){var prior=Raw(c,tx,old.ToString()!);J.Need(prior.S("contentHash")==hash,"مفتاح العملية مستخدم بمحتوى مختلف.",409);Scope(actor,prior);return Actions(c,tx,actor,prior);}
         string month=J.Period(input.Required("period"))+"-01",occurred=Day(input.Required("occurredOn")),due=Day(input.Required("dueOn")),reference=Text(input,"reference");
         J.Need(occurred[..7]==month[..7],"تاريخ المستند خارج شهر الفترة.");
         J.Need(input.N("runMode") is 0 or 1,"وضع التشغيل غير صالح.");
