@@ -366,7 +366,11 @@ public static class FinancialCore
             var l = node!.AsObject();
             JsonObject canonical;
             if(l.B("closingLegacyGroup")){LegacyCashAllocation.ValidateClosing(c,tx,l,transactionType);canonical=l;}
-            else canonical=CreateJournalLine(l.Required("accountCode"),l.Required("sponsorId"),l.N("debit"),l.N("credit"),targetChart:targetChart,payChart:payChart);
+            else
+            {
+                ChartOfAccountsApi.DemandPostable(c,tx,l.Required("accountCode"));
+                canonical=CreateJournalLine(l.Required("accountCode"),l.Required("sponsorId"),l.N("debit"),l.N("credit"),targetChart:targetChart,payChart:payChart);
+            }
             J.Need(canonical.N("debit")==l.N("debit")&&canonical.N("credit")==l.N("credit"),"مبلغ القيد يحتاج تصحيح دقة الهللة.");
             l["lineNo"] = idx++;
             totalDebit = J.Money(totalDebit + l.N("debit"));

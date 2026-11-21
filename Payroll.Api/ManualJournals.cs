@@ -26,12 +26,12 @@ public static class ManualJournals
     {AccessPolicy.Demand(actor,permission);FinancialScopes.DemandSponsor(actor,draft.S("companyId"));foreach(var line in draft["lines"]!.AsArray().OfType<JsonObject>())J.Need(FinancialScopes.TargetAccount(actor,draft.S("companyId"),line.S("accountCode")),"الحساب خارج النطاق المالي.",403);}
     static JsonObject Get(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id,string permission)
     {var draft=Store.Get(c,id,Kind,tx)??throw new ApiError("القيد اليدوي غير موجود.",404);Scope(actor,draft,permission);return draft;}
-    static JsonArray ValidateLines(ClaimsPrincipal actor,string company,JsonArray source)
+    static JsonArray ValidateLines(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string company,JsonArray source)
     {
         J.Need(source.Count is >=2 and <=200,"القيد من2إلى200سطر.");var lines=new JsonArray();
         foreach(var item in source)
         {
-            var line=item as JsonObject??throw new ApiError("سطر غير صالح.");PayValues.Fields(line,"accountCode","debit","credit","note");string code=PayPlatforms.Active(line.Required("accountCode"));
+            var line=item as JsonObject??throw new ApiError("سطر غير صالح.");PayValues.Fields(line,"accountCode","debit","credit","note");string code=PayPlatforms.Active(c,tx,line.Required("accountCode"));
             J.Need(FinancialScopes.TargetAccount(actor,company,code),"الحساب خارج النطاق المالي.",403);
             J.Need(line.S("note").Length<=1000,"ملاحظة السطر أطول من الحد.");
             var canonical=FinancialCore.CreateJournalLine(code,company,line.N("debit"),line.N("credit"),line.S("note"),targetChart:true,payChart:true);canonical["manual"]=true;lines.Add(canonical);
@@ -49,7 +49,7 @@ public static class ManualJournals
         AccessPolicy.Demand(actor,CreatePermission);PayValues.Fields(input,"companyId","date","reference","description","lines","attachment","odooVoucherNo");
         string company=FinancialCore.ResolveSponsor(input.Required("companyId")).Id,date=Date(input.Required("date")),reference=input.Required("reference"),description=input.Required("description");FinancialScopes.DemandSponsor(actor,company);Open(c,tx,company,date[..7]);
         J.Need(reference.Length<=200&&description.Length<=1000,"المرجع أو البيان أطول من الحد.");J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("companyId")==company&&d.S("reference")==reference),"مرجع القيد اليدوي مكرر.");
-        var lines=ValidateLines(actor,company,input["lines"] as JsonArray??throw new ApiError("سطور القيد مطلوبة."));
+        var lines=ValidateLines(c,tx,actor,company,input["lines"] as JsonArray??throw new ApiError("سطور القيد مطلوبة."));
         var draft=new JsonObject{["id"]="manual-journal:"+Guid.NewGuid().ToString("N"),["companyId"]=company,["date"]=date,["period"]=date[..7],["reference"]=reference,["description"]=description,["lines"]=lines,["status"]="draft",["createdBy"]=actor.Identity!.Name,["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["attachmentId"]=Attachment(c,tx,actor,company,input["attachment"]),["odooVoucherNo"]=input.S("odooVoucherNo")};
         Store.Save(c,Kind,draft,tx);Store.Audit(c,tx,"finance.manual_drafted",draft.S("id"),actor.Identity!.Name!);return draft;
     }
