@@ -79,7 +79,18 @@ public sealed class SchemaDebtTests
         MoneySchemaFixture.Reject(()=>Apply("collection",receipt,-20),"Money row replacement is forbidden");
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET debt_confirm_status='confirmed',old_debt_instalment=20 WHERE id=@id",("@id",rider));
         Apply("salary_deduction",MoneySchemaFixture.Id(),-10,rider);Apply("salary_deduction",MoneySchemaFixture.Id(),-10,rider);
-        MoneySchemaFixture.Reject(()=>Apply("salary_deduction",MoneySchemaFixture.Id(),-1,rider),"Debt deductions exceed confirmed instalment");
+        MoneySchemaFixture.Reject(()=>Apply("salary_deduction",MoneySchemaFixture.Id(),-1,rider),"Debt deductions exceed net or instalment");
         Assert.AreEqual(60m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,null,"SELECT balance FROM debt_debt WHERE id=@id",("@id",debt))));
+    }
+    [TestMethod,DataRow(false),DataRow(true)]
+    public void SalaryDeductionsCannotExceedPositiveNetEvenWhenInstalmentIsHigher(bool sqlServer)
+    {
+        using var c=Open(sqlServer);
+        string company=MoneySchemaFixture.Company(c),run=MoneySchemaFixture.Run(c,company),rider=MoneySchemaFixture.Rider(c,run,company,net:15),debt=Debt(c,company,rider:rider);
+        Move(c,company,debt,100);
+        MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run_rider SET debt_confirm_status='confirmed',old_debt_instalment=20 WHERE id=@id",("@id",rider));
+        void Apply(decimal amount)=>MoneySchemaFixture.Exec(c,null,"INSERT INTO debt_debt_movement(id,debt_id,company_id,period_month,occurred_on,amount,source_type,source_id,pay_run_rider_id,pay_run_period_month) VALUES(@id,@d,@c,'2026-11-01','2026-11-20',@a,'salary_deduction',@id,@r,'2026-11-01')",("@id",MoneySchemaFixture.Id()),("@d",debt),("@c",company),("@a",amount),("@r",rider));
+        Apply(-10);
+        MoneySchemaFixture.Reject(()=>Apply(-6),"Debt deductions exceed net or instalment");
     }
 }
