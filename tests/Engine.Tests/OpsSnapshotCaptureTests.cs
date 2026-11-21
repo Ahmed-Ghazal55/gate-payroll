@@ -189,4 +189,57 @@ public sealed class OpsSnapshotCaptureTests
         Assert.IsInstanceOfType<LiveOpsLiveFactsReader>(reader);
         Assert.IsTrue(reader.ConfirmsLiveRead);
     }
+
+    [TestMethod]
+    public void SchemeAndEligibility_ComeFromApprovedPaySettings_NotHardCodedEmpty()
+    {
+        using var f=new PayFixture();
+        var rules=f.Draft("pay_eligibility","hs",PayFixture.Eligibility(),"elig");
+        f.Approve("pay_eligibility","hs",rules);
+        var scheme=f.Draft("pay_scheme","hs",PayFixture.Scheme(rules:rules.S("id")),"commission");
+        f.Approve("pay_scheme","hs",scheme);
+        string rider=MoneySchemaFixture.Id(),company=MoneySchemaFixture.Id();
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic",["isDeliveryRider"]=true,["sponsorId"]=company,["status"]="Active"},tx);
+            Store.Save(c,"pay_assignment",new(){["id"]=MoneySchemaFixture.Id(),["rider"]=rider,["app"]="hs",["period"]="2026-10",["status"]="approved",["schemeId"]=scheme.S("id"),["choiceApprovedAt"]="2026-09-29T00:00:00.0000000+00:00"},tx);
+            return true;
+        });
+        var reader=new LiveOpsLiveFactsReader((Func<Microsoft.Data.SqlClient.SqlConnection?>)(()=>null),f.Store);
+        var schemeRows=reader.RowsFor("scheme",company,"hs","2026-10-01").ToList();
+        Assert.AreEqual(1,schemeRows.Count);
+        Assert.AreEqual(rider,schemeRows[0].S("erpRiderId"));
+        Assert.AreNotEqual("",schemeRows[0].S("schemeCode"));
+        Assert.AreEqual("pay_settings",schemeRows[0].S("source"));
+        var eligibilityRows=reader.RowsFor("eligibility",company,"hs","2026-10-01").ToList();
+        Assert.AreEqual(1,eligibilityRows.Count);
+        Assert.AreEqual(rider,eligibilityRows[0].S("erpRiderId"));
+        Assert.AreEqual("pay_settings",eligibilityRows[0].S("source"));
+    }
+
+    [TestMethod]
+    public void NormalizeFuel_MonthTotal310_DoesNotFabricateDayDates_SetsMonthOnlyFlag()
+    {
+        var source=new JsonObject{["id"]="fuel1",["riderProfileId"]="R1",["reportMonth"]="2026-10-01",["totalInclVat"]=310};
+        var normalized=LiveOpsLiveFactsReader.NormalizeFuelRow(source);
+        Assert.AreEqual(310m,normalized.N("totalInclVat"));
+        Assert.AreEqual("2026-10-01",normalized.S("month",normalized.S("reportMonth")));
+        Assert.IsTrue(normalized.B("monthOnly"));
+        Assert.AreEqual("",normalized.S("effectiveFrom"));
+        Assert.AreEqual("",normalized.S("effectiveTo"));
+        var needDays=Assert.ThrowsExactly<ApiError>(()=>LiveOpsLiveFactsReader.DemandDayPeriodsIfRequired(normalized,needsDays:true));
+        StringAssert.Contains(needDays.Message,"شهر");
+    }
+
+    [TestMethod]
+    public void AllPages_Source600_WithServerCap200_CapturesAll600()
+    {
+        var captured=LiveOpsLiveFactsReader.CollectAllPages((page,size)=>{
+            int actualSize=Math.Min(size,200);
+            int remaining=Math.Max(0,600-(page-1)*actualSize);
+            int count=Math.Min(actualSize,remaining);
+            var rows=Enumerable.Range(0,count).Select(_=>new JsonObject()).ToList();
+            return (rows,600L);
+        }).ToList();
+        Assert.AreEqual(600,captured.Count);
+    }
 }
