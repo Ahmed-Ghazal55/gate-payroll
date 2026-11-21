@@ -22512,6 +22512,120 @@
           }
         }
       }
+    },
+    "/api/advance-requests/{id}/request-payout": {
+      "post": {
+        "tags": [
+          "Debts and advances"
+        ],
+        "summary": "Open two-person dual approval before advance payout",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/shared-riders/{rider}/{period}/request-release": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Open two-person dual approval to release a held shared rider",
+        "parameters": [
+          {
+            "name": "rider",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "rider",
+                    "period",
+                    "status",
+                    "labelAr",
+                    "combinedNet"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "rider": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "labelAr": {
+                      "type": "string"
+                    },
+                    "missingApps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "object"
+                    },
+                    "combinedNet": {
+                      "type": "number"
+                    },
+                    "released": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
     }
   },
   "components": {

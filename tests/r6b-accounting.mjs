@@ -20,7 +20,8 @@ try{
  child=spawn('dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,ConnectionStrings__DefaultConnection:'',Jobs__Enabled:'false',Vouchers__Secret:randomBytes(32).toString('hex'),PAYROLL_DATA_DIR:data},stdio:'ignore'});
  let ready=false;for(let i=0;i<150;i++){if(child.exitCode!==null)throw Error('Synthetic API exited');try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}assert.ok(ready);
  const password=randomBytes(24).toString('hex');await call('admin','/api/auth/setup',{username:'syn-r6b-admin',password});
- await call('admin','/api/users',{username:'syn-r6b-checker',password,role:'FinancialAccountant',customPermissions:['advances.payout']});await call('checker','/api/auth/login',{username:'syn-r6b-checker',password});
+ await call('admin','/api/users',{username:'syn-r6b-checker',password,role:'FinancialAccountant',customPermissions:['advances.payout','approvals.dual.payment_out','approvals.decide','approvals.view'],department:'FIN',rankLevel:5});await call('checker','/api/auth/login',{username:'syn-r6b-checker',password});
+ await call('admin','/api/users',{username:'syn-r6b-dual',password,role:'Admin',department:'FIN',rankLevel:5});await call('dual','/api/auth/login',{username:'syn-r6b-dual',password});
  const companies=await call('admin','/api/companies');const company=companies[0].id;
  const db=new DatabaseSync(path.join(data,'payroll.db'));const put=(kind,row)=>db.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?)').run(row.id,kind,JSON.stringify(row));
  put('platform_account',{id:'synthetic-ninja-platform',companyId:company,platformCode:'ninja'});put('ninja_account',{id:'synthetic-ninja-account',platformAccountId:'synthetic-ninja-platform',CaptainId:'SYN-A'});db.close();
@@ -65,6 +66,8 @@ sys.stdout.buffer.write(out.getvalue())
  await call('admin',`/api/finance/accounting-adjustments/${encodeURIComponent(topup.id)}/approve`,{},403);
  await call('checker',`/api/finance/accounting-adjustments/${encodeURIComponent(topup.id)}/approve`,{});
  assert.equal((await call('checker','/api/finance/mada/balance?companyId='+company)).balance,250);
+ const dualReq=await call('checker','/api/advance-requests/synthetic-internet-request/request-payout',{});assert.equal(dualReq.status,'pending');assert.equal(dualReq.kind,'advance_payout');
+ await call('dual',`/api/approvals/${dualReq.id}/decide`,{decision:'approve',note:'independent dual'});
  const internet=await call('checker','/api/advance-requests/synthetic-internet-request/payout',{reference:'SYNTHETIC-CARD-RECEIPT'});assert.equal(internet.status,'paid');assert.ok(internet.payoutVoucherNo.startsWith('PV-'));
  assert.equal((await call('checker','/api/finance/mada/balance?companyId='+company)).balance,150);
  const manual={companyId:company,date:'2026-10-20',reference:'SYNTHETIC-HTTP-MANUAL',description:'Synthetic manual operation',lines:[{accountCode:'512101',debit:25,credit:0},{accountCode:'212103',debit:0,credit:25}]};

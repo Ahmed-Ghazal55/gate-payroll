@@ -194,7 +194,8 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/pay/settings` | Payroll.Api/PaySettings.cs:95 | pay.manage; app scope; shared writes need all companies | none | keep |
 | POST | `/api/pay/settings/{id}/approve` | Payroll.Api/PaySettings.cs:96 | pay.approve + independent FIN checker; app scope; shared writes need all companies | none | keep |
 | POST | `/api/pay/settings/{id}/reject` | Payroll.Api/PaySettings.Lifecycle.cs:33 | pay.manage; app scope; shared writes need all companies | none | keep |
-| POST | `/api/pay/shared-riders/{rider}/{period}/release` | Payroll.Api/PayCycles.cs:236 | pay.manage; app scope; shared writes need all companies | none | keep |
+| POST | `/api/pay/shared-riders/{rider}/{period}/release` | Payroll.Api/PayCycles.cs:237 | pay.manage; app scope; shared writes need all companies | none | keep |
+| POST | `/api/pay/shared-riders/{rider}/{period}/request-release` | Payroll.Api/PayCycles.cs:236 | pay.manage / pay.approve; opens two-person dual | none | keep |
 | POST | `/api/payments` | Payroll.Api/Program.cs:281 | payments.record | old UI | keep |
 | POST | `/api/payroll/approve` | Payroll.Api/Program.cs:263 | payroll.approve | old UI | keep |
 | POST | `/api/policies` | Payroll.Api/Program.cs:207 | policies.manage | old UI | keep |
@@ -226,7 +227,8 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/advance-requests` | Payroll.Api/AdvanceRequests.cs:228 | advances.request | none | keep |
 | POST | `/api/advance-requests/rider-asks/{id}/convert` | Payroll.Api/RiderAsks.cs:88 | advances.payout + routed vault custodian | none | keep |
 | POST | `/api/advance-requests/rider-asks/{id}/decline` | Payroll.Api/RiderAsks.cs:90 | advances.payout + routed vault custodian | none | keep |
-| POST | `/api/advance-requests/{id}/payout` | Payroll.Api/AdvanceRequests.cs:244 | advances.payout + routed vault custodian | none | keep |
+| POST | `/api/advance-requests/{id}/payout` | Payroll.Api/AdvanceRequests.cs:245 | advances.payout + routed vault custodian + recorded dual | none | keep |
+| POST | `/api/advance-requests/{id}/request-payout` | Payroll.Api/AdvanceRequests.cs:244 | advances.payout + routed vault custodian; opens two-person dual | none | keep |
 | POST | `/api/advance-requests/{id}/respond` | Payroll.Api/AdvanceRequests.cs:243 | advances.request | none | keep |
 | POST | `/api/advance-requests/{id}/review` | Payroll.Api/AdvanceRequests.cs:242 | advances.review + routed responsible (BR §25) | none | keep |
 | POST | `/api/debts` | Payroll.Api/Debts.cs:158 | debts.create.<category> (+ treasury.opening for opening balances) | old UI | keep |
