@@ -224,7 +224,7 @@ public static partial class PayCycles
     static bool Approve(DbConnection c,DbTransaction tx,JsonObject cycle,ClaimsPrincipal actor)
     {
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=cycle.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve",c,tx,"pay.salary_approved",cycle);
-        J.Need(Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation",c,tx,cycle)),"المعتمد مستقل عن تجهيز الدورة.");
+        J.Need(Rows(cycle["history"]).OfType<JsonObject>().Where(h=>h.N("stage")<7).All(h=>AccessPolicy.Independent(actor,h.S("advancedBy"),"pay.salary_preparation",c,tx,cycle)),"المعتمد مستقل عن تجهيز الدورة.",403);
         // Shared riders stay out of the approval batch until consolidation is ready or released (§40.5).
         var heldShared=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&SharedRiderConsolidation.Held(r)&&!r.B("consolidationReady")).ToList();
         var batch=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("salaryApprovedAt")==""&&r.S("review")=="approved"&&Blockers(r).Count==0&&!(SharedRiderConsolidation.Held(r)&&!r.B("consolidationReady"))).ToList();
