@@ -86,8 +86,9 @@ public static class WorkforceApi
                 var all = full.Items.Select(r => StripSensitive(r, ctx.User)).ToList();
                 var filtered = TableFilterContract.Apply(all, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases, options: WorkforceFilterOptions);
                 long total = filtered.Count;
+                var summary = StoreSummary(filtered);
                 var paged = filtered.Skip(request.Skip).Take(request.Take).ToList();
-                return Envelope(new { items = paged, total, page = request.Page, pageSize = request.PageSize, summary = full.Summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                return Envelope(new { items = paged, total, page = request.Page, pageSize = request.PageSize, summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
             });
         return LiveRead(ctx, token =>
         {
@@ -101,13 +102,15 @@ public static class WorkforceApi
                     : WorkforceLiveQuery.Page(erp, liveReq, scope, token);
                 var items = page.Items.Select(r => StripSensitive(ApplyIbanAlert(r), ctx.User)).ToList();
                 long total = page.Total;
+                var summary = page.Summary;
                 if (hasContract)
                 {
                     items = TableFilterContract.Apply(items, ctx.Request.Query, WorkforceAllowedColumns, WorkforceColumnAliases, options: WorkforceFilterOptions);
                     total = items.Count;
+                    summary = StoreSummary(items);
                     items = items.Skip(request.Skip).Take(request.Take).ToList();
                 }
-                return Envelope(new { items, total, page = request.Page, pageSize = request.PageSize, summary = page.Summary }, Operations.SourceLive, page.AsOf, Actions(ctx.User));
+                return Envelope(new { items, total, page = request.Page, pageSize = request.PageSize, summary }, Operations.SourceLive, page.AsOf, Actions(ctx.User));
             });
         }, "workforce", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
@@ -560,7 +563,7 @@ public static class WorkforceApi
             ["sponsoredCount"] = list.Count(r => r.S("engagementType") == "SponsoredInternal"),
             ["sponsoredRiders"] = list.Count(r => r.S("engagementType") == "SponsoredInternal" && !r.B("isEmployee")),
             ["sponsoredAdmins"] = list.Count(r => r.S("engagementType") == "SponsoredInternal" && r.B("isEmployee")),
-            ["sponsoredMissingIban"] = list.Count(r => r.S("engagementType") == "SponsoredInternal" && string.IsNullOrWhiteSpace(r.S("iban"))),
+            ["sponsoredMissingIban"] = list.Count(r => r.S("engagementType") == "SponsoredInternal" && (r.S("ibanAlert").Length > 0 || (r["iban"] != null && string.IsNullOrWhiteSpace(r.S("iban"))))),
             ["byCompany"] = new JsonArray(byCompany)
         };
     }

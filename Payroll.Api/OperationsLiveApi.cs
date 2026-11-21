@@ -240,9 +240,10 @@ public static class OperationsLiveApi
         return TableFilterContract.BuildDistinct(rows, column, ctx.Request.Query, whitelist, aliases, options: OpsFilterOptions);
     }
 
-    static (IReadOnlyList<JsonObject> Items, long Total) ApplyContractAndPage(
+    static (IReadOnlyList<JsonObject> Items, long Total, JsonNode? Summary) ApplyContractAndPage(
         IReadOnlyList<JsonObject> sourceItems,
         long sourceTotal,
+        JsonNode? baseSummary,
         int page,
         int pageSize,
         IQueryCollection query,
@@ -255,18 +256,87 @@ public static class OperationsLiveApi
         var filters = TableFilterContract.ParseFilters(query, whitelist, aliases);
         var sorts = TableFilterContract.ParseSort(query, whitelist, aliases);
         if (filters.Count == 0 && sorts.Count == 0)
-            return (sourceItems, sourceTotal);
+            return (sourceItems, sourceTotal, baseSummary);
 
         var rows = sourceItems.ToList();
         if (filters.Count > 0) rows = TableFilterContract.ApplyFilters(rows, filters, options: OpsFilterOptions);
         if (sorts.Count > 0) rows = TableFilterContract.ApplySort(rows, sorts, options: OpsFilterOptions);
         long total = rows.Count;
+        var summary = filters.Count > 0 ? BuildFilteredSummary(tab, view, rows, baseSummary) : baseSummary;
         if (!alreadyPaged)
         {
             int skip = Math.Max(0, (page - 1) * pageSize);
             rows = rows.Skip(skip).Take(pageSize).ToList();
         }
-        return (rows, total);
+        return (rows, total, summary);
+    }
+
+    static JsonNode? BuildFilteredSummary(string tab, string view, IReadOnlyList<JsonObject> rows, JsonNode? baseSummary)
+    {
+        long SumLong(string key) => rows.Sum(r => (long)r.N(key));
+        decimal SumDec(string key) => rows.Sum(r => r.N(key));
+        bool AnyNonNull(string key) => rows.Any(r => r[key] != null);
+
+        return (tab, view) switch
+        {
+            ("cities", _) => new JsonObject
+            {
+                ["activeCities"] = rows.Count,
+                ["totalVehicles"] = AnyNonNull("vehiclesTotal") ? SumLong("vehiclesTotal") : (JsonNode?)null,
+                ["totalRiders"] = AnyNonNull("ridersTotal") ? SumLong("ridersTotal") : (JsonNode?)null,
+                ["platformAccountsActive"] = AnyNonNull("accountsActive") ? SumLong("accountsActive") : (JsonNode?)null,
+                ["platformAccountsAssigned"] = AnyNonNull("accountsAssigned") ? SumLong("accountsAssigned") : (JsonNode?)null
+            },
+            ("housing", _) => BuildFilteredHousingSummary(rows),
+            ("vehicles", "invoices") => new JsonObject
+            {
+                ["invoicesTotal"] = (long)rows.Count,
+                ["totalAmount"] = SumDec("totalAmount")
+            },
+            ("vehicles", "oil") => new JsonObject
+            {
+                ["oilChangesCount"] = (long)rows.Count,
+                ["oilChangesCost"] = SumDec("totalCost"),
+                ["totalLiters"] = SumDec("oilLiters")
+            },
+            ("vehicles", _) => new JsonObject
+            {
+                ["vehiclesOperating"] = (long)rows.Count,
+                ["totalOperatingDays"] = AnyNonNull("operatingDays") ? SumDec("operatingDays") : (JsonNode?)null,
+                ["sparePartsCost"] = AnyNonNull("sparePartsCost") ? SumDec("sparePartsCost") : (JsonNode?)null,
+                ["amountToCollect"] = AnyNonNull("amountToCollect") ? SumDec("amountToCollect") : (JsonNode?)null,
+                ["oilChangesCost"] = AnyNonNull("oilChangesCost") ? SumDec("oilChangesCost") : (JsonNode?)null
+            },
+            ("fuel", "log") => new JsonObject
+            {
+                ["assignmentsTotal"] = (long)rows.Count
+            },
+            ("fuel", _) => new JsonObject
+            {
+                ["activeCards"] = (long)rows.Count(r => OperationsLiveQuery.FuelStatusLabel(r.S("status")) == "نشطة"),
+                ["consumingRiders"] = (long)rows.Where(r => r.N("liters") > 0 && r.S("iqama") != "").Select(r => r.S("iqama")).Distinct().Count(),
+                ["totalLiters"] = SumDec("liters"),
+                ["totalInclVat"] = SumDec("totalInclVat"),
+                ["capExceeded"] = null,
+                ["capExceededSource"] = OperationsLiveQuery.NoSourceYet
+            },
+            _ => baseSummary
+        };
+    }
+
+    static JsonObject BuildFilteredHousingSummary(IReadOnlyList<JsonObject> rows)
+    {
+        long rooms = rows.Sum(r => (long)r.N("roomsCount"));
+        bool hasResidents = rows.Any(r => r["residentsTotal"] != null);
+        long residents = hasResidents ? rows.Sum(r => (long)r.N("residentsTotal")) : 0;
+        long capacity = rows.Sum(r => (long)r.N("capacity"));
+        return new JsonObject
+        {
+            ["housingsTotal"] = (long)rows.Count,
+            ["roomsTotal"] = rooms,
+            ["residentsTotal"] = hasResidents ? residents : (JsonNode?)null,
+            ["occupancyPercent"] = hasResidents ? (capacity <= 0 ? 0.0 : Math.Round(100.0 * residents / capacity, 1)) : (JsonNode?)null
+        };
     }
 
     static object Cities(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
@@ -278,8 +348,8 @@ public static class OperationsLiveApi
             return store.Read(c =>
             {
                 var page = BuildStoreCities(c, ctx.User);
-                var (items, total) = ApplyContractAndPage(page.Items, page.Total, 1, 200, ctx.Request.Query, "cities", "", alreadyPaged: true);
-                return Envelope(new { items, total, summary = page.Summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                var (items, total, summary) = ApplyContractAndPage(page.Items, page.Total, page.Summary, 1, 200, ctx.Request.Query, "cities", "", alreadyPaged: true);
+                return Envelope(new { items, total, summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
             });
         return LiveRead(ctx, token =>
         {
@@ -287,8 +357,8 @@ public static class OperationsLiveApi
             return store.Read(c =>
             {
                 var page = OperationsLiveQuery.CitiesSummary(erp, Operations.LiveScope(c, ctx.User), token);
-                var (items, total) = ApplyContractAndPage(page.Items, page.Total, 1, 200, ctx.Request.Query, "cities", "", alreadyPaged: true);
-                return Envelope(new { items, total, summary = page.Summary }, Operations.SourceLive, page.AsOf, Actions(ctx.User));
+                var (items, total, summary) = ApplyContractAndPage(page.Items, page.Total, page.Summary, 1, 200, ctx.Request.Query, "cities", "", alreadyPaged: true);
+                return Envelope(new { items, total, summary }, Operations.SourceLive, page.AsOf, Actions(ctx.User));
             });
         }, "operations-cities");
     }
@@ -335,8 +405,8 @@ public static class OperationsLiveApi
                 var full = BuildStoreHousing(c, ctx.User, 1, 50_000, city, status, search);
                 var node = JsonSerializer.SerializeToNode(full, JsonSerializerOptions.Web)!.AsObject();
                 var all = ExtractItems(full);
-                var (items, total) = ApplyContractAndPage(all, all.Count, page, pageSize, ctx.Request.Query, "housing", "", alreadyPaged: false);
-                return Envelope(new { items, total, page, pageSize, summary = node["summary"] }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                var (items, total, summary) = ApplyContractAndPage(all, all.Count, node["summary"], page, pageSize, ctx.Request.Query, "housing", "", alreadyPaged: false);
+                return Envelope(new { items, total, page, pageSize, summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
             });
         return LiveRead(ctx, token =>
         {
@@ -347,8 +417,8 @@ public static class OperationsLiveApi
                 var result = hasContract
                     ? OperationsLiveQuery.HousingExport(erp, city, status, search, scope, ExportTimeoutSeconds(config), token)
                     : OperationsLiveQuery.HousingPage(erp, page, pageSize, city, status, search, scope, token);
-                var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "housing", "", alreadyPaged: !hasContract);
-                return Envelope(new { items, total, page, pageSize, summary = result.Summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "housing", "", alreadyPaged: !hasContract);
+                return Envelope(new { items, total, page, pageSize, summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
             });
         }, "operations-housing", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
@@ -406,8 +476,8 @@ public static class OperationsLiveApi
                 var full = BuildStorePeriod(c, ctx.User, from, to, mode, 1, 50_000);
                 var node = JsonSerializer.SerializeToNode(full, JsonSerializerOptions.Web)!.AsObject();
                 var all = ExtractItems(full);
-                var (items, total) = ApplyContractAndPage(all, all.Count, page, pageSize, ctx.Request.Query, "vehicles", "", alreadyPaged: false);
-                return Envelope(new { items, total, page, pageSize, summary = node["summary"], mode, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                var (items, total, summary) = ApplyContractAndPage(all, all.Count, node["summary"], page, pageSize, ctx.Request.Query, "vehicles", "", alreadyPaged: false);
+                return Envelope(new { items, total, page, pageSize, summary, mode, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
             });
         return LiveRead(ctx, token =>
         {
@@ -420,14 +490,14 @@ public static class OperationsLiveApi
                         ? OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), detailed: true, token)
                         : OperationsLiveQuery.VehiclesPeriodReport(erp, from, to, mode, page, pageSize, search, Operations.LiveScope(c, ctx.User), detailed: false, token);
                     AssertNoVin(result.Items);
-                    var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "vehicles", "", alreadyPaged: !hasContract);
+                    var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "vehicles", "", alreadyPaged: !hasContract);
                     return Envelope(new
                     {
                         items,
                         total,
                         page,
                         pageSize,
-                        summary = result.Summary,
+                        summary,
                         mode,
                         from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                         to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
@@ -506,8 +576,8 @@ public static class OperationsLiveApi
                     var result = hasContract
                         ? OperationsLiveQuery.OilChangesPeriod(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), export: true, token)
                         : OperationsLiveQuery.OilChangesPeriod(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), export: false, token);
-                    var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "vehicles", "oil", alreadyPaged: !hasContract);
-                    return Envelope(new { items, total, page, pageSize, summary = result.Summary, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                    var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "vehicles", "oil", alreadyPaged: !hasContract);
+                    return Envelope(new { items, total, page, pageSize, summary, from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture), to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture) }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
                 }
                 catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
             });
@@ -530,8 +600,8 @@ public static class OperationsLiveApi
                 var full = BuildStorePurchases(c, ctx.User, from, to, 1, 50_000, search);
                 var node = JsonSerializer.SerializeToNode(full, JsonSerializerOptions.Web)!.AsObject();
                 var all = ExtractItems(full);
-                var (items, total) = ApplyContractAndPage(all, all.Count, page, pageSize, ctx.Request.Query, "vehicles", "invoices", alreadyPaged: false);
-                return Envelope(new { items, total, page, pageSize, summary = node["summary"] }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                var (items, total, summary) = ApplyContractAndPage(all, all.Count, node["summary"], page, pageSize, ctx.Request.Query, "vehicles", "invoices", alreadyPaged: false);
+                return Envelope(new { items, total, page, pageSize, summary }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
             });
         return LiveRead(ctx, token =>
         {
@@ -543,8 +613,8 @@ public static class OperationsLiveApi
                     var result = hasContract
                         ? OperationsLiveQuery.PurchaseInvoices(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, search, Operations.LiveScope(c, ctx.User), null, token, unpaged: true)
                         : OperationsLiveQuery.PurchaseInvoices(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), null, token);
-                    var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "vehicles", "invoices", alreadyPaged: !hasContract);
-                    return Envelope(new { items, total, page, pageSize, summary = result.Summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                    var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "vehicles", "invoices", alreadyPaged: !hasContract);
+                    return Envelope(new { items, total, page, pageSize, summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
                 }
                 catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
             });
@@ -596,8 +666,8 @@ public static class OperationsLiveApi
                 var full = BuildStoreFuel(c, ctx.User, month, 1, 50_000);
                 var node = JsonSerializer.SerializeToNode(full, JsonSerializerOptions.Web)!.AsObject();
                 var all = ExtractItems(full);
-                var (items, total) = ApplyContractAndPage(all, all.Count, page, pageSize, ctx.Request.Query, "fuel", "", alreadyPaged: false);
-                return Envelope(new { items, total, page, pageSize, summary = node["summary"], month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture) }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
+                var (items, total, summary) = ApplyContractAndPage(all, all.Count, node["summary"], page, pageSize, ctx.Request.Query, "fuel", "", alreadyPaged: false);
+                return Envelope(new { items, total, page, pageSize, summary, month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture) }, Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User));
             });
         return LiveRead(ctx, token =>
         {
@@ -608,8 +678,8 @@ public static class OperationsLiveApi
                 var result = hasContract
                     ? OperationsLiveQuery.FuelCardsExport(erp, month, provider, search, scope, ExportTimeoutSeconds(config), token)
                     : OperationsLiveQuery.FuelCards(erp, month, provider, page, pageSize, search, scope, token);
-                var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "fuel", "", alreadyPaged: !hasContract);
-                return Envelope(new { items, total, page, pageSize, summary = result.Summary, month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture) }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "fuel", "", alreadyPaged: !hasContract);
+                return Envelope(new { items, total, page, pageSize, summary, month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture) }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
             });
         }, "operations-fuel", hasContract ? TimeSpan.FromSeconds(ExportTimeoutSeconds(config)) : null);
     }
@@ -634,8 +704,8 @@ public static class OperationsLiveApi
                     var result = hasContract
                         ? OperationsLiveQuery.FuelAssignments(erp, from, to, 1, OperationsLiveQuery.MaxPageSize, Operations.LiveScope(c, ctx.User), token, unpaged: true, search: search)
                         : OperationsLiveQuery.FuelAssignments(erp, from, to, page, pageSize, Operations.LiveScope(c, ctx.User), token, unpaged: false, search: search);
-                    var (items, total) = ApplyContractAndPage(result.Items, result.Total, page, pageSize, ctx.Request.Query, "fuel", "log", alreadyPaged: !hasContract);
-                    return Envelope(new { items, total, page, pageSize, summary = result.Summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
+                    var (items, total, summary) = ApplyContractAndPage(result.Items, result.Total, result.Summary, page, pageSize, ctx.Request.Query, "fuel", "log", alreadyPaged: !hasContract);
+                    return Envelope(new { items, total, page, pageSize, summary }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
                 }
                 catch (ImportFailure ex) when (ex.Code == "invalid_period") { throw new ApiError("فترة غير صالحة."); }
             });

@@ -534,12 +534,24 @@ function OperationsPageInner() {
           { label: 'إجمالي المبالغ', value: formatSar(summary.totalAmount as number | string | null | undefined) },
         ];
       }
+      if (view === 'oil') {
+        return [
+          { label: 'عدد التغييرات', value: summary.oilChangesCount },
+          { label: 'إجمالي اللترات', value: summary.totalLiters },
+          { label: 'تكلفة تغييرات الزيت', value: formatSar(summary.oilChangesCost as number | string | null | undefined) },
+        ];
+      }
       return [
         { label: 'المركبات العاملة', value: summary.vehiclesOperating ?? summary.invoicesTotal },
         { label: 'إجمالي أيام التشغيل', value: summary.totalOperatingDays },
         { label: 'تكلفة قطع الغيار', value: formatSar((summary.sparePartsCost ?? summary.totalAmount) as number | string | null | undefined) },
         { label: 'الاستقطاع المطلوب', value: formatSar(summary.amountToCollect as number | string | null | undefined) },
         { label: 'تكلفة تغييرات الزيت', value: formatSar(summary.oilChangesCost as number | string | null | undefined) },
+      ];
+    }
+    if (view === 'log') {
+      return [
+        { label: 'سجلات التسليم', value: summary.assignmentsTotal },
       ];
     }
     return [
