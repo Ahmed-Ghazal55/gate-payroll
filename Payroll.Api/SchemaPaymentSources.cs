@@ -28,6 +28,16 @@ public static class SchemaPaymentSources
                 """);
             SchemaMoneyGuard.Retain(c,tx,"pay",table);SchemaMoneyRegister.Immutable(c,tx,"pay",table,"contract_id","document_id","period_month","due_date","principal","interest");SchemaSql.EnsureMonthIndex(c,tx,"pay",table);
         }
+        foreach(string table in new[]{"hr_fee_request"})
+        {
+            SchemaSql.EnsureTable(c,tx,"pay",table,$"""
+                id {g} NOT NULL {SchemaSql.PrimaryKey(c)} REFERENCES {SchemaSql.Q(c,"pay","document")}(id),
+                company_id {g} NOT NULL REFERENCES {company}(id),erp_employee_id {g} NOT NULL,
+                category {SchemaSql.Varchar(c,40)} NOT NULL,bearer {SchemaSql.Varchar(c,20)} NOT NULL,
+                rider_share {m} NOT NULL CHECK(rider_share>=0),company_share {m} NOT NULL CHECK(company_share>=0),
+                {SchemaSql.MoneyAuditCols(c)}
+                """);SchemaMoneyGuard.Retain(c,tx,"pay",table);SchemaMoneyRegister.Immutable(c,tx,"pay",table,"company_id","erp_employee_id","category","bearer","rider_share","company_share");
+        }
         SchemaSql.EnsureTable(c,tx,"pay","rent_recognition",$"""
             id {g} NOT NULL {SchemaSql.PrimaryKey(c)},contract_id {g} NOT NULL REFERENCES {SchemaSql.Q(c,"pay","lease_contract")}(id),
             period_month {SchemaSql.Date(c)} NOT NULL,amount {m} NOT NULL CHECK(amount>0),

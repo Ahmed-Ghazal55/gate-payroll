@@ -16,8 +16,8 @@ public static class PaymentsApi
     {
         if(method=="GET")return AccessPolicy.Has(user,"payments.view");
         if(method is not ("POST" or "PUT"))return false;
-        string permission=path.EndsWith("/approve",StringComparison.Ordinal)?"approvals.decide":"payments.disburse";
-        if(path.Contains("/documents/",StringComparison.Ordinal))return AccessPolicy.Has(user,permission)||AccessPolicy.Has(user,"payments.disburse");
+        string permission=path.EndsWith("/approve",StringComparison.Ordinal)?"approvals.decide":path=="/api/payments/hr-fees"?"payments.hr_request.create":"payments.disburse";
+        if(path.Contains("/documents/",StringComparison.Ordinal))return AccessPolicy.Has(user,permission)||AccessPolicy.Has(user,"payments.hr_request.create")||AccessPolicy.Has(user,"payments.disburse");
         if(path.Contains("/vouchers/",StringComparison.Ordinal))return AccessPolicy.Has(user,"payments.disburse");
         return AccessPolicy.Has(user,permission);
     }
@@ -38,6 +38,12 @@ public static class PaymentsApi
         api.MapGet("/payments/suppliers",(HttpContext ctx)=>store.Read(c=>PaymentDocuments.Suppliers(c,ctx.User))).WithTags("Banks and treasury").WithSummary("List scoped payment suppliers");
         api.MapPost("/payments/suppliers",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentDocuments.Supplier(c,tx,ctx.User,input))).WithTags("Banks and treasury").WithSummary("Create a supplier");
         api.MapGet("/payments/suppliers/{id}/ledger",(string id,HttpContext ctx)=>store.Read(c=>PaymentDocuments.SupplierLedger(c,ctx.User,id))).WithTags("Banks and treasury").WithSummary("Read supplier invoices, payments and outstanding balance");
+        api.MapGet("/payments/hr-fees",(HttpContext ctx)=>store.Read(c=>PaymentsEngine.List(c,ctx.User,"hr_fee",null))).WithTags("Banks and treasury").WithSummary("List scoped HR fee requests");
+        api.MapPost("/payments/hr-fees",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentDocuments.BearerDocument(c,tx,ctx.User,"hr_fee",input))).WithTags("Banks and treasury").WithSummary("Create an HR fee request with an exact bearer split");
+        api.MapGet("/payments/traffic-violations",(HttpContext ctx)=>store.Read(c=>PaymentsEngine.List(c,ctx.User,"traffic_violation",null))).WithTags("Banks and treasury").WithSummary("List traffic violation payment documents");
+        api.MapPost("/payments/traffic-violations",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentDocuments.BearerDocument(c,tx,ctx.User,"traffic_violation",input))).WithTags("Banks and treasury").WithSummary("Create a traffic violation payment with rider and company shares");
+        api.MapGet("/payments/government",(HttpContext ctx)=>store.Read(c=>PaymentsEngine.List(c,ctx.User,"government",null))).WithTags("Banks and treasury").WithSummary("List government payment documents");
+        api.MapPost("/payments/government",(JsonObject input,HttpContext ctx)=>Document(store,ctx,input,"government")).WithTags("Banks and treasury").WithSummary("Create a government payment document");
         api.MapGet("/payments/properties",(HttpContext ctx)=>store.Read(c=>PaymentContracts.List(c,ctx.User,"properties"))).WithTags("Banks and treasury").WithSummary("List payment properties");
         api.MapPost("/payments/properties",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentContracts.Create(c,tx,ctx.User,"properties",input))).WithTags("Banks and treasury").WithSummary("Create an office or housing property");
         api.MapGet("/payments/financiers",(HttpContext ctx)=>store.Read(c=>PaymentContracts.List(c,ctx.User,"financiers"))).WithTags("Banks and treasury").WithSummary("List financiers");

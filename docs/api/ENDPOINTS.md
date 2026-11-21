@@ -341,15 +341,18 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/finance/treasury/summary` | Payroll.Api/TreasurySummary.cs:47 | treasury.view | web | keep |
 | GET | `/api/payments/documents` | Payroll.Api/PaymentsApi.cs:26 | see AccessPolicy + handler | web | keep |
 | GET | `/api/payments/documents/{id}` | Payroll.Api/PaymentsApi.cs:29 | see AccessPolicy + handler | web | keep |
-| GET | `/api/payments/due-calendar` | Payroll.Api/PaymentsApi.cs:53 | see AccessPolicy + handler | none | keep |
-| GET | `/api/payments/finance-contracts` | Payroll.Api/PaymentsApi.cs:49 | see AccessPolicy + handler | none | keep |
-| GET | `/api/payments/finance-contracts/{id}/schedule` | Payroll.Api/PaymentsApi.cs:51 | see AccessPolicy + handler | none | keep |
-| GET | `/api/payments/financiers` | Payroll.Api/PaymentsApi.cs:43 | see AccessPolicy + handler | none | keep |
-| GET | `/api/payments/leases` | Payroll.Api/PaymentsApi.cs:45 | see AccessPolicy + handler | none | keep |
-| GET | `/api/payments/leases/{id}/schedule` | Payroll.Api/PaymentsApi.cs:47 | see AccessPolicy + handler | none | keep |
-| GET | `/api/payments/properties` | Payroll.Api/PaymentsApi.cs:41 | see AccessPolicy + handler | none | keep |
-| GET | `/api/payments/suppliers` | Payroll.Api/PaymentsApi.cs:38 | see AccessPolicy + handler | none | keep |
-| GET | `/api/payments/suppliers/{id}/ledger` | Payroll.Api/PaymentsApi.cs:40 | see AccessPolicy + handler | none | keep |
+| GET | `/api/payments/due-calendar` | Payroll.Api/PaymentsApi.cs:59 | see AccessPolicy + handler | web | keep |
+| GET | `/api/payments/finance-contracts` | Payroll.Api/PaymentsApi.cs:55 | see AccessPolicy + handler | web | keep |
+| GET | `/api/payments/finance-contracts/{id}/schedule` | Payroll.Api/PaymentsApi.cs:57 | see AccessPolicy + handler | web | keep |
+| GET | `/api/payments/financiers` | Payroll.Api/PaymentsApi.cs:49 | see AccessPolicy + handler | web | keep |
+| GET | `/api/payments/government` | Payroll.Api/PaymentsApi.cs:45 | see AccessPolicy + handler | none | keep |
+| GET | `/api/payments/hr-fees` | Payroll.Api/PaymentsApi.cs:41 | see AccessPolicy + handler | none | keep |
+| GET | `/api/payments/leases` | Payroll.Api/PaymentsApi.cs:51 | see AccessPolicy + handler | web | keep |
+| GET | `/api/payments/leases/{id}/schedule` | Payroll.Api/PaymentsApi.cs:53 | see AccessPolicy + handler | web | keep |
+| GET | `/api/payments/properties` | Payroll.Api/PaymentsApi.cs:47 | see AccessPolicy + handler | web | keep |
+| GET | `/api/payments/suppliers` | Payroll.Api/PaymentsApi.cs:38 | see AccessPolicy + handler | web | keep |
+| GET | `/api/payments/suppliers/{id}/ledger` | Payroll.Api/PaymentsApi.cs:40 | see AccessPolicy + handler | web | keep |
+| GET | `/api/payments/traffic-violations` | Payroll.Api/PaymentsApi.cs:43 | see AccessPolicy + handler | none | keep |
 | GET | `/api/payments/vouchers/{id}` | Payroll.Api/PaymentsApi.cs:34 | see AccessPolicy + handler | web | keep |
 | POST | `/api/finance/bank-file/export` | Payroll.Api/BankPayrollFiles.cs:257 | finance.bankfile.export + payroll.view | web | keep |
 | POST | `/api/finance/bank-file/preview` | Payroll.Api/BankPayrollFiles.cs:256 | finance.bankfile.export + payroll.view | web | keep |
@@ -370,19 +373,22 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/finance/opening/commit` | Payroll.Api/TreasuryEntries.cs:78 | treasury.opening | web | keep |
 | POST | `/api/finance/opening/preview` | Payroll.Api/TreasuryEntries.cs:64 | treasury.opening | web | keep |
 | POST | `/api/finance/vault-transfer` | Payroll.Api/FinancialCore.cs:677 | treasury.transfer | web | keep |
-| POST | `/api/payments/contracts/{kind}/{id}/archive` | Payroll.Api/PaymentsApi.cs:52 | see AccessPolicy + handler | none | keep |
+| POST | `/api/payments/contracts/{kind}/{id}/archive` | Payroll.Api/PaymentsApi.cs:58 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/documents` | Payroll.Api/PaymentsApi.cs:27 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/documents/{id}/approve` | Payroll.Api/PaymentsApi.cs:31 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/documents/{id}/cancel` | Payroll.Api/PaymentsApi.cs:32 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/documents/{id}/payment-requests` | Payroll.Api/PaymentsApi.cs:33 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/documents/{id}/submit` | Payroll.Api/PaymentsApi.cs:30 | see AccessPolicy + handler | web | keep |
-| POST | `/api/payments/finance-contracts` | Payroll.Api/PaymentsApi.cs:50 | see AccessPolicy + handler | none | keep |
-| POST | `/api/payments/financiers` | Payroll.Api/PaymentsApi.cs:44 | see AccessPolicy + handler | none | keep |
-| POST | `/api/payments/leases` | Payroll.Api/PaymentsApi.cs:46 | see AccessPolicy + handler | none | keep |
-| POST | `/api/payments/leases/{id}/recognize` | Payroll.Api/PaymentsApi.cs:48 | see AccessPolicy + handler | none | keep |
-| POST | `/api/payments/properties` | Payroll.Api/PaymentsApi.cs:42 | see AccessPolicy + handler | none | keep |
+| POST | `/api/payments/finance-contracts` | Payroll.Api/PaymentsApi.cs:56 | see AccessPolicy + handler | web | keep |
+| POST | `/api/payments/financiers` | Payroll.Api/PaymentsApi.cs:50 | see AccessPolicy + handler | web | keep |
+| POST | `/api/payments/government` | Payroll.Api/PaymentsApi.cs:46 | see AccessPolicy + handler | none | keep |
+| POST | `/api/payments/hr-fees` | Payroll.Api/PaymentsApi.cs:42 | see AccessPolicy + handler | none | keep |
+| POST | `/api/payments/leases` | Payroll.Api/PaymentsApi.cs:52 | see AccessPolicy + handler | web | keep |
+| POST | `/api/payments/leases/{id}/recognize` | Payroll.Api/PaymentsApi.cs:54 | see AccessPolicy + handler | web | keep |
+| POST | `/api/payments/properties` | Payroll.Api/PaymentsApi.cs:48 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/quick` | Payroll.Api/PaymentsApi.cs:37 | see AccessPolicy + handler | web | keep |
-| POST | `/api/payments/suppliers` | Payroll.Api/PaymentsApi.cs:39 | see AccessPolicy + handler | none | keep |
+| POST | `/api/payments/suppliers` | Payroll.Api/PaymentsApi.cs:39 | see AccessPolicy + handler | web | keep |
+| POST | `/api/payments/traffic-violations` | Payroll.Api/PaymentsApi.cs:44 | see AccessPolicy + handler | none | keep |
 | POST | `/api/payments/vouchers/{id}/cancel` | Payroll.Api/PaymentsApi.cs:36 | see AccessPolicy + handler | web | keep |
 | POST | `/api/payments/vouchers/{id}/pay` | Payroll.Api/PaymentsApi.cs:35 | see AccessPolicy + handler | web | keep |
 | PUT | `/api/payments/documents/{id}` | Payroll.Api/PaymentsApi.cs:28 | see AccessPolicy + handler | web | keep |
@@ -456,7 +462,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 |---|---|---|---|---|---|
 | GET | `/` | Payroll.Api/LegacyUi.cs:30 | public (rider portal: own authenticated rider) | none | keep |
 | GET | `/api/admin/approval-bypass` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:103 | see AccessPolicy + handler | web | keep |
-| GET | `/api/admin/approval-exceptions` | Payroll.Api/UserAccess.cs:601 | see AccessPolicy + handler | web | keep |
+| GET | `/api/admin/approval-exceptions` | Payroll.Api/UserAccess.cs:602 | see AccessPolicy + handler | web | keep |
 | GET | `/api/admin/audit/self-approvals` | Payroll.Api/AuditApi.cs:198 | see AccessPolicy + handler | web | keep |
 | GET | `/api/admin/notify-settings` | Payroll.Api/NotifyTasksApi.cs:340 | see AccessPolicy + handler | web | keep |
 | GET | `/api/admin/org/approval-limits` | Payroll.Api/ApprovalsArea.cs:395 | see AccessPolicy + handler | web | keep |
@@ -476,13 +482,13 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/org/responsible` | Payroll.Api/OrgDirectory.cs:117 | org.manage (Admin); dated rows, never deleted | web | keep |
 | GET | `/api/org/routing` | Payroll.Api/OrgDirectory.cs:114 | org.manage (Admin); dated rows, never deleted | web | keep |
 | GET | `/api/org/supervision` | Payroll.Api/OrgDirectory.cs:111 | advances.request (mine=1) or org.manage | web | keep |
-| GET | `/api/roles-catalog` | Payroll.Api/UserAccess.cs:583 | authenticated; category/owner visibility in handler | web | keep |
+| GET | `/api/roles-catalog` | Payroll.Api/UserAccess.cs:584 | authenticated; category/owner visibility in handler | web | keep |
 | GET | `/api/system/erp-sponsor-map` | Payroll.Api/ErpSponsorMap.cs:10 | Admin / SuperAdmin | web | keep |
 | GET | `/api/system/maintenance/rider-indexes` | Payroll.Api/RiderIndexMaintenance.cs:38 | Admin / SuperAdmin | web | keep |
 | GET | `/api/system/release-check` | Payroll.Api/ReleaseSafety.cs:75 | Admin / SuperAdmin | web | deprecated |
 | GET | `/api/tasks` | Payroll.Api/NotifyTasksApi.cs:346 | see AccessPolicy + handler | web | keep |
-| GET | `/api/users` | Payroll.Api/UserAccess.cs:602 | Admin / SuperAdmin | web | keep |
-| GET | `/api/users/{id}/effective-permissions` | Payroll.Api/UserAccess.cs:592 | Admin / SuperAdmin | web | keep |
+| GET | `/api/users` | Payroll.Api/UserAccess.cs:603 | Admin / SuperAdmin | web | keep |
+| GET | `/api/users/{id}/effective-permissions` | Payroll.Api/UserAccess.cs:593 | Admin / SuperAdmin | web | keep |
 | GET | `/health` | Payroll.Api/Program.cs:105 | public (rider portal: own authenticated rider) | web | keep |
 | GET | `/openapi/v1.json` | Payroll.Api/Program.cs:64 | Admin / SuperAdmin | none | new |
 | GET | `/rider-form.js` | Payroll.Api/Program.cs:321 | public (rider portal: own authenticated rider) | web | keep |
@@ -494,7 +500,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/config/lists/{group}/fields` | Payroll.Api/ConfigLists.cs:187 | see AccessPolicy + handler | web | keep |
 | POST | `/api/config/lists/{group}/items` | Payroll.Api/ConfigLists.cs:185 | see AccessPolicy + handler | web | keep |
 | POST | `/api/config/lists/{group}/items/{code}/approve` | Payroll.Api/ConfigLists.cs:186 | see AccessPolicy + handler | web | keep |
-| POST | `/api/me/password` | Payroll.Api/UserAccess.cs:660 | see AccessPolicy + handler | web | keep |
+| POST | `/api/me/password` | Payroll.Api/UserAccess.cs:661 | see AccessPolicy + handler | web | keep |
 | POST | `/api/notify/send` | Payroll.Api/NotifyTasksApi.cs:344 | see AccessPolicy + handler | web | keep |
 | POST | `/api/org/delegations` | Payroll.Api/OrgDirectory.cs:109 | org.manage (Admin); dated rows, never deleted | web | keep |
 | POST | `/api/org/delegations/{id}/end` | Payroll.Api/OrgDirectory.cs:110 | org.manage (Admin); dated rows, never deleted | web | keep |
@@ -506,18 +512,18 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/org/supervision/{id}/end` | Payroll.Api/OrgDirectory.cs:113 | org.manage (Admin); dated rows, never deleted | web | keep |
 | POST | `/api/system/maintenance/rider-indexes` | Payroll.Api/RiderIndexMaintenance.cs:44 | Admin / SuperAdmin | web | keep |
 | POST | `/api/tasks` | Payroll.Api/NotifyTasksApi.cs:348 | see AccessPolicy + handler | web | keep |
-| POST | `/api/users` | Payroll.Api/UserAccess.cs:604 | Admin / SuperAdmin | web | keep |
-| POST | `/api/users/{id}/copy-permissions` | Payroll.Api/UserAccess.cs:597 | Admin / SuperAdmin | web | keep |
-| POST | `/api/users/{id}/reset-password` | Payroll.Api/UserAccess.cs:652 | Admin / SuperAdmin | web | keep |
+| POST | `/api/users` | Payroll.Api/UserAccess.cs:605 | Admin / SuperAdmin | web | keep |
+| POST | `/api/users/{id}/copy-permissions` | Payroll.Api/UserAccess.cs:598 | Admin / SuperAdmin | web | keep |
+| POST | `/api/users/{id}/reset-password` | Payroll.Api/UserAccess.cs:653 | Admin / SuperAdmin | web | keep |
 | PUT | `/api/admin/notify-settings` | Payroll.Api/NotifyTasksApi.cs:342 | see AccessPolicy + handler | web | keep |
 | PUT | `/api/admin/org/approval-limits` | Payroll.Api/ApprovalsArea.cs:396 | see AccessPolicy + handler | web | keep |
 | PUT | `/api/admin/org/sla-policies` | Payroll.Api/ApprovalsArea.cs:398 | see AccessPolicy + handler | web | keep |
 | PUT | `/api/admin/settings` | Payroll.Api/AdminSettings.cs:81 | see AccessPolicy + handler | web | keep |
-| PUT | `/api/roles/{code}/permissions` | Payroll.Api/UserAccess.cs:669 | see AccessPolicy + handler | web | keep |
+| PUT | `/api/roles/{code}/permissions` | Payroll.Api/UserAccess.cs:670 | see AccessPolicy + handler | web | keep |
 | PUT | `/api/tasks/{id}` | Payroll.Api/NotifyTasksApi.cs:350 | see AccessPolicy + handler | web | keep |
-| PUT | `/api/users/{id}` | Payroll.Api/UserAccess.cs:683 | Admin / SuperAdmin | none | new |
-| PUT | `/api/users/{id}/status` | Payroll.Api/UserAccess.cs:684 | Admin / SuperAdmin | web | keep |
-| PUT | `/api/users/{id}/username` | Payroll.Api/UserAccess.cs:681 | Admin / SuperAdmin | web | keep |
+| PUT | `/api/users/{id}` | Payroll.Api/UserAccess.cs:684 | Admin / SuperAdmin | none | new |
+| PUT | `/api/users/{id}/status` | Payroll.Api/UserAccess.cs:685 | Admin / SuperAdmin | web | keep |
+| PUT | `/api/users/{id}/username` | Payroll.Api/UserAccess.cs:682 | Admin / SuperAdmin | web | keep |
 
 ## Compatibility and deprecations
 

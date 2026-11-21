@@ -14821,6 +14821,363 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/payments/hr-fees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List scoped HR fee requests */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                docNo?: string;
+                                type: string;
+                                companyId: string;
+                                supplierId?: null | string;
+                                platform?: string;
+                                reference?: string;
+                                occurredOn?: string;
+                                dueOn?: string;
+                                periodMonth?: string;
+                                amount: number;
+                                vatAmount?: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                amountPaid?: number;
+                                amountReserved?: number;
+                                availableBalance?: number;
+                                allowedActions: string[];
+                                lines?: {
+                                    id: string;
+                                    accountId: string;
+                                    costCentreId: string;
+                                    appCode?: string;
+                                    amount: number;
+                                }[];
+                                metadata?: Record<string, never>;
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create an HR fee request with an exact bearer split */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/traffic-violations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List traffic violation payment documents */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                docNo?: string;
+                                type: string;
+                                companyId: string;
+                                supplierId?: null | string;
+                                platform?: string;
+                                reference?: string;
+                                occurredOn?: string;
+                                dueOn?: string;
+                                periodMonth?: string;
+                                amount: number;
+                                vatAmount?: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                amountPaid?: number;
+                                amountReserved?: number;
+                                availableBalance?: number;
+                                allowedActions: string[];
+                                lines?: {
+                                    id: string;
+                                    accountId: string;
+                                    costCentreId: string;
+                                    appCode?: string;
+                                    amount: number;
+                                }[];
+                                metadata?: Record<string, never>;
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a traffic violation payment with rider and company shares */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/government": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List government payment documents */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                docNo?: string;
+                                type: string;
+                                companyId: string;
+                                supplierId?: null | string;
+                                platform?: string;
+                                reference?: string;
+                                occurredOn?: string;
+                                dueOn?: string;
+                                periodMonth?: string;
+                                amount: number;
+                                vatAmount?: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                amountPaid?: number;
+                                amountReserved?: number;
+                                availableBalance?: number;
+                                allowedActions: string[];
+                                lines?: {
+                                    id: string;
+                                    accountId: string;
+                                    costCentreId: string;
+                                    appCode?: string;
+                                    amount: number;
+                                }[];
+                                metadata?: Record<string, never>;
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a government payment document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/payments/properties": {
         parameters: {
             query?: never;

@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:33745/"
+      "url": "http://127.0.0.1:44383/"
     }
   ],
   "paths": {
@@ -25201,6 +25201,834 @@
                       "items": {
                         "type": "string"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/hr-fees": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "List scoped HR fee requests",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "type",
+                          "companyId",
+                          "amount",
+                          "status",
+                          "allowedActions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "docNo": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "supplierId": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "platform": {
+                            "type": "string"
+                          },
+                          "reference": {
+                            "type": "string"
+                          },
+                          "occurredOn": {
+                            "type": "string"
+                          },
+                          "dueOn": {
+                            "type": "string"
+                          },
+                          "periodMonth": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "vatAmount": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "number"
+                          },
+                          "runMode": {
+                            "type": "number"
+                          },
+                          "payoutBlocked": {
+                            "type": "boolean"
+                          },
+                          "amountPaid": {
+                            "type": "number"
+                          },
+                          "amountReserved": {
+                            "type": "number"
+                          },
+                          "availableBalance": {
+                            "type": "number"
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "accountId",
+                                "costCentreId",
+                                "amount"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "accountId": {
+                                  "type": "string"
+                                },
+                                "costCentreId": {
+                                  "type": "string"
+                                },
+                                "appCode": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "metadata": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Create an HR fee request with an exact bearer split",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "type",
+                    "companyId",
+                    "amount",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "docNo": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "supplierId": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "occurredOn": {
+                      "type": "string"
+                    },
+                    "dueOn": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "vatAmount": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "number"
+                    },
+                    "runMode": {
+                      "type": "number"
+                    },
+                    "payoutBlocked": {
+                      "type": "boolean"
+                    },
+                    "amountPaid": {
+                      "type": "number"
+                    },
+                    "amountReserved": {
+                      "type": "number"
+                    },
+                    "availableBalance": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "accountId",
+                          "costCentreId",
+                          "amount"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "accountId": {
+                            "type": "string"
+                          },
+                          "costCentreId": {
+                            "type": "string"
+                          },
+                          "appCode": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "metadata": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/traffic-violations": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "List traffic violation payment documents",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "type",
+                          "companyId",
+                          "amount",
+                          "status",
+                          "allowedActions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "docNo": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "supplierId": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "platform": {
+                            "type": "string"
+                          },
+                          "reference": {
+                            "type": "string"
+                          },
+                          "occurredOn": {
+                            "type": "string"
+                          },
+                          "dueOn": {
+                            "type": "string"
+                          },
+                          "periodMonth": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "vatAmount": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "number"
+                          },
+                          "runMode": {
+                            "type": "number"
+                          },
+                          "payoutBlocked": {
+                            "type": "boolean"
+                          },
+                          "amountPaid": {
+                            "type": "number"
+                          },
+                          "amountReserved": {
+                            "type": "number"
+                          },
+                          "availableBalance": {
+                            "type": "number"
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "accountId",
+                                "costCentreId",
+                                "amount"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "accountId": {
+                                  "type": "string"
+                                },
+                                "costCentreId": {
+                                  "type": "string"
+                                },
+                                "appCode": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "metadata": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Create a traffic violation payment with rider and company shares",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "type",
+                    "companyId",
+                    "amount",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "docNo": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "supplierId": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "occurredOn": {
+                      "type": "string"
+                    },
+                    "dueOn": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "vatAmount": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "number"
+                    },
+                    "runMode": {
+                      "type": "number"
+                    },
+                    "payoutBlocked": {
+                      "type": "boolean"
+                    },
+                    "amountPaid": {
+                      "type": "number"
+                    },
+                    "amountReserved": {
+                      "type": "number"
+                    },
+                    "availableBalance": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "accountId",
+                          "costCentreId",
+                          "amount"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "accountId": {
+                            "type": "string"
+                          },
+                          "costCentreId": {
+                            "type": "string"
+                          },
+                          "appCode": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "metadata": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/government": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "List government payment documents",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "type",
+                          "companyId",
+                          "amount",
+                          "status",
+                          "allowedActions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "docNo": {
+                            "type": "string"
+                          },
+                          "type": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "supplierId": {
+                            "type": [
+                              "null",
+                              "string"
+                            ]
+                          },
+                          "platform": {
+                            "type": "string"
+                          },
+                          "reference": {
+                            "type": "string"
+                          },
+                          "occurredOn": {
+                            "type": "string"
+                          },
+                          "dueOn": {
+                            "type": "string"
+                          },
+                          "periodMonth": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "vatAmount": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "number"
+                          },
+                          "runMode": {
+                            "type": "number"
+                          },
+                          "payoutBlocked": {
+                            "type": "boolean"
+                          },
+                          "amountPaid": {
+                            "type": "number"
+                          },
+                          "amountReserved": {
+                            "type": "number"
+                          },
+                          "availableBalance": {
+                            "type": "number"
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "accountId",
+                                "costCentreId",
+                                "amount"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "accountId": {
+                                  "type": "string"
+                                },
+                                "costCentreId": {
+                                  "type": "string"
+                                },
+                                "appCode": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "metadata": {
+                            "type": "object"
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Create a government payment document",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "type",
+                    "companyId",
+                    "amount",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "docNo": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "supplierId": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "occurredOn": {
+                      "type": "string"
+                    },
+                    "dueOn": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "vatAmount": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "number"
+                    },
+                    "runMode": {
+                      "type": "number"
+                    },
+                    "payoutBlocked": {
+                      "type": "boolean"
+                    },
+                    "amountPaid": {
+                      "type": "number"
+                    },
+                    "amountReserved": {
+                      "type": "number"
+                    },
+                    "availableBalance": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "accountId",
+                          "costCentreId",
+                          "amount"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "accountId": {
+                            "type": "string"
+                          },
+                          "costCentreId": {
+                            "type": "string"
+                          },
+                          "appCode": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "metadata": {
+                      "type": "object"
                     }
                   }
                 }

@@ -27,4 +27,16 @@ public sealed class PaymentSourcesTests
         var first=f.Store.Write((c,tx)=>PaymentContracts.RecognizeRent(c,tx,f.Maker,contract.S("id"),"2026-11"));var again=f.Store.Write((c,tx)=>PaymentContracts.RecognizeRent(c,tx,f.Maker,contract.S("id"),"2026-11"));
         Assert.AreEqual(100m,first.N("amount"));Assert.AreEqual(first.S("journalId"),again.S("journalId"));Assert.AreEqual(1L,f.Scalar("SELECT COUNT(*) FROM pay_rent_recognition"));
     }
+
+    [TestMethod][DataRow(false)][DataRow(true)]
+    public void PurchaseAccrualAndPartialSupplierPaymentTieAndVatNeedsEvidence(bool sql)
+    {
+        using var f=new PaymentsEngineTests.Fixture(sql);
+        var supplier=f.Store.Write((c,tx)=>PaymentDocuments.Supplier(c,tx,f.Maker,new(){["companyId"]=f.Company,["nameAr"]="مورد اختبار"}));
+        var input=f.Input("purchase",100);input["supplierId"]=supplier.S("id");input["vatAmount"]=15;
+        Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>f.Create(input)).Status);
+        input["vatAmount"]=0;var doc=f.Create(input);f.Approve(doc.S("id"));var p=f.Reserve(doc.S("id"),40);f.Dual(p);f.Pay(p.S("id"));
+        var ledger=f.Store.Read(c=>PaymentDocuments.SupplierLedger(c,f.Maker,supplier.S("id")));Assert.AreEqual(100m,ledger.N("invoiced"));Assert.AreEqual(40m,ledger.N("paid"));Assert.AreEqual(60m,ledger.N("outstanding"));
+    }
+
 }
