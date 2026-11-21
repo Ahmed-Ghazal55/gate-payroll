@@ -176,11 +176,11 @@ export function RuleRecordWorkspace({
               onChange={(e) => setSelectedApp(e.target.value)}
               className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] font-semibold"
             >
-              <option value="ninja">نينجا (Ninja)</option>
-              <option value="keeta">كيتا (Keeta)</option>
-              <option value="hungerstation">هنقرستيشن (Hungerstation)</option>
-              <option value="jahez">جاهز (Jahez)</option>
-              <option value="amazon">أمازون (Amazon)</option>
+              <option value="ninja">نينجا</option>
+              <option value="keeta">كيتا</option>
+              <option value="hungerstation">هنقرستيشن</option>
+              <option value="jahez">جاهز</option>
+              <option value="amazon">أمازون</option>
             </select>
           </div>
 

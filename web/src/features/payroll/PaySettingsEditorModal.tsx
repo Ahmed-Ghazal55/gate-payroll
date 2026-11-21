@@ -324,10 +324,10 @@ export function PaySettingsEditorModal({
                   }
                   className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-semibold focus:outline-hidden"
                 >
-                  <option value="ninja_target">تارجت نينجا وشرائح (ninja_target)</option>
-                  <option value="slabs">شرائح كميات (slabs)</option>
-                  <option value="flat_target">تارجت ثابت وخصم (flat_target)</option>
-                  <option value="per_order">محاسبة بالطلب (per_order)</option>
+                  <option value="ninja_target">تارجت نينجا وشرائح</option>
+                  <option value="slabs">شرائح كميات</option>
+                  <option value="flat_target">تارجت ثابت وخصم</option>
+                  <option value="per_order">محاسبة بالطلب</option>
                 </select>
               </div>
             </div>
@@ -682,7 +682,7 @@ export function PaySettingsEditorModal({
                     <span className="font-bold text-[var(--ink)]">شرائح الفوترة</span>
                     <input
                       type="text"
-                      placeholder="المقياس (orders)"
+                      placeholder="المقياس — مثل عدد الطلبات"
                       value={termsForm.metric}
                       onChange={(e) => setTermsForm((f) => ({ ...f, metric: e.target.value }))}
                       className="p-1 rounded-md border border-[var(--line)] bg-[var(--surface)] text-xs font-mono"
@@ -1251,7 +1251,7 @@ export function PaySettingsEditorModal({
                     <div className="sm:col-span-2">
                       <input
                         type="text"
-                        placeholder="المعيار (orders, attendanceDays...)"
+                        placeholder="المعيار — مثل الطلبات أو أيام الحضور"
                         value={rule.metric}
                         onChange={(e) => {
                           const val = e.target.value;
@@ -1278,12 +1278,12 @@ export function PaySettingsEditorModal({
                         }}
                         className="w-full p-1.5 rounded-lg border border-[var(--line)] text-xs font-semibold"
                       >
-                        <option value="gte">أكبر أو يساوي (gte)</option>
-                        <option value="gt">أكبر تماماً (gt)</option>
-                        <option value="eq">يساوي (eq)</option>
-                        <option value="lte">أصغر أو يساوي (lte)</option>
-                        <option value="lt">أصغر تماماً (lt)</option>
-                        <option value="neq">لا يساوي (neq)</option>
+                        <option value="gte">أكبر أو يساوي</option>
+                        <option value="gt">أكبر تماماً</option>
+                        <option value="eq">يساوي</option>
+                        <option value="lte">أصغر أو يساوي</option>
+                        <option value="lt">أصغر تماماً</option>
+                        <option value="neq">لا يساوي</option>
                       </select>
                     </div>
 
@@ -1317,9 +1317,9 @@ export function PaySettingsEditorModal({
                         }}
                         className="w-full p-1.5 rounded-lg border border-[var(--line)] text-xs text-[var(--danger)] font-semibold"
                       >
-                        <option value="zero">تصفير (zero)</option>
-                        <option value="next_band">الشريحة الأدنى (next_band)</option>
-                        <option value="per_order">محاسبة بالطلب (per_order)</option>
+                        <option value="zero">تصفير</option>
+                        <option value="next_band">الشريحة الأدنى</option>
+                        <option value="per_order">محاسبة بالطلب</option>
                       </select>
                     </div>
 

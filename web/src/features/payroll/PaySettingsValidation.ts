@@ -82,27 +82,27 @@ export const SCHEME_TYPES_META: ReadonlyArray<{
 }> = [
   {
     value: 'daily_commission',
-    labelAr: 'عمولة يومية (daily_commission)',
+    labelAr: 'عمولة يومية',
     descriptionAr: 'عمولة يومية ثابتة للشركة عن كل يوم تشغيل، والباقي للمندوب.',
   },
   {
     value: 'percent_of_gross',
-    labelAr: 'نسبة من الإجمالي (percent_of_gross)',
+    labelAr: 'نسبة من الإجمالي',
     descriptionAr: 'نسبة مئوية للشركة من إجمالي دخل المنصة قبل أي استقطاع.',
   },
   {
     value: 'target_salary',
-    labelAr: 'راتب على تارجت وشرائح (target_salary)',
+    labelAr: 'راتب على تارجت وشرائح',
     descriptionAr: 'شرائح طلبات براتب أساسي وسعر للطلب الإضافي مع سقف وقود وبدل إنترنت.',
   },
   {
     value: 'monthly_commission',
-    labelAr: 'عمولة شهرية (monthly_commission)',
+    labelAr: 'عمولة شهرية',
     descriptionAr: 'عمولة شهرية للشركة (ثابتة أو بالتناسب مع أيام العمل).',
   },
   {
     value: 'percent_monthly_with_vehicle',
-    labelAr: 'نسبة شهرية مع مركبة الشركة (percent_monthly_with_vehicle)',
+    labelAr: 'نسبة شهرية مع مركبة الشركة',
     descriptionAr: 'نسبة للشركة من الإجمالي مع إلزامية استقطاع إيجار مركبة الشركة.',
   },
 ];

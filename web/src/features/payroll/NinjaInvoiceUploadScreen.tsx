@@ -53,13 +53,13 @@ type ApiNinjaInvoice = paths['/api/platforms/ninja/invoices']['get']['responses'
 type DeductionGroup = { category: string; lineIds: string[]; amount: number; unclassified: number; companyOnly: boolean };
 
 const DEDUCTION_LABELS: Record<string, string> = {
-  penalty: 'غرامة (Penalty / الخصم)',
+  penalty: 'غرامة / خصم',
   naqilBlocked: 'حظر نقل',
   stopsWithoutNotice: 'توقف بدون إشعار',
   supplier_adjustment: 'تعديل المورد',
   deductionRefund: 'رد خصم',
   gasolineSupport: 'دعم بنزين',
-  onDemand: 'On demand',
+  onDemand: 'عند الطلب',
   other_deduction: 'خصومات أخرى',
   penalty_fine: 'غرامة مُخالفة',
   food_damage: 'تعويض عن تلف الطعام',
@@ -960,7 +960,7 @@ export function NinjaInvoiceUploadScreen({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-                مسار فاتورة {platformNameAr} ({isKeeta ? 'Keeta' : 'Ninja'} Invoice Stepper)
+                مسار فاتورة {platformNameAr}
               </h2>
               <p className="text-xs text-[var(--muted)] mt-0.5">
                 دورة الفاتورة المعتمدة: رفع ← مطابقة ← تأكيد ← اعتماد ← ترحيل.
@@ -1210,7 +1210,7 @@ export function NinjaInvoiceUploadScreen({
 
           {isKeeta && (needsSheetName || detectedSheets.length > 1) && (
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">ورقة الفاتورة الأصلية (sheetName):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">ورقة الفاتورة الأصلية:</label>
               {detectedSheets.length > 1 ? (
                 <SearchableSelect
                   ariaLabel="ورقة الفاتورة الأصلية"
@@ -1234,7 +1234,7 @@ export function NinjaInvoiceUploadScreen({
 
           {isKeeta && needsCompanyRows && (
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">أسطر تعديل الشركة (companyRows):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">أسطر تعديل الشركة:</label>
               <input
                 type="text"
                 aria-label="أسطر تعديل الشركة"

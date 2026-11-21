@@ -304,7 +304,7 @@ export function ConfigListsPanel() {
                 )}
               </div>
               <p className="text-xs text-[var(--muted)] mt-0.5">
-                كود المجموعة: <span className="font-mono">{activeGroup.group}</span> · {activeGroup.fields?.length || 0} حقول مخصصة
+                {activeGroup.labelAr} · {activeGroup.fields?.length || 0} حقول مخصصة
               </p>
             </div>
 

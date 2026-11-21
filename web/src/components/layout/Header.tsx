@@ -41,6 +41,7 @@ import { personalSoundEnabled, setPersonalSoundEnabled, unlockNotificationSound,
 import { getBreadcrumbTabLabel } from '../../lib/page-tabs';
 import { appendPeriodToHref, buildPeriodOptions, readUrlPeriod } from '../../lib/period';
 import { usePeriod } from '../../lib/use-period';
+import { roleLabelAr } from '../../lib/payroll-labels';
 
 function BreadcrumbsNav() {
   const pathname = usePathname();
@@ -542,7 +543,7 @@ function HeaderInner({
                     <span data-theme="sand" className="h-3 w-3 rounded-full bg-[var(--bg)] border border-[var(--line)]" />
                     <span>رملي (افتراضي)</span>
                   </div>
-                  {currentTheme === 'sand' && <Check size={14} className="text-[var(--accent)]" />}
+                  {currentTheme === 'sand' && <Check size={14} className="text-[var(--accent)]" aria-hidden="true" />}
                 </button>
                 <button
                   type="button"
@@ -553,7 +554,7 @@ function HeaderInner({
                     <span data-theme="light" className="h-3 w-3 rounded-full bg-[var(--bg)] border border-[var(--line)]" />
                     <span>فاتح</span>
                   </div>
-                  {currentTheme === 'light' && <Check size={14} className="text-[var(--accent)]" />}
+                  {currentTheme === 'light' && <Check size={14} className="text-[var(--accent)]" aria-hidden="true" />}
                 </button>
                 <button
                   type="button"
@@ -564,7 +565,7 @@ function HeaderInner({
                     <span data-theme="dim" className="h-3 w-3 rounded-full bg-[var(--bg)] border border-[var(--line)]" />
                     <span>داكن هادئ</span>
                   </div>
-                  {currentTheme === 'dim' && <Check size={14} className="text-[var(--accent)]" />}
+                  {currentTheme === 'dim' && <Check size={14} className="text-[var(--accent)]" aria-hidden="true" />}
                 </button>
               </div>
             )}
@@ -587,7 +588,7 @@ function HeaderInner({
                   {user?.displayNameAr || 'مدير النظام'}
                 </span>
                 <span className="text-[10px] text-[var(--muted)] leading-tight truncate">
-                  {user?.roleNameAr || user?.role || 'مسؤول'}
+                  {roleLabelAr(user?.role, user?.roleNameAr)}
                 </span>
               </div>
               <ChevronDown size={14} className="hidden sm:block text-[var(--muted)]" />
@@ -600,7 +601,7 @@ function HeaderInner({
                     {user?.displayNameAr || 'مدير النظام'}
                   </div>
                   <div className="text-[11px] text-[var(--muted)]">
-                    @{user?.username || 'admin'} · {user?.roleNameAr || user?.role || 'مسؤول'}
+                    @{user?.username || 'admin'} · {roleLabelAr(user?.role, user?.roleNameAr)}
                   </div>
                 </div>
 

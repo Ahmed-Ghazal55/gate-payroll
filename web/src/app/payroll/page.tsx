@@ -166,27 +166,27 @@ const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
 };
 
 const NINJA_METRICS_MAP: Record<string, string> = {
-  orders: 'عدد الطلبات الفعلية (orders)',
-  days: 'أيام التشغيل (days)',
-  gross: 'إجمالي دخل المنصة (gross)',
-  incentives: 'الحوافز الإضافية (incentives)',
-  attendanceDays: 'أيام الحضور والعمل (attendanceDays)',
-  hours8Days: 'أيام تحقيق 8 ساعات (hours8Days)',
-  weekendDays: 'أيام عطلة نهاية الأسبوع (weekendDays)',
-  workingHours: 'ساعات العمل الإجمالية (workingHours)',
-  activeWorkingHours: 'ساعات العمل الفعلية (activeWorkingHours)',
-  committedWorkingHours: 'ساعات الالتزام (committedWorkingHours)',
-  shiftCompliancePercent: 'نسبة الالتزام بالورديات (shiftCompliancePercent)',
-  onTimeAttendancePercent: 'نسبة الحضور بالوقت (onTimeAttendancePercent)',
+  orders: 'عدد الطلبات الفعلية',
+  days: 'أيام التشغيل',
+  gross: 'إجمالي دخل المنصة',
+  incentives: 'الحوافز الإضافية',
+  attendanceDays: 'أيام الحضور والعمل',
+  hours8Days: 'أيام تحقيق 8 ساعات',
+  weekendDays: 'أيام عطلة نهاية الأسبوع',
+  workingHours: 'ساعات العمل الإجمالية',
+  activeWorkingHours: 'ساعات العمل الفعلية',
+  committedWorkingHours: 'ساعات الالتزام',
+  shiftCompliancePercent: 'نسبة الالتزام بالورديات',
+  onTimeAttendancePercent: 'نسبة الحضور بالوقت',
 };
 
 const OPERATORS_MAP: Record<string, string> = {
-  gte: 'أكبر من أو يساوي (>=)',
-  gt: 'أكبر من (>)',
-  lte: 'أصغر من أو يساوي (<=)',
-  lt: 'أصغر من (<)',
-  eq: 'يساوي (==)',
-  neq: 'لا يساوي (!=)',
+  gte: 'أكبر من أو يساوي',
+  gt: 'أكبر من',
+  lte: 'أصغر من أو يساوي',
+  lt: 'أصغر من',
+  eq: 'يساوي',
+  neq: 'لا يساوي',
 };
 
 const EFFECT_TYPES_MAP: Record<string, string> = {
@@ -1576,7 +1576,7 @@ function PayrollPageInner() {
   // Preview assignments import
   const handlePreviewAssignments = async () => {
     if (!assignmentFormId.trim()) {
-      showToast('يرجى إدخال معرّف النموذج أو الحملة (Campaign ID)', 'warning');
+      showToast('يرجى إدخال معرّف النموذج أو الحملة', 'warning');
       return;
     }
     setPreviewingAssignments(true);
@@ -4375,7 +4375,7 @@ function PayrollPageInner() {
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                  كشوف احتساب المناديب وشرح المعادلات (Explain Lines)
+                  كشوف احتساب المناديب وشرح المعادلات
                 </h4>
                 <p className="text-xs text-[var(--muted)] mt-0.5">
                   تفاصيل احتساب كل مندوب مع أثر كل بند وصافي الاستحقاق.
@@ -4571,7 +4571,7 @@ function PayrollPageInner() {
                               className="px-3.5 py-2 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50"
                             >
                               {submittingRuleLifecycle ? <RefreshCw size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-                              <span>اعتماد المسودة (Approve)</span>
+                              <span>اعتماد المسودة</span>
                             </button>
 
                             <button
@@ -4580,7 +4580,7 @@ function PayrollPageInner() {
                               className="px-3 py-2 rounded-xl bg-[var(--raised)] text-[var(--danger)] border border-[var(--danger)]/30 text-xs font-bold hover:bg-[var(--danger)]/10 transition cursor-pointer flex items-center gap-1.5"
                             >
                               <Ban size={14} />
-                              <span>رفض (Reject)</span>
+                              <span>رفض</span>
                             </button>
 
                             <button
@@ -4893,7 +4893,12 @@ function PayrollPageInner() {
                     {policiesFilter.rows.map((p) => (
                       <tr key={p.id} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-bold text-[var(--ink)]">{p.name || p.id}</td>
-                        <td className="p-3 text-xs text-[var(--muted)]">{p.kind}</td>
+                        <td className="p-3 text-xs text-[var(--muted)]">{({
+                          pay_scheme: 'خطة احتساب', scheme: 'خطة احتساب',
+                          pay_terms: 'شروط تشغيل', terms: 'شروط تشغيل',
+                          pay_eligibility: 'قاعدة استحقاق', eligibility: 'قاعدة استحقاق',
+                          deduction: 'سياسة استقطاع', allowance: 'سياسة بدل',
+                        } as Record<string, string>)[String(p.kind ?? '').toLowerCase()] || String(p.kind ?? '')}</td>
                         <td className="p-3">{p.platform}</td>
                         <td className="p-3 font-mono text-xs">{p.effectiveFrom}</td>
                         <td className="p-3">
@@ -4942,19 +4947,19 @@ function PayrollPageInner() {
       >
         <div className="space-y-4 pt-2">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">نوع المصدر (Source Type):</label>
+            <label className="text-xs font-bold text-[var(--ink)]">نوع المصدر:</label>
             <select
               value={assignmentSourceType}
               onChange={(e) => setAssignmentSourceType(e.target.value)}
               className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
             >
-              <option value="campaign">حملة / استبيان (Campaign)</option>
-              <option value="custom_form">نموذج مخصص (Custom Form)</option>
+              <option value="campaign">حملة / استبيان</option>
+              <option value="custom_form">نموذج مخصص</option>
             </select>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">معرف الحملة / النموذج (Form / Campaign ID):</label>
+            <label className="text-xs font-bold text-[var(--ink)]">معرف الحملة / النموذج:</label>
             <input
               type="text"
               placeholder="مثال: synthetic-choice-campaign"
@@ -4966,7 +4971,7 @@ function PayrollPageInner() {
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">حقل الاختيار (Field ID):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">حقل الاختيار:</label>
               <input
                 type="text"
                 placeholder="workSystem"
@@ -4976,7 +4981,7 @@ function PayrollPageInner() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">قيمة الرد (Choice Key):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">قيمة الرد:</label>
               <input
                 type="text"
                 placeholder="commission"
@@ -4988,7 +4993,7 @@ function PayrollPageInner() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">النظام المستهدف المعتمد (Scheme):</label>
+            <label className="text-xs font-bold text-[var(--ink)]">النظام المستهدف المعتمد:</label>
             <SearchableSelect
               value={assignmentMappingScheme}
               onChange={setAssignmentMappingScheme}
@@ -5008,7 +5013,7 @@ function PayrollPageInner() {
               onClick={handlePreviewAssignments}
               className="px-4 py-2 rounded-xl bg-[var(--raised)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--line)] transition cursor-pointer"
             >
-              {previewingAssignments ? 'جاري الفحص والمعاينة...' : 'معاينة الاستيراد (Dry-Run)'}
+              {previewingAssignments ? 'جاري الفحص والمعاينة...' : 'معاينة الاستيراد التجريبي'}
             </button>
 
             {assignmentPreviewResult && (
@@ -5080,7 +5085,7 @@ function PayrollPageInner() {
             </div>
 
             <div className="space-y-2">
-              <h5 className="font-bold text-xs text-[var(--ink)]">بنود المعادلة والأدلة المحاسبية (Explain Lines):</h5>
+              <h5 className="font-bold text-xs text-[var(--ink)]">بنود المعادلة والأدلة المحاسبية:</h5>
               {(!selectedLineForExplain.lines || selectedLineForExplain.lines.length === 0) ? (
                 <div className="p-4 text-center text-[var(--muted)] bg-[var(--surface)] rounded-xl border border-[var(--line)]">
                   لا توجد بنود تفصيلية مسجلة لهذا السطر.
@@ -5134,7 +5139,7 @@ function PayrollPageInner() {
       >
         <div className="space-y-4 text-xs pt-2">
           <div className="space-y-1">
-            <label className="font-bold text-[var(--ink)] block">المقياس المطلوب (Metric):</label>
+            <label className="font-bold text-[var(--ink)] block">المقياس المطلوب:</label>
             <SearchableSelect
               value={newRuleMetric}
               onChange={setNewRuleMetric}
@@ -5149,7 +5154,7 @@ function PayrollPageInner() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="font-bold text-[var(--ink)] block">المعامل (Operator):</label>
+              <label className="font-bold text-[var(--ink)] block">المعامل:</label>
               <select
                 value={newRuleOperator}
                 onChange={(e) => setNewRuleOperator(e.target.value)}
@@ -5164,7 +5169,7 @@ function PayrollPageInner() {
             </div>
 
             <div className="space-y-1">
-              <label className="font-bold text-[var(--ink)] block">الحد الأدنى / القيمة (Threshold):</label>
+              <label className="font-bold text-[var(--ink)] block">الحد الأدنى / القيمة:</label>
               <input
                 type="number"
                 value={newRuleThreshold}
@@ -5177,7 +5182,7 @@ function PayrollPageInner() {
           </div>
 
           <div className="space-y-1">
-            <label className="font-bold text-[var(--ink)] block">الأثر عند عدم التحقق (Effect):</label>
+            <label className="font-bold text-[var(--ink)] block">الأثر عند عدم التحقق:</label>
             <select
               value={newRuleEffectType}
               onChange={(e) => setNewRuleEffectType(e.target.value)}
@@ -5193,7 +5198,7 @@ function PayrollPageInner() {
 
           <div className="p-3 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)] flex items-center justify-between">
             <div>
-              <span className="font-bold text-[var(--ink)] block">ضمن القاعدة (Included)</span>
+              <span className="font-bold text-[var(--ink)] block">ضمن القاعدة</span>
               <span className="text-[11px] text-[var(--muted)]">
                 تفعيل الشرط ضمن احتساب الأهلية الفعلي للدورة.
               </span>
@@ -5342,7 +5347,7 @@ function PayrollPageInner() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">السجل المالي صاحب المسير (Sponsor):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">السجل المالي صاحب المسير:</label>
               <SearchableSelect
                 value={approveSponsorId}
                 onChange={setApproveSponsorId}
@@ -5651,7 +5656,7 @@ function PayrollPageInner() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold">مرجع المنصة الرسمي (Platform Reference):</label>
+              <label className="text-xs font-bold">مرجع المنصة الرسمي:</label>
               <input
                 type="text"
                 placeholder="مثال: HS-TICKET-89421"
