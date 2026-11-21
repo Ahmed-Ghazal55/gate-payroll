@@ -48,7 +48,7 @@ public static class SalDebtConfirm
                     SET debt_confirm_status='deferred',old_debt_instalment=0,updated_by=@by,updated_at=@at
                     WHERE id=@id
                     """,("@by",actor.Identity!.Name!),("@at",now),("@id",riderId));
-                ReplaceOldDebtItem(c,tx,actor,run,riderId,0,now);
+                ReplaceOldDebtItems(c,tx,actor,run,riderId,[],now);
                 outRows.Add(new JsonObject{["payRunRiderId"]=riderId,["debtConfirmStatus"]="deferred",["amount"]=0,["salaryNet"]=net});
                 continue;
             }
@@ -75,9 +75,10 @@ public static class SalDebtConfirm
                 Guid company=Guid.Parse(run.S("companyId"));
                 Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
                 Guid payableAcc=AccountId(c,tx,"212103");
-                Guid debtAcc=AccountId(c,tx,ReceivableCode(debt.S("category")));
-                // Unique journal source per debt allocation (Codex multi-debt).
-                Guid sourceId=Guid.Parse(debtId);
+                string recvCode=ReceivableCode(debt.S("category"));
+                Guid debtAcc=AccountId(c,tx,recvCode);
+                // Allocation-specific source: unique per (pay-run rider, debt) so next month does not collide (RWC4b new HIGH).
+                Guid sourceId=SchemaSql.NewId();
                 var journal=JournalPosting.Post(c,tx,new JournalPosting.Draft(
                     company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
                     DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
@@ -106,7 +107,7 @@ public static class SalDebtConfirm
                 UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}
                 SET salary_net=@net,updated_by=@by,updated_at=@at WHERE id=@id
                 """,("@net",newNet),("@by",actor.Identity!.Name!),("@at",now),("@id",riderId));
-            ReplaceOldDebtItem(c,tx,actor,run,riderId,total,now);
+            ReplaceOldDebtItems(c,tx,actor,run,riderId,allocations,now);
 
             outRows.Add(new JsonObject
             {
@@ -128,18 +129,31 @@ public static class SalDebtConfirm
         })).WithTags("Payroll").WithSummary("Confirm old-debt instalments before final salary approval");
     }
 
-    static void ReplaceOldDebtItem(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,string riderId,decimal amount,string now)
+    /// <summary>RWC4b M1: freeze each confirmed allocation with its receivable account (not hardcoded 112507).</summary>
+    static void ReplaceOldDebtItems(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,string riderId,List<JsonObject> allocations,string now)
     {
         Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","pay_run_item")} SET amount=0,updated_by=@by,updated_at=@at WHERE pay_run_rider_id=@r AND item_code='old_debt_instalment'",
             ("@by",actor.Identity!.Name!),("@at",now),("@r",riderId));
-        if(amount<=0)return;
         int nextLine=Convert.ToInt32(SchemaSql.Scalar(c,tx,$"SELECT COALESCE(MAX(line_no),0)+1 FROM {SchemaSql.Q(c,"sal","pay_run_item")} WHERE pay_run_rider_id=@r",("@r",riderId))!);
-        Exec(c,tx,$"""
-            INSERT INTO {SchemaSql.Q(c,"sal","pay_run_item")}
-            (id,period_month,pay_run_rider_id,line_no,stage_code,item_code,amount,affects_net,account_code,created_by,created_at)
-            VALUES(@id,@pm,@r,@line,'old_debt','old_debt_instalment',@amt,1,'112507',@by,@at)
-            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pm",run.S("periodMonth")),("@r",riderId),("@line",nextLine),
-            ("@amt",amount),("@by",actor.Identity!.Name!),("@at",now));
+        foreach(var alloc in allocations)
+        {
+            decimal amount=J.Money(alloc.N("amount"));
+            if(amount<=0)continue;
+            string debtId=alloc.S("debtId");
+            string account="112507";
+            if(debtId!="")
+            {
+                object? cat=SchemaSql.Scalar(c,tx,$"SELECT category FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",debtId));
+                if(cat is not null and not DBNull)account=ReceivableCode(cat.ToString()!);
+            }
+            Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"sal","pay_run_item")}
+                (id,period_month,pay_run_rider_id,line_no,stage_code,item_code,amount,affects_net,account_code,debt_id,created_by,created_at)
+                VALUES(@id,@pm,@r,@line,'old_debt','old_debt_instalment',@amt,1,@acc,@debt,@by,@at)
+                """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pm",run.S("periodMonth")),("@r",riderId),("@line",nextLine++),
+                ("@amt",amount),("@acc",account),("@debt",(object?)NullIfEmpty(debtId)??DBNull.Value),
+                ("@by",actor.Identity!.Name!),("@at",now));
+        }
     }
 
     static string ReceivableCode(string category)
@@ -154,6 +168,19 @@ public static class SalDebtConfirm
         SchemaOrgCostCentre.Ensure(c,tx);SchemaFinAccount.Ensure(c,tx);
         SchemaFinPeriod.Ensure(c,tx);SchemaFinJournal.Ensure(c,tx);SchemaFinPeriodBalance.Ensure(c,tx);
         SchemaSalPayRun.Ensure(c,tx);SchemaDebt.Ensure(c,tx);SchemaOperationCapture.Ensure(c,tx);
+        EnsureItemDebtColumn(c,tx);
+    }
+
+    static void EnsureItemDebtColumn(DbConnection c,DbTransaction? tx)
+    {
+        string t=SchemaSql.Q(c,"sal","pay_run_item");
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"IF COL_LENGTH(N'sal.pay_run_item',N'debt_id') IS NULL ALTER TABLE {t} ADD debt_id {SchemaSql.GuidType(c)} NULL;");
+        else
+        {
+            object? has=SchemaSql.Scalar(c,tx,"SELECT 1 FROM pragma_table_info('sal_pay_run_item') WHERE name='debt_id'");
+            if(has is null or DBNull)SchemaSql.Exec(c,tx,$"ALTER TABLE {t} ADD COLUMN debt_id TEXT NULL;");
+        }
     }
 
     static JsonObject LoadRun(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
