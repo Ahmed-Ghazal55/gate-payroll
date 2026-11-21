@@ -23,6 +23,7 @@ public static class TreasuryBankStatementsApi
             companyId=r.GetValue(0).ToString()!;registrationId=r.GetValue(1).ToString()!;chartAccountId=r.GetValue(2).ToString()!;
         }
         FinancialScopes.DemandSponsor(actor,companyId);
+        DemandTreasuryAccount(actor,companyId,chartAccountId,c,tx);
         DateOnly periodMonth=ParseMonth(input.Required("periodMonth"));
         decimal opening=J.Money(PayValues.Number(input,"openingBalance"));
         decimal closing=J.Money(PayValues.Number(input,"closingBalance"));
@@ -98,31 +99,33 @@ public static class TreasuryBankStatementsApi
         {
             if(line.B("matched"))continue;
             decimal amount=line.N("amount");
-            // Match open journal lines on the same bank account with equal absolute amount and correct side.
-            string sql=amount>0
-                ?$"""
-                    SELECT TOP 1 jl.id FROM {SchemaSql.Q(c,"fin","journal_line")} jl
-                    JOIN {SchemaSql.Q(c,"fin","journal")} j ON j.id=jl.journal_id
-                    WHERE jl.company_id=@c AND jl.account_id=@a AND j.status=2 AND j.run_mode=0
-                      AND jl.debit=@amt
-                      AND NOT EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"treasury","bank_match")} m WHERE m.journal_line_id=jl.id AND m.status=1)
-                    ORDER BY jl.line_no
-                    """
-                :$"""
-                    SELECT TOP 1 jl.id FROM {SchemaSql.Q(c,"fin","journal_line")} jl
-                    JOIN {SchemaSql.Q(c,"fin","journal")} j ON j.id=jl.journal_id
-                    WHERE jl.company_id=@c AND jl.account_id=@a AND j.status=2 AND j.run_mode=0
-                      AND jl.credit=@amt
-                      AND NOT EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"treasury","bank_match")} m WHERE m.journal_line_id=jl.id AND m.status=1)
-                    ORDER BY jl.line_no
-                    """;
-            if(!SchemaSql.IsSql(c))
-                sql=sql.Replace("SELECT TOP 1","SELECT",StringComparison.Ordinal)+" LIMIT 1";
-            // absolute amount for credit/debit compare
             decimal abs=J.Money(Math.Abs(amount));
-            object? jl=SchemaSql.Scalar(c,tx,sql,("@c",companyId),("@a",chartAccountId),("@amt",abs));
-            if(jl is null or DBNull){unmatched.Add(line.S("id"));continue;}
-            string journalLineId=jl switch{Guid g=>SchemaSql.GuidText(g),_=>Convert.ToString(jl,CultureInfo.InvariantCulture)!};
+            DateOnly occurred=ParseDay(line.S("occurredOn"));
+            string reference=line.S("reference").Trim();
+            // Unambiguous only: amount + date window (±3 days) + reference; ties stay unmatched.
+            string sidePred=amount>0?"jl.debit=@amt":"jl.credit=@amt";
+            string sql=$"""
+                SELECT jl.id FROM {SchemaSql.Q(c,"fin","journal_line")} jl
+                JOIN {SchemaSql.Q(c,"fin","journal")} j ON j.id=jl.journal_id
+                WHERE jl.company_id=@c AND jl.account_id=@a AND j.status=2 AND j.run_mode=0
+                  AND {sidePred}
+                  AND j.journal_date BETWEEN @from AND @to
+                  AND NOT EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"treasury","bank_match")} m WHERE m.journal_line_id=jl.id AND m.status=1)
+                  AND (
+                    @ref='' OR jl.narration_ar=@ref OR j.voucher_no=@ref OR j.narration_ar=@ref
+                  )
+                ORDER BY jl.line_no
+                """;
+            var candidates=new List<string>();
+            using(var cmd=Store.Command(c,tx,sql,
+                ("@c",companyId),("@a",chartAccountId),("@amt",abs),
+                ("@from",occurred.AddDays(-3).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)),
+                ("@to",occurred.AddDays(3).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)),
+                ("@ref",reference)))
+            using(var r=cmd.ExecuteReader())
+            while(r.Read())candidates.Add(r.GetValue(0) switch{Guid g=>SchemaSql.GuidText(g),_=>Convert.ToString(r.GetValue(0),CultureInfo.InvariantCulture)!});
+            if(candidates.Count!=1){unmatched.Add(line.S("id"));continue;}
+            string journalLineId=candidates[0];
             SchemaTreasury.LockMatchSources(c,tx,line.S("id"),journalLineId);
             SchemaSql.Exec(c,tx,$"""
                 INSERT INTO {SchemaSql.Q(c,"treasury","bank_match")}
@@ -176,36 +179,9 @@ public static class TreasuryBankStatementsApi
         string chartAccountId;
         using(var cmd=Store.Command(c,tx,$"SELECT account_id FROM {SchemaSql.Q(c,"treasury","bank_account")} WHERE id=@id",("@id",bankAccountId)))
             chartAccountId=cmd.ExecuteScalar()?.ToString()??throw new ApiError("حساب الدليل البنكي غير موجود.",409);
-        // Timing / recon adjust: over → 422202 income, short → 542102 expense (same CoA pair as vault over/short).
-        string clearingId=AccountIdByCode(c,tx,draft.N("amount")>0?"422202":"542102");
-
-        string periodRaw=statement.S("periodMonth");
-        if(periodRaw.Length==7)periodRaw+="-01";
-        DateOnly month=DateOnly.ParseExact(periodRaw.Length>=10?periodRaw[..10]:periodRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture);
-        month=new DateOnly(month.Year,month.Month,1);
-        Guid periodId=EnsureOpenPeriod(c,tx,companyId,month);
-        decimal amount=J.Money(Math.Abs(draft.N("amount")));
-        var lines=new List<JournalPosting.Line>();
-        if(draft.N("amount")>0)
-        {
-            lines.Add(new(Guid.Parse(chartAccountId),SchemaOrgCostCentre.NoneId,"none",amount,0m,draft.S("reason")));
-            lines.Add(new(Guid.Parse(clearingId),SchemaOrgCostCentre.NoneId,"none",0m,amount,draft.S("reason")));
-        }
-        else
-        {
-            lines.Add(new(Guid.Parse(clearingId),SchemaOrgCostCentre.NoneId,"none",amount,0m,draft.S("reason")));
-            lines.Add(new(Guid.Parse(chartAccountId),SchemaOrgCostCentre.NoneId,"none",0m,amount,draft.S("reason")));
-        }
-        var posted=JournalPosting.Post(c,tx,new(
-            Guid.Parse(companyId),periodId,month,month.AddDays(14),
-            "bank_statement_adjust",Guid.Parse(adjustId),"bank_recon_adjust",0,false,actor.Identity!.Name!,lines,
-            NarrationAr:draft.S("reason")));
-        draft["status"]="approved";draft["approvedBy"]=actor.Identity!.Name;draft["approvedAt"]=DateTimeOffset.UtcNow.ToString("O");
-        draft["journalId"]=SchemaSql.GuidText(posted.JournalId);
-        Store.Save(c,"bank_statement_adjust",draft,tx);
-        Store.Audit(c,tx,"treasury.bank_adjust_approved",adjustId,actor.Identity!.Name!);
-        draft["allowedActions"]=new JsonArray();
-        return draft;
+        // Do NOT use vault variance 422202/542102. Chart has no bank-timing/difference account yet — block.
+        _=chartAccountId;_=companyId;
+        throw new ApiError("ترحيل تسوية فرق التوقيت البنكي موقوف حتى يُحدد حساب فرق/توقيت بنكي معتمد في الدليل (لا يُستخدم 422202/542102 الخاصة بجرد الخزن).",409);
     }
 
     public static void Map(RouteGroupBuilder api,Store store)
@@ -271,6 +247,12 @@ public static class TreasuryBankStatementsApi
         return doc;
     }
 
+    static void DemandTreasuryAccount(ClaimsPrincipal actor,string companyId,string accountId,DbConnection c,DbTransaction tx)
+    {
+        object? codeObj=SchemaSql.Scalar(c,tx,$"SELECT code FROM {SchemaSql.Q(c,"fin","account")} WHERE id=@id",("@id",accountId));
+        string code=codeObj?.ToString()??"";
+        J.Need(code!=""&&FinancialScopes.TargetAccount(actor,companyId,code),"الحساب المالي خارج النطاق المسند للمستخدم.",403);
+    }
     static string AccountIdByCode(DbConnection c,DbTransaction tx,string code)
     {
         object? id=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","account")} WHERE code=@c",("@c",code));
