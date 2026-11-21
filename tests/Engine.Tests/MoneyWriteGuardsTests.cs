@@ -96,16 +96,53 @@ public sealed class MoneyWriteGuardsTests
     public void LegacyPostJournalRejectsStoredDocumentCycleRunModeOne()
     {
         using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
+        const string cycleId="cycle-legacy-sim";
         f.Store.Write((c,tx)=>{
-            Store.Save(c,PayCycles.Kind,new(){["id"]="cycle-legacy-sim",["companyId"]=company,["period"]="2026-10",["status"]="approved",["payoutBlocked"]=false,["runMode"]=1},tx);
+            Store.Save(c,PayCycles.Kind,new(){["id"]=cycleId,["companyId"]=company,["period"]="2026-10",["status"]="approved",["payoutBlocked"]=false,["runMode"]=1},tx);
+            return true;
+        });
+        JsonArray Lines()=>new(
+            FinancialCore.CreateJournalLine("1210",company,10,0),
+            FinancialCore.CreateJournalLine("3101",company,0,10));
+        // Reference is the simulation cycle id — that source row's run_mode=1 blocks posting.
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>
+            FinancialCore.PostJournal(c,tx,"opening","Synthetic cycle sim","2026-10",cycleId,Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company))).Status);
+        Assert.IsFalse(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")==cycleId)));
+    }
+
+    [TestMethod]
+    public void SiblingSimulationDoesNotBlockLiveSourcePosting()
+    {
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
+        const string liveId="cycle-live-source",simId="cycle-sim-sibling";
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,PayCycles.Kind,new(){["id"]=liveId,["companyId"]=company,["period"]="2026-10",["status"]="approved",["payoutBlocked"]=false,["runMode"]=0},tx);
+            Store.Save(c,PayCycles.Kind,new(){["id"]=simId,["companyId"]=company,["period"]="2026-10",["status"]="approved",["payoutBlocked"]=false,["runMode"]=1},tx);
+            return true;
+        });
+        JsonArray Lines()=>new(
+            FinancialCore.CreateJournalLine("1210",company,10,0),
+            FinancialCore.CreateJournalLine("3101",company,0,10));
+        f.Store.Write((c,tx)=>FinancialCore.PostJournal(c,tx,"opening","Synthetic live with sim sibling","2026-10",liveId,Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company));
+        Assert.IsTrue(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")==liveId)));
+    }
+
+    [TestMethod]
+    public void SimulationSourceBlockedEvenWhenLiveSiblingExists()
+    {
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
+        const string liveId="cycle-live-sibling",simId="cycle-sim-source";
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,PayCycles.Kind,new(){["id"]=liveId,["companyId"]=company,["period"]="2026-10",["status"]="approved",["payoutBlocked"]=false,["runMode"]=0},tx);
+            Store.Save(c,PayCycles.Kind,new(){["id"]=simId,["companyId"]=company,["period"]="2026-10",["status"]="approved",["payoutBlocked"]=false,["runMode"]=1},tx);
             return true;
         });
         JsonArray Lines()=>new(
             FinancialCore.CreateJournalLine("1210",company,10,0),
             FinancialCore.CreateJournalLine("3101",company,0,10));
         Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>
-            FinancialCore.PostJournal(c,tx,"opening","Synthetic cycle sim","2026-10","legacy-cycle-sim",Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company))).Status);
-        Assert.IsFalse(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")=="legacy-cycle-sim")));
+            FinancialCore.PostJournal(c,tx,"opening","Synthetic sim with live sibling","2026-10",simId,Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company))).Status);
+        Assert.IsFalse(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")==simId)));
     }
 
     [TestMethod]

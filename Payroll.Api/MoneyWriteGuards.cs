@@ -93,7 +93,8 @@ public static class MoneyWriteGuards
             throw new ApiError("وضع المحاكاة يمنع ترحيل القيود عبر المسار القديم.",409);
         if(IsSalSimulationSource(c,tx,reference))
             throw new ApiError("مرجع المحاكاة يمنع ترحيل قيد حقيقي عبر المسار القديم.",409);
-        byte runMode=ResolveLegacyRunMode(c,tx,period,companyId);
+        // WC1I: run_mode comes only from the actual source row (cycle / run / sal.pay_run id) — never company+month aggregation.
+        byte runMode=ResolveLegacyRunMode(c,tx,reference);
         bool blocked=ResolveLegacyPayoutBlocked(c,tx,period,companyId);
         var credited=(lines??[]).OfType<System.Text.Json.Nodes.JsonObject>()
             .Where(l=>l.N("credit")>0)
@@ -101,21 +102,18 @@ public static class MoneyWriteGuards
         Demand(runMode,blocked,EffectForJournal(transactionType,credited,blocked));
     }
 
-    /// <summary>Read run_mode from document cycles / document runs / sal.pay_run when present; missing → 0.</summary>
-    public static byte ResolveLegacyRunMode(DbConnection c,DbTransaction tx,string period,string? companyId)
+    /// <summary>WC1I: read run_mode from the referenced source row only; unknown/missing reference → 0 (live).</summary>
+    public static byte ResolveLegacyRunMode(DbConnection c,DbTransaction tx,string? reference)
     {
-        if(string.IsNullOrWhiteSpace(companyId))return 0;
-        string month=J.Period(period);
-        foreach(var cycle in Store.List(c,PayCycles.Kind,tx).Where(d=>d.S("companyId")==companyId&&d.S("period")==month
-            &&d.S("status") is not ("cancelled" or "reversed")))
-            if(cycle.N("runMode")==1||cycle.S("runMode")=="1")return 1;
-        foreach(var run in Store.List(c,"run",tx).Where(r=>r.S("sponsorId")==companyId&&r.S("period")==month))
-            if(run.N("runMode")==1||run.S("runMode")=="1")return 1;
-        if(!Guid.TryParse(companyId,out _)||!SchemaSql.TableExists(c,tx,"sal","pay_run"))return 0;
+        if(string.IsNullOrWhiteSpace(reference))return 0;
+        var cycle=Store.Get(c,reference,PayCycles.Kind,tx);
+        if(cycle!=null)return cycle.N("runMode")==1||cycle.S("runMode")=="1"?(byte)1:(byte)0;
+        var run=Store.Get(c,reference,"run",tx);
+        if(run!=null)return run.N("runMode")==1||run.S("runMode")=="1"?(byte)1:(byte)0;
+        if(!Guid.TryParse(reference,out _)||!SchemaSql.TableExists(c,tx,"sal","pay_run"))return 0;
         object? mode=SchemaSql.Scalar(c,tx,$"""
-            SELECT MAX(run_mode) FROM {SchemaSql.Q(c,"sal","pay_run")}
-            WHERE company_id=@c AND period_month=@pm AND status<>4
-            """,("@c",companyId),("@pm",month+"-01"));
+            SELECT run_mode FROM {SchemaSql.Q(c,"sal","pay_run")} WHERE id=@id
+            """,("@id",reference));
         return mode is not null and not DBNull&&Convert.ToInt32(mode)==1?(byte)1:(byte)0;
     }
 
