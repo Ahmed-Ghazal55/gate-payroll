@@ -10,6 +10,8 @@ import {
   resolvePayrollTab,
   type PayrollTab,
 } from '../../lib/page-tabs';
+import { appendPeriodToHref } from '../../lib/period';
+import { usePeriod } from '../../lib/use-period';
 import {
   Calculator,
   Upload,
@@ -211,7 +213,6 @@ function PayrollPageInner() {
   const tabFromUrl: PayrollTab = resolvedTab.tab;
   const appFromUrl = searchParams?.get('app') || 'hungerstation';
   const subFromUrl = (searchParams?.get('sub') as PayAppSubTab) || 'settlements';
-  const periodFromUrl = searchParams?.get('period') || new Date().toISOString().slice(0, 7);
   const [mainTab, setMainTab] = useState<PayrollTab>(tabFromUrl);
 
   // Redirect legacy or unknown ?tab= ids cleanly while keeping all other query params (period, app, sub, etc.).
@@ -263,8 +264,8 @@ function PayrollPageInner() {
     [pathname, router, searchParams]
   );
 
-  // Filters & period
-  const [selectedPeriod, setSelectedPeriod] = useState<string>(periodFromUrl);
+  // Filters & period (URL ?period=YYYY-MM single source of truth)
+  const { period: selectedPeriod, setPeriod: setSelectedPeriod } = usePeriod();
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -278,15 +279,10 @@ function PayrollPageInner() {
     if (subFromUrl && subFromUrl !== appSubTab) {
       setAppSubTab(subFromUrl);
     }
-    if (periodFromUrl && periodFromUrl !== selectedPeriod) {
-      setSelectedPeriod(periodFromUrl);
-      setRulesMonth(periodFromUrl);
-      setLegacyPeriod(periodFromUrl);
-    }
     if (searchParams?.get('opsImport') === '1' && canShowImportStep(NINJA_OPS_IMPORT, { isAdmin, can })) {
       setOpsImportStep(NINJA_OPS_IMPORT);
     }
-  }, [tabFromUrl, appFromUrl, subFromUrl, periodFromUrl, searchParams, isAdmin, can]);
+  }, [tabFromUrl, appFromUrl, subFromUrl, searchParams, isAdmin, can]);
 
   // Navigation tabs within HungerStation settlements
   const [activeTab, setActiveTab] = useState<string>('invoices');
@@ -643,14 +639,12 @@ function PayrollPageInner() {
   const [globalSettings, setGlobalSettings] = useState<PayConfigDoc[]>([]);
   const [loadingGlobalSettings, setLoadingGlobalSettings] = useState<boolean>(false);
   const [globalSettingsError, setGlobalSettingsError] = useState<string | null>(null);
-  const [rulesMonth, setRulesMonth] = useState<string>(() => new Date().toISOString().slice(0, 7));
 
   const [copyingMonth, setCopyingMonth] = useState<boolean>(false);
 
   // ========================================================
   // LEGACY PRODUCTION PAYROLL RUN STATES (F2)
   // ========================================================
-  const [legacyPeriod, setLegacyPeriod] = useState<string>(() => new Date().toISOString().slice(0, 7));
   const [legacyPreview, setLegacyPreview] = useState<LegacyPayrollPreviewRow[]>([]);
   const [legacyRuns, setLegacyRuns] = useState<LegacyPayrollRun[]>([]);
   const [ridersList, setRidersList] = useState<any[]>([]);
@@ -948,12 +942,12 @@ function PayrollPageInner() {
   // Rule Editing Handlers (A6)
   const activeNinjaEligibility = useMemo(() => {
     if (!ninjaEligibilityList || ninjaEligibilityList.length === 0) return null;
-    const forPeriod = ninjaEligibilityList.filter((d) => d.period === rulesMonth);
+    const forPeriod = ninjaEligibilityList.filter((d) => d.period === selectedPeriod);
     if (forPeriod.length === 0) return ninjaEligibilityList[0];
     const draft = forPeriod.find((d) => d.status === 'draft');
     if (draft) return draft;
     return forPeriod.sort((a, b) => (b.version || 0) - (a.version || 0))[0];
-  }, [ninjaEligibilityList, rulesMonth]);
+  }, [ninjaEligibilityList, selectedPeriod]);
 
   const handleSaveNewRule = async () => {
     const trimmedThreshold = newRuleThreshold.trim();
@@ -974,10 +968,10 @@ function PayrollPageInner() {
       await api.createAppEligibility(
         'ninja',
         {
-          name: activeNinjaEligibility?.data?.name || `شروط أهلية نينجا ${rulesMonth}`,
+          name: activeNinjaEligibility?.data?.name || `شروط أهلية نينجا ${selectedPeriod}`,
           rules: existingRules,
         },
-        rulesMonth
+        selectedPeriod
       );
       showToast('تمت إضافة الشرط إلى نسخة الأهلية بنجاح', 'success');
       setRuleModalOpen(false);
@@ -999,10 +993,10 @@ function PayrollPageInner() {
       await api.createAppEligibility(
         'ninja',
         {
-          name: activeNinjaEligibility.data?.name || `شروط أهلية نينجا ${rulesMonth}`,
+          name: activeNinjaEligibility.data?.name || `شروط أهلية نينجا ${selectedPeriod}`,
           rules: existingRules,
         },
-        rulesMonth
+        selectedPeriod
       );
       showToast('تم حذف الشرط من المسودة', 'success');
       await loadNinjaEligibility();
@@ -1073,12 +1067,12 @@ function PayrollPageInner() {
       await api.createAppEligibility(
         'ninja',
         {
-          name: `شروط أهلية نينجا ${rulesMonth}`,
+          name: `شروط أهلية نينجا ${selectedPeriod}`,
           rules: existingRules,
         },
-        rulesMonth
+        selectedPeriod
       );
-      showToast('تم إنشاء نسخة شروط أهلية جديدة لشهر ' + rulesMonth, 'success');
+      showToast('تم إنشاء نسخة شروط أهلية جديدة لشهر ' + selectedPeriod, 'success');
       await loadNinjaEligibility();
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : 'تعذر إنشاء نسخة شروط الأهلية', 'error');
@@ -1224,7 +1218,7 @@ function PayrollPageInner() {
     setLegacyError(null);
     try {
       const [prevRes, runsRes, ridersRes, catRes] = await Promise.allSettled([
-        api.getLegacyPayrollPreview(legacyPeriod),
+        api.getLegacyPayrollPreview(selectedPeriod),
         api.getLegacyPayrollRuns(),
         api.getRiders(),
         api.getFinanceCatalog(),
@@ -1289,7 +1283,7 @@ function PayrollPageInner() {
     } else if (mainTab === 'current-cycle') {
       loadLegacyPayroll();
     }
-  }, [mainTab, appSubTab, selectedPlatform, selectedPeriod, selectedCompany, legacyPeriod, rulesMonth]);
+  }, [mainTab, appSubTab, selectedPlatform, selectedPeriod, selectedCompany]);
 
   // Derived KPI values for HungerStation
   const totalInvoicesAmount = useMemo(() => {
@@ -1677,7 +1671,7 @@ function PayrollPageInner() {
   const handleCreateGlobalSettingsDraft = async () => {
     try {
       await api.createGlobalPaySettings({
-        effectiveFrom: `${rulesMonth}-01`,
+        effectiveFrom: `${selectedPeriod}-01`,
         fromDefaults: true,
       });
       showToast('تم إنشاء مسودة الإعدادات العامة من القيم الافتراضية بنجاح', 'success');
@@ -1711,7 +1705,7 @@ function PayrollPageInner() {
     try {
       await api.approveLegacyPayrollRun({
         iqama: approvePreviewRow.iqama,
-        period: legacyPeriod,
+        period: selectedPeriod,
         sponsorId: approveSponsorId,
         fingerprint: approvePreviewRow.fingerprint,
       });
@@ -1735,7 +1729,7 @@ function PayrollPageInner() {
     try {
       await api.createAdjustment({
         iqama: adjIqama,
-        period: legacyPeriod,
+        period: selectedPeriod,
         amount: parseFloat(adjAmount),
         sourceRef: adjSourceRef.trim(),
         category: adjCategory,
@@ -1764,7 +1758,7 @@ function PayrollPageInner() {
     try {
       await api.createPayment({
         iqama: payIqama,
-        period: legacyPeriod,
+        period: selectedPeriod,
         amount: parseFloat(payAmount),
         sourceRef: paySourceRef.trim(),
         sponsorId: paySponsorId,
@@ -1819,7 +1813,7 @@ function PayrollPageInner() {
         type: 'number' as const,
         numeric: true,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           return Number((run?.result || row).orders ?? 0);
         },
       },
@@ -1828,7 +1822,7 @@ function PayrollPageInner() {
         header: 'السياسة',
         type: 'list' as const,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           return (run?.result || row).policyName || '';
         },
       },
@@ -1838,7 +1832,7 @@ function PayrollPageInner() {
         type: 'number' as const,
         numeric: true,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           return Number((run?.result || row).openingBalance ?? 0);
         },
       },
@@ -1848,7 +1842,7 @@ function PayrollPageInner() {
         type: 'number' as const,
         numeric: true,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           return Number((run?.result || row).periodMovement ?? 0);
         },
       },
@@ -1858,7 +1852,7 @@ function PayrollPageInner() {
         type: 'number' as const,
         numeric: true,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           return Number((run?.result || row).closingBalance ?? 0);
         },
       },
@@ -1867,7 +1861,7 @@ function PayrollPageInner() {
         header: 'الموقف',
         type: 'list' as const,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           if (run) return 'approved';
           if (row.blockers && row.blockers.length > 0) return 'blocked';
           return 'ready';
@@ -1876,7 +1870,7 @@ function PayrollPageInner() {
         toneOf: (v: unknown) => (v === 'approved' ? 'success' : v === 'blocked' ? 'danger' : 'warning'),
       },
     ],
-    [ridersList, legacyRuns, legacyPeriod]
+    [ridersList, legacyRuns, selectedPeriod]
   );
   const legacyPreviewFilter = useTableAutoFilter(legacyPreview, legacyPreviewFilterCols);
 
@@ -2123,8 +2117,8 @@ function PayrollPageInner() {
                 <label className="text-xs text-[var(--muted)] font-medium block mb-1">شهر المسير:</label>
                 <input
                   type="month"
-                  value={legacyPeriod}
-                  onChange={(e) => setLegacyPeriod(e.target.value)}
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
                   className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs sm:text-sm font-bold focus:outline-hidden"
                 />
               </div>
@@ -2151,7 +2145,7 @@ function PayrollPageInner() {
 
             <div className="flex items-center gap-2">
               <a
-                href={`/api/payroll/export.csv?period=${encodeURIComponent(legacyPeriod)}`}
+                href={`/api/payroll/export.csv?period=${encodeURIComponent(selectedPeriod)}`}
                 download
                 className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs sm:text-sm font-bold hover:opacity-90 transition inline-flex items-center gap-1.5 shadow-xs"
               >
@@ -2174,12 +2168,12 @@ function PayrollPageInner() {
             <StatCard
               label="إجمالي مناديب المسير"
               value={legacyPreview.length}
-              hint={`شهر ${legacyPeriod}`}
+              hint={`شهر ${selectedPeriod}`}
               icon={Users}
             />
             <StatCard
               label="كشوف معتمدة ومرحلة"
-              value={legacyRuns.filter((r) => r.period === legacyPeriod).length}
+              value={legacyRuns.filter((r) => r.period === selectedPeriod).length}
               hint="مرحلة محاسبياً"
               icon={CheckCircle2}
             />
@@ -2189,7 +2183,7 @@ function PayrollPageInner() {
                 legacyPreview.filter(
                   (p) =>
                     (!p.blockers || p.blockers.length === 0) &&
-                    !legacyRuns.some((r) => r.iqama === p.iqama && r.period === legacyPeriod)
+                    !legacyRuns.some((r) => r.iqama === p.iqama && r.period === selectedPeriod)
                 ).length
               }
               hint="بلا موانع نظامية"
@@ -2218,7 +2212,7 @@ function PayrollPageInner() {
             />
           ) : legacyPreview.length === 0 ? (
             <EmptyState
-              title={`لا توجد بيانات مسير لشهر ${legacyPeriod}`}
+              title={`لا توجد بيانات مسير لشهر ${selectedPeriod}`}
               description="ارفع مصدر التشغيل والتسوية وحدد سياسة حساب المناديب لاحتساب المسودة."
             />
           ) : (
@@ -2241,7 +2235,7 @@ function PayrollPageInner() {
                   <tbody className="divide-y divide-[var(--line)]">
                     {legacyPreviewFilter.rows.map((row) => {
                       const run = legacyRuns.find(
-                        (x) => x.iqama === row.iqama && x.period === legacyPeriod
+                        (x) => x.iqama === row.iqama && x.period === selectedPeriod
                       );
                       const displayRow = run?.result || row;
                       const hasBlockers = row.blockers && row.blockers.length > 0;
@@ -3932,7 +3926,7 @@ function PayrollPageInner() {
                       ) : activeCycle.status === 'approved' || activeCycle.stage >= 7 ? (
                         <>
                           <Link
-                            href="/treasury/?tab=bank_file"
+                            href={appendPeriodToHref('/treasury/?tab=bank_file', selectedPeriod)}
                             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition inline-flex items-center gap-1.5 shadow-xs"
                           >
                             <span>تصدير ملف البنك (CSV)</span>
@@ -4477,8 +4471,8 @@ function PayrollPageInner() {
             <div className="flex items-center gap-2">
               <input
                 type="month"
-                value={rulesMonth}
-                onChange={(e) => setRulesMonth(e.target.value)}
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
                 className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold focus:outline-hidden"
               />
               <button
@@ -4512,9 +4506,9 @@ function PayrollPageInner() {
               ) : !activeNinjaEligibility ? (
                 <EmptyState
                   title="لا توجد شروط أهلية مسجلة لشهر "
-                  description={`لم يتم العثور على شروط أهلية مسجلة لتطبيق نينجا في شهر ${rulesMonth}. يمكنك إنشاء مسودة جديدة من القيم القياسية بنقرة زر.`}
+                  description={`لم يتم العثور على شروط أهلية مسجلة لتطبيق نينجا في شهر ${selectedPeriod}. يمكنك إنشاء مسودة جديدة من القيم القياسية بنقرة زر.`}
                   action={{
-                    label: `إنشاء مسودة شروط أهلية لشهر ${rulesMonth}`,
+                    label: `إنشاء مسودة شروط أهلية لشهر ${selectedPeriod}`,
                     onClick: handleCreateNewNinjaDraft,
                   }}
                 />
@@ -4534,7 +4528,7 @@ function PayrollPageInner() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-base sm:text-lg text-[var(--ink)]">
-                            {activeNinjaEligibility.data?.name || `شروط أهلية نينجا ${rulesMonth}`} (إصدار #{activeNinjaEligibility.version})
+                            {activeNinjaEligibility.data?.name || `شروط أهلية نينجا ${selectedPeriod}`} (إصدار #{activeNinjaEligibility.version})
                           </h4>
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-bold ${
@@ -4635,7 +4629,7 @@ function PayrollPageInner() {
                       data={activeNinjaEligibility.data?.rules || []}
                       emptyTitle="لا توجد شروط مسجلة في هذه المسودة"
                       emptyDescription="انقر على «إضافة شرط» لإدراج مقياس جديد للأهلية."
-                      exportFilename={`ninja_eligibility_rules_${rulesMonth}`}
+                      exportFilename={`ninja_eligibility_rules_${selectedPeriod}`}
                       showTotals={false}
                     />
                   </div>
@@ -4649,7 +4643,7 @@ function PayrollPageInner() {
             <RuleRecordWorkspace
               appSlug={appSlug}
               appNameAr={platformsList.find((p) => p.id === selectedPlatform)?.nameAr || appSlug}
-              period={rulesMonth}
+              period={selectedPeriod}
               onOpenExceptionModal={() => {
                 setEditorKind('account_exception');
                 setEditingDoc(null);
@@ -4692,8 +4686,8 @@ function PayrollPageInner() {
             <div className="flex items-center gap-2">
               <input
                 type="month"
-                value={rulesMonth}
-                onChange={(e) => setRulesMonth(e.target.value)}
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
                 className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold focus:outline-hidden"
               />
               <button
@@ -4844,7 +4838,7 @@ function PayrollPageInner() {
           </p>
           <div className="pt-2">
             <Link
-              href="/treasury/?tab=bank_file"
+              href={appendPeriodToHref('/treasury/?tab=bank_file', selectedPeriod)}
               className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs sm:text-sm font-bold hover:opacity-90 transition shadow-xs inline-flex items-center gap-2"
             >
               <span>الانتقال لمولد ملف البنك بالخزينة</span>
@@ -5343,7 +5337,7 @@ function PayrollPageInner() {
           <div className="space-y-4 pt-2 text-xs">
             <div className="p-3 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs space-y-1">
               <div>المندوب: <span className="font-mono font-bold">{approvePreviewRow.iqama}</span></div>
-              <div>الشهر: <span className="font-mono">{legacyPeriod}</span></div>
+              <div>الشهر: <span className="font-mono">{selectedPeriod}</span></div>
               <div>صافي الرصيد الختامي: <span className="num font-bold text-[var(--accent)]">{formatSar(approvePreviewRow.closingBalance)}</span></div>
             </div>
 

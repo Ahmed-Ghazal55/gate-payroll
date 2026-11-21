@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
+import { usePeriod } from '../../lib/use-period';
 import { useToast } from '../../components/ui/Toast';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
@@ -89,7 +90,7 @@ const isCompanyMatch = (invoiceCompanyId?: string, target?: string) => {
 };
 
 export function NinjaInvoiceUploadScreen({
-  initialPeriod = new Date().toISOString().slice(0, 7),
+  initialPeriod,
   platform = 'ninja',
 }: NinjaInvoiceUploadScreenProps) {
   const { user } = useAuth();
@@ -98,7 +99,7 @@ export function NinjaInvoiceUploadScreen({
   const platformNameAr = isKeeta ? 'كيتا' : 'نينجا';
   const platformPrefix = isKeeta ? 'KEETA' : 'NINJA';
 
-  const [period, setPeriod] = useState<string>(initialPeriod);
+  const { period, setPeriod } = usePeriod(initialPeriod);
   const [companyOptions, setCompanyOptions] = useState<CompanySponsor[]>([]);
   const [companyId, setCompanyId] = useState<string>('');
   const [odooVoucherNo, setOdooVoucherNo] = useState<string>('');

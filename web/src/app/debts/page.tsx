@@ -4,6 +4,8 @@ import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { formatSar } from '../../lib/money';
 import { DEBTS_TAB_LABELS, buildTabRedirectUrl, resolveDebtsTab } from '../../lib/page-tabs';
+import { periodDateRange } from '../../lib/period';
+import { usePeriod } from '../../lib/use-period';
 import {
   Receipt,
   Coins,
@@ -185,13 +187,17 @@ function DebtsPageContent() {
   const [promissoryFeatureEnabled, setPromissoryFeatureEnabled] = useState<boolean>(false);
   const [advancesLoaded, setAdvancesLoaded] = useState(false);
 
-  // Statement search states
+  // Statement search states (default to URL ?period=YYYY-MM)
+  const { period: urlPeriod } = usePeriod();
   const [statementIqama, setStatementIqama] = useState<string>('');
-  const [statementFrom, setStatementFrom] = useState<string>(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-  });
-  const [statementTo, setStatementTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [statementFrom, setStatementFrom] = useState<string>(() => periodDateRange(urlPeriod).from);
+  const [statementTo, setStatementTo] = useState<string>(() => periodDateRange(urlPeriod).to);
+
+  useEffect(() => {
+    const r = periodDateRange(urlPeriod);
+    setStatementFrom(r.from);
+    setStatementTo(r.to);
+  }, [urlPeriod]);
   const [statementMode, setStatementMode] = useState<'detailed' | 'simple'>('detailed');
   const [statementData, setStatementData] = useState<RiderStatement | null>(null);
   const [loadingStatement, setLoadingStatement] = useState<boolean>(false);

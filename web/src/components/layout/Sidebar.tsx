@@ -21,6 +21,7 @@ import {
   FileUp,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
+import { appendPeriodToHref, readUrlPeriod } from '../../lib/period';
 import { ApprovalExceptionChip } from '../../features/admin/ApprovalExceptionChip';
 
 export interface NavSubItem {
@@ -64,6 +65,8 @@ function SidebarInner({
 }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const urlPeriod = readUrlPeriod(searchParams);
+  const withPeriod = (href: string) => appendPeriodToHref(href, urlPeriod);
   const { can, isAdmin, user } = useAuth();
 
   // Definition of IA Groups matching Spec 09 lines 37-50
@@ -293,7 +296,7 @@ function SidebarInner({
     <div className="flex flex-col h-full bg-[var(--surface)] text-[var(--ink)] border-e border-[var(--line)]">
       {/* Brand Header */}
       <div className="flex items-center justify-between p-4 border-b border-[var(--line)] min-h-[64px]">
-        <Link href="/" className="flex items-center gap-3 overflow-hidden">
+        <Link href={withPeriod('/')} className="flex items-center gap-3 overflow-hidden">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xl shadow-xs shrink-0">
             ب
           </div>
@@ -344,7 +347,7 @@ function SidebarInner({
                 } ${collapsed ? 'p-2 justify-center' : 'px-2.5 py-2'}`}
               >
                 <Link
-                  href={group.items[0]?.href ?? group.defaultHref}
+                  href={withPeriod(group.items[0]?.href ?? group.defaultHref)}
                   onClick={onCloseMobile}
                   title={collapsed ? group.label : undefined}
                   className={`flex items-center gap-2.5 flex-1 min-w-0 ${
@@ -424,7 +427,7 @@ function SidebarInner({
                     return (
                       <Link
                         key={subItem.id}
-                        href={subItem.href}
+                        href={withPeriod(subItem.href)}
                         onClick={onCloseMobile}
                         className={`flex items-center justify-between py-1.5 px-2 rounded-lg text-xs transition-colors ${
                           isSubActive

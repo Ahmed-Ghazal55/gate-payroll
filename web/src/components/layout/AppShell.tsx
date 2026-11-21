@@ -16,7 +16,6 @@ export function AppShell({ children }: AppShellProps) {
   const [collapsed, setCollapsed] = useState(false);
   const [mobileOpen, setMobileOpen] = useState(false);
   const [company, setCompany] = useState('all');
-  const [period, setPeriod] = useState('2026-10');
 
   const isAuthPage =
     Boolean(pathname && (pathname.includes('/login') || pathname.includes('/setup')));
@@ -61,8 +60,6 @@ export function AppShell({ children }: AppShellProps) {
               onToggleMobileNav={() => setMobileOpen(true)}
               selectedCompany={company}
               onCompanyChange={setCompany}
-              selectedPeriod={period}
-              onPeriodChange={setPeriod}
             />
 
             <main

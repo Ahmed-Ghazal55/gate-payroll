@@ -39,10 +39,14 @@ import { GlobalSearchModal } from './GlobalSearchModal';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { personalSoundEnabled, setPersonalSoundEnabled, unlockNotificationSound, playPersonalChime } from '../../lib/notification-sound';
 import { getBreadcrumbTabLabel } from '../../lib/page-tabs';
+import { appendPeriodToHref, buildPeriodOptions, readUrlPeriod } from '../../lib/period';
+import { usePeriod } from '../../lib/use-period';
 
 function BreadcrumbsNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const urlPeriod = readUrlPeriod(searchParams);
+  const withPeriod = (href: string) => appendPeriodToHref(href, urlPeriod);
 
   const parts = pathname.split('/').filter(Boolean);
   const crumbs = [{ label: 'الرئيسية', href: '/' }];
@@ -97,7 +101,7 @@ function BreadcrumbsNav() {
           {i === crumbs.length - 1 ? (
             <span className="font-bold text-[var(--ink)]">{c.label}</span>
           ) : (
-            <Link href={c.href} className="hover:text-[var(--ink)] transition">
+            <Link href={withPeriod(c.href)} className="hover:text-[var(--ink)] transition">
               {c.label}
             </Link>
           )}
@@ -111,17 +115,16 @@ export interface HeaderProps {
   onToggleMobileNav: () => void;
   selectedCompany?: string;
   onCompanyChange?: (company: string) => void;
-  selectedPeriod?: string;
-  onPeriodChange?: (period: string) => void;
 }
 
-export function Header({
+function HeaderInner({
   onToggleMobileNav,
   selectedCompany = 'all',
   onCompanyChange,
-  selectedPeriod = new Date().toISOString().slice(0, 7),
-  onPeriodChange,
 }: HeaderProps) {
+  const { period: selectedPeriod, urlPeriod, setPeriod: onPeriodChange } = usePeriod();
+  const withPeriod = (href: string) => appendPeriodToHref(href, urlPeriod);
+  const periodOptions = buildPeriodOptions(selectedPeriod);
   // Panel and menu open state (strictly one open at a time: R6ui-2)
   const [openPanel, setOpenPanel] = useState<'notif' | 'personal_notif' | 'theme' | 'user' | 'shortcuts' | null>(null);
 
@@ -388,29 +391,25 @@ export function Header({
             />
           </div>
 
-          {/* Period Picker */}
+          {/* Period Picker (URL ?period=YYYY-MM single source of truth) */}
           <div className="hidden lg:flex items-center gap-1 text-xs">
             <Calendar size={14} className="text-[var(--muted)] shrink-0" />
             <SearchableSelect
               id="header-period-picker"
               value={selectedPeriod}
-              onChange={(v) => onPeriodChange && onPeriodChange(v)}
+              onChange={(v) => onPeriodChange(v)}
               ariaLabel="فترة العمل"
               placeholder="الفترة"
               size="sm"
               className="w-28"
-              options={[
-                { value: '2026-10', label: '2026-10' },
-                { value: '2026-09', label: '2026-09' },
-                { value: '2026-08', label: '2026-08' },
-              ]}
+              options={periodOptions}
             />
           </div>
 
           {/* Approvals Count Link */}
           {approvalCount > 0 && (
             <Link
-              href="/debts/"
+              href={withPeriod('/debts/')}
               title={`${approvalCount} معاملات بانتظار الاعتماد`}
               className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-[var(--warning)]/15 text-[var(--warning)] hover:bg-[var(--warning)]/25 transition"
             >
@@ -445,7 +444,7 @@ export function Header({
                     {visibleShortcuts.map((item) => (
                         <Link
                           key={item.id}
-                          href={item.href}
+                          href={withPeriod(item.href)}
                           onClick={() => setOpenPanel(null)}
                           className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-[var(--row-hover)] transition text-[var(--ink)] font-semibold"
                         >
@@ -606,7 +605,7 @@ export function Header({
                 </div>
 
                 <Link
-                  href="/admin/"
+                  href={withPeriod('/admin/')}
                   onClick={() => setOpenPanel(null)}
                   className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-[var(--row-hover)] text-[var(--ink)]"
                 >
@@ -652,5 +651,17 @@ export function Header({
       />
 
     </>
+  );
+}
+
+export function Header(props: HeaderProps) {
+  return (
+    <Suspense
+      fallback={
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 sm:gap-4 border-b border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] px-3 sm:px-6 shadow-2xs" />
+      }
+    >
+      <HeaderInner {...props} />
+    </Suspense>
   );
 }

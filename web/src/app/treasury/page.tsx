@@ -16,6 +16,7 @@ import {
   resolveTreasuryTab,
   type TreasuryTab,
 } from '../../lib/page-tabs';
+import { usePeriod } from '../../lib/use-period';
 import {
   Landmark,
   Coins,
@@ -94,7 +95,7 @@ function TreasuryPageContent() {
     router.replace(`${pathname || '/treasury/'}?${params.toString()}`, { scroll: false });
   };
 
-  const [selectedPeriod, setSelectedPeriod] = useState<string>(() => new Date().toISOString().slice(0, 7));
+  const { period: selectedPeriod, setPeriod: setSelectedPeriod } = usePeriod();
   const [selectedSponsor, setSelectedSponsor] = useState<string>('all');
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
   const [searchQuery, setSearchQuery] = useState<string>('');

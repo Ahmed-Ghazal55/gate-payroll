@@ -8,6 +8,7 @@ import {
   resolveAccountingTab,
   type AccountingTab,
 } from '../../lib/page-tabs';
+import { usePeriod } from '../../lib/use-period';
 import {
   FileSpreadsheet,
   Layers,
@@ -154,7 +155,7 @@ function AccountingPageContent() {
   const [selectedAccount, setSelectedAccount] = useState<TargetCoaAccount | null>(null);
 
   const [selectedSponsor, setSelectedSponsor] = useState<string>('all');
-  const [periodMonth, setPeriodMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const { period: periodMonth, setPeriod: setPeriodMonth } = usePeriod();
 
   // Deep-link from search: /accounting/?tab=journals&voucherNo=…
   useEffect(() => {

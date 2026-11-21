@@ -35,18 +35,25 @@ import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../../compon
 import type { RiderStatement, RiderProfile360, MonthlyRiderStatement } from '../../../lib/types';
 import { RiderAccountsPanel } from '../../../components/riders/RiderAccountsPanel';
 import { formatSar } from '../../../lib/money';
+import { appendPeriodToHref, periodDateRange } from '../../../lib/period';
+import { usePeriod } from '../../../lib/use-period';
 
 function RiderStatementPageInner() {
   const { user } = useAuth();
   const { toast } = useToast();
   const searchParams = useSearchParams();
+  const { period: urlPeriod } = usePeriod();
+  const defaultRange = periodDateRange(urlPeriod);
 
   const [iqama, setIqama] = useState<string>(searchParams?.get('iqama') || '');
-  const [fromDate, setFromDate] = useState<string>(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-  });
-  const [toDate, setToDate] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [fromDate, setFromDate] = useState<string>(defaultRange.from);
+  const [toDate, setToDate] = useState<string>(defaultRange.to);
+
+  useEffect(() => {
+    const r = periodDateRange(urlPeriod);
+    setFromDate(r.from);
+    setToDate(r.to);
+  }, [urlPeriod]);
   const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -77,7 +84,7 @@ function RiderStatementPageInner() {
     }
     setLoading(true);
     setError(null);
-    const period = toDate ? toDate.slice(0, 7) : '2026-10';
+    const period = toDate ? toDate.slice(0, 7) : urlPeriod;
     try {
       // 1. Try 0.14.0 monthly statement endpoint first (R4.8)
       let monthlyData: MonthlyRiderStatement | null = null;
@@ -206,7 +213,7 @@ function RiderStatementPageInner() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="flex items-center gap-2">
             <Link
-              href="/workforce/"
+              href={appendPeriodToHref('/workforce/', searchParams?.get('period'))}
               className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--ink)] hover:bg-[var(--raised)] transition"
               title="العودة لدليل المناديب"
             >
