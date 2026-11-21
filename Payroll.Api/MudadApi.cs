@@ -200,15 +200,15 @@ public static class MudadApi
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapGet("/mudad",(string? companyId,string? periodMonth,HttpContext ctx)=>store.Read(c=>List(c,ctx.User,companyId,periodMonth)))
-            .WithTags("Workforce").WithSummary("List Mudad uploads by company/month");
+            .WithTags("Riders").WithSummary("List Mudad uploads by company/month");
         api.MapPost("/mudad/uploads",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
         {
             Ensure(c,tx);return Upload(c,tx,ctx.User,input);
-        })).WithTags("Workforce").WithSummary("Upload a Mudad salaries or bank-accounts batch");
+        })).WithTags("Riders").WithSummary("Upload a Mudad salaries or bank-accounts batch");
         api.MapPost("/mudad/uploads/{id}/match",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
         {
             Ensure(c,tx);return Match(c,tx,ctx.User,id,input);
-        })).WithTags("Workforce").WithSummary("Match Mudad lines to ERP employees");
+        })).WithTags("Riders").WithSummary("Match Mudad lines to ERP employees");
         api.MapPost("/mudad/uploads/{id}/lines",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
         {
             Ensure(c,tx);return AddLine(c,tx,ctx.User,id,input);
