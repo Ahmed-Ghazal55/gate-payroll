@@ -145,12 +145,15 @@ public static class BankPayrollFiles
             if(row.N("amount")!=original.N("amount")||row.S("notes")!=original.S("notes")||row.S("bank")!=original.S("bank"))edited++;
             total+=row.N("amount");checkedRows.Add(row);
         }
-        // M1: payout journal only when explicitly marked sent — never on plain export or parallel «لا يُرسل».
+        // M1 / U-W2-31: payout journal only when explicitly marked sent — never on plain export or parallel «لا يُرسل».
         if(!comparison&&(input.B("markSent")||input.B("sent")||input.S("action")=="mark_sent"))
         {
+            MoneyWriteGuards.Demand(runMode:0,payoutBlocked:false,MoneyEffectKind.BankSent);
             string bank=input.S("bankAccountCode",PipelineSettings.Current().S("payrollBankAccount","111101"));
+            MoneyWriteGuards.Demand(0,false,MoneyEffectKind.Payout);
             PostPayout(c,tx,user,request,checkedRows,actor,bank);
         }
+        // comparisonOnly + markSent: export CSV only; never post (parallel «لا يُرسل»).
         byte[] bytes=Csv(checkedRows);string filename=(comparison?"DO-NOT-SEND_":"")+DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)+"_bulkPayroll.csv";
         // Metadata only. Never persist the exported rows, identifiers, names, IBANs or notes.
         // Keep the normal export audit shape (7 fields). Parallel-run adds doNotSend outside the CSV.
