@@ -15,7 +15,6 @@ const data=mkdtempSync(path.join(tmpdir(),'gate-r2-'));
 const webroot=path.join(data,'synthetic-webroot'),base='http://127.0.0.1:19481';
 mkdirSync(path.join(webroot,'app/login'),{recursive:true});
 writeFileSync(path.join(webroot,'favicon.svg'),readFileSync(path.join(root,'Payroll.Api/wwwroot/favicon.svg')));
-writeFileSync(path.join(webroot,'index.html'),'<html>synthetic legacy entry</html>');
 writeFileSync(path.join(webroot,'app/index.html'),'<html>synthetic app entry</html>');
 writeFileSync(path.join(webroot,'app/login/index.html'),'<html>synthetic login</html>');
 let child,cookie='',checks=0;
@@ -33,13 +32,13 @@ async function json(route,body,status=200){return (await request(route,{body,sta
 try{
  await start();
  assert.equal((await request('/',{status:302})).headers.get('location'),'/app/');
- assert.equal((await request('/legacy/',{status:302,auth:false})).headers.get('location'),'/app/login/?returnUrl=/legacy/');
- assert.equal((await request('/index.html',{status:302})).headers.get('location'),'/legacy/');
- for(const value of ['https://outside.invalid/app/','//outside.invalid/app/','/inquiry','/app/../inquiry','/app/%252e%252e/inquiry','/app/\\outside.invalid'])await request('/app/login/?returnUrl='+encodeURIComponent(value),{status:400});
- for(const value of ['/legacy/','/app/riders/?page=2'])await request('/app/login/?returnUrl='+encodeURIComponent(value));
+ assert.equal((await request('/legacy/',{status:302,auth:false})).headers.get('location'),'/app/');
+ assert.equal((await request('/index.html',{status:302})).headers.get('location'),'/app/');
+ for(const value of ['https://outside.invalid/app/','//outside.invalid/app/','/inquiry','/app/../inquiry','/app/%252e%252e/inquiry','/app/\\outside.invalid','/legacy/'])await request('/app/login/?returnUrl='+encodeURIComponent(value),{status:400});
+ for(const value of ['/app/riders/?page=2','/app/forms/'])await request('/app/login/?returnUrl='+encodeURIComponent(value));
  await json('/api/auth/setup',{username:'synthetic-r2-admin',password:randomBytes(24).toString('hex')});
- assert.equal(await (await request('/legacy/')).text(),'<html>synthetic legacy entry</html>');
- assert.equal((await request('/legacy',{status:302})).headers.get('location'),'/legacy/');
+ assert.equal((await request('/legacy/',{status:302})).headers.get('location'),'/app/');
+ assert.equal((await request('/legacy',{status:302})).headers.get('location'),'/app/');
  assert.equal((await request('/',{status:302})).headers.get('location'),'/app/');
  const campaign=await json('/api/campaigns',{title:'Synthetic R2 form',days:2});
  const form=await json('/api/forms/builder',{titleAr:'Synthetic questionnaire',expiresAt:new Date(Date.now()+86400000).toISOString(),maxSubmissions:10,fields:[{id:'identity',labelAr:'Identity',type:'iqama',required:true}]});
@@ -134,6 +133,6 @@ try{
  const after=afterDb.prepare('SELECT id,kind,body FROM records ORDER BY id').all();afterDb.close();
  assert.deepEqual(after,before,'Startup must preserve every existing document byte-for-byte');checks++;
  assert.equal((await (await request('/health')).json()).dataPreservationVerified,true);
- assert.equal(await (await request('/legacy/')).text(),'<html>synthetic legacy entry</html>');
+ assert.equal((await request('/legacy/',{status:302})).headers.get('location'),'/app/');
  console.log('PASS R2 backend: '+checks+' HTTP checks; public routes, session gate, safe return paths and byte-identical restart');
 }finally{await stop();rmSync(data,{recursive:true,force:true});}

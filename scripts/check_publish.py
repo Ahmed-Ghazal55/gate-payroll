@@ -2,11 +2,11 @@ from pathlib import Path
 import argparse, json
 
 def check(root):
-    required = ['Payroll.Api.exe', 'Payroll.Api.dll', 'web.config', 'wwwroot/index.html',
-                'wwwroot/favicon.svg', 'wwwroot/favicon.ico', 'wwwroot/app.css', 'wwwroot/app.js', 'wwwroot/table-tools.js',
+    required = ['Payroll.Api.exe', 'Payroll.Api.dll', 'web.config',
+                'wwwroot/favicon.svg', 'wwwroot/favicon.ico', 'wwwroot/app.css',
                 'wwwroot/fonts/cairo.ttf', 'wwwroot/fonts/outfit.ttf', 'wwwroot/fonts/notonastaliqurdu.ttf',
                 'wwwroot/fonts/cairo-OFL.txt', 'wwwroot/fonts/outfit-OFL.txt', 'wwwroot/fonts/notonastaliqurdu-OFL.txt',
-                'wwwroot/bootstrap.js', 'wwwroot/enterprise.js', 'wwwroot/rider-form.html', 'wwwroot/rider-form.js']
+                'wwwroot/rider-form.html', 'wwwroot/rider-form.js']
     if (Path(__file__).resolve().parents[1]/'web/package.json').is_file() or (root/'wwwroot/app').exists():
         required.append('wwwroot/app/index.html')
     for name in required:

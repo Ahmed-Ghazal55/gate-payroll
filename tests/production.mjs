@@ -1,5 +1,4 @@
 import { spawn } from 'node:child_process';
-import { createServer } from 'node:net';
 import { mkdtempSync, rmSync, readFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
@@ -12,17 +11,9 @@ const dotnet = process.env.DOTNET_PATH || 'dotnet';
 const dll = path.join(root, 'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll');
 let checks = 0;
 
-async function freePort() {
-  const probe = createServer();
-  await new Promise((resolve, reject) => { probe.once('error', reject); probe.listen(0, '127.0.0.1', resolve); });
-  const port = probe.address().port;
-  await new Promise(resolve => probe.close(resolve));
-  return port;
-}
-
-async function scenario(secret, expectedSetup) {
+async function scenario(secret, expectedSetup, port) {
   const data = mkdtempSync(path.join(tmpdir(), 'gate-production-'));
-  const base = `http://127.0.0.1:${await freePort()}`;
+  const base = `http://127.0.0.1:${port}`;
   const proc = spawn(dotnet, [dll], {cwd:path.join(root,'Payroll.Api'), env:{...process.env,
     ASPNETCORE_ENVIRONMENT:'Production', ASPNETCORE_URLS:base, PAYROLL_DATA_DIR:data,
     PAYROLL_BOOTSTRAP_KEY:secret, AllowedHosts:'127.0.0.1;localhost', PAYROLL_KNOWN_PROXIES:''}, stdio:['ignore','pipe','pipe']});
@@ -64,7 +55,7 @@ async function scenario(secret, expectedSetup) {
   }
 }
 assert.equal(JSON.parse(readFileSync(path.join(root,'Payroll.Api/appsettings.Production.json'),'utf8')).Payroll.BootstrapKey,'');
-await scenario('',503);
-await scenario('replace_with_24_char_secure_key',503);
-await scenario(randomBytes(32).toString('hex'),200);
+await scenario('',503,19351);
+await scenario('replace_with_24_char_secure_key',503,19352);
+await scenario(randomBytes(32).toString('hex'),200,19353);
 console.log(`PASS ${checks} production HTTPS/bootstrap/origin/session/form checks.`);

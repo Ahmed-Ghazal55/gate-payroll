@@ -1,7 +1,14 @@
 'use client';
 
-import React, { useEffect, useState, useMemo, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import React, { useEffect, useState, useMemo, useCallback, Suspense } from 'react';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import {
+  ACCOUNTING_TAB_LABELS,
+  buildTabRedirectUrl,
+  resolveAccountingTab,
+  type AccountingTab,
+} from '../../lib/page-tabs';
+import { usePeriod } from '../../lib/use-period';
 import {
   FileSpreadsheet,
   Layers,
@@ -25,15 +32,23 @@ import {
   FileText,
   Eye,
   X,
+  Upload,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import { ErrorState, EmptyState, Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
+import { useAuth } from '../../lib/auth-context';
 import { api } from '../../lib/api';
+import { formatSar } from '../../lib/money';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
 import { AccountingAdjustmentsPanel } from '../../features/accounting/AccountingAdjustmentsPanel';
+import { paginateFilteredRows } from '../../features/accounting/trial-balance-paging';
+import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
+import { canShowImportStep, TREASURY_OPENING_IMPORT } from '../../features/imports/import-steps';
 import type {
   TargetCoaAccount,
   TargetCoaResponse,
@@ -48,31 +63,65 @@ import type {
   FinanceJournalLine,
 } from '../../lib/types';
 
-const COMPANY_NAME_MAP: Record<string, string> = {
-  BW: 'شركة البوابة المقبلة (BW)',
-  EX: 'شركة إكسبرس جايت (EX)',
-  TR: 'مؤسسة النقل والتوزيع (TR)',
-  all: 'كافة المنشآت والسجلات',
-};
-
 function AccountingPageContent() {
   const { toast } = useToast();
+  const { can, isAdmin } = useAuth();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
-  const [activeTab, setActiveTab] = useState<'coa' | 'manual_journals' | 'adjustments' | 'journals' | 'trial' | 'income'>('coa');
+  const resolvedTab = resolveAccountingTab(searchParams?.get('tab'));
+  const [activeTab, setActiveTab] = useState<AccountingTab>(resolvedTab.tab);
   const [openNewManualJournal, setOpenNewManualJournal] = useState<boolean>(false);
+  const [openingImportOpen, setOpeningImportOpen] = useState(false);
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
+  const [importAllowedActions, setImportAllowedActions] = useState<string[] | null>(null);
+
+  const navigateTab = useCallback(
+    (nextTab: AccountingTab) => {
+      setActiveTab(nextTab);
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('tab', nextTab);
+      router.replace(`${pathname || '/accounting/'}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
 
   useEffect(() => {
-    api.getCompanies().then((res) => setCompanies(res || [])).catch(() => {});
+    if (!resolvedTab.legacy) return;
+    router.replace(buildTabRedirectUrl(pathname || '/accounting/', searchParams, resolvedTab), { scroll: false });
+  }, [resolvedTab.legacy, resolvedTab.tab, pathname, router, searchParams]);
+
+  useEffect(() => {
+    api.getFinanceSponsors().then((res) => setCompanies(res || [])).catch(() => {});
+    api
+      .getFinanceCatalog()
+      .then((cat) => setImportAllowedActions(Array.isArray(cat?.allowedActions) ? cat.allowedActions : []))
+      .catch(() => setImportAllowedActions([]));
   }, []);
+
+  // Company labels come from GET /companies only — never a fixed code map.
+  // Try each candidate (code and sponsorId) and match code or id/sponsorId.
+  const companyName = (...candidates: Array<string | undefined>) => {
+    const keys = candidates.filter((k): k is string => !!k && k !== 'all');
+    if (keys.length === 0) return 'كافة المنشآت والسجلات';
+    for (const key of keys) {
+      const match = companies.find(
+        (c) => c.code === key || c.id === key || (c as { sponsorId?: string }).sponsorId === key
+      );
+      if (match) return match.nameAr || match.shortNameAr || key;
+    }
+    return keys[0];
+  };
 
   useEffect(() => {
     const action = searchParams?.get('action');
     if (action === 'manual_journal') {
       setActiveTab('manual_journals');
       setOpenNewManualJournal(true);
+      return;
     }
-  }, [searchParams]);
+    setActiveTab(resolvedTab.tab);
+  }, [searchParams, resolvedTab.tab]);
 
   // ==========================================
   // Data States
@@ -106,7 +155,15 @@ function AccountingPageContent() {
   const [selectedAccount, setSelectedAccount] = useState<TargetCoaAccount | null>(null);
 
   const [selectedSponsor, setSelectedSponsor] = useState<string>('all');
-  const [periodMonth, setPeriodMonth] = useState<string>(new Date().toISOString().slice(0, 7));
+  const { period: periodMonth, setPeriod: setPeriodMonth } = usePeriod();
+
+  // Deep-link from search: /accounting/?tab=journals&voucherNo=…
+  useEffect(() => {
+    const voucherNo = searchParams?.get('voucherNo');
+    if (!voucherNo) return;
+    setActiveTab('journals');
+    setJournalSearch(voucherNo);
+  }, [searchParams]);
 
   // ==========================================
   // Data Fetching
@@ -179,9 +236,9 @@ function AccountingPageContent() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'trial') {
+    if (activeTab === 'trial_balance') {
       loadTrialBalance();
-    } else if (activeTab === 'income') {
+    } else if (activeTab === 'income_statement') {
       loadIncomeStatement();
     }
   }, [activeTab, trialView, incomeView, selectedSponsor, periodMonth]);
@@ -292,6 +349,9 @@ function AccountingPageContent() {
     {
       key: 'code',
       header: 'رمز الحساب',
+      type: 'list',
+      filterType: 'list',
+      getValue: (acc) => acc.code || '',
       render: (acc) => (
         <span className="font-mono font-bold text-xs num text-[var(--accent)] bg-[var(--raised)] px-2 py-0.5 rounded border border-[var(--line)]">
           {acc.code}
@@ -301,6 +361,9 @@ function AccountingPageContent() {
     {
       key: 'nameAr',
       header: 'اسم الحساب المحاسبي',
+      type: 'text',
+      filterType: 'text',
+      getValue: (acc) => acc.nameAr || '',
       render: (acc) => {
         const indentClass =
           acc.level === 1
@@ -328,6 +391,11 @@ function AccountingPageContent() {
     {
       key: 'posting',
       header: 'نوع الحساب',
+      type: 'list',
+      filterType: 'list',
+      getValue: (acc) => ((acc.posting ?? acc.isPosting) ? 'posting' : 'group'),
+      labelOf: (v) => (v === 'posting' ? 'ترحيل مباشر' : 'رئيسي تجميعي'),
+      toneOf: (v) => (v === 'posting' ? 'success' : 'neutral'),
       render: (acc) => {
         const isPosting = acc.posting ?? acc.isPosting;
         return isPosting ? (
@@ -346,6 +414,11 @@ function AccountingPageContent() {
     {
       key: 'nature',
       header: 'الطبيعة',
+      type: 'list',
+      filterType: 'list',
+      getValue: (acc) => ((acc.nature || '').toLowerCase() === 'debit' ? 'debit' : 'credit'),
+      labelOf: (v) => (v === 'debit' ? 'مدين' : 'دائن'),
+      toneOf: (v) => (v === 'debit' ? 'info' : 'accent'),
       render: (acc) => {
         const isDebit = (acc.nature || '').toLowerCase() === 'debit';
         return (
@@ -358,12 +431,23 @@ function AccountingPageContent() {
     {
       key: 'source',
       header: 'مصدر الاعتماد',
+      type: 'list',
+      filterType: 'list',
+      getValue: (acc) => {
+        const src = (acc.source || acc.sourceType || '').toLowerCase();
+        if (src.includes('excel')) return 'excel';
+        if (src.includes('mod')) return 'modified';
+        return 'new';
+      },
+      labelOf: (v) =>
+        v === 'excel' ? 'إكسل 2024' : v === 'modified' ? 'تعديل مالي' : 'حساب جديد',
+      toneOf: (v) => (v === 'excel' ? 'neutral' : v === 'modified' ? 'warning' : 'info'),
       render: (acc) => {
         const src = (acc.source || acc.sourceType || '').toLowerCase();
         if (src.includes('excel')) {
           return (
             <span className="px-2 py-0.5 rounded-md text-[11px] font-medium bg-[var(--raised)] text-[var(--muted)] border border-[var(--line)]">
-              Excel 2024
+              إكسل 2024
             </span>
           );
         }
@@ -401,6 +485,8 @@ function AccountingPageContent() {
     {
       key: 'journalNumber',
       header: 'رقم القيد',
+      type: 'text',
+      getValue: (j) => j.journalNumber || j.id || '',
       render: (j) => (
         <div className="flex flex-col gap-0.5">
           <span className="font-mono font-bold text-xs num text-[var(--accent)]">
@@ -417,6 +503,8 @@ function AccountingPageContent() {
     {
       key: 'date',
       header: 'التاريخ والفترة',
+      type: 'date',
+      getValue: (j) => j.date || j.entryDate || j.createdAt?.slice(0, 10) || '',
       render: (j) => (
         <div className="flex flex-col text-xs">
           <span className="num font-semibold text-[var(--ink)]">{j.date || j.entryDate || j.createdAt?.slice(0, 10)}</span>
@@ -427,6 +515,8 @@ function AccountingPageContent() {
     {
       key: 'description',
       header: 'البيان المحاسبي',
+      type: 'text',
+      getValue: (j) => j.description || '',
       render: (j) => (
         <div className="space-y-1 max-w-[280px]">
           <p className="text-xs font-semibold text-[var(--ink)] line-clamp-2 leading-relaxed" title={j.description}>
@@ -465,11 +555,14 @@ function AccountingPageContent() {
     {
       key: 'totalDebit',
       header: 'إجمالي المدين',
+      type: 'number',
+      numeric: true,
+      getValue: (j) => j.totalDebit ?? j.lines?.reduce((acc, l) => acc + (l.debit || 0), 0) ?? 0,
       render: (j) => {
         const sumDebit = j.totalDebit ?? j.lines?.reduce((acc, l) => acc + (l.debit || 0), 0) ?? 0;
         return (
-          <span className="num font-bold text-xs text-blue-600 dark:text-blue-400">
-            {sumDebit > 0 ? sumDebit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
+          <span className="num font-bold text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">
+            {formatSar(sumDebit)}
           </span>
         );
       },
@@ -477,11 +570,14 @@ function AccountingPageContent() {
     {
       key: 'totalCredit',
       header: 'إجمالي الدائن',
+      type: 'number',
+      numeric: true,
+      getValue: (j) => j.totalCredit ?? j.lines?.reduce((acc, l) => acc + (l.credit || 0), 0) ?? 0,
       render: (j) => {
         const sumCredit = j.totalCredit ?? j.lines?.reduce((acc, l) => acc + (l.credit || 0), 0) ?? 0;
         return (
-          <span className="num font-bold text-xs text-purple-600 dark:text-purple-400">
-            {sumCredit > 0 ? sumCredit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
+          <span className="num font-bold text-xs text-purple-600 dark:text-purple-400 whitespace-nowrap">
+            {formatSar(sumCredit)}
           </span>
         );
       },
@@ -489,6 +585,9 @@ function AccountingPageContent() {
     {
       key: 'linesCount',
       header: 'الأسطر',
+      type: 'number',
+      numeric: true,
+      getValue: (j) => j.lines?.length || 0,
       render: (j) => (
         <span className="num text-xs text-[var(--muted)] px-2 py-0.5 rounded bg-[var(--raised)]">
           {j.lines?.length || 0} أسطر
@@ -515,29 +614,47 @@ function AccountingPageContent() {
     <div className="space-y-6">
       <PageHeader
         title="المحاسبة والتقارير المالية"
-        eyebrow="الدفاتر والتقارير المعتمدة"
-        description="استعرض دليل شجرة الحسابات المستهدفة (403 حسابات)، سجل القيود المزدوجة مع روابط القيود العكسية، وميزان المراجعة وقائمة الدخل."
+        eyebrow={ACCOUNTING_TAB_LABELS[activeTab]}
+        description="استعرض دليل شجرة الحسابات المستهدفة، سجل القيود المزدوجة مع روابط القيود العكسية، وميزان المراجعة وقائمة الدخل."
+      >
+        {canShowImportStep(TREASURY_OPENING_IMPORT, { isAdmin, can }) && (
+          <button
+            type="button"
+            data-testid="import-treasury-opening"
+            onClick={() => setOpeningImportOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
+          >
+            <Upload size={15} />
+            استيراد الأرصدة الافتتاحية
+          </button>
+        )}
+      </PageHeader>
+      <ImportUploadDialog
+        open={openingImportOpen}
+        onClose={() => setOpeningImportOpen(false)}
+        step={TREASURY_OPENING_IMPORT}
+        allowedActions={importAllowedActions}
       />
 
       {/* 4 Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
         <StatCard
           label="إجمالي الحسابات المستهدفة"
-          value={coaSummary.total || 403}
-          hint={`294 إكسل 2024 · 81 جديد · 28 معدل`}
+          value={coaSummary.total ?? '—'}
+          hint={`${coaSummary.sourceBreakdown?.excel2024 ?? '—'} إكسل 2024 · ${coaSummary.sourceBreakdown?.newAccounts ?? '—'} جديد · ${coaSummary.sourceBreakdown?.modified ?? '—'} معدل`}
           icon={Layers}
           trend={{ value: 'دليل 1.0', isPositive: true }}
-          onClick={() => setActiveTab('coa')}
+          onClick={() => navigateTab('coa')}
         />
 
         <StatCard
           label="حسابات الترحيل المباشر"
-          value={coaSummary.activePosting || 227}
+          value={coaSummary.activePosting ?? '—'}
           hint="حسابات طرفية قابلة لاستقبال القيود"
           icon={CheckCircle2}
           trend={{ value: 'جاهز للترحيل', isPositive: true }}
           onClick={() => {
-            setActiveTab('coa');
+            navigateTab('coa');
             setCoaPostingOnly(true);
           }}
         />
@@ -548,14 +665,14 @@ function AccountingPageContent() {
           hint="قيود مزدوجة متوازنة مع تتبع العكس"
           icon={Scale}
           trend={{ value: 'متزن', isPositive: true }}
-          onClick={() => setActiveTab('journals')}
+          onClick={() => navigateTab('journals')}
         />
 
         <StatCard
           label="صافي الدخل التقديري"
           value={
             incomeData?.companies && incomeData.companies.length > 0
-              ? (incomeData.companies.reduce((sum, c) => sum + (c.net || 0), 0)).toLocaleString('en-US', { minimumFractionDigits: 2 }) + ' ر.س'
+              ? formatSar(incomeData.companies.reduce((sum, c) => sum + (c.net || 0), 0))
               : 'غير معروف'
           }
           hint="مبني على وقائع القيود المعتمدة"
@@ -564,96 +681,8 @@ function AccountingPageContent() {
             value: incomeData?.companies?.every((c) => c.netIsComplete) ? 'مكتمل' : 'محدود النطاق',
             isPositive: incomeData?.companies?.every((c) => c.netIsComplete),
           }}
-          onClick={() => setActiveTab('income')}
+          onClick={() => navigateTab('income_statement')}
         />
-      </div>
-
-      {/* Sub Tabs Navigation */}
-      <div className="flex border-b border-[var(--line)] gap-2 overflow-x-auto no-scrollbar">
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'coa'}
-          onClick={() => setActiveTab('coa')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'coa'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          شجرة دليل الحسابات المستهدف ({coaSummary.total || 403})
-        </button>
-
-        <button
-          type="button"
-          id="subtab-manual-journals"
-          role="tab"
-          aria-selected={activeTab === 'manual_journals'}
-          onClick={() => setActiveTab('manual_journals')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'manual_journals'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          القيود اليدوية (BR §28)
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'adjustments'}
-          onClick={() => setActiveTab('adjustments')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'adjustments'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          تسويات مدا والراتب
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'journals'}
-          onClick={() => setActiveTab('journals')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'journals'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          سجل القيود المحاسبية ({journals.length})
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'trial'}
-          onClick={() => setActiveTab('trial')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'trial'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          ميزان المراجعة التحليلي
-        </button>
-
-        <button
-          type="button"
-          role="tab"
-          aria-selected={activeTab === 'income'}
-          onClick={() => setActiveTab('income')}
-          className={`px-4 py-2.5 text-xs sm:text-sm font-bold border-b-2 transition whitespace-nowrap ${
-            activeTab === 'income'
-              ? 'border-[var(--accent)] text-[var(--accent)]'
-              : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-          }`}
-        >
-          قائمة الدخل والنتائج
-        </button>
       </div>
 
       {/* ======================================================== */}
@@ -675,29 +704,39 @@ function AccountingPageContent() {
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
-              <select
+              <SearchableSelect
+                id="coa-type-filter"
                 value={coaTypeFilter}
-                onChange={(e) => setCoaTypeFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل التصنيفات (1-5)</option>
-                <option value="1">1 - الأصول</option>
-                <option value="2">2 - الخصوم</option>
-                <option value="3">3 - حقوق الملكية</option>
-                <option value="4">4 - الإيرادات</option>
-                <option value="5">5 - المصروفات</option>
-              </select>
+                onChange={setCoaTypeFilter}
+                ariaLabel="تصنيف الحساب"
+                placeholder="كل التصنيفات (1-5)"
+                size="sm"
+                className="w-44"
+                options={[
+                  { value: 'all', label: 'كل التصنيفات (1-5)' },
+                  { value: '1', label: '1 - الأصول' },
+                  { value: '2', label: '2 - الخصوم' },
+                  { value: '3', label: '3 - حقوق الملكية' },
+                  { value: '4', label: '4 - الإيرادات' },
+                  { value: '5', label: '5 - المصروفات' },
+                ]}
+              />
 
-              <select
+              <SearchableSelect
+                id="coa-source-filter"
                 value={coaSourceFilter}
-                onChange={(e) => setCoaSourceFilter(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل المصادر</option>
-                <option value="excel">Excel 2024 ({coaSummary.sourceBreakdown.excel2024})</option>
-                <option value="modified">تعديل مالي ({coaSummary.sourceBreakdown.modified})</option>
-                <option value="new">حسابات جديدة ({coaSummary.sourceBreakdown.newAccounts})</option>
-              </select>
+                onChange={setCoaSourceFilter}
+                ariaLabel="مصدر الحساب"
+                placeholder="كل المصادر"
+                size="sm"
+                className="w-48"
+                options={[
+                  { value: 'all', label: 'كل المصادر' },
+                  { value: 'excel', label: `دليل 2024 (${coaSummary.sourceBreakdown.excel2024})` },
+                  { value: 'modified', label: `تعديل مالي (${coaSummary.sourceBreakdown.modified})` },
+                  { value: 'new', label: `حسابات جديدة (${coaSummary.sourceBreakdown.newAccounts})` },
+                ]}
+              />
 
               <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--raised)] border border-[var(--line)] text-xs text-[var(--ink)] cursor-pointer select-none">
                 <input
@@ -708,27 +747,6 @@ function AccountingPageContent() {
                 />
                 <span>حسابات الترحيل فقط</span>
               </label>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const headers = ['رمز الحساب', 'اسم الحساب', 'المستوى', 'الحساب الأب', 'ترحيل مباشر', 'الطبيعة', 'المصدر'];
-                  const rows = filteredAccounts.map((a) => [
-                    a.code,
-                    a.nameAr,
-                    a.level,
-                    a.parent || a.parentCode || '—',
-                    (a.posting ?? a.isPosting) ? 'نعم' : 'لا',
-                    a.nature || '—',
-                    a.source || a.sourceType || '—',
-                  ]);
-                  handleExportExcel('دليل_الحسابات_المستهدف', headers, rows, [0, 2]);
-                }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition"
-              >
-                <Download size={14} />
-                <span>تصدير Excel</span>
-              </button>
             </div>
           </div>
 
@@ -743,6 +761,7 @@ function AccountingPageContent() {
             <DataTable
               columns={coaColumns}
               data={filteredAccounts}
+              exportFilename="دليل_الحسابات_المستهدف"
               emptyTitle="لا توجد حسابات مطابقة للبحث"
               emptyDescription="جرّب تعديل الفلاتر أو إدخال رقم كود مختلف."
             />
@@ -751,7 +770,7 @@ function AccountingPageContent() {
       )}
 
       {/* ======================================================== */}
-      {/* TAB: Manual Journals (BR §28)                            */}
+      {/* TAB: Manual Journals */}
       {/* ======================================================== */}
       {activeTab === 'adjustments' && (
         <AccountingAdjustmentsPanel companies={companies} />
@@ -791,28 +810,6 @@ function AccountingPageContent() {
               >
                 <RefreshCw size={15} />
               </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const headers = ['رقم القيد', 'التاريخ', 'الفترة', 'البيان', 'المنشأة', 'إجمالي المدين', 'إجمالي الدائن', 'المرجع'];
-                  const rows = filteredJournals.map((j) => [
-                    j.journalNumber || j.id,
-                    j.date || j.entryDate || j.createdAt?.slice(0, 10),
-                    j.period || '—',
-                    j.description,
-                    j.originSponsorNameAr || j.creditorSponsorNameAr || '—',
-                    j.totalDebit ?? j.lines?.reduce((s, l) => s + (l.debit || 0), 0) ?? 0,
-                    j.totalCredit ?? j.lines?.reduce((s, l) => s + (l.credit || 0), 0) ?? 0,
-                    j.sourceRef || '—',
-                  ]);
-                  handleExportExcel('سجل_القيود_المحاسبية', headers, rows, [0, 5, 6]);
-                }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition"
-              >
-                <Download size={14} />
-                <span>تصدير Excel</span>
-              </button>
             </div>
           </div>
 
@@ -826,6 +823,7 @@ function AccountingPageContent() {
             <DataTable
               columns={journalColumns}
               data={filteredJournals}
+              exportFilename="سجل_القيود_المحاسبية"
               emptyTitle="لا توجد قيود مسجلة"
               emptyDescription="ستظهر هنا القيود المعتمدة والآلية الناتجة عن الرواتب والخزينة."
             />
@@ -836,7 +834,7 @@ function AccountingPageContent() {
       {/* ======================================================== */}
       {/* TAB 3: Trial Balance (ميزان المراجعة التحليلي)             */}
       {/* ======================================================== */}
-      {activeTab === 'trial' && (
+      {activeTab === 'trial_balance' && (
         <div className="space-y-4">
           {/* Controls toolbar */}
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
@@ -851,7 +849,7 @@ function AccountingPageContent() {
                       : 'text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  الدليل المستهدف (Target)
+                  الدليل المستهدف
                 </button>
                 <button
                   type="button"
@@ -862,20 +860,26 @@ function AccountingPageContent() {
                       : 'text-[var(--muted)] hover:text-[var(--ink)]'
                   }`}
                 >
-                  الدليل الحالي (Current)
+                  الدليل الحالي
                 </button>
               </div>
 
-              <select
+              <SearchableSelect
+                id="trial-sponsor-filter"
                 value={selectedSponsor}
-                onChange={(e) => setSelectedSponsor(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل المنشآت والسجلات</option>
-                <option value="BW">شركة البوابة المقبلة (BW)</option>
-                <option value="EX">المؤسسة Express (EX)</option>
-                <option value="TR">مؤسسة النقل والتوزيع (TR)</option>
-              </select>
+                onChange={setSelectedSponsor}
+                ariaLabel="تصفية المنشأة"
+                placeholder="كل المنشآت والسجلات"
+                size="sm"
+                className="w-52"
+                options={[
+                  { value: 'all', label: 'كل المنشآت والسجلات' },
+                  ...companies.map((c) => ({
+                    value: c.code || c.id,
+                    label: `${c.nameAr || c.shortNameAr || c.code || c.id}${c.code ? ` (${c.code})` : ''}`,
+                  })),
+                ]}
+              />
 
               <input
                 type="month"
@@ -893,30 +897,6 @@ function AccountingPageContent() {
                 title="تحديث ميزان المراجعة"
               >
                 <RefreshCw size={15} />
-              </button>
-
-              <button
-                type="button"
-                onClick={() => {
-                  const company = trialData?.companies?.[0];
-                  if (!company) return;
-                  const headers = ['رمز الحساب', 'اسم الحساب', 'افتتاح مدين', 'افتتاح دائن', 'فترة مدين', 'فترة دائن', 'إغلاق مدين', 'إغلاق دائن'];
-                  const rows = company.rows.map((r) => [
-                    r.code,
-                    r.nameAr || r.name || '—',
-                    r.openingDebit || 0,
-                    r.openingCredit || 0,
-                    r.periodDebit || 0,
-                    r.periodCredit || 0,
-                    r.closingDebit || 0,
-                    r.closingCredit || 0,
-                  ]);
-                  handleExportExcel(`ميزان_المراجعة_${trialView}`, headers, rows, [0, 2, 3, 4, 5, 6, 7]);
-                }}
-                className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition"
-              >
-                <Download size={14} />
-                <span>تصدير Excel</span>
               </button>
             </div>
           </div>
@@ -940,11 +920,18 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companyName(company.companyCode, company.sponsorId)}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
-                        <span>الفترة: <strong className="text-[var(--ink)]">{trialData.from || periodMonth} — {trialData.to || periodMonth}</strong></span>
+                        <span>
+                          الفترة:{' '}
+                          <strong className="text-[var(--ink)]">
+                            <bdi dir="ltr">
+                              {trialData.from || periodMonth} — {trialData.to || periodMonth}
+                            </bdi>
+                          </strong>
+                        </span>
                       </div>
                     </div>
 
@@ -983,13 +970,13 @@ function AccountingPageContent() {
                         <div>
                           <span className="text-[var(--muted)] block">إغلاق مدين:</span>
                           <span className="num font-bold text-blue-600 dark:text-blue-400 text-sm">
-                            {(totals.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatSar((totals.closingDebit || 0))}
                           </span>
                         </div>
                         <div>
                           <span className="text-[var(--muted)] block">إغلاق دائن:</span>
                           <span className="num font-bold text-purple-600 dark:text-purple-400 text-sm">
-                            {(totals.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                            {formatSar((totals.closingCredit || 0))}
                           </span>
                         </div>
                       </div>
@@ -1009,7 +996,7 @@ function AccountingPageContent() {
                                 {u.code} - {u.nameAr || u.name}
                               </span>
                               <span className="num font-bold">
-                                {((u.closingDebit || 0) - (u.closingCredit || 0)).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                {formatSar(((u.closingDebit || 0) - (u.closingCredit || 0)))}
                               </span>
                             </div>
                           ))}
@@ -1018,95 +1005,24 @@ function AccountingPageContent() {
                     )}
 
                     {/* Trial balance table */}
-                    <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
-                      <table className="w-full text-xs text-start border-collapse">
-                        <thead>
-                          <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-                            <th className="py-2.5 px-3">رمز الحساب</th>
-                            <th className="py-2.5 px-3">اسم الحساب</th>
-                            <th className="py-2.5 px-3 text-end num">افتتاح مدين</th>
-                            <th className="py-2.5 px-3 text-end num">افتتاح دائن</th>
-                            <th className="py-2.5 px-3 text-end num">فترة مدين</th>
-                            <th className="py-2.5 px-3 text-end num">فترة دائن</th>
-                            <th className="py-2.5 px-3 text-end num">إغلاق مدين</th>
-                            <th className="py-2.5 px-3 text-end num">إغلاق دائن</th>
-                          </tr>
-                        </thead>
-                        <tbody className="divide-y divide-[var(--line)]">
-                          {rows.map((row) => {
-                            const isGroup = !row.posting;
-                            const hasActivity =
-                              (row.openingDebit || 0) > 0 ||
-                              (row.openingCredit || 0) > 0 ||
-                              (row.periodDebit || 0) > 0 ||
-                              (row.periodCredit || 0) > 0 ||
-                              (row.closingDebit || 0) > 0 ||
-                              (row.closingCredit || 0) > 0;
-
-                            return (
-                              <tr
-                                key={row.code}
-                                className={`hover:bg-[var(--raised)]/50 transition ${
-                                  isGroup ? 'font-bold bg-[var(--raised)]/20 text-[var(--ink)]' : 'text-[var(--ink)]'
-                                }`}
-                              >
-                                <td className="py-2 px-3 font-mono text-[var(--accent)] num">
-                                  {row.code}
-                                </td>
-                                <td className="py-2 px-3">
-                                  <span className={row.level === 1 ? 'font-black text-sm' : isGroup ? 'font-bold' : 'ps-3'}>
-                                    {row.nameAr || row.name}
-                                  </span>
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono">
-                                  {(row.openingDebit || 0) > 0 ? (row.openingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono">
-                                  {(row.openingCredit || 0) > 0 ? (row.openingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400">
-                                  {(row.periodDebit || 0) > 0 ? (row.periodDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400">
-                                  {(row.periodCredit || 0) > 0 ? (row.periodCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono font-bold text-blue-700 dark:text-blue-300">
-                                  {(row.closingDebit || 0) > 0 ? (row.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                                <td className="py-2 px-3 text-end num font-mono font-bold text-purple-700 dark:text-purple-300">
-                                  {(row.closingCredit || 0) > 0 ? (row.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                                </td>
-                              </tr>
-                            );
-                          })}
-                        </tbody>
-                        <tfoot className="bg-[var(--raised)] border-t-2 border-[var(--line)] font-bold text-xs">
-                          <tr>
-                            <td colSpan={2} className="py-3 px-3 text-start">
-                              الإجمالي العام المتوازن
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold">
-                              {(totals.openingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold">
-                              {(totals.openingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold text-blue-600">
-                              {(totals.periodDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold text-purple-600">
-                              {(totals.periodCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold text-blue-700">
-                              {(totals.closingDebit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                            <td className="py-3 px-3 text-end num font-mono font-bold text-purple-700">
-                              {(totals.closingCredit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                            </td>
-                          </tr>
-                        </tfoot>
-                      </table>
-                    </div>
+                    <TrialBalanceTable
+                      rows={rows}
+                      totals={totals}
+                      onExport={(visibleRows) => {
+                        const headers = ['رمز الحساب', 'اسم الحساب', 'افتتاح مدين', 'افتتاح دائن', 'فترة مدين', 'فترة دائن', 'إغلاق مدين', 'إغلاق دائن'];
+                        const exportRows = visibleRows.map((r) => [
+                          r.code,
+                          r.nameAr || r.name || '—',
+                          r.openingDebit || 0,
+                          r.openingCredit || 0,
+                          r.periodDebit || 0,
+                          r.periodCredit || 0,
+                          r.closingDebit || 0,
+                          r.closingCredit || 0,
+                        ]);
+                        handleExportExcel(`ميزان_المراجعة_${trialView}`, headers, exportRows, [0, 2, 3, 4, 5, 6, 7]);
+                      }}
+                    />
                   </div>
                 );
               })}
@@ -1120,21 +1036,27 @@ function AccountingPageContent() {
       {/* ======================================================== */}
       {/* TAB 4: Income Statement (قائمة الدخل والنتائج)             */}
       {/* ======================================================== */}
-      {activeTab === 'income' && (
+      {activeTab === 'income_statement' && (
         <div className="space-y-4">
           {/* Controls toolbar */}
           <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
             <div className="flex flex-wrap items-center gap-2">
-              <select
+              <SearchableSelect
+                id="trial-sponsor-filter"
                 value={selectedSponsor}
-                onChange={(e) => setSelectedSponsor(e.target.value)}
-                className="px-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كل المنشآت والسجلات</option>
-                <option value="BW">شركة البوابة المقبلة (BW)</option>
-                <option value="EX">المؤسسة Express (EX)</option>
-                <option value="TR">مؤسسة النقل والتوزيع (TR)</option>
-              </select>
+                onChange={setSelectedSponsor}
+                ariaLabel="تصفية المنشأة"
+                placeholder="كل المنشآت والسجلات"
+                size="sm"
+                className="w-52"
+                options={[
+                  { value: 'all', label: 'كل المنشآت والسجلات' },
+                  ...companies.map((c) => ({
+                    value: c.code || c.id,
+                    label: `${c.nameAr || c.shortNameAr || c.code || c.id}${c.code ? ` (${c.code})` : ''}`,
+                  })),
+                ]}
+              />
 
               <input
                 type="month"
@@ -1168,7 +1090,7 @@ function AccountingPageContent() {
                 className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition"
               >
                 <Download size={14} />
-                <span>تصدير Excel</span>
+                <span>تصدير إكسل</span>
               </button>
             </div>
           </div>
@@ -1193,7 +1115,7 @@ function AccountingPageContent() {
                     <div className="flex flex-wrap items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-semibold text-[var(--ink)] shadow-xs">
                       <div className="flex items-center gap-2">
                         <Building size={15} className="text-[var(--accent)]" />
-                        <span>الشركة: <strong className="text-[var(--ink)]">{COMPANY_NAME_MAP[company.companyCode] || COMPANY_NAME_MAP[company.sponsorId] || company.companyCode}</strong></span>
+                        <span>الشركة: <strong className="text-[var(--ink)]">{companyName(company.companyCode, company.sponsorId)}</strong></span>
                       </div>
                       <div className="flex items-center gap-2 text-[var(--muted)] font-mono">
                         <Calendar size={14} />
@@ -1209,7 +1131,7 @@ function AccountingPageContent() {
                           <TrendingUp size={16} className="text-emerald-500" />
                         </div>
                         <div className="text-xl font-black text-emerald-600 dark:text-emerald-400 num">
-                          {revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-bold">ر.س</span>
+                          {formatSar(revenue)}
                         </div>
                         <span className="text-[10px] text-[var(--muted)] mt-1 block">
                           مجموعات إيرادات التشغيل والمنصات (4)
@@ -1222,7 +1144,7 @@ function AccountingPageContent() {
                           <TrendingDown size={16} className="text-rose-500" />
                         </div>
                         <div className="text-xl font-black text-rose-600 dark:text-rose-400 num">
-                          {expense.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-bold">ر.س</span>
+                          {formatSar(expense)}
                         </div>
                         <span className="text-[10px] text-[var(--muted)] mt-1 block">
                           تكاليف التشغيل والرواتب والمصاريف الإدارية (5)
@@ -1235,7 +1157,7 @@ function AccountingPageContent() {
                           <Scale size={16} className={isNetPositive ? 'text-emerald-500' : 'text-rose-500'} />
                         </div>
                         <div className={`text-xl font-black num ${isNetPositive ? 'text-emerald-600 dark:text-emerald-400' : 'text-rose-600 dark:text-rose-400'}`}>
-                          {net.toLocaleString('en-US', { minimumFractionDigits: 2 })} <span className="text-xs font-bold">ر.س</span>
+                          {formatSar(net)}
                         </div>
                         <span className="text-[10px] text-[var(--muted)] mt-1 block">
                           {company.netIsComplete ? 'التعيين مكتمل بنسبة 100%' : 'يوجد بنود غير معينة بالكامل'}
@@ -1253,7 +1175,7 @@ function AccountingPageContent() {
                             <span>تفاصيل مجموعات الإيرادات</span>
                           </h4>
                           <span className="num font-bold text-xs text-emerald-600">
-                            {revenue.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(revenue)}
                           </span>
                         </div>
 
@@ -1266,7 +1188,7 @@ function AccountingPageContent() {
                                   <span className="font-mono text-[11px] text-[var(--muted)] num">{grp.code}</span>
                                 </div>
                                 <span className="num font-bold text-[var(--ink)]">
-                                  {grp.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {formatSar(grp.amount)}
                                 </span>
                               </div>
                             ))
@@ -1286,7 +1208,7 @@ function AccountingPageContent() {
                             <span>تفاصيل مجموعات المصروفات</span>
                           </h4>
                           <span className="num font-bold text-xs text-rose-600">
-                            {expense.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                            {formatSar(expense)}
                           </span>
                         </div>
 
@@ -1299,7 +1221,7 @@ function AccountingPageContent() {
                                   <span className="font-mono text-[11px] text-[var(--muted)] num">{grp.code}</span>
                                 </div>
                                 <span className="num font-bold text-[var(--ink)]">
-                                  {grp.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                                  {formatSar(grp.amount)}
                                 </span>
                               </div>
                             ))
@@ -1369,14 +1291,14 @@ function AccountingPageContent() {
                 <div className="flex justify-between py-2 border-b border-[var(--line)]">
                   <span className="text-[var(--muted)]">الطبيعة المحاسبية</span>
                   <span className="font-bold text-[var(--ink)]">
-                    {(selectedAccount.nature || '').toLowerCase() === 'debit' ? 'مدين (Debit)' : 'دائن (Credit)'}
+                    {(selectedAccount.nature || '').toLowerCase() === 'debit' ? 'مدين' : 'دائن'}
                   </span>
                 </div>
 
                 <div className="flex justify-between py-2 border-b border-[var(--line)]">
                   <span className="text-[var(--muted)]">المصدر المعتمد</span>
                   <span className="font-bold text-[var(--ink)]">
-                    {selectedAccount.sourceNote || selectedAccount.source || 'Excel 2024'}
+                    {selectedAccount.sourceNote || selectedAccount.source || 'إكسل 2024'}
                   </span>
                 </div>
 
@@ -1467,54 +1389,7 @@ function AccountingPageContent() {
               {/* Journal Lines Table */}
               <div className="space-y-2">
                 <h4 className="font-bold text-xs text-[var(--ink)]">أسطر القيد المحاسبي المزدوج</h4>
-                <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
-                  <table className="w-full text-xs text-start border-collapse">
-                    <thead>
-                      <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-                        <th className="py-2 px-3">رقم الحساب</th>
-                        <th className="py-2 px-3">اسم الحساب</th>
-                        <th className="py-2 px-3 text-end num">مدين</th>
-                        <th className="py-2 px-3 text-end num">دائن</th>
-                        <th className="py-2 px-3">البيان</th>
-                      </tr>
-                    </thead>
-                    <tbody className="divide-y divide-[var(--line)]">
-                      {(selectedJournal.lines || []).map((line, idx) => (
-                        <tr key={idx} className="hover:bg-[var(--raised)]/40 transition">
-                          <td className="py-2 px-3 font-mono font-bold text-[var(--accent)] num">
-                            {line.accountCode}
-                          </td>
-                          <td className="py-2 px-3 text-[var(--ink)] font-medium">
-                            {line.accountNameAr || '—'}
-                          </td>
-                          <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400 font-bold">
-                            {(line.debit || 0) > 0 ? (line.debit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                          </td>
-                          <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400 font-bold">
-                            {(line.credit || 0) > 0 ? (line.credit || 0).toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
-                          </td>
-                          <td className="py-2 px-3 text-[var(--muted)] text-[11px] truncate max-w-[150px]">
-                            {line.description || '—'}
-                          </td>
-                        </tr>
-                      ))}
-                    </tbody>
-                    <tfoot className="bg-[var(--raised)] border-t border-[var(--line)] font-bold text-xs">
-                      <tr>
-                        <td colSpan={2} className="py-2 px-3 text-start">
-                          إجمالي القيد
-                        </td>
-                        <td className="py-2 px-3 text-end num font-mono text-blue-600">
-                          {(selectedJournal.lines?.reduce((sum, l) => sum + (l.debit || 0), 0) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td className="py-2 px-3 text-end num font-mono text-purple-600">
-                          {(selectedJournal.lines?.reduce((sum, l) => sum + (l.credit || 0), 0) || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}
-                        </td>
-                        <td />
-                      </tr>
-                    </tfoot>
-                  </table>
-                </div>
+                <JournalDrawerLinesTable lines={selectedJournal.lines || []} />
               </div>
             </div>
 
@@ -1530,6 +1405,257 @@ function AccountingPageContent() {
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function TrialBalanceTable({
+  rows,
+  totals,
+  onExport,
+}: {
+  rows: TrialBalanceCompanyRow[];
+  totals: Record<string, number | undefined>;
+  onExport?: (visibleRows: TrialBalanceCompanyRow[]) => void;
+}) {
+  const [hideZeroRows, setHideZeroRows] = useState(true);
+  const [page, setPage] = useState(1);
+  const pageSize = 75;
+
+  const baseRows = useMemo(() => {
+    if (!hideZeroRows) return rows;
+    return rows.filter((r) => {
+      const movement =
+        Number(r.openingDebit || 0) +
+        Number(r.openingCredit || 0) +
+        Number(r.periodDebit || 0) +
+        Number(r.periodCredit || 0) +
+        Number(r.closingDebit || 0) +
+        Number(r.closingCredit || 0);
+      return movement !== 0;
+    });
+  }, [rows, hideZeroRows]);
+
+  const trialCols = useMemo(
+    () => [
+      { key: 'code', header: 'رمز الحساب', type: 'list' as const, getValue: (r: TrialBalanceCompanyRow) => r.code || '' },
+      { key: 'nameAr', header: 'اسم الحساب', type: 'text' as const, getValue: (r: TrialBalanceCompanyRow) => r.nameAr || r.name || '' },
+      { key: 'openingDebit', header: 'افتتاح مدين', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.openingDebit || 0) },
+      { key: 'openingCredit', header: 'افتتاح دائن', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.openingCredit || 0) },
+      { key: 'periodDebit', header: 'فترة مدين', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.periodDebit || 0) },
+      { key: 'periodCredit', header: 'فترة دائن', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.periodCredit || 0) },
+      { key: 'closingDebit', header: 'إغلاق مدين', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.closingDebit || 0) },
+      { key: 'closingCredit', header: 'إغلاق دائن', type: 'number' as const, getValue: (r: TrialBalanceCompanyRow) => Number(r.closingCredit || 0) },
+    ],
+    []
+  );
+  const tf = useTableAutoFilter<TrialBalanceCompanyRow>(baseRows, trialCols);
+
+  useEffect(() => {
+    setPage(1);
+  }, [tf.filters, tf.sortKey, tf.sortDir, hideZeroRows]);
+
+  const paging = useMemo(
+    () => paginateFilteredRows(tf.rows, page, pageSize),
+    [tf.rows, page, pageSize]
+  );
+  const { totalPages, safePage, pageRows } = paging;
+
+  return (
+    <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs">
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3 py-2 border-b border-[var(--line)] bg-[var(--raised)]/30">
+        <div className="flex-1 min-w-0">
+          <AutoFilterBar controller={tf} totalCount={baseRows.length} />
+        </div>
+        <label className="inline-flex items-center gap-1.5 text-[11px] font-semibold text-[var(--muted)] shrink-0">
+          <input
+            type="checkbox"
+            checked={hideZeroRows}
+            onChange={(e) => {
+              setHideZeroRows(e.target.checked);
+              setPage(1);
+            }}
+            className="rounded border-[var(--line)]"
+          />
+          إخفاء الصفوف الصفرية
+        </label>
+        <div className="flex items-center gap-1 text-[11px] text-[var(--muted)] shrink-0">
+          <button
+            type="button"
+            disabled={safePage <= 1}
+            onClick={() => setPage((p) => Math.max(1, p - 1))}
+            className="px-2 py-0.5 rounded border border-[var(--line)] disabled:opacity-40"
+          >
+            السابق
+          </button>
+          <span className="num">
+            {safePage}/{totalPages}
+          </span>
+          <button
+            type="button"
+            disabled={safePage >= totalPages}
+            onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+            className="px-2 py-0.5 rounded border border-[var(--line)] disabled:opacity-40"
+          >
+            التالي
+          </button>
+        </div>
+        {onExport ? (
+          <button
+            type="button"
+            onClick={() => onExport(paging.exportRows)}
+            className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold text-[var(--ink)] transition shrink-0"
+          >
+            <Download size={14} />
+            <span>تصدير إكسل ({paging.exportRows.length})</span>
+          </button>
+        ) : null}
+      </div>
+      <table className="w-full text-xs text-start border-collapse">
+        <thead>
+          <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
+            <AutoFilterTh controller={tf} colKey="code" className="py-2.5 px-3" />
+            <AutoFilterTh controller={tf} colKey="nameAr" className="py-2.5 px-3" />
+            <AutoFilterTh controller={tf} colKey="openingDebit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="openingCredit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="periodDebit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="periodCredit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="closingDebit" className="py-2.5 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="closingCredit" className="py-2.5 px-3 text-end num" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--line)]">
+          {pageRows.map((row) => {
+            const isGroup = !row.posting;
+            return (
+              <tr
+                key={row.code}
+                className={`hover:bg-[var(--raised)]/50 transition ${
+                  isGroup ? 'font-bold bg-[var(--raised)]/20 text-[var(--ink)]' : 'text-[var(--ink)]'
+                }`}
+              >
+                <td className="py-2 px-3 font-mono text-[var(--accent)] num">
+                  {row.code}
+                </td>
+                <td className="py-2 px-3">
+                  <span className={row.level === 1 ? 'font-black text-sm' : isGroup ? 'font-bold' : 'ps-3'}>
+                    {row.nameAr || row.name}
+                  </span>
+                </td>
+                <td className="py-2 px-3 text-end num font-mono">
+                  {(row.openingDebit || 0) > 0 ? formatSar(row.openingDebit || 0) : '—'}
+                </td>
+                <td className="py-2 px-3 text-end num font-mono">
+                  {(row.openingCredit || 0) > 0 ? formatSar(row.openingCredit || 0) : '—'}
+                </td>
+                <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400">
+                  {(row.periodDebit || 0) > 0 ? formatSar(row.periodDebit || 0) : '—'}
+                </td>
+                <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400">
+                  {(row.periodCredit || 0) > 0 ? formatSar(row.periodCredit || 0) : '—'}
+                </td>
+                <td className="py-2 px-3 text-end num font-mono font-bold text-blue-700 dark:text-blue-300">
+                  {(row.closingDebit || 0) > 0 ? formatSar(row.closingDebit || 0) : '—'}
+                </td>
+                <td className="py-2 px-3 text-end num font-mono font-bold text-purple-700 dark:text-purple-300">
+                  {(row.closingCredit || 0) > 0 ? formatSar(row.closingCredit || 0) : '—'}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+        <tfoot className="bg-[var(--raised)] border-t-2 border-[var(--line)] font-bold text-xs">
+          <tr>
+            <td colSpan={2} className="py-3 px-3 text-start">
+              الإجمالي العام المتوازن
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold">
+              {formatSar(totals.openingDebit || 0)}
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold">
+              {formatSar(totals.openingCredit || 0)}
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold text-blue-600">
+              {formatSar(totals.periodDebit || 0)}
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold text-purple-600">
+              {formatSar(totals.periodCredit || 0)}
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold text-blue-700">
+              {formatSar(totals.closingDebit || 0)}
+            </td>
+            <td className="py-3 px-3 text-end num font-mono font-bold text-purple-700">
+              {formatSar(totals.closingCredit || 0)}
+            </td>
+          </tr>
+        </tfoot>
+      </table>
+    </div>
+  );
+}
+
+function JournalDrawerLinesTable({ lines }: { lines: any[] }) {
+  const lineCols = useMemo(
+    () => [
+      { key: 'accountCode', header: 'رقم الحساب', type: 'list' as const, getValue: (l: any) => l.accountCode || '' },
+      { key: 'accountNameAr', header: 'اسم الحساب', type: 'text' as const, getValue: (l: any) => l.accountNameAr || '' },
+      { key: 'debit', header: 'مدين', type: 'number' as const, getValue: (l: any) => Number(l.debit || 0) },
+      { key: 'credit', header: 'دائن', type: 'number' as const, getValue: (l: any) => Number(l.credit || 0) },
+      { key: 'description', header: 'البيان', type: 'text' as const, getValue: (l: any) => l.description || '' },
+    ],
+    []
+  );
+  const tf = useTableAutoFilter<any>(lines, lineCols);
+
+  return (
+    <div className="overflow-x-auto rounded-xl border border-[var(--line)]">
+      <AutoFilterBar controller={tf} totalCount={lines.length} />
+      <table className="w-full text-xs text-start border-collapse">
+        <thead>
+          <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
+            <AutoFilterTh controller={tf} colKey="accountCode" className="py-2 px-3" />
+            <AutoFilterTh controller={tf} colKey="accountNameAr" className="py-2 px-3" />
+            <AutoFilterTh controller={tf} colKey="debit" className="py-2 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="credit" className="py-2 px-3 text-end num" />
+            <AutoFilterTh controller={tf} colKey="description" className="py-2 px-3" />
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-[var(--line)]">
+          {tf.rows.map((line, idx) => (
+            <tr key={idx} className="hover:bg-[var(--raised)]/40 transition">
+              <td className="py-2 px-3 font-mono font-bold text-[var(--accent)] num">
+                {line.accountCode}
+              </td>
+              <td className="py-2 px-3 text-[var(--ink)] font-medium">
+                {line.accountNameAr || '—'}
+              </td>
+              <td className="py-2 px-3 text-end num font-mono text-blue-600 dark:text-blue-400 font-bold">
+                {(line.debit || 0) > 0 ? formatSar(line.debit || 0) : '—'}
+              </td>
+              <td className="py-2 px-3 text-end num font-mono text-purple-600 dark:text-purple-400 font-bold">
+                {(line.credit || 0) > 0 ? formatSar(line.credit || 0) : '—'}
+              </td>
+              <td className="py-2 px-3 text-[var(--muted)] text-[11px] truncate max-w-[150px]">
+                {line.description || '—'}
+              </td>
+            </tr>
+          ))}
+        </tbody>
+        <tfoot className="bg-[var(--raised)] border-t border-[var(--line)] font-bold text-xs">
+          <tr>
+            <td colSpan={2} className="py-2 px-3 text-start">
+              إجمالي القيد
+            </td>
+            <td className="py-2 px-3 text-end num font-mono text-blue-600">
+              {formatSar(lines.reduce((sum, l) => sum + (l.debit || 0), 0) || 0)}
+            </td>
+            <td className="py-2 px-3 text-end num font-mono text-purple-600">
+              {formatSar(lines.reduce((sum, l) => sum + (l.credit || 0), 0) || 0)}
+            </td>
+            <td />
+          </tr>
+        </tfoot>
+      </table>
     </div>
   );
 }

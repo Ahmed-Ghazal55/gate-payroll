@@ -11,10 +11,7 @@ Same-origin JSON, authenticated HttpOnly cookie for `/api/*` except `/api/auth/*
 | Riders | GET/POST `/api/riders` | iqama,name,phone,city,policyId; approved policy only |
 | Policy | GET/POST `/api/policies`; POST `/{id}/approve` | name,kind:commission/tiers/approved_pay,platform:all or platform name,effectiveFrom:yyyy-MM,config |
 | Policy config | commission / tiers | companyFee; tiers:[{minOrders,salary,extraRate,fuelAllowance}],internetAllowance |
-| Upload | POST `/api/imports/inspect` | filename,dataBase64 → id,sheets:[{name,rows,columns}] |
-| Headers | GET `/api/imports/{id}/sheet?sheet=...&headerRow=1` | indexed headers, sample and row count, admin only |
-| Normalize/save | POST `/api/imports/{id}/preview`, `/commit` | sheet,period,platform,headerRow,lastRow?,ignoreRows?,confirmActualRider:true,mapping |
-| Mapping | zero-based integer columns | sourceRef,iqama,name,accountId,from,to,orders,platformRevenue,riderPay,isValid,company,city |
+| Import catalog | GET `/api/imports/catalog`, `/api/imports/templates/{name}` | typed platform/debt/finance import steps (free-upload inspect/preview/commit removed) |
 | Adjustment | POST `/api/adjustments` | iqama,period,amount signed,category,description,sourceRef |
 | Payroll | GET `/api/payroll/preview?period=yyyy-MM` | results incl lines,blockers,openingBalance,periodMovement,closingBalance,payable,debt,orders,**fingerprint at preview time** |
 | Approve | POST `/api/payroll/approve` | iqama,period,fingerprint from displayed preview; blockers or stale fingerprint reject |

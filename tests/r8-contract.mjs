@@ -24,7 +24,8 @@ try {
  const ajv=new Ajv({strict:false,validateFormats:false});
  const db=new DatabaseSync(data+'/payroll.db');
  function put(kind,record){db.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?)').run(record.id,kind,JSON.stringify(record));}
- const company=(await call('/api/companies'))[0].id;
+ const companiesList=await call('/api/companies');
+ const company=companiesList[0].id,otherCompany=companiesList[1]?.id;
  put('debt',{id:'syn-r8-debt',iqama:'2000000001',category:'Advance',status:'pending_approval',totalAmount:125,remainingBalance:100,monthlyInstallment:25,creditorSponsorId:company,originSponsorId:company});
  put('rider',{id:'2000000001',iqama:'2000000001',name:'Synthetic',sponsorId:company,isDeliveryRider:true});
  put('platform_invoice',{id:'syn-r8-invoice',platform:'Ninja',companyId:company,period:'2026-10',reference:'SYN-R8',status:'invoiced',approvalStatus:'pending',createdBy:'synthetic-r8-admin',amountExclVat:100,deductionsTotal:0,vat:15});
@@ -45,6 +46,13 @@ try {
  const draft=await call('/api/pay/review-draft?app=ninja&period=2026-10&companyId='+company);
  const draftSchema=saved.paths['/api/pay/review-draft'].get.responses['200'].content['application/json'].schema;
  const validateDraft=ajv.compile(draftSchema);assert.ok(validateDraft(draft),JSON.stringify(validateDraft.errors));assert.ok(draft.blockers.length>0);assert.equal(draft.canCreate,false);checks++;
+ for(const [url,path]of [['/api/companies/stats','/api/companies/stats'],['/api/companies/'+encodeURIComponent(company)+'/stats','/api/companies/{id}/stats']]){
+  const value=await call(url);
+  const live=doc.paths[path].get.responses['200'].content['application/json'].schema;
+  const schema=saved.paths[path].get.responses['200'].content['application/json'].schema;
+  assert.deepEqual(live,schema,'Live schema changed: '+path);
+  const validate=ajv.compile(schema);assert.ok(validate(value),path+': '+JSON.stringify(validate.errors));checks++;
+ }
  for(const [url,path]of [['/api/pay/cycles/syn-r8-cycle/debt-deductions','/api/pay/cycles/{id}/debt-deductions'],['/api/pay/cycles/syn-r8-cycle/unrecovered-costs','/api/pay/cycles/{id}/unrecovered-costs'],['/api/pay/cycles/syn-r8-cycle/review','/api/pay/cycles/{id}/review'],['/api/pay/cycles/syn-r8-cycle/pipeline','/api/pay/cycles/{id}/pipeline'],['/api/finance/statement/rider/2000000001/monthly?period=2026-10','/api/finance/statement/rider/{iqama}/monthly'],['/api/pay/shared-riders','/api/pay/shared-riders'],['/api/finance/treasury/summary','/api/finance/treasury/summary'],['/api/platforms/ninja/invoices/syn-r8-invoice/multi-rider-deductions','/api/platforms/ninja/invoices/{id}/multi-rider-deductions']]){
   const value=await call(url),schema=saved.paths[path].get.responses['200'].content['application/json'].schema,validate=ajv.compile(schema);assert.ok(validate(value),path+': '+JSON.stringify(validate.errors));checks++;
  }
@@ -59,6 +67,18 @@ try {
  // Exercise lifecycle routing as an ordinary accountant, including DELETE authorization.
  const password=randomBytes(24).toString('hex');
  await call('/api/users',{username:'synthetic-r8-accountant',password,role:'FinancialAccountant'});
+ await call('/api/users',{username:'synthetic-r8-no-co',password,role:'Reviewer',customPermissions:['riders.view'],deniedPermissions:['companies.view']});
+ await call('/api/users',{username:'synthetic-r8-co-scoped',password,role:'Reviewer',customPermissions:['companies.view'],financialScope:{sponsorIds:[company],platforms:['Jahez'],accountCodes:[],categoryCodes:[]}});
+ await call('/api/auth/login',{username:'synthetic-r8-no-co',password});
+ await call('/api/companies/stats',undefined,403);checks++;
+ await call('/api/companies/'+encodeURIComponent(company)+'/stats',undefined,403);checks++;
+ await call('/api/auth/login',{username:'synthetic-r8-co-scoped',password});
+ const scopedStats=await call('/api/companies/stats');
+ assert.equal(scopedStats.items.length,1,'scoped company stats must isolate sponsors');
+ assert.equal(scopedStats.items[0].companyId,company);checks++;
+ const singleScoped=await call('/api/companies/'+encodeURIComponent(company)+'/stats');
+ assert.equal(singleScoped.item.companyId,company);checks++;
+ if(otherCompany){await call('/api/companies/'+encodeURIComponent(otherCompany)+'/stats',undefined,404);checks++;}
  await call('/api/auth/login',{username:'synthetic-r8-accountant',password});
  const terms=()=>({period:'2026-10',code:'synthetic-owned',data:{name:'Synthetic terms',billingModel:'per_order',parameters:{pricePerOrder:10}}});
  const deletable=await call('/api/pay/apps/ninja/terms',terms());

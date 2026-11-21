@@ -51,7 +51,7 @@ try{
  await page.click('#sessions-revoke-all');await page.fill('#sessions-revoke-reason','Synthetic account reset');await page.click('#sessions-revoke-confirm');
  await page.waitForSelector('text=لا توجد جلسات');
  for(const t of [t1,t2])assert.equal((await fetch(base+'/api/rider-mobile/sessions/mine',{headers:{Authorization:'Bearer '+t}})).status,401);
- await page.setViewportSize({width:360,height:800});await page.selectOption('#sessions-status','revoked');await page.waitForSelector('[data-testid="rider-sessions"] tbody tr');
+ await page.setViewportSize({width:360,height:800});await page.click('#sessions-status');await page.locator('[role="listbox"] [role="option"]',{hasText:'ملغاة'}).first().click();await page.waitForSelector('[data-testid="rider-sessions"] tbody tr');
  const wide=await page.evaluate(()=>{const w=window.innerWidth;const bad=[...document.querySelectorAll('body *')].filter(e=>{const r=e.getBoundingClientRect();return r.width>0&&(r.right>w+1||r.left<-1)&&!e.closest('.overflow-x-auto')}).slice(0,4).map(e=>e.tagName+'.'+String(e.className).slice(0,60)+' '+Math.round(e.getBoundingClientRect().left)+'..'+Math.round(e.getBoundingClientRect().right));if(bad.length)console.log('WIDE',JSON.stringify(bad));return document.documentElement.scrollWidth>w+1;});assert.ok(!wide,'no page-level horizontal scroll at 360px');
  assert.equal(csp.length,0,'no CSP errors');
  console.log('PASS sessions UI: list, no token exposure, reason-required revoke, revoke-all, 360px, real CSP');

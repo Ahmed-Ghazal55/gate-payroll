@@ -4,14 +4,16 @@ import React, { useState } from 'react';
 import { ClipboardCheck } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
+import { usePeriod } from '../../lib/use-period';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState } from '../../components/ui/EmptyState';
+import { formatReadableValue } from '../../lib/formatRecord';
 
 export function ChefzReviewPanel() {
   const { can, isAdmin } = useAuth();
   const { toast } = useToast();
   const [companyId, setCompanyId] = useState('BW');
-  const [period, setPeriod] = useState('2026-10');
+  const { period, setPeriod } = usePeriod();
   const [invoiceId, setInvoiceId] = useState('');
   const [operatorsJson, setOperatorsJson] = useState('[]');
   const [result, setResult] = useState<Record<string, unknown> | null>(null);
@@ -63,7 +65,7 @@ export function ChefzReviewPanel() {
         </label>
       </div>
       <label className="block text-xs font-semibold space-y-1">
-        <span>مشغّلو الحسابات (JSON)</span>
+        <span>مشغّلو الحسابات</span>
         <textarea value={operatorsJson} onChange={(e) => setOperatorsJson(e.target.value)} rows={4} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] font-mono text-[11px]" placeholder='[{"accountId":"...","rider":"1...","category":"FT","orders":10}]' />
       </label>
       <button type="button" disabled={busy} onClick={run} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50">
@@ -78,13 +80,21 @@ export function ChefzReviewPanel() {
           {errors.length > 0 && (
             <div className="p-3 rounded-xl border border-[var(--danger)]/30 bg-[var(--danger)]/10">
               <p className="font-bold text-[var(--danger)] mb-1">أخطاء ({errors.length})</p>
-              <pre className="whitespace-pre-wrap font-mono text-[11px]">{JSON.stringify(errors, null, 2)}</pre>
+              <ul className="list-disc list-inside space-y-1 text-[11px]">
+                {errors.map((err, idx) => (
+                  <li key={idx}>{formatReadableValue(err)}</li>
+                ))}
+              </ul>
             </div>
           )}
           {notes.length > 0 && (
             <div className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/40">
               <p className="font-bold mb-1">ملاحظات</p>
-              <pre className="whitespace-pre-wrap font-mono text-[11px]">{JSON.stringify(notes, null, 2)}</pre>
+              <ul className="list-disc list-inside space-y-1 text-[11px]">
+                {notes.map((note, idx) => (
+                  <li key={idx}>{formatReadableValue(note)}</li>
+                ))}
+              </ul>
             </div>
           )}
         </div>

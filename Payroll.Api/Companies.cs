@@ -6,7 +6,7 @@ using System.Text.RegularExpressions;
 namespace Payroll;
 
 // Additive documents. The existing sponsor key remains the legal-entity key.
-public static class Companies
+public static partial class Companies
 {
     static string Actor(ClaimsPrincipal user)=>user.Identity?.Name??"system";
     public static void Seed(Store store)=>store.Write((c,tx)=>
@@ -17,8 +17,6 @@ public static class Companies
             Store.Save(c,"company",new(){["id"]=sponsor.Id,["sponsorId"]=sponsor.Id,["code"]=sponsor.Code,["nameAr"]=sponsor.NameAr,["shortNameAr"]=sponsor.ShortNameAr,["unifiedNumber"]=sponsor.UnifiedNumber,["commercialReg"]=sponsor.CommercialReg,["status"]="active",["createdAt"]=DateTimeOffset.UtcNow.ToString("O")},tx);
             Store.Audit(c,tx,"company.seeded",sponsor.Id,"system");
         }
-        // Dual-read copy into hr.company*; legacy kind remains the write owner (U-W1-11a).
-        SchemaHrCompany.Ensure(c,tx);
         return true;
     });
     public static List<JsonObject> List(DbConnection c,ClaimsPrincipal user,DbTransaction? tx=null)=>Store.List(c,"company",tx).Where(x=>FinancialScopes.Sponsor(user,x.S("id"))).ToList();
@@ -95,9 +93,10 @@ public static class Companies
         AccessPolicy.Demand(user,"companies.manage");var doc=kind=="company"?Get(c,tx,id,user):Child(c,tx,companyId,id,kind,user);doc["status"]="archived";
         Store.Save(c,kind,doc,tx);Store.Audit(c,tx,kind+".archived",id,Actor(user));return new{ok=true}; // Retain financial references and original attachments.
     }
-    public static void Map(RouteGroupBuilder api,Store store)
+    public static void Map(RouteGroupBuilder api,Store store,IConfiguration? config=null,IHostEnvironment? env=null)
     {
         api.MapGet("/companies",(HttpContext ctx)=>store.Read(c=>ApiPagination.Apply(List(c,ctx.User),ctx.Request.Query))).WithTags("Companies and registrations").WithSummary("List companies within the current legal-entity scope");
+        api.MapGet("/companies/stats",(HttpContext ctx)=>Stats(store,config,env,ctx)).WithTags("Companies and registrations").WithSummary("Live sponsorships and platform-account counts per company within scope");
         api.MapGet("/companies/expiring",(int? days,HttpContext ctx)=>store.Read(c=>
         {
             int window=days??60;J.Need(window is >=0 and <=3650,"عدد الأيام غير صالح.");var end=DateOnly.FromDateTime(DateTime.UtcNow).AddDays(window);
@@ -105,6 +104,7 @@ public static class Companies
             return new[]{"commercial_registration","company_document"}.SelectMany(kind=>Store.List(c,kind).Where(x=>visible.Contains(x.S("companyId"))&&x.S("status")!="archived"&&DateOnly.TryParseExact(x.S("annualConfirmation",x.S("expiryDate")),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var expiry)&&expiry<=end).Select(x=>{var row=x.Clone();row["kind"]=kind;return row;})).ToList();
         })).WithTags("Companies and registrations").WithSummary("List expired or soon-expiring company records and documents");
         api.MapGet("/companies/{id}",(string id,HttpContext ctx)=>store.Read(c=>Get(c,null,id,ctx.User))).WithTags("Companies and registrations").WithSummary("Read one company within scope");
+        api.MapGet("/companies/{id}/stats",(string id,HttpContext ctx)=>SingleCompanyStats(store,config,env,id,ctx)).WithTags("Companies and registrations").WithSummary("Live sponsorships and platform-account counts for one company within scope");
         api.MapPost("/companies",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>SaveCompany(c,tx,ctx.User,input))).WithTags("Companies and registrations").WithSummary("Create and audit a company");
         api.MapPut("/companies/{id}",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>SaveCompany(c,tx,ctx.User,input,id))).WithTags("Companies and registrations").WithSummary("Update and audit company metadata");
         api.MapDelete("/companies/{id}",(string id,HttpContext ctx)=>store.Write((c,tx)=>Archive(c,tx,id,id,"company",ctx.User))).WithTags("Companies and registrations").WithSummary("Archive a company while preserving financial references");

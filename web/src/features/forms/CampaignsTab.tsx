@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import {
   Plus,
   Copy,
@@ -9,9 +9,10 @@ import {
   Trash2,
   RefreshCw,
   CalendarClock,
+  Smartphone,
 } from 'lucide-react';
 import { api } from '../../lib/api';
-import type { Campaign } from '../../lib/types';
+import type { Campaign, CompanySponsor } from '../../lib/types';
 import { Toolbar } from '../../components/ui/Toolbar';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { Dialog } from '../../components/ui/Dialog';
@@ -19,13 +20,13 @@ import { ErrorState } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
 import { DeletePreviewDialog, DeleteTarget } from './DeletePreviewDialog';
+import { campaignLink, shortCampaignLinkLabel } from './campaign-link';
 
-
-// The server builds the public link from Payroll:PublicBaseUrl; older payloads only had a path.
-function campaignLink(c: Campaign): string {
-  if (c.publicUrl) return c.publicUrl;
-  return c.path ? `${window.location.origin}${c.path}` : '';
-}
+const TARGET_OPTIONS = [
+  { value: 'rider', label: 'المناديب فقط' },
+  { value: 'staff', label: 'الموظفون فقط' },
+  { value: 'ALL', label: 'الجميع' },
+] as const;
 
 // The public link also checks expiry (Program.cs Campaign()), so an "open" campaign past its date is expired.
 function campaignState(c: Campaign): 'open' | 'expired' | 'closed' {
@@ -53,7 +54,17 @@ export function CampaignsTab({
   const [newTitle, setNewTitle] = useState('');
   const [newKind, setNewKind] = useState<'work-choice' | 'iban'>('iban');
   const [newDays, setNewDays] = useState(14);
+  const [newTarget, setNewTarget] = useState<(typeof TARGET_OPTIONS)[number]['value']>('rider');
+  const [newCompanyId, setNewCompanyId] = useState('ALL');
+  const [companies, setCompanies] = useState<CompanySponsor[]>([]);
   const [creating, setCreating] = useState(false);
+
+  useEffect(() => {
+    api
+      .getCompanies()
+      .then((rows) => setCompanies(Array.isArray(rows) ? rows : []))
+      .catch(() => setCompanies([]));
+  }, []);
 
   const [deleteTarget, setDeleteTarget] = useState<DeleteTarget | null>(null);
   const [qrTarget, setQrTarget] = useState<Campaign | null>(null);
@@ -87,10 +98,16 @@ export function CampaignsTab({
         title: newTitle.trim(),
         kind: newKind,
         days: newDays,
+        target: newTarget,
+        ...(newCompanyId && newCompanyId !== 'ALL'
+          ? { targetCompanyId: newCompanyId, companyId: newCompanyId }
+          : {}),
       });
       toast('تم إنشاء الحملة بنجاح', 'success');
       setCreateOpen(false);
       setNewTitle('');
+      setNewTarget('rider');
+      setNewCompanyId('ALL');
       onRefresh();
     } catch (err: any) {
       toast(err?.message || 'تعذر إنشاء الحملة', 'danger');
@@ -127,16 +144,46 @@ export function CampaignsTab({
     {
       key: 'title',
       header: 'عنوان الحملة',
-      render: (c) => (
-        <div className="flex flex-col">
-          <strong className="text-[var(--ink)] font-bold">{c.title}</strong>
-          <span className="text-[11px] text-[var(--muted)] font-mono">{c.path}</span>
-        </div>
-      ),
+      type: 'text',
+      filterType: 'text',
+      getValue: (c) => c.title || '',
+      render: (c) => {
+        const full = campaignLink(c);
+        const short = shortCampaignLinkLabel(c);
+        return (
+          <div className="flex flex-col gap-0.5 min-w-0">
+            <strong className="text-[var(--ink)] font-bold">{c.title}</strong>
+            {short ? (
+              <span className="inline-flex items-center gap-1.5 min-w-0">
+                <span className="text-[11px] text-[var(--muted)] font-mono truncate" title={full}>
+                  {short}
+                </span>
+                <button
+                  type="button"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void copyToClipboard(full, c.title);
+                  }}
+                  className="inline-flex items-center gap-0.5 shrink-0 px-1.5 py-0.5 rounded-md border border-[var(--line)] text-[10px] font-semibold text-[var(--accent)] hover:bg-[var(--raised)]"
+                  title="نسخ الرابط الكامل"
+                >
+                  <Copy size={11} />
+                  نسخ
+                </button>
+              </span>
+            ) : null}
+          </div>
+        );
+      },
     },
     {
       key: 'kind',
       header: 'النوع',
+      type: 'list',
+      filterType: 'list',
+      getValue: (c) => c.kind,
+      labelOf: (v) => (v === 'iban' ? 'تحديث الآيبان' : 'اختيار نظام العمل'),
+      toneOf: (v) => (v === 'iban' ? 'accent' : 'info'),
       render: (c) => (
         <span
           className={`px-2 py-0.5 rounded-full text-[11px] font-semibold ${
@@ -152,6 +199,12 @@ export function CampaignsTab({
     {
       key: 'status',
       header: 'الحالة',
+      type: 'list',
+      filterType: 'list',
+      getValue: (c) => campaignState(c),
+      labelOf: (v) =>
+        v === 'open' ? 'مفتوحة للاستقبال' : v === 'expired' ? 'منتهية الصلاحية' : 'مغلقة',
+      toneOf: (v) => (v === 'open' ? 'success' : v === 'expired' ? 'warning' : 'neutral'),
       render: (c) => (
         <span
           className={`px-2.5 py-0.5 rounded-full text-xs font-semibold ${
@@ -169,7 +222,9 @@ export function CampaignsTab({
     {
       key: 'responseCount',
       header: 'عدد الردود',
+      type: 'number',
       numeric: true,
+      getValue: (c) => Number(c.responseCount ?? 0),
       render: (c) => (
         <span className="num font-bold text-[var(--ink)]">{c.responseCount}</span>
       ),
@@ -177,6 +232,9 @@ export function CampaignsTab({
     {
       key: 'expiresAt',
       header: 'تاريخ الانتهاء',
+      type: 'date',
+      getValue: (c) => c.expiresAt || '',
+      labelOf: (v) => (v ? new Date(String(v)).toLocaleDateString('ar-SA') : '—'),
       render: (c) => (
         <span className="num text-xs text-[var(--muted)]">
           {new Date(c.expiresAt).toLocaleDateString('ar-SA')}
@@ -237,6 +295,16 @@ export function CampaignsTab({
               label: 'عرض رمز QR',
               onClick: (c) => setQrTarget(c),
               icon: <QrCode size={14} />,
+            },
+            {
+              // F-R4: the real public form in a phone-width window (the form page refuses iframes: X-Frame-Options DENY).
+              label: 'معاينة على عرض الجوال',
+              disabled: (c) => !campaignLink(c),
+              onClick: (c) => {
+                const link = campaignLink(c);
+                if (link) window.open(link, '_blank', 'popup,width=360,height=780,noopener,noreferrer');
+              },
+              icon: <Smartphone size={14} />,
             },
             ...(canManageForms
               ? [
@@ -327,7 +395,7 @@ export function CampaignsTab({
                     : 'border-[var(--line)] text-[var(--muted)]'
                 }`}
               >
-                <div className="text-xs font-bold">تحديث الآيبان (IBAN)</div>
+                <div className="text-xs font-bold">تحديث الآيبان</div>
                 <div className="text-[11px] font-normal opacity-80 mt-0.5">
                   جمع الحساب البنكي والتحقق التلقائي
                 </div>
@@ -362,6 +430,44 @@ export function CampaignsTab({
               onChange={(e) => setNewDays(Number(e.target.value))}
               className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] num"
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+            <div>
+              <label className="block text-xs font-bold text-[var(--ink)] mb-1">
+                نوع الجمهور المستهدف
+              </label>
+              <select
+                value={newTarget}
+                onChange={(e) =>
+                  setNewTarget(e.target.value as (typeof TARGET_OPTIONS)[number]['value'])
+                }
+                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              >
+                {TARGET_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>
+                    {opt.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-[var(--ink)] mb-1">
+                الشركة المستهدفة
+              </label>
+              <select
+                value={newCompanyId}
+                onChange={(e) => setNewCompanyId(e.target.value)}
+                className="w-full px-3 py-2 text-xs sm:text-sm rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
+              >
+                <option value="ALL">كل الشركات</option>
+                {companies.map((c) => (
+                  <option key={c.id} value={c.id}>
+                    {c.shortNameAr || c.nameAr} ({c.code})
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </form>
       </Dialog>
