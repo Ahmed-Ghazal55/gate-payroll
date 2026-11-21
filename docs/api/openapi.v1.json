@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:36281/"
+      "url": "http://127.0.0.1:41281/"
     }
   ],
   "paths": {
@@ -27497,6 +27497,232 @@
                     },
                     "result": {
                       "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/advances": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Create a supervised advance or HS top-up request",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "type",
+                    "companyId",
+                    "amount",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "docNo": {
+                      "type": "string"
+                    },
+                    "type": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "supplierId": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
+                    },
+                    "platform": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "occurredOn": {
+                      "type": "string"
+                    },
+                    "dueOn": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "vatAmount": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "number"
+                    },
+                    "runMode": {
+                      "type": "number"
+                    },
+                    "payoutBlocked": {
+                      "type": "boolean"
+                    },
+                    "amountPaid": {
+                      "type": "number"
+                    },
+                    "amountReserved": {
+                      "type": "number"
+                    },
+                    "availableBalance": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "accountId",
+                          "costCentreId",
+                          "amount"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "accountId": {
+                            "type": "string"
+                          },
+                          "costCentreId": {
+                            "type": "string"
+                          },
+                          "appCode": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    },
+                    "metadata": {
+                      "type": "object"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/mada/cards/issue": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Issue a card only against an approved internet advance voucher",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "documentId",
+                    "companyId",
+                    "amount",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "paymentNo": {
+                      "type": "string"
+                    },
+                    "documentId": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "paidOn": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "number"
+                    },
+                    "runMode": {
+                      "type": "number"
+                    },
+                    "payoutBlocked": {
+                      "type": "boolean"
+                    },
+                    "approvalRequestId": {
+                      "type": "string"
+                    },
+                    "bankAccountId": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "journalId": {
+                      "type": [
+                        "null",
+                        "string"
+                      ]
                     },
                     "allowedActions": {
                       "type": "array",

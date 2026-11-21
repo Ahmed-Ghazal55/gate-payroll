@@ -16,9 +16,10 @@ public static class PaymentsApi
     {
         if(method=="GET")return AccessPolicy.Has(user,path.Contains("wallets",StringComparison.Ordinal)||path.Contains("/mada/",StringComparison.Ordinal)?"payments.fuel.manage":"payments.view");
         if(method is not ("POST" or "PUT"))return false;
-        string permission=path.EndsWith("/approve",StringComparison.Ordinal)?"approvals.decide":path=="/api/payments/hr-fees"?"payments.hr_request.create":path.Contains("wallets",StringComparison.Ordinal)||path.Contains("/mada/",StringComparison.Ordinal)?"payments.fuel.manage":"payments.disburse";
-        if(path.Contains("/documents/",StringComparison.Ordinal))return AccessPolicy.Has(user,permission)||AccessPolicy.Has(user,"payments.hr_request.create")||AccessPolicy.Has(user,"payments.fuel.manage")||AccessPolicy.Has(user,"payments.disburse");
-        if(path.Contains("/vouchers/",StringComparison.Ordinal))return AccessPolicy.Has(user,"payments.disburse");
+        string permission=path.EndsWith("/approve",StringComparison.Ordinal)?"approvals.decide":path.EndsWith("/cards/issue",StringComparison.Ordinal)?"advances.payout":path=="/api/payments/advances"?"advances.request":path=="/api/payments/hr-fees"?"payments.hr_request.create":path.Contains("wallets",StringComparison.Ordinal)||path.Contains("/mada/",StringComparison.Ordinal)?"payments.fuel.manage":"payments.disburse";
+        // The document handler resolves the source permission, including advances and HR drafts.
+        if(path.Contains("/documents/",StringComparison.Ordinal))return AccessPolicy.Has(user,permission)||AccessPolicy.Has(user,"advances.request")||AccessPolicy.Has(user,"advances.payout")||AccessPolicy.Has(user,"payments.hr_request.create")||AccessPolicy.Has(user,"payments.fuel.manage");
+        if(path.Contains("/vouchers/",StringComparison.Ordinal))return AccessPolicy.Has(user,"payments.disburse")||AccessPolicy.Has(user,"advances.payout");
         return AccessPolicy.Has(user,permission);
     }
     public static void Map(RouteGroupBuilder api,Store store)
@@ -67,5 +68,7 @@ public static class PaymentsApi
         api.MapGet("/payments/mada/wallets",(HttpContext ctx)=>store.Read(c=>PaymentWallets.List(c,ctx.User,"fuel",true))).WithTags("Banks and treasury").WithSummary("Read Mada wallet balances");
         api.MapPost("/payments/mada/topups",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentWallets.Fund(c,tx,ctx.User,"fuel",input.Required("walletId"),input))).WithTags("Banks and treasury").WithSummary("Create a Mada top-up through the payment engine");
         api.MapPost("/payments/mada/reconcile",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentWallets.Reconcile(c,tx,ctx.User,"fuel",input.Required("walletId"),input))).WithTags("Banks and treasury").WithSummary("Reconcile a Mada statement");
+        api.MapPost("/payments/advances",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentAdvances.Create(c,tx,ctx.User,input))).WithTags("Banks and treasury").WithSummary("Create a supervised advance or HS top-up request");
+        api.MapPost("/payments/mada/cards/issue",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentAdvances.IssueCard(c,tx,ctx.User,input))).WithTags("Banks and treasury").WithSummary("Issue a card only against an approved internet advance voucher");
     }
 }

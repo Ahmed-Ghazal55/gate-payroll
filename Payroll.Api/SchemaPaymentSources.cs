@@ -55,7 +55,7 @@ public static class SchemaPaymentSources
             book_balance {m} NOT NULL,reference {SchemaSql.Varchar(c,100)} NOT NULL,{SchemaSql.MoneyAuditCols(c)}
             """);
         SchemaMoneyGuard.Retain(c,tx,"pay","wallet_reconciliation");SchemaMoneyRegister.Immutable(c,tx,"pay","wallet_reconciliation","wallet_id","wallet_kind","period_month","statement_balance","book_balance","reference");
-        foreach(string table in new[]{"hr_fee_request"})
+        foreach(string table in new[]{"hr_fee_request","advance_request"})
         {
             SchemaSql.EnsureTable(c,tx,"pay",table,$"""
                 id {g} NOT NULL {SchemaSql.PrimaryKey(c)} REFERENCES {SchemaSql.Q(c,"pay","document")}(id),

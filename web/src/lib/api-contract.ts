@@ -16184,6 +16184,130 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/payments/advances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a supervised advance or HS top-up request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/mada/cards/issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue a card only against an approved internet advance voucher */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            paymentNo?: string;
+                            documentId: string;
+                            companyId: string;
+                            periodMonth?: string;
+                            paidOn?: string;
+                            amount: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            approvalRequestId?: string;
+                            bankAccountId?: string;
+                            reference?: string;
+                            journalId?: null | string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/debts/opening/decide": {
         parameters: {
             query?: never;
