@@ -34,6 +34,11 @@ public sealed class OperationsLiveSqlServerTests
     static readonly Guid ExpenseReversal = Guid.Parse("16161616-1616-1616-1616-161616161616");
     static readonly Guid OilOpId = Guid.Parse("17171717-1717-1717-1717-171717171717");
     static readonly Guid PurchaseId = Guid.Parse("18181818-1818-1818-1818-181818181818");
+    static readonly Guid PurchaseOctBillReceivedNov = Guid.Parse("19191919-1919-1919-1919-191919191919");
+    static readonly Guid PurchaseReversed = Guid.Parse("1a1a1a1a-1a1a-1a1a-1a1a-1a1a1a1a1a1a");
+    static readonly Guid PurchaseUtcBoundary = Guid.Parse("1b1b1b1b-1b1b-1b1b-1b1b-1b1b1b1b1b1b");
+    static readonly Guid PurchaseOutside = Guid.Parse("1c1c1c1c-1c1c-1c1c-1c1c-1c1c1c1c1c1c");
+    static readonly Guid PurchaseDeleted = Guid.Parse("1d1d1d1d-1d1d-1d1d-1d1d-1d1d1d1d1d1d");
 
     [TestMethod]
     public void OperationsLiveQueries_ExecuteOnThrowawaySqlServer()
@@ -114,9 +119,14 @@ public sealed class OperationsLiveSqlServerTests
             var citiesPlat = OperationsLiveQuery.CitiesSummary(conn, onePlatform);
             Assert.AreEqual(2L, citiesPlat.Items[0]["accountsTotal"]!.GetValue<long>());
 
-            // M7 purchases unscoped for company users
+            // M7 purchases unscoped for company users + all period receipts (InvoiceDate OR Riyadh ReceivedAtUtc, all statuses)
             var purchasesAll = OperationsLiveQuery.PurchaseInvoices(conn, from, to, 1, 50, "", all, null);
-            Assert.AreEqual(1L, purchasesAll.Total);
+            Assert.AreEqual(4L, purchasesAll.Total);
+            Assert.AreEqual(1150m, purchasesAll.Summary["totalAmount"]!.GetValue<decimal>());
+            Assert.IsTrue(purchasesAll.Items.Any(r => r["status"]!.GetValue<string>() == "مرحّل"));
+            Assert.IsTrue(purchasesAll.Items.Any(r => r["status"]!.GetValue<string>() == "معكوس"));
+            var purchaseDetailOutside = OperationsLiveQuery.PurchaseInvoices(conn, from, to, 1, 1, "", all, PurchaseOutside.ToString("D"));
+            Assert.AreEqual(1L, purchaseDetailOutside.Total);
             var purchasesScoped = OperationsLiveQuery.PurchaseInvoices(conn, from, to, 1, 50, "", oneCompany, null);
             Assert.AreEqual(0L, purchasesScoped.Total);
             try
@@ -132,6 +142,9 @@ public sealed class OperationsLiveSqlServerTests
             var fuelExport = OperationsLiveQuery.FuelCardsExport(conn, new DateOnly(2026, 11, 1), "", "", all, 30);
             Assert.AreEqual(fuelExport.Total, fuelExport.Items.Count);
             Assert.AreEqual("PetroApp", fuelExport.Items[0]["provider"]!.GetValue<string>());
+            Assert.AreEqual("شركة بترو اب", fuelExport.Items[0]["providerNameAr"]!.GetValue<string>());
+            Assert.AreEqual("بطاقة اختبار 1", fuelExport.Items[0]["cardName"]!.GetValue<string>());
+            Assert.AreEqual("نشطة", fuelExport.Items[0]["status"]!.GetValue<string>());
 
             // paging totals match aggregates
             var paged = OperationsLiveQuery.VehiclesPeriodReport(conn, from, to, "vehicle", 1, 1, "", all, detailed: false);
@@ -172,7 +185,7 @@ public sealed class OperationsLiveSqlServerTests
             CREATE TABLE platform.ClientPlatforms (Id uniqueidentifier NOT NULL PRIMARY KEY, Code nvarchar(50) NULL, NameAr nvarchar(200) NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE app.PlatformRiderAccounts (Id uniqueidentifier NOT NULL PRIMARY KEY, ClientPlatformId uniqueidentifier NOT NULL, Code nvarchar(50) NULL, Status int NOT NULL, OperatingCityId uniqueidentifier NULL, SponsorId uniqueidentifier NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE app.RiderClientAssignments (Id uniqueidentifier NOT NULL PRIMARY KEY, PlatformRiderAccountId uniqueidentifier NOT NULL, EffectiveTo date NULL, IsDeleted bit NOT NULL DEFAULT 0);
-            CREATE TABLE app.FuelCards (Id uniqueidentifier NOT NULL PRIMARY KEY, Provider int NOT NULL, CardNumber nvarchar(50) NULL, PlateNumberText nvarchar(50) NULL, SponsorId uniqueidentifier NULL, IsDeleted bit NOT NULL DEFAULT 0);
+            CREATE TABLE app.FuelCards (Id uniqueidentifier NOT NULL PRIMARY KEY, Provider int NOT NULL, CardNumber nvarchar(50) NULL, PlateNumberText nvarchar(50) NULL, Notes nvarchar(500) NULL, SponsorId uniqueidentifier NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE app.FuelCardRiderAssignments (Id uniqueidentifier NOT NULL PRIMARY KEY, FuelCardId uniqueidentifier NOT NULL, EmployeeId uniqueidentifier NULL, EffectiveFrom date NOT NULL, EffectiveTo date NULL, AssignmentReason nvarchar(200) NULL, EndReason nvarchar(200) NULL);
             CREATE TABLE app.FuelCardMonthlyUsages (Id uniqueidentifier NOT NULL PRIMARY KEY, FuelCardId uniqueidentifier NOT NULL, EmployeeId uniqueidentifier NULL, RiderProfileId uniqueidentifier NULL, ReportMonth date NOT NULL, TotalLiters decimal(18,2) NULL, AmountBeforeTax decimal(18,2) NULL, VatAmount decimal(18,2) NULL, TotalAmount decimal(18,2) NULL, TransactionCount int NULL, FuelType nvarchar(50) NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE maintenance.VehicleExpenses (Id uniqueidentifier NOT NULL PRIMARY KEY, VehicleId uniqueidentifier NOT NULL, RiderVehicleAssignmentId uniqueidentifier NULL, RiderProfileId uniqueidentifier NULL, ExpenseType nvarchar(100) NOT NULL, SourceEntityType nvarchar(100) NOT NULL, SourceEntityId uniqueidentifier NULL, OccurredOn date NOT NULL, AmountBeforeTax decimal(18,2) NOT NULL, TaxAmount decimal(18,2) NULL, TotalAmount decimal(18,2) NOT NULL, ReversalOfExpenseId uniqueidentifier NULL);
@@ -223,9 +236,14 @@ public sealed class OperationsLiveSqlServerTests
               VALUES(NEWID(),'{VehicleId}','MaintenanceLabor','OilChangeOperation','2026-11-08',80,80);
             INSERT INTO maintenance.OilChangeOperations(Id,VehicleId,PerformedAtUtc,OdometerAtChange,OilQuantityLiters,OilCost,OilFilterCost,LaborCost,OtherCost,TotalCost)
               VALUES('{OilOpId}','{VehicleId}','2026-11-12T12:00:00+03:00',11200,4,40,10,20,5,75);
-            INSERT INTO maintenance.PurchaseReceipts(Id,ReceiptNumber,InvoiceDate,Subtotal,TaxAmount,TotalAmount,Status)
-              VALUES('{PurchaseId}','R-1','2026-11-15',100,15,115,'Posted');
-            INSERT INTO app.FuelCards(Id,Provider,CardNumber,PlateNumberText,SponsorId) VALUES('{FuelCardId}',1,'FC-1',N'أ ب ج 1234','{SponsorA}');
+            INSERT INTO maintenance.PurchaseReceipts(Id,ReceiptNumber,InvoiceDate,ReceivedAtUtc,Subtotal,TaxAmount,TotalAmount,Status,IsDeleted) VALUES
+              ('{PurchaseId}','R-1','2026-11-15','2026-11-15T10:00:00+03:00',100,15,115,'1',0),
+              ('{PurchaseOctBillReceivedNov}','R-2','2026-10-28','2026-11-02T09:00:00+03:00',200,30,230,'Posted',0),
+              ('{PurchaseReversed}','R-3','2026-11-10','2026-12-02T09:00:00+03:00',300,45,345,'2',0),
+              ('{PurchaseUtcBoundary}','R-4','2026-10-31','2026-10-31T22:00:00+00:00',400,60,460,'1',0),
+              ('{PurchaseOutside}','R-5','2026-10-10','2026-10-12T09:00:00+03:00',500,75,575,'1',0),
+              ('{PurchaseDeleted}','R-6','2026-11-20','2026-11-20T09:00:00+03:00',600,90,690,'1',1);
+            INSERT INTO app.FuelCards(Id,Provider,CardNumber,PlateNumberText,Notes,SponsorId) VALUES('{FuelCardId}',1,'FC-1',N'أ ب ج 1234',N'بطاقة اختبار 1','{SponsorA}');
             INSERT INTO app.FuelCardMonthlyUsages(Id,FuelCardId,EmployeeId,ReportMonth,TotalLiters,AmountBeforeTax,VatAmount,TotalAmount,TransactionCount,FuelType)
               VALUES(NEWID(),'{FuelCardId}','{EmpInScope}','2026-11-01',40,100,15,115,3,N'91');
             INSERT INTO app.FuelCardRiderAssignments(Id,FuelCardId,EmployeeId,EffectiveFrom) VALUES(NEWID(),'{FuelCardId}','{EmpInScope}','2026-11-01');

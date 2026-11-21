@@ -7,6 +7,22 @@ import type {
   PaySchemeCreateInput,
   PayTermsCreateInput,
 } from '../../lib/types';
+import { formatReadableValue } from '../../lib/formatRecord.ts';
+
+function deepEqualValues(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a === null || b === null || typeof a !== typeof b) return false;
+  if (Array.isArray(a) && Array.isArray(b)) {
+    return a.length === b.length && a.every((v, i) => deepEqualValues(v, b[i]));
+  }
+  if (typeof a === 'object' && typeof b === 'object' && !Array.isArray(a) && !Array.isArray(b)) {
+    const ka = Object.keys(a as Record<string, unknown>);
+    const kb = Object.keys(b as Record<string, unknown>);
+    if (ka.length !== kb.length) return false;
+    return ka.every((k) => deepEqualValues((a as Record<string, unknown>)[k], (b as Record<string, unknown>)[k]));
+  }
+  return false;
+}
 
 export const PAY_CATEGORIES_META: ReadonlyArray<{
   key: string;
@@ -551,28 +567,26 @@ export function diffPaySettings(
           path: currentPath,
           labelAr,
           prevValue: '— (غير موجود)',
-          curValue: typeof cVal === 'object' ? JSON.stringify(cVal) : String(cVal),
+          curValue: formatReadableValue(cVal),
           kind: 'added',
         });
       } else if (pVal !== undefined && cVal === undefined) {
         diffs.push({
           path: currentPath,
           labelAr,
-          prevValue: typeof pVal === 'object' ? JSON.stringify(pVal) : String(pVal),
+          prevValue: formatReadableValue(pVal),
           curValue: '— (محذوف)',
           kind: 'removed',
         });
       } else if (isObject(pVal) && isObject(cVal)) {
         diffs.push(...diffPaySettings(pVal, cVal, currentPath));
       } else if (Array.isArray(pVal) && Array.isArray(cVal)) {
-        const pStr = JSON.stringify(pVal);
-        const cStr = JSON.stringify(cVal);
-        if (pStr !== cStr) {
+        if (!deepEqualValues(pVal, cVal)) {
           diffs.push({
             path: currentPath,
             labelAr,
-            prevValue: pStr,
-            curValue: cStr,
+            prevValue: formatReadableValue(pVal),
+            curValue: formatReadableValue(cVal),
             kind: 'changed',
           });
         }
@@ -580,18 +594,18 @@ export function diffPaySettings(
         diffs.push({
           path: currentPath,
           labelAr,
-          prevValue: String(pVal ?? '—'),
-          curValue: String(cVal ?? '—'),
+          prevValue: formatReadableValue(pVal),
+          curValue: formatReadableValue(cVal),
           kind: 'changed',
         });
       }
     }
-  } else if (JSON.stringify(prevData) !== JSON.stringify(curData)) {
+  } else if (!deepEqualValues(prevData, curData)) {
     diffs.push({
       path: prefix || 'root',
       labelAr: FIELD_LABELS_AR[prefix] || prefix || 'الإعداد',
-      prevValue: JSON.stringify(prevData),
-      curValue: JSON.stringify(curData),
+      prevValue: formatReadableValue(prevData),
+      curValue: formatReadableValue(curData),
       kind: 'changed',
     });
   }

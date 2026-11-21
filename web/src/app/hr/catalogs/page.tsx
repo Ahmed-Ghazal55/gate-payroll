@@ -38,6 +38,18 @@ function cellText(value: unknown): string {
   return String(value);
 }
 
+function catalogStatusLabel(value: unknown): string {
+  const s = String(value ?? '').trim();
+  if (!s) return '—';
+  const low = s.toLowerCase();
+  if (low === 'active' || low === 'enabled' || s === '1' || low === 'true') return 'نشط';
+  if (low === 'inactive' || low === 'disabled' || s === '0' || low === 'false') return 'غير نشط';
+  if (low === 'archived') return 'مؤرشف';
+  if (low === 'pending') return 'قيد الانتظار';
+  if (low === 'suspended') return 'موقوف';
+  return s;
+}
+
 function pickField(row: Record<string, unknown>, ...keys: string[]): string {
   for (const key of keys) {
     const value = row[key];
@@ -120,12 +132,20 @@ function HrCatalogsPageInner() {
   }));
 
   const columns: ColumnDef<Record<string, unknown>>[] = useMemo(() => {
+    const statusTone = (v: unknown) => {
+      const s = String(v ?? '').toLowerCase();
+      if (s === 'active' || s === 'enabled' || s === 'نشط' || s === 'مفعل') return 'success' as const;
+      if (s === 'inactive' || s === 'disabled' || s === 'غير نشط' || s === 'معطل') return 'neutral' as const;
+      return 'info' as const;
+    };
     switch (activeTab) {
       case 'sponsors':
         return [
           {
             key: 'RegistryNameAr',
             header: 'الاسم',
+            type: 'text',
+            getValue: (r) => pickField(r, 'RegistryNameAr', 'registryNameAr', 'nameAr', 'name'),
             render: (r) => (
               <span className="font-semibold">
                 {cellText(pickField(r, 'RegistryNameAr', 'registryNameAr', 'nameAr', 'name'))}
@@ -135,6 +155,8 @@ function HrCatalogsPageInner() {
           {
             key: 'UnifiedNationalNumber',
             header: 'الرقم الموحد',
+            type: 'text',
+            getValue: (r) => pickField(r, 'UnifiedNationalNumber', 'unifiedNationalNumber'),
             render: (r) => (
               <span className="font-mono font-bold" dir="ltr">
                 {cellText(pickField(r, 'UnifiedNationalNumber', 'unifiedNationalNumber'))}
@@ -144,6 +166,8 @@ function HrCatalogsPageInner() {
           {
             key: 'CommercialRegistrationNumber',
             header: 'السجل التجاري',
+            type: 'text',
+            getValue: (r) => pickField(r, 'CommercialRegistrationNumber', 'commercialRegistrationNumber'),
             render: (r) => (
               <span className="font-mono" dir="ltr">
                 {cellText(
@@ -155,12 +179,21 @@ function HrCatalogsPageInner() {
           {
             key: 'SponsorType',
             header: 'النوع',
+            type: 'list',
+            filterType: 'list',
+            getValue: (r) => pickField(r, 'SponsorType', 'sponsorType'),
+            labelOf: (v) => cellText(v),
             render: (r) => <span>{cellText(pickField(r, 'SponsorType', 'sponsorType'))}</span>,
           },
           {
             key: 'Status',
             header: 'الحالة',
-            render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
+            type: 'list',
+            filterType: 'list',
+            getValue: (r) => pickField(r, 'Status', 'status'),
+            labelOf: (v) => catalogStatusLabel(v),
+            toneOf: statusTone,
+            render: (r) => <span>{catalogStatusLabel(pickField(r, 'Status', 'status'))}</span>,
           },
         ];
       case 'city-settings':
@@ -168,6 +201,9 @@ function HrCatalogsPageInner() {
           {
             key: 'Code',
             header: 'الرمز',
+            type: 'list',
+            filterType: 'list',
+            getValue: (r) => pickField(r, 'Code', 'code'),
             render: (r) => (
               <span className="font-mono font-bold text-[var(--accent)]">
                 {cellText(pickField(r, 'Code', 'code'))}
@@ -177,6 +213,9 @@ function HrCatalogsPageInner() {
           {
             key: 'NameAr',
             header: 'المدينة',
+            type: 'list',
+            filterType: 'list',
+            getValue: (r) => pickField(r, 'NameAr', 'nameAr'),
             render: (r) => (
               <span className="font-semibold">
                 {cellText(pickField(r, 'NameAr', 'nameAr'))}
@@ -186,21 +225,34 @@ function HrCatalogsPageInner() {
           {
             key: 'RegionAr',
             header: 'المنطقة',
+            type: 'list',
+            filterType: 'list',
+            getValue: (r) => pickField(r, 'RegionAr', 'regionAr'),
             render: (r) => <span>{cellText(pickField(r, 'RegionAr', 'regionAr'))}</span>,
           },
           {
             key: 'CountryCode',
             header: 'الدولة',
+            type: 'list',
+            filterType: 'list',
+            getValue: (r) => pickField(r, 'CountryCode', 'countryCode'),
             render: (r) => <span className="font-mono">{cellText(pickField(r, 'CountryCode', 'countryCode'))}</span>,
           },
           {
             key: 'Status',
             header: 'الحالة',
-            render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
+            type: 'list',
+            filterType: 'list',
+            getValue: (r) => pickField(r, 'Status', 'status'),
+            labelOf: (v) => catalogStatusLabel(v),
+            toneOf: statusTone,
+            render: (r) => <span>{catalogStatusLabel(pickField(r, 'Status', 'status'))}</span>,
           },
           {
             key: 'EnabledFrom',
             header: 'مفعّل من',
+            type: 'date',
+            getValue: (r) => pickField(r, 'EnabledFrom', 'enabledFrom'),
             render: (r) => (
               <span className="font-mono text-xs">
                 {cellText(pickField(r, 'EnabledFrom', 'enabledFrom'))}
@@ -213,6 +265,8 @@ function HrCatalogsPageInner() {
           {
             key: 'Code',
             header: 'الرمز',
+            type: 'text',
+            getValue: (r) => pickField(r, 'Code', 'code'),
             render: (r) => (
               <span className="font-mono font-bold text-[var(--accent)]">
                 {cellText(pickField(r, 'Code', 'code'))}
@@ -222,6 +276,8 @@ function HrCatalogsPageInner() {
           {
             key: 'NameAr',
             header: 'الاسم بالعربية',
+            type: 'text',
+            getValue: (r) => pickField(r, 'NameAr', 'nameAr'),
             render: (r) => (
               <span className="font-semibold">{cellText(pickField(r, 'NameAr', 'nameAr'))}</span>
             ),
@@ -229,6 +285,8 @@ function HrCatalogsPageInner() {
           {
             key: 'NameEn',
             header: 'الاسم بالإنجليزية',
+            type: 'text',
+            getValue: (r) => pickField(r, 'NameEn', 'nameEn'),
             render: (r) => (
               <span className="text-xs font-mono text-[var(--muted)]">
                 {cellText(pickField(r, 'NameEn', 'nameEn'))}
@@ -238,6 +296,8 @@ function HrCatalogsPageInner() {
           {
             key: 'WorkTypeCodes',
             header: 'أنواع العمل',
+            type: 'list',
+            getValue: (r) => pickField(r, 'WorkTypeCodes', 'workTypeCodes'),
             render: (r) => (
               <span className="text-xs">{cellText(pickField(r, 'WorkTypeCodes', 'workTypeCodes'))}</span>
             ),
@@ -245,7 +305,11 @@ function HrCatalogsPageInner() {
           {
             key: 'Status',
             header: 'الحالة',
-            render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
+            type: 'list',
+            getValue: (r) => pickField(r, 'Status', 'status'),
+            labelOf: (v) => catalogStatusLabel(v),
+            toneOf: statusTone,
+            render: (r) => <span>{catalogStatusLabel(pickField(r, 'Status', 'status'))}</span>,
           },
         ];
       default:
@@ -253,6 +317,8 @@ function HrCatalogsPageInner() {
           {
             key: 'Code',
             header: 'الرمز',
+            type: 'text',
+            getValue: (r) => pickField(r, 'Code', 'code', 'Id', 'id'),
             render: (r) => (
               <span className="font-mono font-bold text-[var(--accent)]">
                 {cellText(pickField(r, 'Code', 'code', 'Id', 'id'))}
@@ -262,6 +328,8 @@ function HrCatalogsPageInner() {
           {
             key: 'NameAr',
             header: 'الاسم بالعربية',
+            type: 'text',
+            getValue: (r) => pickField(r, 'NameAr', 'nameAr', 'name'),
             render: (r) => (
               <span className="font-semibold">{cellText(pickField(r, 'NameAr', 'nameAr', 'name'))}</span>
             ),
@@ -269,6 +337,8 @@ function HrCatalogsPageInner() {
           {
             key: 'NameEn',
             header: 'الاسم بالإنجليزية',
+            type: 'text',
+            getValue: (r) => pickField(r, 'NameEn', 'nameEn'),
             render: (r) => (
               <span className="text-xs font-mono text-[var(--muted)]">
                 {cellText(pickField(r, 'NameEn', 'nameEn'))}
@@ -278,7 +348,11 @@ function HrCatalogsPageInner() {
           {
             key: 'Status',
             header: 'الحالة',
-            render: (r) => <span>{cellText(pickField(r, 'Status', 'status'))}</span>,
+            type: 'list',
+            getValue: (r) => pickField(r, 'Status', 'status'),
+            labelOf: (v) => catalogStatusLabel(v),
+            toneOf: statusTone,
+            render: (r) => <span>{catalogStatusLabel(pickField(r, 'Status', 'status'))}</span>,
           },
         ];
     }
@@ -335,7 +409,7 @@ function HrCatalogsPageInner() {
           getRowId={(r) =>
             String(
               pickField(r, 'Id', 'id', 'Code', 'code', 'UnifiedNationalNumber', 'NameAr', 'nameAr') ||
-                JSON.stringify(r)
+                Object.values(r).map((v) => String(v ?? '')).join('|')
             )
           }
           searchable

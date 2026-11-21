@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
   SlidersHorizontal,
   Plus,
@@ -24,6 +24,7 @@ import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
 import { Dialog } from '../../components/ui/Dialog';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 
 export function ConfigListsPanel() {
   const { toast } = useToast();
@@ -82,6 +83,50 @@ export function ConfigListsPanel() {
   }, []);
 
   const activeGroup = groups.find((g) => g.group === activeGroupKey) || groups[0];
+
+  const activeGroupItems = useMemo(() => activeGroup?.items || [], [activeGroup?.items]);
+  const configCols = useMemo(
+    () => [
+      { key: 'code', header: 'الكود', type: 'text' as const, getValue: (it: ConfigListItem) => it.code || '' },
+      { key: 'nameAr', header: 'الاسم بالعربي', type: 'text' as const, getValue: (it: ConfigListItem) => it.nameAr || '' },
+      ...(activeGroup?.fields || []).map((f) => ({
+        key: `field_${f.key}`,
+        header: f.labelAr,
+        type: (f.type === 'number' ? 'number' : f.type === 'bool' || f.type === 'select' ? 'list' : 'text') as
+          | 'text'
+          | 'number'
+          | 'list',
+        getValue: (it: ConfigListItem) => {
+          const raw = it.values?.[f.key];
+          if (f.type === 'bool') return raw ? 'yes' : 'no';
+          if (f.type === 'number') return Number(raw ?? 0);
+          return String(raw ?? '');
+        },
+        labelOf:
+          f.type === 'bool'
+            ? (v: unknown) => (v === 'yes' ? 'نعم' : 'لا')
+            : undefined,
+      })),
+      {
+        key: 'active',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (it: ConfigListItem) => (it.active ? 'active' : 'inactive'),
+        labelOf: (v: unknown) => (v === 'active' ? 'نشط' : 'معطل'),
+        toneOf: (v: unknown) => (v === 'active' ? 'success' : 'neutral'),
+      },
+      {
+        key: 'status',
+        header: 'الاعتماد المالي',
+        type: 'list' as const,
+        getValue: (it: ConfigListItem) => (it.status === 'pending_approval' ? 'pending_approval' : 'approved'),
+        labelOf: (v: unknown) => (v === 'pending_approval' ? 'بانتظار الاعتماد' : 'معتمد'),
+        toneOf: (v: unknown) => (v === 'pending_approval' ? 'warning' : 'success'),
+      },
+    ],
+    [activeGroup?.fields]
+  );
+  const configFilter = useTableAutoFilter<ConfigListItem>(activeGroupItems, configCols);
 
   const handleOpenAdd = () => {
     setEditingItem(null);
@@ -299,31 +344,35 @@ export function ConfigListsPanel() {
 
           {/* Items Table */}
           <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs overflow-hidden">
+            <AutoFilterBar controller={configFilter} totalCount={(activeGroup.items || []).length} />
             <div className="overflow-x-auto">
               <table className="w-full text-start text-xs border-collapse">
                 <thead>
                   <tr className="bg-[var(--raised)] border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-                    <th className="py-2.5 px-3 text-start">الكود</th>
-                    <th className="py-2.5 px-3 text-start">الاسم بالعربي</th>
+                    <AutoFilterTh controller={configFilter} colKey="code" className="py-2.5 px-3 text-start" />
+                    <AutoFilterTh controller={configFilter} colKey="nameAr" className="py-2.5 px-3 text-start" />
                     {activeGroup.fields?.map((f) => (
-                      <th key={f.key} className="py-2.5 px-2 text-start">
-                        {f.labelAr}
-                      </th>
+                      <AutoFilterTh
+                        key={f.key}
+                        controller={configFilter}
+                        colKey={`field_${f.key}`}
+                        className="py-2.5 px-2 text-start"
+                      />
                     ))}
-                    <th className="py-2.5 px-2 text-center">الحالة</th>
-                    <th className="py-2.5 px-2 text-center">الاعتماد المالي</th>
+                    <AutoFilterTh controller={configFilter} colKey="active" className="py-2.5 px-2 text-center" />
+                    <AutoFilterTh controller={configFilter} colKey="status" className="py-2.5 px-2 text-center" />
                     <th className="py-2.5 px-3 text-end">الإجراءات</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)]">
-                  {activeGroup.items?.length === 0 ? (
+                  {configFilter.rows.length === 0 ? (
                     <tr>
                       <td colSpan={5 + (activeGroup.fields?.length || 0)} className="py-12 text-center text-xs text-[var(--muted)]">
                         لا توجد عناصر مسجلة في هذه القائمة حتى الآن.
                       </td>
                     </tr>
                   ) : (
-                    activeGroup.items?.map((item) => (
+                    configFilter.rows.map((item) => (
                       <tr key={item.code} className="hover:bg-[var(--row-hover)] transition">
                         <td className="py-2.5 px-3 font-mono font-bold text-[var(--accent)] num">
                           {item.code}

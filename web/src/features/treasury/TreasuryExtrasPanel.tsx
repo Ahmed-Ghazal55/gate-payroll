@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useMemo, useState } from 'react';
 import { Wallet, Landmark, History } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { formatSar } from '../../lib/money';
+import { formatRecordEntries } from '../../lib/formatRecord';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 
 export function TreasuryExtrasPanel() {
   const { can, isAdmin } = useAuth();
@@ -22,6 +24,18 @@ export function TreasuryExtrasPanel() {
   const [liability, setLiability] = useState({ debtId: '', paymentVaultCode: '', amount: '', sourceRef: '', period: '2026-10' });
   const [legacyJson, setLegacyJson] = useState('{}');
   const [legacyPreview, setLegacyPreview] = useState<Record<string, unknown> | null>(null);
+  const legacyEntries = useMemo(
+    () => (legacyPreview ? formatRecordEntries(legacyPreview) : []),
+    [legacyPreview]
+  );
+  const legacyCols = useMemo(
+    () => [
+      { key: 'key', header: 'الحقل', type: 'list' as const, getValue: (e: { key: string; value: string }) => e.key || '' },
+      { key: 'value', header: 'القيمة', type: 'text' as const, getValue: (e: { key: string; value: string }) => String(e.value ?? '') },
+    ],
+    []
+  );
+  const legacyFilter = useTableAutoFilter(legacyEntries, legacyCols);
 
   if (!canMada && !canLiability && !canLegacy) {
     return <EmptyState title="صلاحية غير كافية" description="لا تملك صلاحيات مدا أو سداد الالتزام أو التوزيع القديم." />;
@@ -108,7 +122,27 @@ export function TreasuryExtrasPanel() {
             <button type="button" disabled={busy} onClick={previewLegacy} className="px-3 py-2 rounded-xl border border-[var(--line)] text-xs font-bold disabled:opacity-50">معاينة</button>
             <button type="button" disabled={busy || !legacyPreview} onClick={commitLegacy} className="px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50">تثبيت</button>
           </div>
-          {legacyPreview && <pre className="text-[11px] font-mono whitespace-pre-wrap p-2 rounded-xl bg-[var(--raised)]/50 max-h-48 overflow-auto">{JSON.stringify(legacyPreview, null, 2)}</pre>}
+          {legacyPreview && (
+            <div className="rounded-xl border border-[var(--line)] bg-[var(--raised)]/50 p-3 max-h-56 overflow-auto">
+              <AutoFilterBar controller={legacyFilter} totalCount={legacyEntries.length} />
+              <table className="w-full text-xs text-start">
+                <thead className="text-[var(--muted)] border-b border-[var(--line)]">
+                  <tr>
+                    <AutoFilterTh controller={legacyFilter} colKey="key" className="py-1.5 pe-3 text-start" />
+                    <AutoFilterTh controller={legacyFilter} colKey="value" className="py-1.5 text-start" />
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-[var(--line)]">
+                  {legacyFilter.rows.map((entry) => (
+                    <tr key={entry.key}>
+                      <td className="py-1.5 pe-3 font-semibold text-[var(--muted)] whitespace-nowrap">{entry.key}</td>
+                      <td className="py-1.5 break-words">{entry.value}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </div>
       )}
     </div>

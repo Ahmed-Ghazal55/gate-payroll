@@ -9,7 +9,8 @@ import { ExternalLink } from 'lucide-react';
 import { api, type ServiceRequest, type ServiceRequestsSummary } from '../../lib/api';
 import { SectionTabs } from '../../components/ui/SectionTabs';
 import { StatCard } from '../../components/ui/StatCard';
-import { DataTable, type ColumnDef } from '../../components/ui/DataTable';
+import { DataTable, type ColumnDef, defaultStatusTone } from '../../components/ui/DataTable';
+import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Dialog } from '../../components/ui/Dialog';
 import { IbanDisplay } from '../../components/ui/IbanDisplay';
 import { useToast } from '../../components/ui/Toast';
@@ -139,6 +140,7 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
   const [pageSize, setPageSize] = useState(50);
   const [status, setStatus] = useState('');
   const [iqamaFilter, setIqamaFilter] = useState('');
+  const [serverQuery, setServerQuery] = useState<{ filtersParam?: string; sortParam?: string }>({});
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [target, setTarget] = useState<{ row: ServiceRequest; action: string } | null>(null);
@@ -152,8 +154,10 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
       requestType: SUBTAB_TYPE[active],
       group: active === 'other' ? ('other' as const) : undefined,
       iqama: iqamaFilter.trim() || undefined,
+      filters: serverQuery.filtersParam,
+      sort: serverQuery.sortParam,
     }),
-    [active, status, iqamaFilter]
+    [active, status, iqamaFilter, serverQuery]
   );
 
   const load = useCallback(async () => {
@@ -201,10 +205,20 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
   };
 
   const columns: ColumnDef<ServiceRequest>[] = [
-    { key: 'id', header: 'رقم الطلب', getValue: (r) => r.id.replace(/^sreq:/, '').slice(0, 8), render: (r) => <span className="font-mono text-xs" dir="ltr">{r.id.replace(/^sreq:/, '').slice(0, 8)}</span> },
+    {
+      key: 'id',
+      header: 'رقم الطلب',
+      type: 'text',
+      filterType: 'text',
+      getValue: (r) => r.id.replace(/^sreq:/, '').slice(0, 8),
+      render: (r) => <span className="font-mono text-xs" dir="ltr">{r.id.replace(/^sreq:/, '').slice(0, 8)}</span>,
+    },
     {
       key: 'rider',
       header: 'المندوب والإقامة',
+      type: 'text',
+      filterType: 'text',
+      filterColumn: 'riderName',
       getValue: (r) => `${r.riderName ?? ''} ${r.riderIqama}`,
       exportColumns: [
         { header: 'المندوب', value: (r) => r.riderName ?? '' },
@@ -217,10 +231,22 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
         </div>
       ),
     },
-    { key: 'requestType', header: 'النوع', getValue: (r) => TYPE_LABEL[r.requestType] || r.requestType },
+    {
+      key: 'requestType',
+      header: 'النوع',
+      type: 'list',
+      filterType: 'list',
+      filterOptions: Object.entries(TYPE_LABEL).map(([value, label]) => ({ value, label })),
+      getValue: (r) => r.requestType,
+      labelOf: (v) => TYPE_LABEL[String(v ?? '')] || String(v ?? ''),
+      render: (r) => TYPE_LABEL[r.requestType] || r.requestType,
+    },
     {
       key: 'details',
       header: 'التفاصيل',
+      type: 'text',
+      filterType: 'text',
+      filterColumn: 'reason',
       getValue: details,
       render: (r) => (
         <button type="button" onClick={() => setDetail(r)} className="text-start text-xs text-[var(--accent)] font-semibold hover:underline max-w-[220px]">
@@ -228,12 +254,43 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
         </button>
       ),
     },
-    { key: 'direction', header: 'الاتجاه', getValue: (r) => (r.direction === 'admin_to_rider' ? 'من الإدارة للمندوب' : 'من المندوب') },
-    { key: 'createdAt', header: 'تاريخ الإرسال', getValue: (r) => (r.createdAt ? new Date(r.createdAt).toLocaleString('ar-SA') : '') },
-    { key: 'status', header: 'الحالة', getValue: (r) => STATUS_LABEL[r.status] || r.status },
+    {
+      key: 'direction',
+      header: 'الاتجاه',
+      type: 'list',
+      filterType: 'list',
+      filterOptions: [
+        { value: 'admin_to_rider', label: 'من الإدارة للمندوب' },
+        { value: 'rider_to_admin', label: 'من المندوب' },
+      ],
+      getValue: (r) => r.direction || 'rider_to_admin',
+      labelOf: (v) => (v === 'admin_to_rider' ? 'من الإدارة للمندوب' : 'من المندوب'),
+      render: (r) => (r.direction === 'admin_to_rider' ? 'من الإدارة للمندوب' : 'من المندوب'),
+    },
+    {
+      key: 'createdAt',
+      header: 'تاريخ الإرسال',
+      type: 'date',
+      filterType: 'date',
+      getValue: (r) => r.createdAt ?? '',
+      render: (r) => (r.createdAt ? new Date(r.createdAt).toLocaleString('ar-SA') : ''),
+    },
+    {
+      key: 'status',
+      header: 'الحالة',
+      type: 'list',
+      filterType: 'list',
+      filterOptions: Object.entries(STATUS_LABEL).map(([value, label]) => ({ value, label })),
+      getValue: (r) => r.status,
+      labelOf: (v) => STATUS_LABEL[String(v ?? '')] || String(v ?? ''),
+      toneOf: defaultStatusTone,
+      render: (r) => STATUS_LABEL[r.status] || r.status,
+    },
     {
       key: 'actions',
       header: 'الإجراء',
+      filterable: false,
+      sortable: false,
       render: (r) => (
         <div className="flex flex-wrap gap-1">
           <button type="button" onClick={() => setDetail(r)} className="px-2 py-1 rounded-lg text-[11px] font-bold border border-[var(--line)]">
@@ -329,22 +386,23 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
         <>
           <div className="flex flex-wrap items-center gap-3 text-xs">
             <label className="flex items-center gap-2">
-              <span className="font-bold">الحالة:</span>
-              <select
-                value={status}
-                onChange={(e) => {
-                  setStatus(e.target.value);
-                  setPage(1);
-                }}
-                className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)]"
-              >
-                <option value="">الكل</option>
-                {Object.entries(STATUS_LABEL).map(([k, l]) => (
-                  <option key={k} value={k}>
-                    {l}
-                  </option>
-                ))}
-              </select>
+            <span className="font-bold">الحالة:</span>
+            <SearchableSelect
+              id="requests-status-filter"
+              value={status}
+              onChange={(v) => {
+                setStatus(v);
+                setPage(1);
+              }}
+              ariaLabel="تصفية حسب الحالة"
+              placeholder="الكل"
+              size="sm"
+              className="w-48"
+              options={[
+                { value: '', label: 'الكل' },
+                ...Object.entries(STATUS_LABEL).map(([k, l]) => ({ value: k, label: l })),
+              ]}
+            />
             </label>
             <label className="flex items-center gap-2">
               <span className="font-bold">إقامة:</span>
@@ -370,6 +428,12 @@ export function RequestsPanel({ subtab }: { subtab?: string }) {
             onRetry={load}
             serverSide
             searchable={false}
+            distinctEndpoint="/rider-mobile/service-requests/distinct"
+            distinctParams={{ ...pageFilters(), sort: undefined }}
+            onServerQueryChange={(sq) => {
+              setServerQuery({ filtersParam: sq.filtersParam, sortParam: sq.sortParam });
+              setPage(1);
+            }}
             page={page}
             pageSize={pageSize}
             onPageChange={setPage}
