@@ -182,6 +182,7 @@ SalDistribution.Map(api,store);
 MudadApi.Map(api,store);
 SalPayCalc.Map(api,store);
 SalDebtConfirm.Map(api,store);
+SalSalaryApprove.Map(api,store);
 FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);TreasurySummary.Map(api,store);
 TreasuryEntries.Map(api,store);
 ManualJournals.Map(api,store);
