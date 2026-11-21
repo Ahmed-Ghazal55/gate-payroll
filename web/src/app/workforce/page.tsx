@@ -30,6 +30,7 @@ import { SourceBadge } from '../../components/ui/SourceBadge';
 import { IbanDisplay } from '../../components/ui/IbanDisplay';
 import { platformLabelAr } from '../../features/companies/company-stats';
 import { inApp } from '../../lib/paths';
+import { formatSar } from '../../lib/money';
 import type {
   WorkforceListResponse,
   Workforce360Response,
@@ -883,7 +884,7 @@ function WorkforcePageInner() {
         type: 'number',
         numeric: true,
         getValue: (r) => (r.salary != null && r.salary !== '' ? Number(r.salary) : ''),
-        render: (r) => <span className="num whitespace-nowrap">{cellText(r.salary) || '—'}</span>,
+        render: (r) => <span className="num whitespace-nowrap">{formatSar(r.salary as number | string | null | undefined)}</span>,
       },
       {
         key: 'personalIban',
@@ -1428,7 +1429,7 @@ function WorkforcePageInner() {
                       { key: 'platform', header: 'المنصة', type: 'list', getValue: (r) => cellText(r.platform), render: (r) => cellText(r.platform) },
                       { key: 'workDays', header: 'أيام العمل', type: 'number', numeric: true, getValue: (r) => cellText(r.workDays), render: (r) => <span className="whitespace-pre-wrap">{cellText(r.workDays)}</span> },
                       { key: 'orders', header: 'الطلبات', type: 'number', numeric: true, getValue: (r) => cellText(r.orders), render: (r) => <span className="whitespace-pre-wrap">{cellText(r.orders)}</span> },
-                      { key: 'netDue', header: 'صافي المستحق', type: 'number', numeric: true, getValue: (r) => cellText(r.netDue), render: (r) => <span className="whitespace-pre-wrap">{cellText(r.netDue)}</span> },
+                      { key: 'netDue', header: 'صافي المستحق', type: 'number', numeric: true, getValue: (r) => (r.netDue != null && r.netDue !== '' ? Number(r.netDue) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.netDue as number | string | null | undefined)}</span> },
                       { key: 'status', header: 'الحالة', type: 'list', getValue: (r) => cellText(r.status), toneOf: defaultStatusTone, render: (r) => cellText(r.status) },
                     ]}
                   />
@@ -1468,7 +1469,7 @@ function WorkforcePageInner() {
                     columns={[
                       { key: 'noteNumber', header: 'الرقم', type: 'text', getValue: (n) => cellText(n.noteNumber || n.id), render: (n) => <span className="font-mono">{cellText(n.noteNumber || n.id)}</span> },
                       { key: 'date', header: 'التاريخ', type: 'date', getValue: (n) => cellText(n.date), render: (n) => <span className="font-mono text-xs">{cellText(n.date)}</span> },
-                      { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, getValue: (n) => cellText(n.amount), render: (n) => <span className="whitespace-pre-wrap">{cellText(n.amount)}</span> },
+                      { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, getValue: (n) => (n.amount != null && n.amount !== '' ? Number(n.amount) : ''), render: (n) => <span className="num whitespace-nowrap">{formatSar(n.amount as number | string | null | undefined)}</span> },
                       { key: 'status', header: 'الحالة', type: 'list', getValue: (n) => cellText(n.status), toneOf: defaultStatusTone, render: (n) => cellText(n.status) },
                     ]}
                   />

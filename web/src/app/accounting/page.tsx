@@ -33,6 +33,7 @@ import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../component
 import { ErrorState, EmptyState, Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
+import { formatSar } from '../../lib/money';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
 import { AccountingAdjustmentsPanel } from '../../features/accounting/AccountingAdjustmentsPanel';
 import type {
@@ -528,8 +529,8 @@ function AccountingPageContent() {
       render: (j) => {
         const sumDebit = j.totalDebit ?? j.lines?.reduce((acc, l) => acc + (l.debit || 0), 0) ?? 0;
         return (
-          <span className="num font-bold text-xs text-blue-600 dark:text-blue-400">
-            {sumDebit > 0 ? sumDebit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
+          <span className="num font-bold text-xs text-blue-600 dark:text-blue-400 whitespace-nowrap">
+            {formatSar(sumDebit)}
           </span>
         );
       },
@@ -543,8 +544,8 @@ function AccountingPageContent() {
       render: (j) => {
         const sumCredit = j.totalCredit ?? j.lines?.reduce((acc, l) => acc + (l.credit || 0), 0) ?? 0;
         return (
-          <span className="num font-bold text-xs text-purple-600 dark:text-purple-400">
-            {sumCredit > 0 ? sumCredit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '0.00'}
+          <span className="num font-bold text-xs text-purple-600 dark:text-purple-400 whitespace-nowrap">
+            {formatSar(sumCredit)}
           </span>
         );
       },

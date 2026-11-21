@@ -23,6 +23,7 @@ import { DataTable, ColumnDef, defaultStatusTone } from '../../components/ui/Dat
 import { SourceBadge } from '../../components/ui/SourceBadge';
 import { Drawer } from '../../components/ui/Drawer';
 import { useToast } from '../../components/ui/Toast';
+import { formatSar } from '../../lib/money';
 
 const MAIN_TABS = new Set(['cities', 'housing', 'vehicles', 'fuel']);
 const NO_SOURCE = 'لا يوجد مصدر بعد';
@@ -530,22 +531,22 @@ function OperationsPageInner() {
       if (view === 'invoices') {
         return [
           { label: 'عدد الفواتير', value: summary.invoicesTotal },
-          { label: 'إجمالي المبالغ', value: summary.totalAmount },
+          { label: 'إجمالي المبالغ', value: formatSar(summary.totalAmount as number | string | null | undefined) },
         ];
       }
       return [
         { label: 'المركبات العاملة', value: summary.vehiclesOperating ?? summary.invoicesTotal },
         { label: 'إجمالي أيام التشغيل', value: summary.totalOperatingDays },
-        { label: 'تكلفة قطع الغيار', value: summary.sparePartsCost ?? summary.totalAmount },
-        { label: 'الاستقطاع المطلوب', value: summary.amountToCollect },
-        { label: 'تكلفة تغييرات الزيت', value: summary.oilChangesCost },
+        { label: 'تكلفة قطع الغيار', value: formatSar((summary.sparePartsCost ?? summary.totalAmount) as number | string | null | undefined) },
+        { label: 'الاستقطاع المطلوب', value: formatSar(summary.amountToCollect as number | string | null | undefined) },
+        { label: 'تكلفة تغييرات الزيت', value: formatSar(summary.oilChangesCost as number | string | null | undefined) },
       ];
     }
     return [
       { label: 'البطاقات النشطة', value: summary.activeCards },
       { label: 'المناديب المستهلكون', value: summary.consumingRiders },
       { label: 'إجمالي اللترات', value: summary.totalLiters },
-      { label: 'الإجمالي شامل الضريبة', value: summary.totalInclVat },
+      { label: 'الإجمالي شامل الضريبة', value: formatSar(summary.totalInclVat as number | string | null | undefined) },
       { label: 'تجاوز السقف', value: summary.capExceeded ?? NO_SOURCE },
     ];
   }, [tab, view, summary]);
@@ -672,9 +673,9 @@ function OperationsPageInner() {
         },
         { key: 'plate', header: 'المركبة', type: 'list', filterType: 'list', filterColumn: 'plateNumber', getValue: (r) => String(r.plateNumber || ''), render: (r) => String(r.plateNumber || '—') },
         { key: 'liters', header: 'اللترات', type: 'number', filterType: 'number', numeric: true, getValue: (r) => (r.liters != null ? Number(r.liters) : ''), render: (r) => String(r.liters ?? '') },
-        { key: 'before', header: 'قبل الضريبة', type: 'number', filterType: 'number', numeric: true, filterColumn: 'amountBeforeTax', getValue: (r) => (r.amountBeforeTax != null ? Number(r.amountBeforeTax) : ''), render: (r) => String(r.amountBeforeTax ?? '') },
-        { key: 'vat', header: 'الضريبة', type: 'number', filterType: 'number', numeric: true, getValue: (r) => (r.vat != null ? Number(r.vat) : ''), render: (r) => String(r.vat ?? '') },
-        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalInclVat', getValue: (r) => (r.totalInclVat != null ? Number(r.totalInclVat) : ''), render: (r) => String(r.totalInclVat ?? '') },
+        { key: 'before', header: 'قبل الضريبة', type: 'number', filterType: 'number', numeric: true, filterColumn: 'amountBeforeTax', getValue: (r) => (r.amountBeforeTax != null ? Number(r.amountBeforeTax) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.amountBeforeTax as number | string | null | undefined)}</span> },
+        { key: 'vat', header: 'الضريبة', type: 'number', filterType: 'number', numeric: true, getValue: (r) => (r.vat != null ? Number(r.vat) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.vat as number | string | null | undefined)}</span> },
+        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalInclVat', getValue: (r) => (r.totalInclVat != null ? Number(r.totalInclVat) : ''), render: (r) => <span className="num font-medium whitespace-nowrap">{formatSar(r.totalInclVat as number | string | null | undefined)}</span> },
         { key: 'cap', header: 'السقف', filterable: false, sortable: false, render: () => NO_SOURCE },
         {
           key: 'status',
@@ -709,7 +710,7 @@ function OperationsPageInner() {
         { key: 'sup', header: 'المورد', type: 'list', filterType: 'list', filterColumn: 'supplierNameAr', getValue: (r) => String(r.supplierNameAr || ''), render: (r) => String(r.supplierNameAr || '—') },
         { key: 'date', header: 'تاريخ الفاتورة', type: 'date', filterType: 'date', filterColumn: 'invoiceDate', getValue: (r) => formatDateShort(r.invoiceDate), render: (r) => formatDateShort(r.invoiceDate) },
         { key: 'receivedAt', header: 'تاريخ الاستلام', type: 'date', filterType: 'date', getValue: (r) => formatDateShort(r.receivedAt), render: (r) => formatDateShort(r.receivedAt) },
-        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalAmount', getValue: (r) => (r.totalAmount != null ? Number(r.totalAmount) : ''), render: (r) => String(r.totalAmount ?? '') },
+        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalAmount', getValue: (r) => (r.totalAmount != null ? Number(r.totalAmount) : ''), render: (r) => <span className="num font-medium whitespace-nowrap">{formatSar(r.totalAmount as number | string | null | undefined)}</span> },
         { key: 'status', header: 'الحالة', type: 'list', filterType: 'list', getValue: (r) => formatPurchaseStatus(r.status), labelOf: (v) => formatPurchaseStatus(v), toneOf: (v) => (formatPurchaseStatus(v) === 'مرحّل' ? 'success' : 'danger'), render: (r) => formatPurchaseStatus(r.status) },
       ];
     }
@@ -719,11 +720,11 @@ function OperationsPageInner() {
         { key: 'date', header: 'التاريخ', type: 'date', filterType: 'date', filterColumn: 'performedAt', getValue: (r) => formatDateShort(r.performedAt), render: (r) => cell(r.performedAt) },
         { key: 'odo', header: 'العداد', type: 'number', filterType: 'number', numeric: true, filterColumn: 'odometer', getValue: (r) => (r.odometer != null ? Number(r.odometer) : ''), render: (r) => cell(r.odometer) },
         { key: 'liters', header: 'لترات', type: 'number', filterType: 'number', numeric: true, filterColumn: 'oilLiters', getValue: (r) => (r.oilLiters != null ? Number(r.oilLiters) : ''), render: (r) => cell(r.oilLiters) },
-        { key: 'oil', header: 'تكلفة الزيت', type: 'number', filterType: 'number', numeric: true, filterColumn: 'oilCost', getValue: (r) => (r.oilCost != null ? Number(r.oilCost) : ''), render: (r) => cell(r.oilCost) },
-        { key: 'filter', header: 'الفلتر', type: 'number', filterType: 'number', numeric: true, filterColumn: 'filterCost', getValue: (r) => (r.filterCost != null ? Number(r.filterCost) : ''), render: (r) => cell(r.filterCost) },
-        { key: 'labor', header: 'أجور', type: 'number', filterType: 'number', numeric: true, filterColumn: 'laborCost', getValue: (r) => (r.laborCost != null ? Number(r.laborCost) : ''), render: (r) => cell(r.laborCost) },
-        { key: 'other', header: 'أخرى', type: 'number', filterType: 'number', numeric: true, filterColumn: 'otherCost', getValue: (r) => (r.otherCost != null ? Number(r.otherCost) : ''), render: (r) => cell(r.otherCost) },
-        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalCost', getValue: (r) => (r.totalCost != null ? Number(r.totalCost) : ''), render: (r) => cell(r.totalCost) },
+        { key: 'oil', header: 'تكلفة الزيت', type: 'number', filterType: 'number', numeric: true, filterColumn: 'oilCost', getValue: (r) => (r.oilCost != null ? Number(r.oilCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.oilCost as number | string | null | undefined)}</span> },
+        { key: 'filter', header: 'الفلتر', type: 'number', filterType: 'number', numeric: true, filterColumn: 'filterCost', getValue: (r) => (r.filterCost != null ? Number(r.filterCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.filterCost as number | string | null | undefined)}</span> },
+        { key: 'labor', header: 'أجور', type: 'number', filterType: 'number', numeric: true, filterColumn: 'laborCost', getValue: (r) => (r.laborCost != null ? Number(r.laborCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.laborCost as number | string | null | undefined)}</span> },
+        { key: 'other', header: 'أخرى', type: 'number', filterType: 'number', numeric: true, filterColumn: 'otherCost', getValue: (r) => (r.otherCost != null ? Number(r.otherCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.otherCost as number | string | null | undefined)}</span> },
+        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalCost', getValue: (r) => (r.totalCost != null ? Number(r.totalCost) : ''), render: (r) => <span className="num font-medium whitespace-nowrap">{formatSar(r.totalCost as number | string | null | undefined)}</span> },
       ];
     }
     return [
@@ -731,9 +732,9 @@ function OperationsPageInner() {
       { key: 'rider', header: mode === 'rider' ? 'المندوب الفعلي' : 'المندوب / الفترة', type: 'text', filterType: 'text', filterColumn: 'riderNameAr', getValue: (r) => `${r.riderNameAr || ''} ${r.iqama || ''}`.trim(), render: (r) => String(r.riderNameAr || '') },
       { key: 'city', header: 'المدينة', type: 'list', filterType: 'list', getValue: (r) => String(r.city || ''), render: (r) => String(r.city || '') },
       { key: 'days', header: 'أيام التشغيل', type: 'number', filterType: 'number', numeric: true, filterColumn: 'operatingDays', getValue: (r) => (r.operatingDays != null ? Number(r.operatingDays) : ''), render: (r) => String(r.operatingDays ?? '') },
-      { key: 'parts', header: 'تكلفة قطع الغيار', type: 'number', filterType: 'number', numeric: true, filterColumn: 'sparePartsCost', getValue: (r) => (r.sparePartsCost != null ? Number(r.sparePartsCost) : ''), render: (r) => String(r.sparePartsCost ?? '') },
-      { key: 'collect', header: 'الاستقطاع المطلوب', type: 'number', filterType: 'number', numeric: true, filterColumn: 'amountToCollect', getValue: (r) => (r.amountToCollect != null ? Number(r.amountToCollect) : ''), render: (r) => String(r.amountToCollect ?? '') },
-      { key: 'oil', header: 'زيت (عدد/تكلفة/كم)', type: 'number', filterType: 'number', filterColumn: 'oilChangesCost', getValue: (r) => Number(r.oilChangesCost ?? 0), render: (r) => `${r.oilChangesCount ?? 0} / ${r.oilChangesCost ?? 0} / ${r.oilMileage ?? '—'}` },
+      { key: 'parts', header: 'تكلفة قطع الغيار', type: 'number', filterType: 'number', numeric: true, filterColumn: 'sparePartsCost', getValue: (r) => (r.sparePartsCost != null ? Number(r.sparePartsCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.sparePartsCost as number | string | null | undefined)}</span> },
+      { key: 'collect', header: 'الاستقطاع المطلوب', type: 'number', filterType: 'number', numeric: true, filterColumn: 'amountToCollect', getValue: (r) => (r.amountToCollect != null ? Number(r.amountToCollect) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.amountToCollect as number | string | null | undefined)}</span> },
+      { key: 'oil', header: 'زيت (عدد/تكلفة/كم)', type: 'number', filterType: 'number', filterColumn: 'oilChangesCost', getValue: (r) => Number(r.oilChangesCost ?? 0), render: (r) => <span className="num whitespace-nowrap">{`${r.oilChangesCount ?? 0} / ${formatSar(r.oilChangesCost as number | string | null | undefined)} / ${r.oilMileage ?? '—'}`}</span> },
       {
         key: 'actions',
         header: 'إجراءات',

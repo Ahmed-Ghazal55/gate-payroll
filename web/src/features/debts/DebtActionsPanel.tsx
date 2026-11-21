@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState, Skeleton } from '../../components/ui/EmptyState';
 import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
+import { formatSar } from '../../lib/money';
 
 export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: string }) {
   const { can, isAdmin } = useAuth();
@@ -132,8 +133,8 @@ export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: str
                   <tr key={String(s.id)}>
                     <td className="p-2 font-mono">{String(s.receiptRef || '')}</td>
                     <td className="p-2 font-mono">{String(s.debtId || '')}</td>
-                    <td className="p-2 font-mono">{Number(s.collectedAmount || 0).toFixed(2)}</td>
-                    <td className="p-2 font-mono">{Number(s.waivedAmount || 0).toFixed(2)}</td>
+                    <td className="p-2 num whitespace-nowrap">{formatSar(s.collectedAmount as number | string | null | undefined)}</td>
+                    <td className="p-2 num whitespace-nowrap">{formatSar(s.waivedAmount as number | string | null | undefined)}</td>
                     <td className="p-2">{String(s.collectionDate || s.createdAt || '')}</td>
                   </tr>
                 ))}

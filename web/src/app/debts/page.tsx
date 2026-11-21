@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import { formatSar } from '../../lib/money';
 import {
   Receipt,
   Coins,
@@ -851,8 +852,8 @@ function DebtsPageContent() {
         render: (d) => {
           const val = d.monthlyInstallment || d.monthlyDeduction || 0;
           return (
-            <span className="num text-[var(--muted)]">
-              {val > 0 ? `${val.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س` : '—'}
+            <span className="num text-[var(--muted)] whitespace-nowrap">
+              {val > 0 ? formatSar(val) : '—'}
             </span>
           );
         },
@@ -1083,7 +1084,7 @@ function DebtsPageContent() {
         type: 'number',
         numeric: true,
         getValue: (app) => app.amount,
-        render: (app) => <span className="num font-bold text-[var(--accent)]">{app.amount} ر.س</span>,
+        render: (app) => <span className="num font-bold text-[var(--accent)] whitespace-nowrap">{formatSar(app.amount)}</span>,
       },
       {
         key: 'status',
@@ -1573,9 +1574,9 @@ function DebtsPageContent() {
                 columns={[
                   { key: 'date', header: 'التاريخ', type: 'date', getValue: (e: any) => e.date?.split('T')[0] || e.date || '', render: (e: any) => <span className="font-mono text-[var(--muted)]">{e.date?.split('T')[0] || e.date}</span> },
                   { key: 'description', header: 'البيان / الحركة', type: 'text', getValue: (e: any) => e.description || e.statement || '', render: (e: any) => <span className="font-medium">{e.description || e.statement}</span> },
-                  { key: 'debit', header: 'مدين', type: 'number', numeric: true, getValue: (e: any) => Number(e.debit || 0), render: (e: any) => <span className="num font-bold text-[var(--danger)]">{e.debit > 0 ? `${e.debit} ر.س` : '—'}</span> },
-                  { key: 'credit', header: 'دائن', type: 'number', numeric: true, getValue: (e: any) => Number(e.credit || 0), render: (e: any) => <span className="num font-bold text-[var(--money-pos)]">{e.credit > 0 ? `${e.credit} ر.س` : '—'}</span> },
-                  { key: 'balance', header: 'الرصيد', type: 'number', numeric: true, getValue: (e: any) => Number(e.balance || 0), render: (e: any) => <span className="num font-bold text-[var(--ink)]">{e.balance} ر.س</span> },
+                  { key: 'debit', header: 'مدين', type: 'number', numeric: true, getValue: (e: any) => Number(e.debit || 0), render: (e: any) => <span className="num font-bold text-[var(--danger)] whitespace-nowrap">{e.debit > 0 ? formatSar(e.debit) : '—'}</span> },
+                  { key: 'credit', header: 'دائن', type: 'number', numeric: true, getValue: (e: any) => Number(e.credit || 0), render: (e: any) => <span className="num font-bold text-[var(--money-pos)] whitespace-nowrap">{e.credit > 0 ? formatSar(e.credit) : '—'}</span> },
+                  { key: 'balance', header: 'الرصيد', type: 'number', numeric: true, getValue: (e: any) => Number(e.balance || 0), render: (e: any) => <span className="num font-bold text-[var(--ink)] whitespace-nowrap">{formatSar(e.balance)}</span> },
                 ]}
               />
             </div>
@@ -1641,7 +1642,7 @@ function DebtsPageContent() {
               columns={[
                 { key: 'noteNumber', header: 'رقم السند', type: 'text', getValue: (pn) => pn.noteNumber || pn.id, render: (pn) => <span className="font-mono text-xs">{pn.noteNumber || pn.id}</span> },
                 { key: 'iqama', header: 'رقم الإقامة', type: 'text', getValue: (pn) => pn.iqama, render: (pn) => <span className="font-mono">{pn.iqama}</span> },
-                { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, getValue: (pn) => pn.amount, render: (pn) => <span className="num font-bold">{pn.amount} ر.س</span> },
+                { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, getValue: (pn) => pn.amount, render: (pn) => <span className="num font-bold whitespace-nowrap">{formatSar(pn.amount)}</span> },
                 { key: 'dueDate', header: 'تاريخ الاستحقاق', type: 'date', getValue: (pn) => pn.dueDate, render: (pn) => <span className="num text-xs">{pn.dueDate}</span> },
                 { key: 'status', header: 'الحالة', type: 'list', getValue: (pn) => pn.status, toneOf: defaultStatusTone, render: (pn) => <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">{pn.status}</span> },
               ]}
