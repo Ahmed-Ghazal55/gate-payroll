@@ -1,8 +1,15 @@
+import type { paths } from './api-contract';
+
+type ApiMe = paths['/api/me']['get']['responses'][200]['content']['application/json'];
+
 export interface UserProfile {
   username: string;
   role: string;
+  roleNameAr?: ApiMe['roleNameAr'];
   displayNameAr: string;
   permissions?: string[];
+  /** From the OpenAPI User schema — never hand-written. */
+  financialScope?: ApiMe['financialScope'];
 }
 
 export type NotificationCategory = 'general' | 'personal' | 'system' | 'approvals';
@@ -158,6 +165,10 @@ export interface Campaign {
   qrCodeUrl?: string;
   responseCount: number;
   cities?: Array<{ ar: string; en: string }>;
+  /** Audience target: ALL | rider | riders | staff (or a 10-digit iqama). */
+  target?: string;
+  companyId?: string;
+  targetCompanyId?: string;
 }
 
 export interface SubmissionHistory {
@@ -189,6 +200,7 @@ export interface Submission {
   version: number;
   createdAt: string;
   updatedAt?: string;
+  reviewedAt?: string;
   reviewNote?: string;
   history?: SubmissionHistory[];
 }
@@ -203,11 +215,18 @@ export interface CustomFormQuestion {
 
 export interface CustomForm {
   id: string;
-  title: string;
-  status: 'draft' | 'published' | 'closed';
-  questions: CustomFormQuestion[];
-  responsesCount: number;
-  createdAt: string;
+  title?: string;
+  titleAr?: string;
+  status: 'draft' | 'open' | 'closed' | 'published';
+  questions?: CustomFormQuestion[];
+  responsesCount?: number;
+  createdAt?: string;
+  expiresAt?: string;
+  fields?: Array<{ id?: string } | string> | unknown;
+  target?: string;
+  companyId?: string;
+  targetCompanyId?: string;
+  publicUrl?: string;
 }
 
 export interface PaginatedResult<T> {
@@ -556,43 +575,34 @@ export interface PromissoryNote {
   createdAt: string;
 }
 
-export interface RiderRecord {
-  id: string;
-  iqama: string;
-  name: string;
-  phone?: string;
-  nationality?: string;
+/** Workforce wire types come from the OpenAPI contract (api.ts → api-contract.ts). */
+export type {
+  WorkforceListResponse,
+  WorkforcePerson,
+  WorkforceSummary,
+  Workforce360Response,
+} from './api';
+
+/** Extends the contract person with optional directory fields still used by older riders screens. */
+export type RiderRecord = import('./api').WorkforcePerson & {
   sponsor?: string;
   sponsorId?: string;
-  city?: string;
-  engagementType?: 'SponsoredInternal' | 'External' | string;
-  operationalRole?: 'Car' | 'Motorcycle' | string;
+  housing?: string;
+  operationalRole?: string;
   drivingLicense?: string;
   platforms?: string;
-  iban?: string;
-  status: string;
+  platformWorkId?: string;
+  paymentModel?: string;
+  ibanAlert?: string;
+  ibanSource?: string;
+  workType?: string;
+  status?: string;
   policyId?: string;
   createdAt?: string;
-}
-
-export interface RiderDocumentChecklistItem {
-  documentTypeId: string;
-  code: string;
-  nameAr: string;
-  requiresExpiry: boolean;
-  isUploaded: boolean;
-  documentId: string;
-  documentNumber: string;
-  issueDate: string;
-  expiryDate: string;
-  fileName: string;
-  storagePath: string;
-  status: string;
-}
+};
 
 export interface RiderProfile360 {
   rider: RiderRecord;
-  documentChecklist: RiderDocumentChecklistItem[];
   documentsCount: number;
   activeDebtsCount: number;
   totalRemainingDebt: number;
@@ -937,6 +947,7 @@ export interface PayCatalog {
   ninjaMetrics?: string[];
   defaults?: { values: PayGlobalValues };
   defaultsAreDraftOnly?: boolean;
+  allowedActions?: string[];
 }
 
 export interface PayConfigDoc {

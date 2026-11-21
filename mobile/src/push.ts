@@ -5,11 +5,16 @@ import { getActiveFcmToken, setActiveFcmToken, getSession } from './state';
 
 export function routeNotificationLink(link?: string): string {
   const l = (link || '').toLowerCase();
-  if (l.includes('request') || l.includes('ask')) return 'requests';
+  if (l.includes('request') || l.includes('ask') || l.includes('/forms/') || l.includes('/questionnaires/')) return 'requests';
   if (l.includes('statement') || l.includes('payslip')) return 'statement';
   if (l.includes('debt')) return 'debts';
   if (l.includes('device') || l.includes('session')) return 'devices';
   return 'notifications';
+}
+
+export function extractNotificationPeriod(link?: string): string | undefined {
+  const m = (link || '').match(/[?&]period=(\d{4}-\d{2})/i);
+  return m ? m[1] : undefined;
 }
 
 export async function initPushNotifications(): Promise<string> {
@@ -18,13 +23,12 @@ export async function initPushNotifications(): Promise<string> {
   }
 
   try {
-    // Create Android notification channel with Arabic name
     if (Capacitor.getPlatform() === 'android') {
       try {
         await PushNotifications.createChannel({
           id: 'default',
-          name: 'إشعارات البوابة',
-          description: 'إشعارات التعميمات وطلبات السلف والبيانات المالية',
+          name: 'إشعارات المندوب',
+          description: 'إشعارات التعميمات والطلبات والبيانات المالية',
           importance: 5,
           visibility: 1,
           sound: 'default',

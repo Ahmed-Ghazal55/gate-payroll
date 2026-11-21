@@ -1,7 +1,9 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { Suspense, useEffect, useState } from 'react';
 import Link from 'next/link';
+import { useRouter, useSearchParams } from 'next/navigation';
+import { appendPeriodToHref, readUrlPeriod } from '../lib/period';
 import {
   Users,
   Upload,
@@ -17,12 +19,34 @@ import {
 import { api } from '../lib/api';
 import type { DashboardMetrics } from '../lib/types';
 import { inApp } from '../lib/paths';
+import {
+  auditActionLabelAr,
+  auditActorLabelAr,
+  formatAuditActorDisplay,
+  formatAuditAt,
+} from '../lib/audit-labels';
+import { useAuth } from '../lib/auth-context';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
 import { DataTable, ColumnDef } from '../components/ui/DataTable';
 import { ErrorState, Skeleton } from '../components/ui/EmptyState';
 
-export default function DashboardPage() {
+/** First landing page a role can open when the dashboard (payroll.view) is closed. */
+const FALLBACK_HOMES: Array<{ permission: string | string[]; href: string }> = [
+  { permission: 'riders.view', href: '/workforce/' },
+  { permission: 'debts.view', href: '/debts/' },
+  { permission: 'operations.view', href: '/operations/' },
+  { permission: 'forms.view', href: '/rider-app/?tab=campaigns' },
+  { permission: 'treasury.view', href: '/treasury/' },
+  { permission: 'users.manage', href: '/admin/' },
+];
+
+function DashboardPageInner() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const urlPeriod = readUrlPeriod(searchParams);
+  const withPeriod = (href: string) => appendPeriodToHref(href, urlPeriod);
+  const { can, isAdmin, loading: authLoading, user } = useAuth();
   const [data, setData] = useState<DashboardMetrics | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -41,32 +65,55 @@ export default function DashboardPage() {
   };
 
   useEffect(() => {
-    fetchDashboard();
-  }, []);
+    if (authLoading || !user) return;
+    if (isAdmin || can('payroll.view')) {
+      fetchDashboard();
+      return;
+    }
+    const match = FALLBACK_HOMES.find((h) =>
+      Array.isArray(h.permission) ? h.permission.some((p) => can(p)) : can(h.permission)
+    );
+    router.replace(withPeriod(match?.href ?? '/workforce/'));
+  }, [authLoading, user, isAdmin, can, router, urlPeriod]);
 
   const auditColumns: ColumnDef<any>[] = [
     {
       key: 'action',
       header: 'العملية',
+      type: 'list',
+      filterType: 'list',
+      getValue: (row) => row.action || '',
+      labelOf: (v) => auditActionLabelAr(String(v ?? '')),
       render: (row) => (
-        <span className="font-semibold text-[var(--ink)]">{row.action}</span>
+        <span className="font-semibold text-[var(--ink)]" title={String(row.action || '')}>
+          {auditActionLabelAr(row.action)}
+        </span>
       ),
     },
     {
       key: 'actor',
       header: 'المنفذ',
+      type: 'list',
+      filterType: 'list',
+      getValue: (row) => row.actor || '',
+      labelOf: (v) => auditActorLabelAr(String(v ?? '')),
+      toneOf: () => 'neutral',
       render: (row) => (
         <span className="px-2 py-0.5 rounded-md bg-[var(--raised)] text-xs text-[var(--muted)]">
-          {row.actor}
+          <bdi dir="ltr">{formatAuditActorDisplay(row.actor)}</bdi>
         </span>
       ),
     },
     {
       key: 'at',
       header: 'التوقيت',
+      type: 'date',
+      filterType: 'date',
+      getValue: (row) => row.at || '',
+      labelOf: (v) => formatAuditAt(String(v ?? '')),
       render: (row) => (
         <span className="num text-xs text-[var(--muted)]">
-          {new Date(row.at).toLocaleString('ar-SA')}
+          {formatAuditAt(row.at)}
         </span>
       ),
     },
@@ -81,7 +128,7 @@ export default function DashboardPage() {
         primaryAction={{
           label: 'بيانات التشغيل',
           onClick: () => {
-            window.location.href = inApp('/operations/');
+            router.push(withPeriod('/operations/'));
           },
           icon: <Upload size={16} />,
         }}
@@ -111,7 +158,7 @@ export default function DashboardPage() {
               icon={Users}
               trend={{ value: 'نشط', isPositive: true }}
               onClick={() => {
-                window.location.href = '/app/riders/';
+                router.push(withPeriod('/workforce/'));
               }}
             />
 
@@ -133,7 +180,7 @@ export default function DashboardPage() {
                 isPositive: data.pendingResponses === 0,
               }}
               onClick={() => {
-                window.location.href = '/app/forms/?tab=responses';
+                router.push(withPeriod('/rider-app/?tab=responses'));
               }}
             />
 
@@ -144,7 +191,7 @@ export default function DashboardPage() {
               icon={CheckCircle2}
               trend={{ value: 'معتمد', isPositive: true }}
               onClick={() => {
-                window.location.href = '/app/payroll/';
+                router.push(withPeriod('/payroll/'));
               }}
             />
           </div>
@@ -219,7 +266,7 @@ export default function DashboardPage() {
                   آخر العمليات وسجل التدقيق
                 </h3>
                 <Link
-                  href={inApp('/admin/')}
+                  href={withPeriod(inApp('/admin/'))}
                   className="text-xs font-semibold text-[var(--accent)] hover:underline"
                 >
                   عرض كل السجل
@@ -249,7 +296,7 @@ export default function DashboardPage() {
 
                 <div className="flex flex-col gap-2">
                   <Link
-                    href={inApp('/forms/?tab=campaigns')}
+                    href={withPeriod(inApp('/rider-app/?tab=campaigns'))}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-bold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:opacity-90 transition shadow-xs"
                   >
                     <span>إنشاء حملة نماذج جديدة</span>
@@ -257,7 +304,7 @@ export default function DashboardPage() {
                   </Link>
 
                   <Link
-                    href={inApp('/forms/?tab=responses')}
+                    href={withPeriod(inApp('/rider-app/?tab=responses'))}
                     className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold text-[var(--ink)] hover:bg-[var(--raised)] rounded-lg border border-[var(--line)] transition"
                   >
                     <span>صندوق مراجعة الردود</span>
@@ -274,5 +321,13 @@ export default function DashboardPage() {
         </>
       ) : null}
     </div>
+  );
+}
+
+export default function DashboardPage() {
+  return (
+    <Suspense fallback={<Skeleton className="h-32 rounded-xl" rows={3} />}>
+      <DashboardPageInner />
+    </Suspense>
   );
 }

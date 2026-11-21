@@ -45,14 +45,21 @@ builder.Services.AddOpenApi(options=>options.AddOperationTransformer((operation,
 }));
 builder.Services.AddMemoryCache(o => o.SizeLimit = 10000);
 builder.Services.AddSingleton<InquiryLimits>();
-builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = 30, QueueLimit = 0 })); });
+// Development raises the public-forms ceiling so full HTTP suites (editToken negatives + races) fit in one window.
+int formsLimit = builder.Environment.IsDevelopment() ? 200 : 30;
+builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = formsLimit, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddHostedService<NotifyTasksHostedService>();
+var riderIpLimitWarnings = PushNotifications.ConfigureIpLimits(builder.Configuration);
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
+PayStatements.Logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PayStatements");
+foreach (string warning in riderIpLimitWarnings)
+    app.Logger.LogWarning("{Warning}", warning);
 CampaignLinks.Migrate(store);
 Companies.Seed(store);
 ConfigLists.Seed(store);
 ManualJournals.Seed(store);
+UserAccess.SeedSystemAdmin(store);
 app.MapOpenApi("/openapi/{documentName}.json").WithTags("Administration").WithSummary("Administrator-only OpenAPI document").RequireAuthorization().AddEndpointFilter(async (context, next) =>
     AccessPolicy.Administrator(context.HttpContext.User) ? await next(context) : Results.Json(new { error="التوثيق لمسؤول النظام فقط.", code="forbidden" }, statusCode:403));
 app.UseForwardedHeaders();
@@ -141,7 +148,7 @@ Notifications.Map(api,store);
 ErpSponsorMap.Map(api);
 ConfigLists.Map(api,store);
 ImportCatalog.Map(api);
-Companies.Map(api,store);
+Companies.Map(api,store,app.Configuration,app.Environment);
 OrgDirectory.Map(api,store);
 AdvanceRequests.Map(api,store);
 NinjaBilling.Map(api,store);
@@ -155,16 +162,18 @@ PaySettings.Map(api,store);
 PayAssignments.Map(api,store);
 PayCycles.Map(api,store,builder.Configuration,app.Environment);
 PayReviewDraft.Map(api,store,app.Configuration,app.Environment);
-Operations.Map(api,store,app.Configuration,app.Environment);
 OperationsLiveApi.Map(api,store,app.Configuration,app.Environment);
-PaySourcesLiveApi.Map(api,store,app.Configuration,app.Environment);
 NinjaInputsLiveApi.Map(api,store,app.Configuration,app.Environment);
+PaySourcesLiveApi.Map(api,store,app.Configuration,app.Environment);
+Operations.Map(api,store,app.Configuration,app.Environment);
+WorkforceApi.Map(api,store,app.Configuration,app.Environment);
 PayStatements.Map(app,api,store);
 HungerStationInvoices.MapImports(api,store);
 HungerStationInvoices.MapReview(api,store);
 GlobalSearch.Map(api,store);
 ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);
+TestSeed.Map(api, store, app.Environment);
 UserAccess.Map(api, store);
 AuditApi.Map(api, store);
 AdminSettings.Map(api, store);
@@ -182,6 +191,7 @@ ApprovalsArea.Map(api,store);
 SalSimulations.Map(api,store);
 OpsSnapshotCapture.Map(api,store);
 SalDistribution.Map(api,store);
+RiderIndexMaintenance.Map(api, store, app.Configuration, app.Services.GetRequiredService<ILoggerFactory>());
 FinanceViews.Map(api,store); ChartOfAccountsApi.Map(api,store); BankPayrollFiles.Map(api,store);TreasurySummary.Map(api,store);
 TreasuryEntries.Map(api,store);
 ManualJournals.Map(api,store);
@@ -198,8 +208,8 @@ api.MapGet("/me", (HttpContext ctx) =>
     if (u != null) return Results.Ok(store.Read(c=>UserAccess.PublicWithBypass(c,null,u)));
     return Results.Ok(new { username = ctx.User.Identity!.Name, role = ctx.User.FindFirstValue(ClaimTypes.Role), permissions=ctx.User.FindAll("permission").Select(p=>p.Value),department=ctx.User.FindFirstValue("department"),rankLevel=ctx.User.FindFirstValue("rankLevel"), id = ctx.User.FindFirstValue(ClaimTypes.NameIdentifier) });
 }).WithTags("Administration").WithSummary("Read me");
-api.MapGet("/dashboard", (HttpContext ctx) => store.Read(c => new { riders = Store.List(c, "rider").Count(ErpRiderClassification.ListedAsRider), imports = Store.List(c, "batch").Count, pendingResponses = Store.List(c, "submission").Count(x => x.S("status") == "pending"), approvedRuns = Store.List(c, "run").Count, balance = Store.List(c, "ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)).Sum(x => x.N("amount")), latestAudit = Store.List(c, "audit").Where(_=>AccessPolicy.Administrator(ctx.User)).Take(8) })).WithTags("Home").WithSummary("Read dashboard");
-api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider).Where(r => ctx.Request.Query["status"].ToString() is var st && (st == "" || st == "all" || string.Equals(r.S("status"), st, StringComparison.OrdinalIgnoreCase))).Select(r => !AccessPolicy.Has(ctx.User,"riders.view_360") ? UserAccess.RiderView(r) : r).ToList())).WithTags("Riders").WithSummary("Read riders");
+api.MapGet("/dashboard", (HttpContext ctx) => store.Read(c => new { riders = Store.List(c, "rider").Count(ErpRiderClassification.ListedAsRider), imports = Store.List(c, "batch").Count, pendingResponses = Store.List(c, "submission").Count(x => x.S("status") == "pending" && SubmissionChoices.InRiderScope(c, ctx.User, x.S("iqama"))), approvedRuns = Store.List(c, "run").Count, balance = Store.List(c, "ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)).Sum(x => x.N("amount")), latestAudit = Store.List(c, "audit").Where(_=>AccessPolicy.Administrator(ctx.User)).Take(8) })).WithTags("Home").WithSummary("Read dashboard");
+api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider").Where(ErpRiderClassification.ListedAsRider).Where(r => ctx.Request.Query["status"].ToString() is var st && (st == "" || st == "all" || string.Equals(r.S("status"), st, StringComparison.OrdinalIgnoreCase))).Where(r => AccessPolicy.Administrator(ctx.User) || ((FinancialScopes.Rider(ctx.User, r) || FinancialScopes.AllCompanies(ctx.User)) && WorkforceApi.StorePlatformInScope(ctx.User, r))).Select(r => WorkforceApi.ProjectDirectoryRider(r, ctx.User)).ToList())).WithTags("Riders").WithSummary("Read riders");
 api.MapPost("/riders", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var iqama = J.Iqama(input.Required("iqama")); var existing = Store.Get(c, iqama, "rider", tx);
@@ -221,39 +231,6 @@ api.MapPost("/policies", (JsonObject input, HttpContext ctx) => store.Write((c, 
     Store.Save(c, "policy", doc, tx); Store.Audit(c, tx, "policy.create", doc.S("id"), Actor(ctx)); return doc;
 })).WithTags("Payroll").WithSummary("Submit policies");
 api.MapPost("/policies/{id}/approve", (string id, HttpContext ctx) => store.Write((c, tx) => { var p = Store.Get(c, id, "policy", tx) ?? throw new ApiError("السياسة غير موجودة.", 404); J.Need(p.S("status") == "draft", "هذه النسخة معتمدة بالفعل."); ValidatePolicy(p.S("kind"), p["config"]!.AsObject()); p["status"] = "approved"; p["approvedAt"] = Now(); Store.Save(c, "policy", p, tx); Store.Audit(c, tx, "policy.approve", id, Actor(ctx)); return p; })).WithTags("Payroll").WithSummary("Submit policies {id} approve");
-api.MapPost("/imports/inspect", (JsonObject input, HttpContext ctx) =>
-{
-    var filename = Path.GetFileName(input.Required("filename")); byte[] bytes = Convert.FromBase64String(input.Required("dataBase64")); var sheets = Imports.Read(bytes, filename);
-    string id = Id(); string file = Path.Combine(dataDir, "imports", id + Path.GetExtension(filename)); Directory.CreateDirectory(Path.GetDirectoryName(file)!); File.WriteAllBytes(file, bytes);
-    var doc = new JsonObject { ["id"] = id, ["filename"] = filename, ["sha256"] = Hash(bytes), ["path"] = file, ["createdAt"] = Now(), ["status"] = "preview" };
-    store.Write((c, tx) => { Store.Save(c, "upload", doc, tx); Store.Audit(c, tx, "import.inspect", id, Actor(ctx)); return true; });
-    return new { id, filename, sheets = sheets.Select(s => new { name = s.Name, rows = s.Rows.Count, columns = s.Rows.Select(r => r.Count).DefaultIfEmpty().Max() }) };
-}).WithTags("Payroll").WithSummary("Submit imports inspect");
-api.MapGet("/imports/{id}/sheet", (string id, string sheet, int? headerRow) =>
-{
-    var selected = LoadSheet(id, sheet); int header = headerRow ?? 1; J.Need(header >= 1 && header <= selected.Rows.Count, "صف عنوان غير صالح.");
-    return new { headers = selected.Rows[header - 1].Select((text, index) => new { index, text }), sample = selected.Rows.Skip(header).Take(5), rowCount = selected.Rows.Count };
-}).WithTags("Payroll").WithSummary("Read imports {id} sheet");
-api.MapPost("/imports/{id}/preview", (string id, JsonObject spec) => Imports.Normalize(LoadSheet(id, spec.Required("sheet")), spec)).WithTags("Payroll").WithSummary("Submit imports {id} preview");
-api.MapPost("/imports/{id}/commit", (string id, JsonObject spec, HttpContext ctx) =>
-{
-    var preview = Imports.Normalize(LoadSheet(id, spec.Required("sheet")), spec); J.Need(preview.Errors.Count == 0 && preview.Rows.Count > 0, "عالج أخطاء المعاينة قبل الحفظ.");
-    return store.Write((c, tx) =>
-    {
-        var existingRuns = Store.List(c, "run", tx); var existingRows = Store.List(c, "work", tx).Select(x => x.S("id")).ToHashSet();
-        var docs = preview.Rows.Select(r => { var d = JsonSerializer.SerializeToNode(r, JsonSerializerOptions.Web)!.AsObject(); d["id"] = Hash(Encoding.UTF8.GetBytes($"{r.Period}|{r.Platform}|{r.SourceRef}|{r.Iqama}|{r.AccountId}|{r.From}|{r.To}")); d["uploadId"] = id; return d; }).ToList();
-        J.Need(docs.All(d => !existingRows.Contains(d.S("id"))), "توجد سجلات مستوردة بالفعل. رُفضت الدفعة بالكامل لمنع مضاعفة الرواتب.");
-        J.Need(docs.All(d => !existingRuns.Any(r => r.S("iqama") == d.S("iqama") && r.S("period") == d.S("period"))), "فترة أحد المناديب معتمدة ومقفلة؛ لا يمكن تغيير مدخلاتها.");
-        var upload = Store.Get(c, id, "upload", tx)!;
-        foreach (var doc in docs)
-        {
-            Store.Save(c, "work", doc, tx);
-            if (Store.Get(c, doc.S("iqama"), "rider", tx) == null) Store.Save(c, "rider", new() { ["id"] = doc.S("iqama"), ["iqama"] = doc.S("iqama"), ["name"] = doc.S("name") == "" ? doc.S("iqama") : doc.S("name"), ["city"] = doc.S("city"), ["policyId"] = "", ["phone"] = "", ["status"] = "needs_review" }, tx);
-        }
-        var batch = new JsonObject { ["id"] = Id(), ["uploadId"] = id, ["filename"] = upload.S("filename"), ["sourceSha256"] = upload.S("sha256"), ["period"] = spec.S("period"), ["platform"] = spec.S("platform"), ["sheet"] = spec.S("sheet"), ["mapping"] = spec["mapping"]?.DeepClone(), ["count"] = docs.Count, ["createdAt"] = Now() };
-        Store.Save(c, "batch", batch, tx); Store.Audit(c, tx, "import.commit", batch.S("id"), Actor(ctx)); return new { count = docs.Count, batchId = batch.S("id") };
-    });
-}).WithTags("Payroll").WithSummary("Submit imports {id} commit");
 api.MapGet("/imports", () => store.Read(c => Store.List(c, "batch"))).WithTags("Payroll").WithSummary("Read imports");
 api.MapGet("/template.csv", () => Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes("sourceRef,iqama,name,accountId,from,to,orders,platformRevenue,riderPay,isValid,company,city\r\n")).ToArray(), "text/csv; charset=utf-8", "payroll-template.csv")).WithTags("Payroll").WithSummary("Read template.csv");
 api.MapPost("/adjustments", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -311,7 +288,7 @@ api.MapGet("/payroll/export.csv", (string period,HttpContext ctx) => store.Read(
 })).WithTags("Payroll").WithSummary("Read payroll export.csv");
 
 // Public forms are collection links, never a lookup endpoint for existing personal records.
-api.MapGet("/campaigns", (HttpContext ctx) => store.Read(c => { var counts=Store.List(c,"submission").GroupBy(s=>s.S("campaignId")).ToDictionary(g=>g.Key,g=>g.Count()); return Store.List(c, "campaign").Select(x => new { id=x.S("id"), title=x.S("title"), expiresAt=x.S("expiresAt"), createdAt=x.S("createdAt"), status=x.S("status"), kind=x.S("kind","work-choice"), responseCount=counts.GetValueOrDefault(x.S("id")), path="/forms/"+x.S("sharingToken"), fields=CampaignOperations.Fields(x), cities=IbanChoices.Is(x)?IbanChoices.Cities(x):null, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+x.S("sharingToken"), qrCodeUrl="/api/campaigns/"+x.S("id")+"/qr.svg" }); })).WithTags("Forms and responses").WithSummary("Read campaigns");
+api.MapGet("/campaigns", (HttpContext ctx) => store.Read(c => { var counts=Store.List(c,"submission").Where(s=>SubmissionChoices.InRiderScope(c,ctx.User,s.S("iqama"))).GroupBy(s=>s.S("campaignId")).ToDictionary(g=>g.Key,g=>g.Count()); return Store.List(c, "campaign").Select(x => new { id=x.S("id"), title=x.S("title"), expiresAt=x.S("expiresAt"), createdAt=x.S("createdAt"), status=x.S("status"), kind=x.S("kind","work-choice"), responseCount=counts.GetValueOrDefault(x.S("id")), path="/forms/"+x.S("sharingToken"), fields=CampaignOperations.Fields(x), cities=IbanChoices.Is(x)?IbanChoices.Cities(x):null, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+x.S("sharingToken"), qrCodeUrl="/api/campaigns/"+x.S("id")+"/qr.svg" }); })).WithTags("Forms and responses").WithSummary("Read campaigns");
 api.MapGet("/campaigns/{id}/qr.svg", (string id, HttpContext ctx) => store.Read(c => { var d=Store.Get(c,id,"campaign")??throw new ApiError("الحملة غير موجودة.",404); return Results.Text(CampaignLinks.Svg(CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+d.S("sharingToken")),"image/svg+xml"); })).WithTags("Forms and responses").WithSummary("Read campaigns {id} qr.svg");
 api.MapPost("/campaigns", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
@@ -319,14 +296,16 @@ api.MapPost("/campaigns", (JsonObject input, HttpContext ctx) => store.Write((c,
     J.Need(input.S("kind") is "" or "work-choice" or IbanChoices.Kind, "نوع الحملة غير صحيح.");
     if(input.S("kind")==IbanChoices.Kind){J.Need(!input.ContainsKey("fields"),"حقول نموذج الآيبان ثابتة.");doc["kind"]=IbanChoices.Kind;if(input.ContainsKey("cities"))doc["cities"]=IbanChoices.ValidateCities(input["cities"]);}
     else{J.Need(!input.ContainsKey("cities"),"قائمة المدن لنموذج الآيبان فقط.");if(input.ContainsKey("fields"))doc["fields"]=CampaignOperations.ValidateFields(input["fields"]);}
+    FormTargeting.ApplyAndValidate(input, doc);
     Store.Save(c, "campaign", doc, tx); Store.Audit(c, tx, "form.publish", doc.S("id"), Actor(ctx)); return new { id=doc.S("id"), path="/forms/"+token, publicUrl=CampaignLinks.Base(app.Configuration,ctx)+"/forms/"+token, qrCodeUrl="/api/campaigns/"+doc.S("id")+"/qr.svg", expiresAt=doc.S("expiresAt") };
 })).WithTags("Forms and responses").WithSummary("Submit campaigns");
 api.MapPost("/campaigns/{id}/close", (string id, HttpContext ctx) => store.Write((c, tx) => { var d = Store.Get(c, id, "campaign", tx) ?? throw new ApiError("النموذج غير موجود.", 404); d["status"] = "closed"; Store.Save(c, "campaign", d, tx); Store.Audit(c, tx, "form.close", id, Actor(ctx)); return new { ok = true }; })).WithTags("Forms and responses").WithSummary("Submit campaigns {id} close");
-api.MapGet("/submissions", () => store.Read(c => Store.List(c, "submission").Select(SubmissionChoices.PublicAdmin))).WithTags("Forms and responses").WithSummary("Read submissions");
+api.MapGet("/submissions", (HttpContext ctx) => store.Read(c => Store.List(c, "submission").Where(d => SubmissionChoices.InRiderScope(c, ctx.User, d.S("iqama"))).Select(d => SubmissionChoices.PublicAdmin(d, ctx.User)).ToList())).WithTags("Forms and responses").WithSummary("Read submissions");
 api.MapPost("/submissions/{id}/review", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var d=Store.Get(c,id,"submission",tx)??throw new ApiError("الرد غير موجود.",404);
-    CampaignOperations.Review(c,tx,d,input,Actor(ctx));return SubmissionChoices.PublicAdmin(d);
+    SubmissionChoices.DemandInScope(c, ctx.User, d, tx);
+    CampaignOperations.Review(c,tx,d,input,Actor(ctx));return SubmissionChoices.PublicAdmin(d, ctx.User);
 })).WithTags("Forms and responses").WithSummary("Submit submissions {id} review");
 app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = IbanChoices.Is(d) ? IbanChoices.Schema : "work-choice-v1", fields=CampaignOperations.Fields(d), cities=IbanChoices.Is(d) ? IbanChoices.Cities(d) : null }); }).WithTags("Forms and responses").WithSummary("Read public forms {token}").RequireRateLimiting("sensitive");
 SubmissionChoices.Map(app, store, Campaign);
@@ -343,12 +322,6 @@ static string Now() => DateTimeOffset.UtcNow.ToString("O");
 static string Actor(HttpContext ctx) => ctx.User.Identity?.Name ?? "administrator";
 static string Hash(byte[] bytes) => Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
 static string Token() => Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
-Imports.Sheet LoadSheet(string id, string name)
-{
-    var doc = store.Read(c => Store.Get(c, id, "upload")) ?? throw new ApiError("الملف غير موجود.", 404);
-    var bytes = File.ReadAllBytes(doc.S("path")); J.Need(Hash(bytes) == doc.S("sha256"), "تغير ملف المصدر بعد رفعه.");
-    return Imports.Read(bytes, doc.S("filename")).FirstOrDefault(s => s.Name == name) ?? throw new ApiError("الورقة غير موجودة.");
-}
 JsonObject Campaign(string token)
 {
     J.Need(token.Length == 64 && token.All(Uri.IsHexDigit), "رابط غير صالح.");

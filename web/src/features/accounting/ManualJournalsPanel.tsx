@@ -27,7 +27,10 @@ import { Dialog } from '../../components/ui/Dialog';
 import { Drawer } from '../../components/ui/Drawer';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import { ManualJournal, ManualJournalLine, CompanySponsor } from '../../lib/types';
+import { formatSar } from '../../lib/money';
+import { shortAuditId } from '../../lib/audit-labels';
 
 interface CoaAccountItem {
   code: string;
@@ -122,6 +125,58 @@ export function ManualJournalsPanel({
     }
     return map;
   }, [coaAccounts]);
+
+  const drawerLinesWithIdx = useMemo(
+    () => (selectedJournal?.lines || []).map((l, idx) => ({ ...l, _idx: idx + 1 })),
+    [selectedJournal]
+  );
+  const drawerLinesCols = useMemo(
+    () => [
+      { key: 'idx', header: '#', type: 'number' as const, getValue: (l: any) => l._idx },
+      {
+        key: 'accountCode',
+        header: 'الحساب',
+        type: 'list' as const,
+        getValue: (l: any) => l.accountCode || '',
+        labelOf: (v: unknown) => {
+          const code = String(v ?? '');
+          const name = accountMap.get(code);
+          return name ? `${code} - ${name}` : code || '—';
+        },
+      },
+      { key: 'debit', header: 'مدين (ر.س)', type: 'number' as const, getValue: (l: any) => Number(l.debit || 0) },
+      { key: 'credit', header: 'دائن (ر.س)', type: 'number' as const, getValue: (l: any) => Number(l.credit || 0) },
+      { key: 'note', header: 'البيان / الملاحظة', type: 'text' as const, getValue: (l: any) => l.note || '' },
+    ],
+    [accountMap]
+  );
+  const drawerLinesFilter = useTableAutoFilter(drawerLinesWithIdx, drawerLinesCols);
+
+  const draftLinesWithIdx = useMemo(
+    () => lines.map((l, idx) => ({ ...l, _idx: idx })),
+    [lines]
+  );
+  const draftLinesCols = useMemo(
+    () => [
+      { key: 'idx', header: '#', type: 'number' as const, getValue: (l: any) => l._idx + 1 },
+      {
+        key: 'accountCode',
+        header: 'الحساب *',
+        type: 'list' as const,
+        getValue: (l: any) => l.accountCode || '',
+        labelOf: (v: unknown) => {
+          const code = String(v ?? '');
+          const name = accountMap.get(code);
+          return name ? `${code} - ${name}` : code || '—';
+        },
+      },
+      { key: 'debit', header: 'مدين (ر.س)', type: 'number' as const, getValue: (l: any) => Number(l.debit || 0) },
+      { key: 'credit', header: 'دائن (ر.س)', type: 'number' as const, getValue: (l: any) => Number(l.credit || 0) },
+      { key: 'note', header: 'ملاحظة السطر', type: 'text' as const, getValue: (l: any) => l.note || '' },
+    ],
+    [accountMap]
+  );
+  const draftLinesFilter = useTableAutoFilter(draftLinesWithIdx, draftLinesCols);
 
   // Load manual journals
   const loadJournals = async () => {
@@ -228,7 +283,7 @@ export function ManualJournalsPanel({
       return;
     }
     if (!isBalanced) {
-      toast(`القيد غير متزن! الفرق الحالي: ${diff.toFixed(2)} ر.س`, 'danger');
+      toast(`القيد غير متزن! الفرق الحالي: ${formatSar(diff)}`, 'danger');
       return;
     }
     for (let i = 0; i < lines.length; i++) {
@@ -391,14 +446,24 @@ export function ManualJournalsPanel({
       {
         key: 'id',
         header: 'معرف القيد',
+        type: 'text',
         filterable: true,
-        render: (j) => <span className="font-mono text-[11px] text-[var(--muted)]">{j.id}</span>,
+        filterType: 'text',
+        getValue: (j) => j.id || '',
+        render: (j) => (
+          <span className="font-mono text-[11px] text-[var(--muted)]" title={j.id}>
+            {shortAuditId(j.id)}
+          </span>
+        ),
       },
       {
         key: 'companyId',
         header: 'الشركة',
+        type: 'list',
         filterable: true,
-        getValue: (j) => companies.find((c) => c.id === j.companyId)?.nameAr || j.companyName || j.companyId,
+        filterType: 'list',
+        getValue: (j) => j.companyId || '',
+        labelOf: (v) => companies.find((c) => c.id === v)?.nameAr || String(v || '—'),
         render: (j) => {
           const comp = companies.find((c) => c.id === j.companyId);
           return <span className="font-semibold text-[var(--ink)]">{comp?.nameAr || j.companyName || j.companyId}</span>;
@@ -407,41 +472,60 @@ export function ManualJournalsPanel({
       {
         key: 'date',
         header: 'التاريخ',
+        type: 'date',
         filterable: true,
+        filterType: 'date',
+        getValue: (j) => j.date || '',
         render: (j) => <span className="num font-medium text-[var(--ink)]">{j.date}</span>,
       },
       {
         key: 'reference',
         header: 'المرجع',
+        type: 'text',
+        filterType: 'text',
+        getValue: (j) => j.reference || '',
         render: (j) => <span className="font-mono text-xs text-[var(--muted)]">{j.reference || '—'}</span>,
       },
       {
         key: 'description',
         header: 'البيان العام',
+        type: 'text',
         filterable: true,
+        filterType: 'text',
+        getValue: (j) => j.description || '',
         render: (j) => <span className="text-xs text-[var(--ink)] max-w-xs truncate block">{j.description}</span>,
       },
       {
         key: 'totalDebit',
         header: 'المبلغ (ر.س)',
+        type: 'number',
         numeric: true,
         money: true,
+        filterType: 'number',
         getValue: (j) => j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0),
         render: (j) => {
           const total = j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0);
-          return <span className="num font-bold text-sm text-[var(--ink)]">{total.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span>;
+          return <span className="num font-bold text-sm text-[var(--ink)]">{formatSar(total)}</span>;
         },
       },
       {
         key: 'maker',
         header: 'المنشئ',
+        type: 'list',
         filterable: true,
+        filterType: 'list',
+        getValue: (j) => j.maker || '',
         render: (j) => <span className="font-mono text-xs text-[var(--muted)]">{j.maker}</span>,
       },
       {
         key: 'status',
         header: 'الحالة',
+        type: 'list',
         filterable: true,
+        filterType: 'list',
+        getValue: (j) => j.status || 'draft',
+        labelOf: (v) => (v === 'approved' ? 'معتمد' : 'مسودة (بانتظار الاعتماد)'),
+        toneOf: (v) => (v === 'approved' ? 'success' : 'warning'),
         render: (j) =>
           j.status === 'approved' ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]">
@@ -458,6 +542,9 @@ export function ManualJournalsPanel({
       {
         key: 'attachment',
         header: 'مرفق',
+        type: 'list',
+        getValue: (j) => (j.hasAttachment || j.attachmentName ? 'yes' : 'no'),
+        labelOf: (v) => (v === 'yes' ? 'يوجد مرفق' : 'لا يوجد'),
         render: (j) =>
           j.hasAttachment || j.attachmentName ? (
             <span className="text-[var(--accent)] inline-flex items-center" title={j.attachmentName || 'مرفق ثبوتي'}>
@@ -551,9 +638,9 @@ export function ManualJournalsPanel({
               <FileText size={20} />
             </div>
             <div>
-              <h2 className="text-base font-bold text-[var(--ink)]">القيود المحاسبية اليدوية (BR §28)</h2>
+              <h2 className="text-base font-bold text-[var(--ink)]">القيود المحاسبية اليدوية</h2>
               <p className="text-xs text-[var(--muted)] mt-0.5">
-                إنشاء واعتماد القيود بنظام التدقيق الثنائي (Maker-Checker) مع موازنة فورية للدائن والمدين ومرفقات ثبوتية.
+                إنشاء واعتماد القيود بنظام الرقابة الثنائية مع موازنة فورية للدائن والمدين ومرفقات ثبوتية.
               </p>
             </div>
           </div>
@@ -677,7 +764,7 @@ export function ManualJournalsPanel({
                   <span className="font-mono font-bold text-[var(--ink)]">{selectedJournal.reference || '—'}</span>
                 </div>
                 <div>
-                  <span className="text-[var(--muted)] block">منشئ القيد (Maker):</span>
+                  <span className="text-[var(--muted)] block">منشئ القيد:</span>
                   <span className="font-mono font-bold text-[var(--ink)]">{selectedJournal.maker}</span>
                 </div>
               </div>
@@ -703,20 +790,21 @@ export function ManualJournalsPanel({
             <div className="space-y-2">
               <h4 className="text-xs font-bold text-[var(--ink)]">أسطر القيد وتوزيع المبالغ:</h4>
               <div className="rounded-xl border border-[var(--line)] overflow-hidden">
+                <AutoFilterBar controller={drawerLinesFilter} totalCount={(selectedJournal.lines || []).length} />
                 <table className="w-full text-xs">
                   <thead className="bg-[var(--raised)] text-[var(--muted)] border-b border-[var(--line)]">
                     <tr>
-                      <th className="p-2.5 text-start w-12">#</th>
-                      <th className="p-2.5 text-start">الحساب</th>
-                      <th className="p-2.5 text-start w-32">مدين (ر.س)</th>
-                      <th className="p-2.5 text-start w-32">دائن (ر.س)</th>
-                      <th className="p-2.5 text-start">البيان / الملاحظة</th>
+                      <AutoFilterTh controller={drawerLinesFilter} colKey="idx" className="p-2.5 text-start w-12" />
+                      <AutoFilterTh controller={drawerLinesFilter} colKey="accountCode" className="p-2.5 text-start" />
+                      <AutoFilterTh controller={drawerLinesFilter} colKey="debit" className="p-2.5 text-start w-32" />
+                      <AutoFilterTh controller={drawerLinesFilter} colKey="credit" className="p-2.5 text-start w-32" />
+                      <AutoFilterTh controller={drawerLinesFilter} colKey="note" className="p-2.5 text-start" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {(selectedJournal.lines || []).map((line, idx) => (
-                      <tr key={idx} className="hover:bg-[var(--row-hover)]">
-                        <td className="p-2.5 font-mono text-[var(--muted)]">{idx + 1}</td>
+                    {drawerLinesFilter.rows.map((line) => (
+                      <tr key={line._idx} className="hover:bg-[var(--row-hover)]">
+                        <td className="p-2.5 font-mono text-[var(--muted)]">{line._idx}</td>
                         <td className="p-2.5">
                           <span className="font-mono font-bold text-[var(--accent)]">{line.accountCode}</span>
                           <span className="ms-2 text-[var(--ink)]">
@@ -724,10 +812,10 @@ export function ManualJournalsPanel({
                           </span>
                         </td>
                         <td className="p-2.5 num font-bold text-[var(--ink)]">
-                          {line.debit ? line.debit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                          {line.debit ? formatSar(line.debit) : '—'}
                         </td>
                         <td className="p-2.5 num font-bold text-[var(--ink)]">
-                          {line.credit ? line.credit.toLocaleString('en-US', { minimumFractionDigits: 2 }) : '—'}
+                          {line.credit ? formatSar(line.credit) : '—'}
                         </td>
                         <td className="p-2.5 text-[var(--muted)]">{line.note || '—'}</td>
                       </tr>
@@ -739,14 +827,10 @@ export function ManualJournalsPanel({
                         الإجمالي:
                       </td>
                       <td className="p-2.5 num text-[var(--ink)]">
-                        {(selectedJournal.lines || [])
-                          .reduce((sum, l) => sum + (l.debit || 0), 0)
-                          .toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatSar((selectedJournal.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0))}
                       </td>
                       <td className="p-2.5 num text-[var(--ink)]">
-                        {(selectedJournal.lines || [])
-                          .reduce((sum, l) => sum + (l.credit || 0), 0)
-                          .toLocaleString('en-US', { minimumFractionDigits: 2 })}
+                        {formatSar((selectedJournal.lines || []).reduce((sum, l) => sum + (l.credit || 0), 0))}
                       </td>
                       <td className="p-2.5 text-end text-[var(--badge-success-text)] font-semibold">
                         <span className="inline-flex items-center gap-1">
@@ -824,19 +908,19 @@ export function ManualJournalsPanel({
       <Dialog
         open={newModalOpen}
         onClose={() => setNewModalOpen(false)}
-        title="إنشاء قيد محاسبي يدوي جديد (BR §28)"
+        title="إنشاء قيد محاسبي يدوي جديد"
         actions={
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-2">
               {isBalanced ? (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-[var(--badge-success-bg)] text-[var(--badge-success-text)]">
                   <CheckCircle size={15} />
-                  <span>متزن (الفرق: 0.00 ر.س)</span>
+                  <span>متزن (الفرق: {formatSar(0)})</span>
                 </span>
               ) : (
                 <span className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-bold bg-[var(--badge-danger-bg)] text-[var(--badge-danger-text)]">
                   <AlertCircle size={15} />
-                  <span>غير متزن (الفرق: {diff.toFixed(2)} ر.س)</span>
+                  <span>غير متزن (الفرق: {formatSar(diff)})</span>
                 </span>
               )}
             </div>
@@ -952,7 +1036,7 @@ export function ManualJournalsPanel({
                     onClick={handleAutoBalance}
                     className="px-2.5 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[11px] font-bold text-[var(--accent)] hover:bg-[var(--raised)] cursor-pointer"
                   >
-                    موازنة السطر الأخير تلقائياً ({diff.toFixed(2)} ر.س)
+                    موازنة السطر الأخير تلقائياً ({formatSar(diff)})
                   </button>
                 )}
                 <button
@@ -968,25 +1052,26 @@ export function ManualJournalsPanel({
             </div>
 
             <div className="rounded-xl border border-[var(--line)] overflow-hidden">
+              <AutoFilterBar controller={draftLinesFilter} totalCount={lines.length} />
               <table className="w-full text-xs">
                 <thead className="bg-[var(--raised)] text-[var(--muted)] border-b border-[var(--line)]">
                   <tr>
-                    <th className="p-2 text-start w-8">#</th>
-                    <th className="p-2 text-start">الحساب *</th>
-                    <th className="p-2 text-start w-28">مدين (ر.س)</th>
-                    <th className="p-2 text-start w-28">دائن (ر.س)</th>
-                    <th className="p-2 text-start">ملاحظة السطر</th>
+                    <AutoFilterTh controller={draftLinesFilter} colKey="idx" className="p-2 text-start w-8" />
+                    <AutoFilterTh controller={draftLinesFilter} colKey="accountCode" className="p-2 text-start" />
+                    <AutoFilterTh controller={draftLinesFilter} colKey="debit" className="p-2 text-start w-28" />
+                    <AutoFilterTh controller={draftLinesFilter} colKey="credit" className="p-2 text-start w-28" />
+                    <AutoFilterTh controller={draftLinesFilter} colKey="note" className="p-2 text-start" />
                     <th className="p-2 text-center w-10">حذف</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-[var(--line)]">
-                  {lines.map((line, idx) => (
-                    <tr key={idx} className="bg-[var(--surface)]">
-                      <td className="p-2 font-mono text-[var(--muted)] text-center">{idx + 1}</td>
+                  {draftLinesFilter.rows.map((line) => (
+                    <tr key={line._idx} className="bg-[var(--surface)]">
+                      <td className="p-2 font-mono text-[var(--muted)] text-center">{line._idx + 1}</td>
                       <td className="p-2">
                         <SearchableSelect
                           value={line.accountCode}
-                          onChange={(code) => handleLineChange(idx, 'accountCode', code)}
+                          onChange={(code) => handleLineChange(line._idx, 'accountCode', code)}
                           options={accountOptions}
                           placeholder="اكتب رقم الحساب أو جزءًا من اسمه..."
                           ariaLabel="الحساب"
@@ -999,7 +1084,7 @@ export function ManualJournalsPanel({
                           step="0.01"
                           min="0"
                           value={line.debit}
-                          onChange={(e) => handleLineChange(idx, 'debit', e.target.value)}
+                          onChange={(e) => handleLineChange(line._idx, 'debit', e.target.value)}
                           placeholder="0.00"
                           className="w-full p-1.5 rounded-lg border border-[var(--line)] text-xs num font-bold focus:outline-hidden"
                         />
@@ -1010,7 +1095,7 @@ export function ManualJournalsPanel({
                           step="0.01"
                           min="0"
                           value={line.credit}
-                          onChange={(e) => handleLineChange(idx, 'credit', e.target.value)}
+                          onChange={(e) => handleLineChange(line._idx, 'credit', e.target.value)}
                           placeholder="0.00"
                           className="w-full p-1.5 rounded-lg border border-[var(--line)] text-xs num font-bold focus:outline-hidden"
                         />
@@ -1019,7 +1104,7 @@ export function ManualJournalsPanel({
                         <input
                           type="text"
                           value={line.note}
-                          onChange={(e) => handleLineChange(idx, 'note', e.target.value)}
+                          onChange={(e) => handleLineChange(line._idx, 'note', e.target.value)}
                           placeholder="بيان تفصيلي للسطر..."
                           className="w-full p-1.5 rounded-lg border border-[var(--line)] text-xs focus:outline-hidden"
                         />
@@ -1028,7 +1113,7 @@ export function ManualJournalsPanel({
                         <button
                           type="button"
                           disabled={lines.length <= 2}
-                          onClick={() => handleRemoveLine(idx)}
+                          onClick={() => handleRemoveLine(line._idx)}
                           className="p-1 rounded-md text-[var(--muted)] hover:text-[var(--danger)] transition disabled:opacity-30 cursor-pointer"
                         >
                           <Trash2 size={13} />
@@ -1042,8 +1127,8 @@ export function ManualJournalsPanel({
                     <td colSpan={2} className="p-2 text-start text-[var(--ink)]">
                       المجموع:
                     </td>
-                    <td className="p-2 num text-[var(--ink)]">{totalDebit.toFixed(2)}</td>
-                    <td className="p-2 num text-[var(--ink)]">{totalCredit.toFixed(2)}</td>
+                    <td className="p-2 num text-[var(--ink)]">{formatSar(totalDebit)}</td>
+                    <td className="p-2 num text-[var(--ink)]">{formatSar(totalCredit)}</td>
                     <td colSpan={2} className="p-2 text-end">
                       {isBalanced ? (
                         <span className="text-[var(--badge-success-text)] font-bold inline-flex items-center gap-1">
@@ -1053,7 +1138,7 @@ export function ManualJournalsPanel({
                       ) : (
                         <span className="text-[var(--badge-danger-text)] font-bold inline-flex items-center gap-1">
                           <AlertCircle size={13} />
-                          <span>الفرق: {diff.toFixed(2)}</span>
+                          <span>الفرق: {formatSar(diff)}</span>
                         </span>
                       )}
                     </td>
@@ -1069,7 +1154,7 @@ export function ManualJournalsPanel({
       <Dialog
         open={reverseModalOpen}
         onClose={() => setReverseModalOpen(false)}
-        title="عكس قيد محاسبي معتمد (BR §28)"
+        title="عكس قيد محاسبي معتمد"
         actions={
           <div className="flex items-center justify-end gap-2 w-full">
             <button
@@ -1127,7 +1212,7 @@ export function ManualJournalsPanel({
       <Dialog
         open={rejectModalOpen}
         onClose={() => setRejectModalOpen(false)}
-        title="رفض مسودة القيد المحاسبي (Maker-Checker)"
+        title="رفض مسودة القيد المحاسبي (رقابة ثنائية)"
         actions={
           <div className="flex items-center justify-end gap-2 w-full">
             <button

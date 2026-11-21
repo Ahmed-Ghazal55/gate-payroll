@@ -71,7 +71,7 @@ public static class PayReviewDraft
                     {
                         string rider=row.S("riderId");bool assigned=(local["assignments"] as JsonArray??[]).OfType<JsonObject>().Any(a=>a.S("riderId")==rider&&Covers(a,row.S("date")));
                         if(!assigned){unassigned.Add(new JsonObject{["sourceLineId"]=source,["operationSourceId"]=row.S("id"),["orders"]=row.N("orders")});Block("unassigned_orders","اربط الحساب بمشغله الفعلي في تاريخ التشغيل.","link_actual_operator",source);valid=false;}
-                        if(!people.TryGetValue(rider,out var person)){missing.Add(new JsonObject{["sourceLineId"]=source,["operationSourceId"]=row.S("id")});Block("rider_not_found","أضف المندوب المرتبط بمصدر التشغيل.","sync_riders",source);valid=false;}
+                        if(!people.TryGetValue(rider,out var person)){missing.Add(new JsonObject{["sourceLineId"]=source,["operationSourceId"]=row.S("id")});Block("rider_not_found","أضف المندوب المرتبط بمصدر التشغيل.","review_rider_record",source);valid=false;}
                         else {FinancialScopes.DemandRider(actor,person);if(!ErpRiderClassification.ListedAsRider(person)||person.B("debtOnly")){Block("rider_ineligible","المصدر لا يخص مندوب تشغيل فعال.","review_rider",source);valid=false;}}
                         if(row.N("orders")<0||row.N("orders")!=decimal.Truncate(row.N("orders"))){Block("orders_invalid","عدد طلبات التشغيل غير صالح.","review_operations",source);valid=false;}
                     }
@@ -89,7 +89,7 @@ public static class PayReviewDraft
                         Block("allocation_required","يوجد أكثر من مشغل؛ راجع التوزيع المقترح ثم استورده.","import_operations",source);continue;
                     }
                     string riderId=onlyAssigned??groups.Single().Key;
-                    if(!people.TryGetValue(riderId,out var personRow)){missing.Add(new JsonObject{["sourceLineId"]=source});Block("rider_not_found","أضف المندوب المرتبط بمصدر التشغيل.","sync_riders",source);continue;}
+                    if(!people.TryGetValue(riderId,out var personRow)){missing.Add(new JsonObject{["sourceLineId"]=source});Block("rider_not_found","أضف المندوب المرتبط بمصدر التشغيل.","review_rider_record",source);continue;}
                     FinancialScopes.DemandRider(actor,personRow);if(!ErpRiderClassification.ListedAsRider(personRow)||personRow.B("debtOnly")){Block("rider_ineligible","المصدر لا يخص مندوب تشغيل فعال.","review_rider",source);continue;}
                     string category=PayReviewCategory.Derive(c,tx,personRow,period,liveOps);
                     if(!PaySettings.Categories.Contains(category)){Block("category_missing","تعذر تحديد فئة الكفالة والمركبة؛ حددها في ملف التشغيل المراجع.","import_operations",source);continue;}

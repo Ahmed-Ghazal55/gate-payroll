@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 ROOT = Path(__file__).resolve().parents[1]
 DEPRECATED = {'/api/template.csv', '/api/payroll/fingerprint', '/api/imports', '/api/debts/settlements', '/api/public/forms/{token}/resume', '/api/system/release-check'}
-GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Companies and registrations':'الشركات والسجلات', 'Platforms':'المنصات', 'Payroll':'الرواتب', 'Operations':'العمليات', 'Debts and advances':'المديونيات والسلف', 'Banks and treasury':'البنوك والصناديق والخزن', 'Accounting and reports':'المحاسبة والتقارير', 'Forms and responses':'النماذج والردود', 'Administration':'الإدارة'}
+GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Workforce':'القوى العاملة', 'HR Catalogs':'كتالوجات الموارد البشرية', 'Companies and registrations':'الشركات والسجلات', 'Platforms':'المنصات', 'Payroll':'الرواتب', 'Operations':'العمليات', 'Debts and advances':'المديونيات والسلف', 'Banks and treasury':'البنوك والصناديق والخزن', 'Accounting and reports':'المحاسبة والتقارير', 'Forms and responses':'النماذج والردود', 'Administration':'الإدارة'}
 def permission(method,p):
  if p.startswith(('/api/public/', '/api/auth/')) or not p.startswith('/api/'): return 'public (rider portal: own authenticated rider)'
  if p.startswith(('/api/rider-mobile/login','/api/rider-mobile/portal/')) or p.startswith('/api/rider-mobile/broadcasts/') and p.endswith('/ack'):return 'own rider session / one-time inquiry code'
@@ -43,6 +43,9 @@ def permission(method,p):
  if p.startswith('/api/companies'): return 'companies.view' if method=='GET' else 'companies.manage'
  if p.startswith(('/api/users','/api/system','/api/rider-mobile/firebase')) or method=='DELETE' or p=='/api/submissions/bulk-delete' or p.endswith('/delete-preview') or method=='PUT' and p.startswith('/api/campaigns/'):return 'Admin / SuperAdmin'
  if p.startswith('/api/riders/enrich'):return 'Admin / SuperAdmin'
+ if p.startswith('/api/workforce/') and p.endswith('/360'):return 'riders.view_360 + debts.view; live ERP when configured'
+ if p.startswith('/api/workforce'):return 'riders.view; live ERP when configured; always paginated on list'
+ if p.startswith('/api/hr-catalogs'):return 'riders.view; live ERP catalogs when configured'
  if p.startswith('/api/riders'):return ('riders.view_360 + debts.view' if p.endswith('/profile-360') else 'riders.view_360' if '/documents' in p and method=='GET' else 'riders.view' if method=='GET' else 'riders.edit (+ riders.financial_edit for financial fields)')
  if p.startswith('/api/debts'):
   if '/reconcile-opening/' in p:return 'treasury.opening'
@@ -83,13 +86,16 @@ def routes():
    method=m[2].upper();p=('/api'+m[3] if m[1]=='api' else m[3]).replace('/api/api/','/api/')
    # Metadata belongs to the declaration before the next route.
    end=re.search(r'\b(?:app|api)\.Map(?:Get|Post|Put|Delete|Patch)\(',s[m.end():]);tail=s[m.end():m.end()+end.start()] if end else s[m.end():]
+   # Hidden from OpenAPI (e.g. Development-only test seed): not part of the API contract.
+   if '.ExcludeFromDescription()' in tail:continue
    tag=re.search(r'\.WithTags\("([^"]+)"',tail);group=tag[1] if tag else 'Administration'
    caller='rider form' if p.startswith(('/api/public/forms','/api/public/questionnaires','/api/public/inquiry')) else 'rider app' if p.startswith('/api/rider-mobile') and ('portal' in p or 'ack' in p or 'login' in p or p.endswith(('/mine','/logout','/statement'))) else 'none'
    if caller=='none':
     prefix=p.split('{',1)[0].rstrip('/')
     variants={prefix,prefix.removeprefix('/api')}
-    if any(any(v and any(quote+v in x.read_text() for quote in ['\"',"'",'`']) for v in variants) for x in (ROOT/'Frontend/src').glob('*.ts')):caller='old UI'
-    if p.startswith('/api/auth/') or p.startswith('/api/submissions/bulk-'):caller='old UI'
+    web_files=list((ROOT/'web/src').rglob('*.ts'))+list((ROOT/'web/src').rglob('*.tsx')) if (ROOT/'web/src').is_dir() else []
+    if any(any(v and any(quote+v in x.read_text() for quote in ['\"',"'",'`']) for v in variants) for x in web_files):caller='web'
+    if p.startswith('/api/auth/') or p.startswith('/api/submissions/bulk-'):caller='web'
     if p.startswith(('/api/companies','/api/search','/api/responses','/api/platforms')) or p.startswith('/api/notifications') and '/center' not in p or p=='/api/users/{id}':caller='none'
    status='deprecated' if p in DEPRECATED and (p!='/api/imports' or method=='GET') else 'new' if p.startswith(('/api/companies','/api/search','/api/responses','/api/platforms')) or p.startswith('/api/notifications') and '/center' not in p else 'keep'
    if p in ('/api/users/{id}','/app','/app/{**path}'):status='new'
@@ -98,7 +104,7 @@ def routes():
  for prefix in ("/api/campaigns", "/api/forms/builder"):
   for method,suffix,needle in (("GET","/{id}/delete-preview","api.MapGet(path"),("DELETE","/{id}","api.MapDelete(path")):
    f=ROOT/"Payroll.Api/FormDeletion.cs";line=next(i for i,l in enumerate(f.read_text().splitlines(),1) if needle in l)
-   rows.append(("Forms and responses",method,prefix+suffix,f"Payroll.Api/FormDeletion.cs:{line}","Admin / SuperAdmin","old UI","keep"))
+   rows.append(("Forms and responses",method,prefix+suffix,f"Payroll.Api/FormDeletion.cs:{line}","Admin / SuperAdmin","web","keep"))
  f=ROOT/'Payroll.Api/Program.cs';line=next(i for i,l in enumerate(f.read_text().splitlines(),1) if 'app.MapOpenApi(' in l)
  rows.append(('Administration','GET','/openapi/v1.json',f'Payroll.Api/Program.cs:{line}','Admin / SuperAdmin','none','new'))
  return rows
@@ -118,7 +124,7 @@ def main():
  '| `GET /api/debts/settlements` | Legacy settlement list; existing rider statement and journals remain authoritative. |',
  '| `POST /api/public/forms/{token}/resume` | New callers use `/lookup` and `/edit`; retain the receipt-based legacy route. |',
  '| `GET /api/system/release-check` | Tests/diagnostics only, administrator access; public deployment metadata is `/health`. |', '',
- 'Root GET redirects to `/app/`; legacy administration is at session-protected `/legacy/`, with the existing public forms/inquiry/rider pages retained.', '',
+ 'Root GET redirects to `/app/`; the Next.js app is the only administration UI. Public forms, inquiry and the rider portal stay.', '',
  'No route is removed. OpenAPI flags the same six operations as deprecated. HTML/static routes and `/health` are included in the inventory but remain outside `/api`.', '',
  'Company DELETE actions archive metadata and retain financial references and attachments. New companies do not create new treasury accounts or change posting policy. The finance sponsor read alias keeps its balance fields.', '',
  'Unified response rows: `id,source,campaignId,title,status,submittedAt,updatedAt,iqama,name,answers,version,reviewUrl`. For custom forms, `campaignId` is the form ID and `reviewUrl` is null because no custom review mutation exists. Campaign reviews continue on the original POST route.', '']

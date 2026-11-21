@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { Search, AlertTriangle } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
+import { usePeriod } from '../../lib/use-period';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState } from '../../components/ui/EmptyState';
 import type { ValidateGapsReport } from '../../lib/types';
@@ -21,11 +22,11 @@ const COUNT_LABELS: Record<string, string> = {
   ninja_daily_no_assignment_on_date: 'يومي بلا تعيين في التاريخ',
 };
 
-export function ValidateGapsPanel({ defaultCompanyId = '', defaultPeriod = '2026-10' }: { defaultCompanyId?: string; defaultPeriod?: string }) {
+export function ValidateGapsPanel({ defaultCompanyId = '', defaultPeriod }: { defaultCompanyId?: string; defaultPeriod?: string }) {
   const { can, isAdmin } = useAuth();
   const { toast } = useToast();
   const [companyId, setCompanyId] = useState(defaultCompanyId || 'BW');
-  const [period, setPeriod] = useState(defaultPeriod);
+  const { period, setPeriod } = usePeriod(defaultPeriod);
   const [app, setApp] = useState('ninja');
   const [report, setReport] = useState<ValidateGapsReport | null>(null);
   const [loading, setLoading] = useState(false);

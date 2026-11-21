@@ -1,7 +1,11 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { formatSar } from '../../lib/money';
+import { DEBTS_TAB_LABELS, buildTabRedirectUrl, resolveDebtsTab } from '../../lib/page-tabs';
+import { periodDateRange } from '../../lib/period';
+import { usePeriod } from '../../lib/use-period';
 import {
   Receipt,
   Coins,
@@ -10,6 +14,7 @@ import {
   Search,
   Filter,
   Download,
+  Upload,
   Calendar,
   CheckCircle2,
   AlertCircle,
@@ -46,10 +51,25 @@ import { StatCard } from '../../components/ui/StatCard';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
-import { DataTable, ColumnDef } from '../../components/ui/DataTable';
+import { DataTable, ColumnDef, PAGE_SIZES, defaultStatusTone } from '../../components/ui/DataTable';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { DebtActionsPanel } from '../../features/debts/DebtActionsPanel';
+import {
+  debtsLoadKindsForTab,
+  debtCategoryOptionsFromCatalog,
+  DEBTS_PAGE_SIZE,
+  type DebtsTabId,
+  type DebtCategoryOption,
+} from '../../features/debts/debts-tab-load';
+import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
+import {
+  BULK_COLLECT_IMPORT,
+  canShowImportStep,
+  OPENING_DEBTS_IMPORT,
+  type PageImportStep,
+} from '../../features/imports/import-steps';
+import type { PaginatedResult } from '../../lib/types';
 import type {
   DebtRecord,
   ApprovalRequest,
@@ -60,7 +80,7 @@ import type {
   OrgSupervision,
 } from '../../lib/types';
 
-type TabId = 'debts' | 'actions' | 'advance_requests' | 'statements' | 'approvals' | 'promissory';
+type TabId = DebtsTabId;
 
 
 const LEGACY_CATEGORY_AR: Record<string, string> = {
@@ -72,7 +92,7 @@ const LEGACY_CATEGORY_AR: Record<string, string> = {
   hr_cost: 'تكلفة HR',
 };
 function debtCategoryLabel(d: DebtRecord): string {
-  return d.categoryAr || LEGACY_CATEGORY_AR[d.category] || d.category || '—';
+  return d.categoryAr || LEGACY_CATEGORY_AR[d.category] || 'غير معروف';
 }
 const DEBT_STATUS_AR: Record<string, string> = {
   active: 'قائم',
@@ -83,7 +103,18 @@ const DEBT_STATUS_AR: Record<string, string> = {
   cancelled: 'ملغي',
 };
 function debtStatusLabel(status: string): string {
-  return DEBT_STATUS_AR[status] || status || '—';
+  return DEBT_STATUS_AR[status] || 'غير معروف';
+}
+
+const PROMISSORY_STATUS_AR: Record<string, string> = {
+  Draft: 'مسودة',
+  ActiveNafez: 'نشط في نافذ',
+  Cleared: 'مُسدَّد',
+  NajizCourt: 'محال لناجز',
+};
+function promissoryStatusLabel(status: string | null | undefined): string {
+  const key = (status || '').trim();
+  return PROMISSORY_STATUS_AR[key] || (key ? key : 'غير معروف');
 }
 const isPendingOpening = (d: DebtRecord) =>
   d.entryMode === 'OpeningBalance' && d.status === 'pending_approval' && !d.approvalRequestId;
@@ -93,19 +124,22 @@ function DebtsPageContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
 
-  // Tab State & URL Synchronization
-  const tabFromUrl = searchParams?.get('tab');
-  const resolvedTab: TabId = useMemo(() => {
-    if (tabFromUrl === 'advance_requests') return 'advance_requests';
-    if (tabFromUrl === 'statement' || tabFromUrl === 'statements') return 'statements';
-    if (tabFromUrl === 'approvals') return 'approvals';
-    if (tabFromUrl === 'actions') return 'actions';
-    if (tabFromUrl === 'promissory') return 'promissory';
-    return 'debts';
-  }, [tabFromUrl]);
+  // Tab State & URL Synchronization (sidebar-driven, page-tabs-rule 3.0)
+  const resolvedUrlTab = resolveDebtsTab(searchParams?.get('tab'));
+  const resolvedTab: TabId = useMemo(
+    () => (resolvedUrlTab.tab === 'statement' ? 'statements' : resolvedUrlTab.tab),
+    [resolvedUrlTab.tab]
+  );
+
+  useEffect(() => {
+    if (!resolvedUrlTab.legacy) return;
+    router.replace(buildTabRedirectUrl(pathname || '/debts/', searchParams, resolvedUrlTab), { scroll: false });
+  }, [resolvedUrlTab.legacy, resolvedUrlTab.tab, pathname, router, searchParams]);
 
   const [activeTab, setActiveTab] = useState<TabId>(resolvedTab);
+  const [debtImportStep, setDebtImportStep] = useState<PageImportStep | null>(null);
 
   useEffect(() => {
     if (resolvedTab && resolvedTab !== activeTab) {
@@ -116,25 +150,54 @@ function DebtsPageContent() {
   const handleTabChange = (newTab: TabId) => {
     setActiveTab(newTab);
     const urlParam = newTab === 'statements' ? 'statement' : newTab;
-    router.replace(`/debts/?tab=${urlParam}`, { scroll: false });
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('tab', urlParam);
+    router.replace(`${pathname || '/debts/'}?${params.toString()}`, { scroll: false });
   };
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [selectedStatus, setSelectedStatus] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [debouncedSearch, setDebouncedSearch] = useState<string>('');
+  const [debtsPage, setDebtsPage] = useState(1);
+  const [debtsPageSize, setDebtsPageSize] = useState(DEBTS_PAGE_SIZE);
+  const [debtsTotal, setDebtsTotal] = useState(0);
+  const [categoryOptions, setCategoryOptions] = useState<DebtCategoryOption[]>(() =>
+    debtCategoryOptionsFromCatalog([])
+  );
+  const debtsAbortRef = useRef<AbortController | null>(null);
+  const debtsRequestIdRef = useRef(0);
 
   // Data states
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [debts, setDebts] = useState<DebtRecord[]>([]);
+  const [debtsLoaded, setDebtsLoaded] = useState(false);
+  const [debtsSummary, setDebtsSummary] = useState<{
+    totalCount: number;
+    activeRemainingTotal: number;
+    advanceRemainingTotal: number;
+    pendingOpeningCount: number;
+    pendingOpeningTotal: number;
+    allowedActions?: string[];
+  } | null>(null);
   const [approvals, setApprovals] = useState<ApprovalRequest[]>([]);
+  const [approvalsLoaded, setApprovalsLoaded] = useState(false);
   const [promissoryNotes, setPromissoryNotes] = useState<PromissoryNote[]>([]);
   const [promissoryFeatureEnabled, setPromissoryFeatureEnabled] = useState<boolean>(false);
+  const [advancesLoaded, setAdvancesLoaded] = useState(false);
 
-  // Statement search states
-  const [statementIqama, setStatementIqama] = useState<string>('2000000789');
-  const [statementFrom, setStatementFrom] = useState<string>('2026-01-01');
-  const [statementTo, setStatementTo] = useState<string>('2026-10-31');
+  // Statement search states (default to URL ?period=YYYY-MM)
+  const { period: urlPeriod } = usePeriod();
+  const [statementIqama, setStatementIqama] = useState<string>('');
+  const [statementFrom, setStatementFrom] = useState<string>(() => periodDateRange(urlPeriod).from);
+  const [statementTo, setStatementTo] = useState<string>(() => periodDateRange(urlPeriod).to);
+
+  useEffect(() => {
+    const r = periodDateRange(urlPeriod);
+    setStatementFrom(r.from);
+    setStatementTo(r.to);
+  }, [urlPeriod]);
   const [statementMode, setStatementMode] = useState<'detailed' | 'simple'>('detailed');
   const [statementData, setStatementData] = useState<RiderStatement | null>(null);
   const [loadingStatement, setLoadingStatement] = useState<boolean>(false);
@@ -203,25 +266,145 @@ function DebtsPageContent() {
     }
   }, [user]);
 
-  const loadData = async () => {
+  const [debtsServerQuery, setDebtsServerQuery] = useState<{
+    filtersParam?: string;
+    sortParam?: string;
+  }>({});
+
+  const debtsListParams = (
+    page: number,
+    pageSize: number,
+    search: string,
+    sq = debtsServerQuery
+  ) => ({
+    page,
+    pageSize,
+    status: selectedStatus !== 'all' ? selectedStatus : undefined,
+    category: selectedCategory !== 'all' ? selectedCategory : undefined,
+    q: search.trim() || undefined,
+    filters: sq.filtersParam,
+    sort: sq.sortParam,
+  });
+
+  const loadDebtsSummary = async (signal?: AbortSignal) => {
+    try {
+      // Cards/banner stay global (not tied to category/search filters).
+      const summary = await api.getDebtsSummary({}, { signal });
+      setDebtsSummary(summary);
+    } catch (err) {
+      if (signal?.aborted) return;
+      setDebtsSummary(null);
+    }
+  };
+
+  const loadDebts = async (
+    page = debtsPage,
+    pageSize = debtsPageSize,
+    search = debouncedSearch,
+    sq = debtsServerQuery
+  ) => {
+    debtsAbortRef.current?.abort();
+    const controller = new AbortController();
+    debtsAbortRef.current = controller;
+    const requestId = ++debtsRequestIdRef.current;
     setLoading(true);
     setError(null);
     try {
-      const [debtsRes, approvalsRes, pNotesRes] = await Promise.all([
-        api.getDebts(),
-        api.getApprovals(),
-        api.getPromissoryNotes(),
-      ]);
-      setDebts(debtsRes || []);
-      setApprovals(approvalsRes || []);
-      setPromissoryNotes(pNotesRes.items || []);
-      setPromissoryFeatureEnabled(pNotesRes.featureEnabled || false);
+      const debtsRes = (await api.getDebts(debtsListParams(page, pageSize, search, sq), {
+        signal: controller.signal,
+      })) as PaginatedResult<DebtRecord>;
+      if (requestId !== debtsRequestIdRef.current) return;
+      setDebts(debtsRes.items || []);
+      setDebtsTotal(debtsRes.total ?? 0);
+      setDebtsPage(debtsRes.page ?? page);
+      setDebtsPageSize(debtsRes.pageSize ?? pageSize);
+      setDebtsLoaded(true);
+      await loadDebtsSummary(controller.signal);
     } catch (err: any) {
+      if (controller.signal.aborted || requestId !== debtsRequestIdRef.current) return;
       const msg = err.message || 'تعذر تحميل بيانات المديونيات';
       setError(msg);
       toast(msg, 'danger');
     } finally {
+      if (requestId === debtsRequestIdRef.current) setLoading(false);
+    }
+  };
+
+  const exportAllDebts = async () => {
+    // Export every filtered row (legacy array without page), not only the current page.
+    const rows = (await api.getDebts({
+      status: selectedStatus !== 'all' ? selectedStatus : undefined,
+      category: selectedCategory !== 'all' ? selectedCategory : undefined,
+      q: debouncedSearch.trim() || undefined,
+      filters: debtsServerQuery.filtersParam,
+      sort: debtsServerQuery.sortParam,
+    })) as DebtRecord[];
+    const headers = ['رقم الإقامة', 'اسم المندوب', 'فئة البند', 'المبلغ الأصلي', 'المبلغ المتبقي', 'القسط الشهري', 'الحالة'];
+    const excelRows = rows.map((d) => [
+      d.iqama,
+      d.riderName || '',
+      debtCategoryLabel(d),
+      d.originalAmount ?? 0,
+      d.remainingAmount ?? 0,
+      d.monthlyInstallment || d.monthlyDeduction || 0,
+      debtStatusLabel(d.status),
+    ]);
+    const blob = await api.exportExcel({
+      headers,
+      rows: excelRows,
+      numericColumns: [3, 4, 5],
+      filename: 'debts_list.xlsx',
+    });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'debts_list.xlsx';
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
+
+  const loadApprovals = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const approvalsRes = await api.getApprovals();
+      setApprovals(approvalsRes || []);
+      setApprovalsLoaded(true);
+    } catch (err: any) {
+      const msg = err.message || 'تعذر تحميل الاعتمادات';
+      setError(msg);
+      toast(msg, 'danger');
+    } finally {
       setLoading(false);
+    }
+  };
+
+  const loadPromissory = async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const pNotesRes = await api.getPromissoryNotes();
+      setPromissoryNotes(pNotesRes.items || []);
+      setPromissoryFeatureEnabled(pNotesRes.featureEnabled || false);
+    } catch (err: any) {
+      const msg = err.message || 'تعذر تحميل سندات الأمر';
+      setError(msg);
+      toast(msg, 'danger');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  /** Refresh only what the open tab needs (F-D2). */
+  const loadData = async () => {
+    const kinds = debtsLoadKindsForTab(activeTab);
+    for (const kind of kinds) {
+      if (kind === 'debts') await loadDebts();
+      else if (kind === 'approvals') await loadApprovals();
+      else if (kind === 'promissory') await loadPromissory();
+      else if (kind === 'advances') await loadAdvanceRequests();
     }
   };
 
@@ -232,6 +415,7 @@ function DebtsPageContent() {
       const role = advancesRoleView;
       const list = await api.getAdvanceRequests({ role });
       setAdvanceRequests(Array.isArray(list) ? list : []);
+      setAdvancesLoaded(true);
     } catch (err: any) {
       setAdvancesError(err.message || 'تعذر تحميل طلبات السلف');
     } finally {
@@ -250,10 +434,6 @@ function DebtsPageContent() {
   };
 
   useEffect(() => {
-    loadData();
-  }, []);
-
-  useEffect(() => {
     const action = searchParams?.get('action');
     if (action === 'new') {
       setActiveTab('advance_requests');
@@ -265,6 +445,8 @@ function DebtsPageContent() {
       setNewReqFulfilment('recharge_card');
       setNewRequestOpen(true);
     }
+    const debtId = searchParams?.get('id');
+    if (debtId) setActiveTab('debts');
   }, [searchParams]);
 
   useEffect(() => {
@@ -281,13 +463,47 @@ function DebtsPageContent() {
   }, [canReviewAdvances, canRequestAdvances]);
 
   useEffect(() => {
-    if (activeTab === 'advance_requests') {
-      loadAdvanceRequests();
-      if (canRequestAdvances) {
-        loadSupervisedRiders();
-      }
+    const timer = setTimeout(() => setDebouncedSearch(searchQuery), 300);
+    return () => clearTimeout(timer);
+  }, [searchQuery]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api
+      .getFinanceCatalog()
+      .then((catalog) => {
+        if (!cancelled) setCategoryOptions(debtCategoryOptionsFromCatalog(catalog.categories));
+      })
+      .catch(() => {
+        if (!cancelled) setCategoryOptions(debtCategoryOptionsFromCatalog([]));
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  // F-D2: fetch only the open tab's data; debts list is server-paged with filters/search.
+  useEffect(() => {
+    const kinds = debtsLoadKindsForTab(activeTab);
+    if (kinds.includes('debts')) {
+      setDebtsPage(1);
+      void loadDebts(1, debtsPageSize, debouncedSearch);
     }
-  }, [activeTab, advancesRoleView]);
+    if (kinds.includes('approvals')) void loadApprovals();
+    if (kinds.includes('promissory')) void loadPromissory();
+    if (kinds.includes('advances')) {
+      void loadAdvanceRequests();
+      if (canRequestAdvances) void loadSupervisedRiders();
+    }
+  }, [activeTab, advancesRoleView, selectedCategory, selectedStatus, debouncedSearch]);
+
+  // Deep-link from global search: /debts/?tab=debts&id=…
+  useEffect(() => {
+    const debtId = searchParams?.get('id');
+    if (!debtId || !debtsLoaded) return;
+    const match = debts.find((d) => d.id === debtId);
+    if (match) setSelectedDebt(match);
+  }, [searchParams, debts, debtsLoaded]);
 
   const handleOpenReviewDrawer = async (req: AdvanceRequest) => {
     setSelectedAdvance(req);
@@ -470,7 +686,7 @@ function DebtsPageContent() {
         const simple = await api.getRiderStatementSimple(statementIqama.trim(), statementFrom, statementTo);
         setStatementData({
           iqama: statementIqama.trim(),
-          riderName: simple.riderName || 'مندوب تجريبي',
+          riderName: simple.riderName || '—',
           period: { from: statementFrom, to: statementTo },
           openingBalance: simple.openingBalance || 0,
           closingBalance: simple.closingBalance || 0,
@@ -510,30 +726,6 @@ function DebtsPageContent() {
     }
   };
 
-  // Filtered debts
-  const filteredDebts = useMemo(() => {
-    return debts.filter((d) => {
-      if (selectedCategory !== 'all' && d.category !== selectedCategory) return false;
-      if (selectedStatus !== 'all' && d.status !== selectedStatus) return false;
-      if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase().trim();
-        const matchIqama = d.iqama?.toLowerCase().includes(q);
-        const matchName = d.riderName?.toLowerCase().includes(q);
-        if (!matchIqama && !matchName) return false;
-      }
-      return true;
-    });
-  }, [debts, selectedCategory, selectedStatus, searchQuery]);
-
-  const categoryOptions = useMemo(() => {
-    const m = new Map<string, string>();
-    debts.forEach((d) => m.set(d.category, debtCategoryLabel(d)));
-    return [...m.entries()].sort((a, b) => a[1].localeCompare(b[1], 'ar'));
-  }, [debts]);
-
-  // Opening balances from the debt sheet wait for an admin decision (no approval_request exists).
-  const pendingOpening = useMemo(() => debts.filter(isPendingOpening), [debts]);
-  const pendingOpeningTotal = useMemo(() => pendingOpening.reduce((s, d) => s + (d.remainingAmount || 0), 0), [pendingOpening]);
   const [openingDialog, setOpeningDialog] = useState<null | 'approved' | 'rejected'>(null);
   const [openingNote, setOpeningNote] = useState('');
   const [openingIds, setOpeningIds] = useState<string[]>([]);
@@ -562,12 +754,26 @@ function DebtsPageContent() {
     }
   };
 
-  // Derived statistics
-  const totalRemainingDebts = useMemo(() => debts.filter((d) => d.status === 'active').reduce((s, d) => s + (d.remainingAmount || 0), 0), [debts]);
-  const totalAdvances = useMemo(
-    () => debts.filter((d) => d.category === 'advance' || d.category === 'CashAdvance' || d.category === 'BankAdvance').reduce((s, d) => s + (d.remainingAmount || 0), 0),
-    [debts]
-  );
+  const startOpeningDecision = async (decision: 'approved' | 'rejected') => {
+    try {
+      const all = (await api.getDebts({ status: 'pending_approval' })) as DebtRecord[];
+      const ids = all.filter(isPendingOpening).map((d) => d.id);
+      if (ids.length === 0) {
+        toast('لا توجد أرصدة افتتاحية بانتظار الاعتماد', 'warning');
+        return;
+      }
+      setOpeningIds(ids);
+      setOpeningDialog(decision);
+    } catch (err: any) {
+      toast(err.message || 'تعذر تحميل الأرصدة الافتتاحية', 'danger');
+    }
+  };
+
+  // Derived statistics from summary endpoint (not the current page).
+  const totalRemainingDebts = debtsSummary?.activeRemainingTotal ?? 0;
+  const totalAdvances = debtsSummary?.advanceRemainingTotal ?? 0;
+  const pendingOpeningCount = debtsSummary?.pendingOpeningCount ?? 0;
+  const pendingOpeningTotal = debtsSummary?.pendingOpeningTotal ?? 0;
   const pendingApprovalsCount = useMemo(() => approvals.filter((a) => a.status === 'pending').length, [approvals]);
   const pendingAdvancesCount = useMemo(() => advanceRequests.filter((r) => r.status === 'under_review').length, [advanceRequests]);
 
@@ -625,19 +831,29 @@ function DebtsPageContent() {
       {
         key: 'iqama',
         header: 'رقم الإقامة',
+        type: 'text',
         filterable: true,
+        filterType: 'text',
+        getValue: (d) => d.iqama,
         render: (d) => <span className="font-mono font-bold text-[var(--accent)]">{d.iqama}</span>,
       },
       {
         key: 'riderName',
         header: 'اسم المندوب',
+        type: 'text',
         filterable: true,
+        filterType: 'text',
+        getValue: (d) => d.riderName || 'مندوب مسجل',
         render: (d) => <span className="font-semibold">{d.riderName || 'مندوب مسجل'}</span>,
       },
       {
         key: 'category',
         header: 'فئة البند',
+        type: 'list',
+        filterType: 'list',
+        filterColumn: 'categoryAr',
         getValue: (d) => debtCategoryLabel(d),
+        labelOf: (v) => LEGACY_CATEGORY_AR[String(v ?? '')] || String(v ?? ''),
         render: (d) => (
           <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
             {debtCategoryLabel(d)}
@@ -647,38 +863,45 @@ function DebtsPageContent() {
       {
         key: 'originalAmount',
         header: 'المبلغ الأصلي',
+        type: 'number',
         numeric: true,
         money: true,
+        filterType: 'number',
         getValue: (d) => d.originalAmount ?? 0,
         render: (d) => (
           <span className="num text-[var(--muted)]">
-            {(d.originalAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar((d.originalAmount ?? 0))}
           </span>
         ),
       },
       {
         key: 'remainingAmount',
         header: 'المبلغ المتبقي',
+        type: 'number',
         numeric: true,
         money: true,
+        filterType: 'number',
+        filterColumn: 'remainingBalance',
         getValue: (d) => d.remainingAmount ?? 0,
         render: (d) => (
           <span className="num font-bold text-sm text-[var(--danger)]">
-            {(d.remainingAmount ?? 0).toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar((d.remainingAmount ?? 0))}
           </span>
         ),
       },
       {
         key: 'monthlyInstallment',
         header: 'القسط الشهري',
+        type: 'number',
         numeric: true,
         money: true,
+        filterType: 'number',
         getValue: (d) => d.monthlyInstallment || d.monthlyDeduction || 0,
         render: (d) => {
           const val = d.monthlyInstallment || d.monthlyDeduction || 0;
           return (
-            <span className="num text-[var(--muted)]">
-              {val > 0 ? `${val.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س` : '—'}
+            <span className="num text-[var(--muted)] whitespace-nowrap">
+              {val > 0 ? formatSar(val) : '—'}
             </span>
           );
         },
@@ -686,7 +909,16 @@ function DebtsPageContent() {
       {
         key: 'status',
         header: 'الحالة',
-        getValue: (d) => debtStatusLabel(d.status),
+        type: 'list',
+        filterType: 'list',
+        getValue: (d) => d.status,
+        labelOf: (v) => debtStatusLabel(String(v ?? '')),
+        toneOf: (v) =>
+          v === 'active' || v === 'قائم'
+            ? 'danger'
+            : v === 'settled' || v === 'مسدد'
+              ? 'success'
+              : 'warning',
         render: (d) => (
           <span
             className={`px-2 py-0.5 rounded-full text-xs font-semibold ${
@@ -704,6 +936,8 @@ function DebtsPageContent() {
       {
         key: 'actions',
         header: 'الإجراءات',
+        filterable: false,
+        sortable: false,
         render: (d) => (
           <button
             type="button"
@@ -727,12 +961,15 @@ function DebtsPageContent() {
       {
         key: 'id',
         header: 'معرف الطلب',
+        type: 'text',
         width: '90px',
+        getValue: (req) => req.id,
         render: (req) => <span className="font-mono text-[11px] text-[var(--muted)]">{req.id}</span>,
       },
       {
         key: 'rider',
         header: 'المندوب والإقامة',
+        type: 'text',
         getValue: (req) => `${req.riderName || ''} ${req.riderIqama || ''}`,
         render: (req) => (
           <div>
@@ -744,6 +981,16 @@ function DebtsPageContent() {
       {
         key: 'type',
         header: 'النوع والخزينة',
+        type: 'list',
+        getValue: (req) => req.type,
+        labelOf: (v) =>
+          v === 'internet'
+            ? 'سلفة نت'
+            : v === 'cash'
+              ? 'نقدية (خزينة)'
+              : v === 'bank'
+                ? 'بنكية (تحويل)'
+                : String(v ?? ''),
         render: (req) => (
           <div>
             <div className="inline-flex items-center gap-1 font-semibold">
@@ -773,33 +1020,56 @@ function DebtsPageContent() {
       {
         key: 'amount',
         header: 'المبلغ المطلوب',
+        type: 'number',
         numeric: true,
-        money: true,
         getValue: (req) => req.amount,
         render: (req) => (
           <span className="font-bold text-[var(--ink)]">
-            {req.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+            {formatSar(req.amount)}
           </span>
         ),
       },
       {
         key: 'requestedBy',
         header: 'مقدم الطلب',
+        type: 'list',
+        getValue: (req) => req.requestedBy,
         render: (req) => <span className="font-mono text-xs text-[var(--muted)]">{req.requestedBy}</span>,
       },
       {
         key: 'createdAt',
         header: 'تاريخ التقديم',
+        type: 'date',
+        getValue: (req) => req.createdAt?.split('T')[0] || '',
         render: (req) => <span className="num text-xs text-[var(--muted)]">{req.createdAt?.split('T')[0]}</span>,
       },
       {
         key: 'status',
         header: 'الحالة',
+        type: 'list',
+        getValue: (req) => req.status,
+        labelOf: (v) =>
+          v === 'under_review'
+            ? 'بانتظار المراجعة'
+            : v === 'change_proposed'
+              ? 'اقتراح تعديل'
+              : v === 'approved'
+                ? 'معتمدة (بانتظار الصرف)'
+                : v === 'paid'
+                  ? 'تم الصرف'
+                  : v === 'rejected'
+                    ? 'مرفوضة'
+                    : v === 'cancelled'
+                      ? 'ملغاة'
+                      : String(v ?? ''),
+        toneOf: defaultStatusTone,
         render: (req) => renderAdvanceStatusBadge(req.status),
       },
       {
         key: 'actions',
         header: 'الإجراءات',
+        filterable: false,
+        sortable: false,
         render: (req) => (
           <div className="flex items-center gap-1.5">
             {req.status === 'change_proposed' && req.requestedBy === user?.username && (
@@ -837,38 +1107,71 @@ function DebtsPageContent() {
       {
         key: 'id',
         header: 'معرف الطلب',
+        type: 'text',
         width: '90px',
+        getValue: (app) => app.id,
         render: (app) => <span className="font-mono text-xs">{app.id}</span>,
       },
       {
         key: 'kind',
         header: 'النوع',
+        type: 'list',
+        getValue: (app) => app.kind || app.requestTypeAr || app.requestType || '',
         render: (app) => <span className="font-semibold">{app.kind || app.requestTypeAr || app.requestType}</span>,
       },
       {
         key: 'iqama',
         header: 'المندوب',
+        type: 'text',
+        getValue: (app) => app.iqama,
         render: (app) => <span className="font-mono font-bold text-[var(--accent)]">{app.iqama}</span>,
       },
       {
         key: 'amount',
         header: 'المبلغ',
+        type: 'number',
         numeric: true,
         getValue: (app) => app.amount,
-        render: (app) => <span className="num font-bold text-[var(--accent)]">{app.amount} ر.س</span>,
+        render: (app) => <span className="num font-bold text-[var(--accent)] whitespace-nowrap">{formatSar(app.amount)}</span>,
       },
       {
         key: 'status',
         header: 'الحالة',
-        render: (app) => (
-          <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--warning)]/10 text-[var(--warning)]">
-            {app.status}
-          </span>
-        ),
+        type: 'list',
+        getValue: (app) => app.status,
+        labelOf: (v) => {
+          const s = String(v ?? '').toLowerCase();
+          if (s === 'pending' || s === 'pending_approval') return 'بانتظار الاعتماد';
+          if (s === 'approved') return 'معتمد';
+          if (s === 'rejected') return 'مرفوض';
+          if (s === 'cancelled' || s === 'canceled') return 'ملغي';
+          return debtStatusLabel(String(v ?? ''));
+        },
+        toneOf: defaultStatusTone,
+        render: (app) => {
+          const s = String(app.status ?? '').toLowerCase();
+          const label =
+            s === 'pending' || s === 'pending_approval'
+              ? 'بانتظار الاعتماد'
+              : s === 'approved'
+                ? 'معتمد'
+                : s === 'rejected'
+                  ? 'مرفوض'
+                  : s === 'cancelled' || s === 'canceled'
+                    ? 'ملغي'
+                    : debtStatusLabel(app.status);
+          return (
+            <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--warning)]/10 text-[var(--warning)]">
+              {label}
+            </span>
+          );
+        },
       },
       {
         key: 'actions',
         header: 'الإجراءات',
+        filterable: false,
+        sortable: false,
         render: (app) => (
           <button
             type="button"
@@ -893,19 +1196,62 @@ function DebtsPageContent() {
       <PageHeader
         title="المديونيات والسلف والتحصيل"
         description="إدارة مديونيات وسلف وتكاليف المناديب، منظومة طلبات ومراجعة وصرف السلف، كشوف الحساب المطابقة 360 والمبسطة، وسندات الأمر التنفيذية."
-        eyebrow="الذمم والعهد المالية"
+        eyebrow={DEBTS_TAB_LABELS[resolvedUrlTab.tab]}
         primaryAction={{
           label: 'تحديث البيانات',
           icon: <RefreshCw size={15} />,
-          onClick: activeTab === 'advance_requests' ? loadAdvanceRequests : loadData,
+          onClick:
+            activeTab === 'advance_requests'
+              ? loadAdvanceRequests
+              : activeTab === 'statements'
+                ? () => {
+                    if (statementIqama.trim()) void handleFetchStatement();
+                  }
+                : loadData,
         }}
-      />
+      >
+        {canShowImportStep(OPENING_DEBTS_IMPORT, { isAdmin, can }) && (
+          <button
+            type="button"
+            data-testid="import-opening-debts"
+            onClick={() => setDebtImportStep(OPENING_DEBTS_IMPORT)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
+          >
+            <Upload size={15} />
+            استيراد المديونيات الافتتاحية
+          </button>
+        )}
+        {canShowImportStep(BULK_COLLECT_IMPORT, { isAdmin, can }) && (
+          <button
+            type="button"
+            data-testid="import-bulk-collect"
+            onClick={() => setDebtImportStep(BULK_COLLECT_IMPORT)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-semibold"
+          >
+            <Upload size={15} />
+            تحصيل مجمع من ملف
+          </button>
+        )}
+      </PageHeader>
+      {debtImportStep && (
+        <ImportUploadDialog
+          open={Boolean(debtImportStep)}
+          onClose={() => setDebtImportStep(null)}
+          step={debtImportStep}
+          allowedActions={debtsSummary?.allowedActions}
+          onCommitted={() => void loadData()}
+        />
+      )}
 
       {/* Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="إجمالي المديونيات القائمة"
-          value={`${totalRemainingDebts.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+          value={
+            debtsSummary
+              ? `${formatSar(totalRemainingDebts)}`
+              : '—'
+          }
           hint="الأرصدة المتبقية على ذمة المناديب"
           icon={Receipt}
           active={activeTab === 'debts' && selectedCategory === 'all' && selectedStatus === 'all'}
@@ -914,11 +1260,15 @@ function DebtsPageContent() {
             setSelectedCategory('all');
             setSelectedStatus('all');
           }}
-          loading={loading}
+          loading={loading && !debtsSummary}
         />
         <StatCard
           label="أرصدة السلف المتبقية"
-          value={`${totalAdvances.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س`}
+          value={
+            debtsSummary
+              ? `${formatSar(totalAdvances)}`
+              : '—'
+          }
           hint="السلف النقدية والبنكية الجاري استقطاعها"
           icon={Coins}
           active={activeTab === 'debts' && selectedCategory === 'advance'}
@@ -926,68 +1276,26 @@ function DebtsPageContent() {
             handleTabChange('debts');
             setSelectedCategory(selectedCategory === 'advance' ? 'all' : 'advance');
           }}
-          loading={loading}
+          loading={loading && !debtsSummary}
         />
         <StatCard
           label="طلبات السلف بانتظار المراجعة"
-          value={String(pendingAdvancesCount)}
+          value={advancesLoaded ? String(pendingAdvancesCount) : '—'}
           hint="تحتاج دراسة الملخص المالي والاعتماد"
           icon={Clock}
           active={activeTab === 'advance_requests'}
           onClick={() => handleTabChange(activeTab === 'advance_requests' ? 'debts' : 'advance_requests')}
-          loading={loadingAdvances}
+          loading={loadingAdvances && !advancesLoaded}
         />
         <StatCard
           label="طلبات الاعتمادات المتبادلة"
-          value={String(pendingApprovalsCount)}
+          value={approvalsLoaded ? String(pendingApprovalsCount) : '—'}
           hint="طلبات بانتظار قرار الإدارة أو العمليات"
           icon={ShieldCheck}
           active={activeTab === 'approvals'}
           onClick={() => handleTabChange(activeTab === 'approvals' ? 'debts' : 'approvals')}
-          loading={loading}
+          loading={loading && !approvalsLoaded}
         />
-      </div>
-
-      {/* Sub Tabs */}
-      <div className="border-b border-[var(--line)]">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-          {[
-            { id: 'debts' as TabId, label: 'المديونيات والتكاليف', count: filteredDebts.length },
-            { id: 'actions' as TabId, label: 'تحصيل وإنشاء' },
-            {
-              id: 'advance_requests' as TabId,
-              label: 'طلبات السلف (نظام الرتب)',
-              count: advanceRequests.length,
-              alert: pendingAdvancesCount > 0,
-            },
-            { id: 'statements' as TabId, label: 'كشوف حساب المناديب' },
-            { id: 'approvals' as TabId, label: 'منظومة الاعتمادات', count: pendingApprovalsCount, alert: pendingApprovalsCount > 0 },
-            { id: 'promissory' as TabId, label: 'أرشيف سندات الأمر', count: promissoryNotes.length },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              id={`tab-${tab.id}`}
-              type="button"
-              onClick={() => handleTabChange(tab.id)}
-              className={`inline-flex items-center gap-2 px-4 py-3 font-bold text-xs sm:text-sm border-b-2 transition whitespace-nowrap cursor-pointer ${
-                activeTab === tab.id
-                  ? 'border-[var(--accent)] text-[var(--accent)]'
-                  : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              <span>{tab.label}</span>
-              {tab.count !== undefined && tab.count > 0 && (
-                <span
-                  className={`num px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    tab.alert ? 'bg-[var(--danger)] text-white' : 'bg-[var(--raised)] text-[var(--ink)]'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* ======================================================== */}
@@ -1016,34 +1324,36 @@ function DebtsPageContent() {
                 ariaLabel="تصفية حسب الفئة"
                 placeholder="كافة الفئات"
                 className="w-44"
-                options={[
-                  { value: 'all', label: 'كافة الفئات' },
-                  ...categoryOptions.map(([code, label]) => ({ value: code, label })),
-                ]}
+                options={categoryOptions}
               />
 
-              <select
+              <SearchableSelect
+                id="select-debt-status"
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
-                className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] focus:outline-hidden"
-              >
-                <option value="all">كافة الحالات</option>
-                <option value="active">نشط وقائم</option>
-                <option value="pending_approval">بانتظار الاعتماد</option>
-                <option value="settled">مسدد بالكامل</option>
-                <option value="waived">معفي</option>
-                <option value="cancelled">ملغي / مرفوض</option>
-              </select>
+                onChange={setSelectedStatus}
+                ariaLabel="تصفية حسب الحالة"
+                placeholder="كافة الحالات"
+                className="w-40"
+                options={[
+                  { value: 'all', label: 'كافة الحالات' },
+                  { value: 'active', label: 'قائم' },
+                  { value: 'pending_approval', label: 'بانتظار الاعتماد' },
+                  { value: 'settled', label: 'مسدد بالكامل' },
+                  { value: 'waived', label: 'معفي' },
+                  { value: 'disputed', label: 'متنازع عليه' },
+                  { value: 'cancelled', label: 'ملغي / مرفوض' },
+                ]}
+              />
             </div>
           </div>
 
-          {isAdmin && pendingOpening.length > 0 && (
+          {isAdmin && pendingOpeningCount > 0 && (
             <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--warning)]/40 bg-[var(--warning)]/10">
               <div className="text-xs sm:text-sm text-[var(--ink)]">
                 <div className="font-bold">أرصدة افتتاحية بانتظار الاعتماد</div>
                 <div className="text-[var(--muted)] mt-0.5">
-                  <span className="num font-bold">{pendingOpening.length}</span> مديونية بإجمالي{' '}
-                  <span className="num font-bold">{pendingOpeningTotal.toLocaleString('en-US', { minimumFractionDigits: 2 })}</span> ر.س — من شيت المديونيات بتاريخ 31-10-2026. الاعتماد يرحّل قيد الافتتاح في شهر الرصيد.
+                  <span className="num font-bold">{pendingOpeningCount}</span> مديونية بإجمالي{' '}
+                  <span className="num font-bold">{formatSar(pendingOpeningTotal)}</span> — من شيت المديونيات بتاريخ 31-10-2026. الاعتماد يرحّل قيد الافتتاح في شهر الرصيد.
                 </div>
               </div>
               <div className="flex items-center gap-2">
@@ -1056,10 +1366,7 @@ function DebtsPageContent() {
                 </button>
                 <button
                   type="button"
-                  onClick={() => {
-                    setOpeningIds(pendingOpening.map((d) => d.id));
-                    setOpeningDialog('approved');
-                  }}
+                  onClick={() => void startOpeningDecision('approved')}
                   className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 cursor-pointer"
                 >
                   اعتماد الكل
@@ -1074,12 +1381,41 @@ function DebtsPageContent() {
             <DataTable
               tableId="debts-list"
               columns={debtsColumns}
-              data={filteredDebts}
+              data={debts}
               loading={loading}
               emptyTitle="لا توجد مديونيات مسجلة"
               emptyDescription="لم يتم العثور على أي مديونيات أو سلف تطابق شروط الفلترة الحالية."
               exportFilename="debts_list"
               showTotals={true}
+              searchable={false}
+              serverSide={true}
+              distinctEndpoint="/debts/distinct"
+              distinctParams={{
+                q: debouncedSearch || undefined,
+                status: selectedStatus !== 'all' ? selectedStatus : undefined,
+                category: selectedCategory !== 'all' ? selectedCategory : undefined,
+                filters: debtsServerQuery.filtersParam,
+              }}
+              onServerQueryChange={(sq) => {
+                const next = { filtersParam: sq.filtersParam, sortParam: sq.sortParam };
+                setDebtsServerQuery(next);
+                setDebtsPage(1);
+                void loadDebts(1, debtsPageSize, debouncedSearch, next);
+              }}
+              totalCount={debtsTotal}
+              page={debtsPage}
+              pageSize={debtsPageSize}
+              pageSizes={PAGE_SIZES.filter((s) => s <= 200)}
+              onPageChange={(p) => {
+                setDebtsPage(p);
+                void loadDebts(p, debtsPageSize, debouncedSearch);
+              }}
+              onPageSizeChange={(size) => {
+                setDebtsPageSize(size);
+                setDebtsPage(1);
+                void loadDebts(1, size, debouncedSearch);
+              }}
+              onExport={exportAllDebts}
             />
           )}
         </div>
@@ -1275,41 +1611,34 @@ function DebtsPageContent() {
                 <div className="flex items-center gap-4 text-xs">
                   <div>
                     <span className="text-[var(--muted)]">الرصيد الافتتاحي: </span>
-                    <span className="num font-bold">{statementData.openingBalance?.toLocaleString('en-US') || 0} ر.س</span>
+                    <span className="num font-bold">{formatSar(statementData.openingBalance)}</span>
                   </div>
                   <div>
                     <span className="text-[var(--muted)]">الرصيد الختامي: </span>
                     <span className="num font-bold text-[var(--accent)]">
-                      {statementData.closingBalance?.toLocaleString('en-US') || 0} ر.س
+                      {formatSar(statementData.closingBalance)}
                     </span>
                   </div>
                 </div>
               </div>
 
-              <div className="overflow-x-auto">
-                <table className="w-full text-start text-xs">
-                  <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-                    <tr>
-                      <th className="p-2.5 text-start">التاريخ</th>
-                      <th className="p-2.5 text-start">البيان / الحركة</th>
-                      <th className="p-2.5 text-start">مدين</th>
-                      <th className="p-2.5 text-start">دائن</th>
-                      <th className="p-2.5 text-start">الرصيد</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-[var(--line)]">
-                    {(statementData.entries || []).map((e: any, idx: number) => (
-                      <tr key={idx} className="hover:bg-[var(--row-hover)]">
-                        <td className="p-2.5 font-mono text-[var(--muted)]">{e.date?.split('T')[0] || e.date}</td>
-                        <td className="p-2.5 font-medium">{e.description || e.statement}</td>
-                        <td className="p-2.5 num font-bold text-[var(--danger)]">{e.debit > 0 ? `${e.debit} ر.س` : '—'}</td>
-                        <td className="p-2.5 num font-bold text-[var(--money-pos)]">{e.credit > 0 ? `${e.credit} ر.س` : '—'}</td>
-                        <td className="p-2.5 num font-bold text-[var(--ink)]">{e.balance} ر.س</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-              </div>
+              <DataTable
+                tableId="debts-statement-entries"
+                data={statementData.entries || []}
+                getRowId={(e: any) => String(e.id || `${e.date}-${e.description || e.statement || ''}-${e.debit ?? 0}-${e.credit ?? 0}-${e.balance ?? 0}`)}
+                searchable={false}
+                exportable={true}
+                exportFilename={`statement_${statementData.iqama}`}
+                syncUrl={false}
+                showTotals={true}
+                columns={[
+                  { key: 'date', header: 'التاريخ', type: 'date', getValue: (e: any) => e.date?.split('T')[0] || e.date || '', render: (e: any) => <span className="font-mono text-[var(--muted)]">{e.date?.split('T')[0] || e.date}</span> },
+                  { key: 'description', header: 'البيان / الحركة', type: 'text', getValue: (e: any) => e.description || e.statement || '', render: (e: any) => <span className="font-medium">{e.description || e.statement}</span> },
+                  { key: 'debit', header: 'مدين', type: 'number', numeric: true, getValue: (e: any) => Number(e.debit || 0), render: (e: any) => <span className="num font-bold text-[var(--danger)] whitespace-nowrap">{e.debit > 0 ? formatSar(e.debit) : '—'}</span> },
+                  { key: 'credit', header: 'دائن', type: 'number', numeric: true, getValue: (e: any) => Number(e.credit || 0), render: (e: any) => <span className="num font-bold text-[var(--money-pos)] whitespace-nowrap">{e.credit > 0 ? formatSar(e.credit) : '—'}</span> },
+                  { key: 'balance', header: 'الرصيد', type: 'number', numeric: true, summary: 'none', getValue: (e: any) => Number(e.balance || 0), render: (e: any) => <span className="num font-bold text-[var(--ink)] whitespace-nowrap">{formatSar(e.balance)}</span> },
+                ]}
+              />
             </div>
           ) : null}
         </div>
@@ -1364,34 +1693,32 @@ function DebtsPageContent() {
               description="لم يتم إصدار أي سندات أمر تنفيذية للتحصيل أو المديونيات بعد."
             />
           ) : (
-            <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
-              <table className="w-full text-start text-xs sm:text-sm">
-                <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
-                  <tr>
-                    <th className="p-3 text-start">رقم السند</th>
-                    <th className="p-3 text-start">رقم الإقامة</th>
-                    <th className="p-3 text-start">المبلغ</th>
-                    <th className="p-3 text-start">تاريخ الاستحقاق</th>
-                    <th className="p-3 text-start">الحالة</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-[var(--line)]">
-                  {promissoryNotes.map((pn) => (
-                    <tr key={pn.id} className="hover:bg-[var(--row-hover)]">
-                      <td className="p-3 font-mono text-xs">{pn.noteNumber || pn.id}</td>
-                      <td className="p-3 font-mono">{pn.iqama}</td>
-                      <td className="p-3 num font-bold">{pn.amount} ر.س</td>
-                      <td className="p-3 num text-xs">{pn.dueDate}</td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
-                          {pn.status}
-                        </span>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <DataTable
+              tableId="promissory-notes-list"
+              data={promissoryNotes}
+              getRowId={(pn) => pn.id}
+              exportFilename="promissory_notes"
+              showTotals={true}
+              columns={[
+                { key: 'noteNumber', header: 'رقم السند', type: 'text', getValue: (pn) => pn.noteNumber || pn.id, render: (pn) => <span className="font-mono text-xs">{pn.noteNumber || pn.id}</span> },
+                { key: 'iqama', header: 'رقم الإقامة', type: 'text', getValue: (pn) => pn.iqama, render: (pn) => <span className="font-mono">{pn.iqama}</span> },
+                { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, money: true, getValue: (pn) => pn.amount, render: (pn) => <span className="num font-bold whitespace-nowrap">{formatSar(pn.amount)}</span> },
+                { key: 'dueDate', header: 'تاريخ الاستحقاق', type: 'date', getValue: (pn) => pn.dueDate, render: (pn) => <span className="num text-xs">{pn.dueDate}</span> },
+                {
+                  key: 'status',
+                  header: 'الحالة',
+                  type: 'list',
+                  getValue: (pn) => pn.status,
+                  labelOf: (v) => promissoryStatusLabel(String(v ?? '')),
+                  toneOf: defaultStatusTone,
+                  render: (pn) => (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
+                      {promissoryStatusLabel(pn.status)}
+                    </span>
+                  ),
+                },
+              ]}
+            />
           )}
         </div>
       )}
@@ -1484,7 +1811,7 @@ function DebtsPageContent() {
           {newReqType === 'internet' && (
             <div className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/50 space-y-3">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-[var(--ink)]">طريقة الصرف (Fulfilment):</label>
+                <label className="text-xs font-bold text-[var(--ink)]">طريقة الصرف:</label>
                 <div className="grid grid-cols-3 gap-2">
                   <label
                     className={`p-2 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer transition ${
@@ -1589,7 +1916,7 @@ function DebtsPageContent() {
                         .filter((p) => !newReqNetwork || p.values?.network === newReqNetwork)
                         .map((p) => ({
                           value: p.code,
-                          label: `${p.nameAr || p.code} (${p.values?.price ?? 0} ر.س)`,
+                          label: `${p.nameAr || p.code} (${formatSar(p.values?.price ?? 0)})`,
                         }))}
                     />
                   </div>
@@ -1679,7 +2006,7 @@ function DebtsPageContent() {
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المبلغ المقترح:</span>
-                <span className="font-bold num">{proposalReq.proposal?.amount} ر.س</span>
+                <span className="font-bold num">{formatSar(proposalReq.proposal?.amount)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">الخزينة المقترحة:</span>
@@ -1770,7 +2097,7 @@ function DebtsPageContent() {
         }
         subtitle={
           selectedAdvance
-            ? `إقامة: ${selectedAdvance.riderIqama} · ${selectedAdvance.type === 'cash' ? 'سلفة نقدية' : 'سلفة بنكية'} ${selectedAdvance.amount} ر.س`
+            ? `إقامة: ${selectedAdvance.riderIqama} · ${selectedAdvance.type === 'cash' ? 'سلفة نقدية' : 'سلفة بنكية'} ${formatSar(selectedAdvance.amount)}`
             : ''
         }
       >
@@ -1829,18 +2156,18 @@ function DebtsPageContent() {
                     <div className="p-2.5 rounded-lg bg-[var(--raised)]/60">
                       <div className="text-[11px] text-[var(--muted)]">الصافي التقديري للمسير</div>
                       <div className="font-bold text-sm text-[var(--accent)] num">
-                        {advanceSummary.statement?.net != null ? `${advanceSummary.statement.net.toFixed(2)} ر.س` : 'غير متوفر بعد'}
+                        {advanceSummary.statement?.net != null ? formatSar(advanceSummary.statement.net) : 'غير متوفر بعد'}
                       </div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-[var(--raised)]/60">
                       <div className="text-[11px] text-[var(--muted)]">المديونيات المفتوحة</div>
                       <div className="font-bold text-sm text-[var(--danger)] num">
-                        {advanceSummary.openDebtBalance.toFixed(2)} ر.س ({advanceSummary.openDebts})
+                        {formatSar(advanceSummary.openDebtBalance)} ({advanceSummary.openDebts})
                       </div>
                     </div>
                     <div className="p-2.5 rounded-lg bg-[var(--raised)]/60">
                       <div className="text-[11px] text-[var(--muted)]">الأقساط الشهرية المخططة</div>
-                      <div className="font-bold text-sm text-[var(--ink)] num">{advanceSummary.plannedInstallments.toFixed(2)} ر.س</div>
+                      <div className="font-bold text-sm text-[var(--ink)] num">{formatSar(advanceSummary.plannedInstallments)}</div>
                     </div>
                   </div>
 
@@ -1854,7 +2181,7 @@ function DebtsPageContent() {
                         {advanceSummary.advancesSinceLastSettlement.map((as, idx) => (
                           <div key={idx} className="p-2 rounded-lg bg-[var(--raised)] text-xs flex justify-between">
                             <span>{as.category === 'CashAdvance' ? 'سلفة نقدية' : 'سلفة بنكية'} ({as.status})</span>
-                            <span className="font-bold num">{as.amount} ر.س</span>
+                            <span className="font-bold num">{formatSar(as.amount)}</span>
                           </div>
                         ))}
                       </div>
@@ -1885,7 +2212,7 @@ function DebtsPageContent() {
                             )}
                           </div>
                           <div className="font-mono text-[11px] text-[var(--muted)] truncate">{v.code || '—'}</div>
-                          <div className="font-bold text-xs num mt-1">الرصيد: {v.balance.toFixed(2)} ر.س</div>
+                          <div className="font-bold text-xs num mt-1">الرصيد: {formatSar(v.balance)}</div>
                         </div>
                       ))}
                     </div>
@@ -2113,7 +2440,7 @@ function DebtsPageContent() {
                         </span>
                         {dec.monthlyInstallment && (
                           <span className="text-[11px] text-[var(--muted)]">
-                            (قسط: {dec.monthlyInstallment} ر.س)
+                            (قسط: {formatSar(dec.monthlyInstallment)})
                           </span>
                         )}
                         {dec.reference && (
@@ -2154,7 +2481,7 @@ function DebtsPageContent() {
               {selectedApproval.amount && (
                 <div className="flex justify-between">
                   <span className="text-[var(--muted)]">المبلغ:</span>
-                  <span className="font-bold num text-[var(--accent)]">{selectedApproval.amount} ر.س</span>
+                  <span className="font-bold num text-[var(--accent)]">{formatSar(selectedApproval.amount)}</span>
                 </div>
               )}
             </div>
@@ -2245,12 +2572,12 @@ function DebtsPageContent() {
             <div className="p-4 rounded-xl bg-[var(--raised)] space-y-2 text-xs">
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المبلغ الأصلي:</span>
-                <span className="font-bold num">{(selectedDebt.originalAmount ?? 0).toLocaleString('en-US')} ر.س</span>
+                <span className="font-bold num">{formatSar((selectedDebt.originalAmount ?? 0))}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-[var(--muted)]">المتبقي:</span>
                 <span className="font-bold num text-[var(--danger)]">
-                  {(selectedDebt.remainingAmount ?? 0).toLocaleString('en-US')} ر.س
+                  {formatSar((selectedDebt.remainingAmount ?? 0))}
                 </span>
               </div>
               <div className="flex justify-between">

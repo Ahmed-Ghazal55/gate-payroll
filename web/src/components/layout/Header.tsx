@@ -23,34 +23,31 @@ import {
   FileSpreadsheet,
   ClipboardCheck,
   Banknote,
+  FileUp,
   Volume2,
   VolumeX,
   Calculator,
   Percent,
   Receipt,
-  PauseCircle,
 } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import type { CompanySponsor, UserProfile } from '../../lib/types';
+import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
 import { NotificationsPanel } from './NotificationsPanel';
 import { GlobalSearchModal } from './GlobalSearchModal';
 import { SearchableSelect } from '../ui/SearchableSelect';
 import { personalSoundEnabled, setPersonalSoundEnabled, unlockNotificationSound, playPersonalChime } from '../../lib/notification-sound';
-
-function rollingPeriods(count = 24): string[] {
-  const out: string[] = [];
-  const now = new Date();
-  for (let i = 0; i < count; i++) {
-    const d = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth() - i, 1));
-    out.push(`${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, '0')}`);
-  }
-  return out;
-}
+import { getBreadcrumbTabLabel } from '../../lib/page-tabs';
+import { appendPeriodToHref, buildPeriodOptions, readUrlPeriod } from '../../lib/period';
+import { usePeriod } from '../../lib/use-period';
+import { roleLabelAr } from '../../lib/payroll-labels';
 
 function BreadcrumbsNav() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const urlPeriod = readUrlPeriod(searchParams);
+  const withPeriod = (href: string) => appendPeriodToHref(href, urlPeriod);
 
   const parts = pathname.split('/').filter(Boolean);
   const crumbs = [{ label: 'الرئيسية', href: '/' }];
@@ -61,34 +58,39 @@ function BreadcrumbsNav() {
       workforce: 'القوى العاملة',
       riders: 'القوى العاملة',
       companies: 'الشركات والسجلات',
-      hr: 'كتالوجات الموظفين',
-      payments: 'المدفوعات والمشتريات',
+      hr: 'كتالوجات الموارد البشرية',
       operations: 'التشغيل والأسطول',
       payroll: 'الرواتب',
-      debts: 'المديونيات والتحصيل',
-      approvals: 'الاعتمادات',
+      debts: 'المديونيات والسلف',
       treasury: 'البنوك والصناديق والخزن',
       accounting: 'المحاسبة والتقارير',
-      forms: 'تطبيق المناديب والنماذج',
+      forms: 'النماذج والردود',
       'rider-app': 'تطبيق المناديب والنماذج',
       notifications: 'الإشعارات والتنبيهات',
       admin: 'الإدارة',
     };
     if (sectionLabels[section]) {
-      crumbs.push({ label: sectionLabels[section], href: `/${section}/` });
+      const href =
+        section === 'riders' && parts[1] === 'statement'
+          ? '/riders/statement/'
+          : section === 'hr'
+            ? '/hr/catalogs/'
+            : `/${section}/`;
+      crumbs.push({ label: sectionLabels[section], href });
+    }
+    if (section === 'riders' && parts[1] === 'statement') {
+      crumbs.push({ label: 'كشف حساب المندوب', href: '/riders/statement/' });
+    }
+    if (section === 'workforce') {
+      crumbs.push({ label: 'القوى العاملة', href: '/workforce/' });
     }
   }
 
   const tab = searchParams?.get('tab');
-  if (tab) {
-    const tabLabels: Record<string, string> = {
-      campaigns: 'الحملات والروابط',
-      builder: 'مصمم النماذج',
-      responses: 'مراجعة الردود',
-      analytics: 'التحليلات',
-    };
-    if (tabLabels[tab]) {
-      crumbs.push({ label: tabLabels[tab], href: '#' });
+  if (tab && parts.length > 0) {
+    const label = getBreadcrumbTabLabel(parts[0], tab);
+    if (label) {
+      crumbs.push({ label, href: '#' });
     }
   }
 
@@ -100,7 +102,7 @@ function BreadcrumbsNav() {
           {i === crumbs.length - 1 ? (
             <span className="font-bold text-[var(--ink)]">{c.label}</span>
           ) : (
-            <Link href={c.href} className="hover:text-[var(--ink)] transition">
+            <Link href={withPeriod(c.href)} className="hover:text-[var(--ink)] transition">
               {c.label}
             </Link>
           )}
@@ -114,22 +116,26 @@ export interface HeaderProps {
   onToggleMobileNav: () => void;
   selectedCompany?: string;
   onCompanyChange?: (company: string) => void;
-  selectedPeriod?: string;
-  onPeriodChange?: (period: string) => void;
 }
 
-export function Header({
+function HeaderInner({
   onToggleMobileNav,
   selectedCompany = 'all',
   onCompanyChange,
-  selectedPeriod = '2026-10',
-  onPeriodChange,
 }: HeaderProps) {
+  const { period: selectedPeriod, urlPeriod, setPeriod: onPeriodChange } = usePeriod();
+  const withPeriod = (href: string) => appendPeriodToHref(href, urlPeriod);
+  const periodOptions = buildPeriodOptions(selectedPeriod);
   // Panel and menu open state (strictly one open at a time: R6ui-2)
   const [openPanel, setOpenPanel] = useState<'notif' | 'personal_notif' | 'theme' | 'user' | 'shortcuts' | null>(null);
 
   // Auth context for permissions and current user
   const { can, isAdmin, user } = useAuth();
+  const [companyOptions, setCompanyOptions] = useState<CompanySponsor[]>([]);
+
+  useEffect(() => {
+    loadCompanyOptions().then(setCompanyOptions).catch(() => setCompanyOptions([]));
+  }, []);
 
   // Theme state
   const [currentTheme, setCurrentTheme] = useState<'sand' | 'light' | 'dim'>('sand');
@@ -142,26 +148,8 @@ export function Header({
   // null until the first poll, so existing items never ring on page load.
   const lastPersonalRef = useRef<number | null>(null);
 
-  const [companies, setCompanies] = useState<CompanySponsor[]>([]);
-  const [periods, setPeriods] = useState<string[]>(rollingPeriods());
-
   // Search modal state
   const [searchModalOpen, setSearchModalOpen] = useState(false);
-
-  useEffect(() => {
-    api
-      .getCompanies()
-      .then((list) => setCompanies(Array.isArray(list) ? list : []))
-      .catch(() => setCompanies([]));
-    api
-      .getAdminSettings()
-      .then((settings) => {
-        const fromApi = (settings as { openPeriods?: string[]; periods?: string[] }).openPeriods
-          || (settings as { periods?: string[] }).periods;
-        if (Array.isArray(fromApi) && fromApi.length) setPeriods(fromApi.map(String));
-      })
-      .catch(() => setPeriods(rollingPeriods()));
-  }, []);
 
   const notifMenuRef = useRef<HTMLDivElement>(null);
   const personalNotifMenuRef = useRef<HTMLDivElement>(null);
@@ -278,70 +266,77 @@ export function Header({
     can('advances.payout:card') ||
     Boolean(user?.permissions && user.permissions.some((p) => p.startsWith('advances.payout')));
 
-  // Shortcuts list gated by can() — U-W3-01 (no import/sync)
+  // Shortcuts list gated by can()
   const shortcutItems = [
+    {
+      id: 'approvals-inbox',
+      label: 'صندوق الاعتمادات',
+      href: '/approvals/',
+      icon: <ClipboardCheck size={15} className="text-[var(--accent)]" />,
+      visible: can('approvals.view') || can('approvals.decide'),
+    },
     {
       id: 'monthly-cycle',
       label: 'تصفية شهرية',
-      href: '/payroll/keeta',
+      href: '/payroll/?tab=cycle',
       icon: <Calculator size={15} className="text-[var(--accent)]" />,
       visible: can('payroll.view') || can('pay.view'),
     },
     {
-      id: 'manual-journal',
-      label: 'إنشاء قيد محاسبي',
-      href: '/accounting/?tab=manual_journals&action=new',
-      icon: <FileSpreadsheet size={15} className="text-[var(--warning)]" />,
-      visible: can('finance.journal.create'),
+      id: 'advances-shortcut',
+      label: 'السلف',
+      href: '/debts/?tab=advance_requests',
+      icon: <Banknote size={15} className="text-[var(--money-pos)]" />,
+      visible: can('advances.request') || can('advances.review') || can('advances.payout'),
+    },
+    {
+      id: 'deductions-shortcut',
+      label: 'الخصومات',
+      href: '/payroll/?tab=deductions',
+      icon: <Percent size={15} className="text-[var(--warning)]" />,
+      visible: can('payroll.view') || can('pay.view'),
     },
     {
       id: 'advance-request',
       label: 'طلب سلفة',
-      href: '/payments/advances?action=new',
+      href: '/debts/?tab=advance_requests&action=new',
       icon: <PlusCircle size={15} className="text-[var(--accent)]" />,
       visible: can('advances.request'),
     },
     {
       id: 'advance-request-net',
       label: 'طلب سلفة نت',
-      href: '/payments/advances?action=new_internet',
+      href: '/debts/?tab=advance_requests&action=new_internet',
       icon: <Smartphone size={15} className="text-[var(--info)]" />,
       visible: can('advances.request'),
     },
     {
+      id: 'manual-journal',
+      label: 'إنشاء قيد محاسبي',
+      href: '/accounting/?tab=manual_journals&action=manual_journal',
+      icon: <FileSpreadsheet size={15} className="text-[var(--warning)]" />,
+      visible: can('finance.journal.create'),
+    },
+    {
+      id: 'advance-review',
+      label: 'مراجعة السلف',
+      href: '/debts/?tab=advance_requests',
+      icon: <ClipboardCheck size={15} className="text-[var(--money-pos)]" />,
+      visible: can('advances.review'),
+    },
+    {
       id: 'advance-payout',
       label: 'صرف السلف',
-      href: '/payments/advances?tab=payouts',
+      href: '/treasury/?tab=advance_payouts',
       icon: <Banknote size={15} className="text-[var(--accent)]" />,
       visible: canPayout,
     },
     {
-      id: 'salary-hold',
-      label: 'طلب إيقاف راتب',
-      href: '/payroll/holds?action=new_hold',
-      icon: <PauseCircle size={15} className="text-[var(--warning)]" />,
-      visible: can('salaries.hold.request'),
-    },
-    {
-      id: 'salary-deduction',
-      label: 'طلب خصم',
-      href: '/payroll/holds?action=new_deduction',
-      icon: <Percent size={15} className="text-[var(--warning)]" />,
-      visible: can('salaries.deduction.request'),
-    },
-    {
-      id: 'quick-payment',
-      label: 'تسجيل دفعة سريعة',
-      href: '/payments/quick',
-      icon: <Receipt size={15} className="text-[var(--info)]" />,
-      visible: can('payments.disburse'),
-    },
-    {
-      id: 'staff-chat',
-      label: 'محادثة الموظفين',
-      href: '/admin/?tab=staff_chat',
-      icon: <ClipboardCheck size={15} className="text-[var(--money-pos)]" />,
-      visible: can('chat.view'),
+      id: 'ninja-upload',
+      label: 'رفع فاتورة نينجا',
+      href: '/payroll/?tab=ninja_upload',
+      icon: <FileUp size={15} className="text-[var(--info)]" />,
+      visible: can('pay.view'),
     },
   ];
 
@@ -386,31 +381,36 @@ export function Header({
 
         {/* Right Section: Company Scope, Period, Approvals, Bell, Theme, User */}
         <div className="flex shrink-0 items-center gap-1.5 sm:gap-2.5">
-          {/* Company Scope Selector — live GET /api/companies */}
-          <div className="hidden md:flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs min-w-[10rem]">
+          {/* Company Scope Selector */}
+          <div className="hidden md:flex items-center gap-1 text-xs">
             <Building2 size={14} className="text-[var(--muted)] shrink-0" />
             <SearchableSelect
-              ariaLabel="نطاق الشركة"
+              id="header-company-scope"
               value={selectedCompany}
-              onChange={(v) => onCompanyChange?.(v)}
+              onChange={(v) => onCompanyChange && onCompanyChange(v)}
+              ariaLabel="نطاق الشركة"
+              placeholder="كل الشركات"
+              size="sm"
+              className="w-36"
               options={[
                 { value: 'all', label: 'كل الشركات' },
-                ...companies.map((c) => ({
-                  value: c.id || c.code || '',
-                  label: c.nameAr || c.shortNameAr || c.code || c.id || '—',
-                })),
+                ...companyOptions.map((c) => ({ value: String(c.code || c.id), label: companyLabel(c) })),
               ]}
             />
           </div>
 
-          {/* Period Picker — one URL period via AppShell */}
-          <div className="hidden lg:flex items-center gap-1 px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs min-w-[8rem]">
+          {/* Period Picker (URL ?period=YYYY-MM single source of truth) */}
+          <div className="hidden lg:flex items-center gap-1 text-xs">
             <Calendar size={14} className="text-[var(--muted)] shrink-0" />
             <SearchableSelect
-              ariaLabel="فترة العمل"
+              id="header-period-picker"
               value={selectedPeriod}
-              onChange={(v) => onPeriodChange?.(v)}
-              options={periods.map((p) => ({ value: p, label: p }))}
+              onChange={(v) => onPeriodChange(v)}
+              ariaLabel="فترة العمل"
+              placeholder="الفترة"
+              size="sm"
+              className="w-28"
+              options={periodOptions}
             />
           </div>
 
@@ -452,7 +452,7 @@ export function Header({
                     {visibleShortcuts.map((item) => (
                         <Link
                           key={item.id}
-                          href={item.href}
+                          href={withPeriod(item.href)}
                           onClick={() => setOpenPanel(null)}
                           className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-[var(--row-hover)] transition text-[var(--ink)] font-semibold"
                         >
@@ -550,7 +550,7 @@ export function Header({
                     <span data-theme="sand" className="h-3 w-3 rounded-full bg-[var(--bg)] border border-[var(--line)]" />
                     <span>رملي (افتراضي)</span>
                   </div>
-                  {currentTheme === 'sand' && <Check size={14} className="text-[var(--accent)]" />}
+                  {currentTheme === 'sand' && <Check size={14} className="text-[var(--accent)]" aria-hidden="true" />}
                 </button>
                 <button
                   type="button"
@@ -561,7 +561,7 @@ export function Header({
                     <span data-theme="light" className="h-3 w-3 rounded-full bg-[var(--bg)] border border-[var(--line)]" />
                     <span>فاتح</span>
                   </div>
-                  {currentTheme === 'light' && <Check size={14} className="text-[var(--accent)]" />}
+                  {currentTheme === 'light' && <Check size={14} className="text-[var(--accent)]" aria-hidden="true" />}
                 </button>
                 <button
                   type="button"
@@ -572,7 +572,7 @@ export function Header({
                     <span data-theme="dim" className="h-3 w-3 rounded-full bg-[var(--bg)] border border-[var(--line)]" />
                     <span>داكن هادئ</span>
                   </div>
-                  {currentTheme === 'dim' && <Check size={14} className="text-[var(--accent)]" />}
+                  {currentTheme === 'dim' && <Check size={14} className="text-[var(--accent)]" aria-hidden="true" />}
                 </button>
               </div>
             )}
@@ -595,7 +595,7 @@ export function Header({
                   {user?.displayNameAr || 'مدير النظام'}
                 </span>
                 <span className="text-[10px] text-[var(--muted)] leading-tight truncate">
-                  {user?.role || 'مسؤول'}
+                  {roleLabelAr(user?.role, user?.roleNameAr)}
                 </span>
               </div>
               <ChevronDown size={14} className="hidden sm:block text-[var(--muted)]" />
@@ -608,12 +608,12 @@ export function Header({
                     {user?.displayNameAr || 'مدير النظام'}
                   </div>
                   <div className="text-[11px] text-[var(--muted)]">
-                    @{user?.username || 'admin'} · {user?.role || 'مسؤول'}
+                    @{user?.username || 'admin'} · {roleLabelAr(user?.role, user?.roleNameAr)}
                   </div>
                 </div>
 
                 <Link
-                  href="/admin/"
+                  href={withPeriod('/admin/')}
                   onClick={() => setOpenPanel(null)}
                   className="flex items-center gap-2.5 px-3.5 py-2 hover:bg-[var(--row-hover)] text-[var(--ink)]"
                 >
@@ -659,5 +659,17 @@ export function Header({
       />
 
     </>
+  );
+}
+
+export function Header(props: HeaderProps) {
+  return (
+    <Suspense
+      fallback={
+        <header className="sticky top-0 z-30 flex h-16 items-center justify-between gap-2 sm:gap-4 border-b border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] px-3 sm:px-6 shadow-2xs" />
+      }
+    >
+      <HeaderInner {...props} />
+    </Suspense>
   );
 }

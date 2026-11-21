@@ -1,7 +1,14 @@
 'use client';
 
 import React, { useCallback, useState, useEffect, useMemo, Suspense } from 'react';
-import { useSearchParams } from 'next/navigation';
+import Link from 'next/link';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import {
+  ADMIN_TAB_LABELS,
+  buildTabRedirectUrl,
+  resolveAdminTab,
+  type AdminTab,
+} from '../../lib/page-tabs';
 import {
   ShieldCheck,
   Users,
@@ -33,15 +40,23 @@ import {
   ShieldAlert,
 } from 'lucide-react';
 import { api } from '../../lib/api';
+import {
+  auditActionLabelAr,
+  auditActorLabelAr,
+  formatAuditActorDisplay,
+  formatAuditAt,
+  shortAuditId,
+} from '../../lib/audit-labels';
+import { orgOperationLabelAr, permissionCodesLabelAr, roleLabelAr } from '../../lib/payroll-labels';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
-import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RiderPicker } from '../../components/ui/RiderPicker';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import { ConfigListsPanel } from '../../features/admin/ConfigListsPanel';
 import { ApprovalBypassPanel } from '../../features/admin/ApprovalBypassPanel';
 import { AdminSettingsPanel } from '../../features/admin/AdminSettingsPanel';
@@ -60,16 +75,17 @@ import type {
 function AdminPageInner() {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const tabFromUrl = searchParams?.get('tab') || 'users';
-  const [activeTab, setActiveTab] = useState<string>(tabFromUrl);
+  const resolvedTab = resolveAdminTab(searchParams?.get('tab'));
+  const activeTab: AdminTab = resolvedTab.tab;
 
   useEffect(() => {
-    if (tabFromUrl && tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
-    }
-  }, [tabFromUrl]);
+    if (!resolvedTab.legacy) return;
+    router.replace(buildTabRedirectUrl(pathname || '/admin/', searchParams, resolvedTab), { scroll: false });
+  }, [resolvedTab.legacy, resolvedTab.tab, pathname, router, searchParams]);
 
   // Users State
   const [users, setUsers] = useState<any[]>([]);
@@ -92,17 +108,18 @@ function AdminPageInner() {
   const [newDept, setNewDept] = useState<string>('FIN');
   const [creatingUser, setCreatingUser] = useState<boolean>(false);
 
-  // Audit State
+  // Audit State (server-paged; never load the whole table)
   const [auditLogs, setAuditLogs] = useState<any[]>([]);
   const [loadingAudit, setLoadingAudit] = useState<boolean>(false);
   const [auditError, setAuditError] = useState<string | null>(null);
   const [auditSearch, setAuditSearch] = useState<string>('');
+  const [auditSearchDebounced, setAuditSearchDebounced] = useState<string>('');
   const [auditActionFilter, setAuditActionFilter] = useState<string>('all');
+  const [auditPage, setAuditPage] = useState(1);
+  const [auditPageSize] = useState(50);
+  const [auditTotal, setAuditTotal] = useState(0);
 
   // Firebase Config State
-  const [fbProjectId, setFbProjectId] = useState<string>('gate-payroll-app');
-  const [fbClientEmail, setFbClientEmail] = useState<string>('firebase-adminsdk@gate-payroll.iam.gserviceaccount.com');
-
   // ========================================================
   // R5-3 ORG DIRECTORY STATES (BR §25.1)
   // ========================================================
@@ -152,6 +169,7 @@ function AdminPageInner() {
   const [loadingResponsible, setLoadingResponsible] = useState<boolean>(false);
 
   const canManageOrg = can('org.manage') || isAdmin;
+  const canViewAudit = can('audit.view') || isAdmin;
 
   // Load Users
   const loadUsers = async () => {
@@ -167,19 +185,26 @@ function AdminPageInner() {
     }
   };
 
-  // Load Audit
-  const loadAudit = async () => {
+  // Load Audit (server page + filters; SQL-backed on the API)
+  const loadAudit = useCallback(async (page = auditPage) => {
     setLoadingAudit(true);
     setAuditError(null);
     try {
-      const res = await api.getAuditLogs();
-      setAuditLogs(Array.isArray(res) ? res : []);
+      const res = await api.getAuditLogs({
+        page,
+        pageSize: auditPageSize,
+        q: auditSearchDebounced.trim() || undefined,
+        action: auditActionFilter,
+      });
+      setAuditLogs(Array.isArray(res?.items) ? res.items : []);
+      setAuditTotal(typeof res?.total === 'number' ? res.total : 0);
+      setAuditPage(typeof res?.page === 'number' ? res.page : page);
     } catch (err: any) {
       setAuditError(err.message || 'تعذر تحميل سجل التدقيق');
     } finally {
       setLoadingAudit(false);
     }
-  };
+  }, [auditPage, auditPageSize, auditSearchDebounced, auditActionFilter]);
 
   // Load Org Directory Data
   const loadOrgData = async () => {
@@ -221,16 +246,33 @@ function AdminPageInner() {
 
   useEffect(() => {
     loadUsers();
+    if (canManageOrg) {
+      void loadOrgData();
+      void loadResponsible(queryOperation);
+    }
+    if (canViewAudit) {
+      void loadAudit(1);
+    }
   }, []);
 
   useEffect(() => {
+    const t = setTimeout(() => setAuditSearchDebounced(auditSearch), 300);
+    return () => clearTimeout(t);
+  }, [auditSearch]);
+
+  useEffect(() => {
     if (activeTab === 'audit') {
-      loadAudit();
+      void loadAudit(1);
     } else if (activeTab === 'org') {
       loadOrgData();
       loadResponsible(queryOperation);
     }
   }, [activeTab]);
+
+  useEffect(() => {
+    if (activeTab !== 'audit') return;
+    void loadAudit(1);
+  }, [auditSearchDebounced, auditActionFilter]);
 
   // Create User
   const handleCreateUser = async () => {
@@ -425,33 +467,153 @@ function AdminPageInner() {
     });
   }, [users, userSearch]);
 
-  // Filtered Audit Logs
-  const filteredAudit = useMemo(() => {
-    return auditLogs.filter((l) => {
-      if (auditActionFilter !== 'all' && !l.action?.includes(auditActionFilter)) return false;
-      if (!auditSearch.trim()) return true;
-      const q = auditSearch.toLowerCase().trim();
-      return (
-        (l.action && l.action.toLowerCase().includes(q)) ||
-        (l.actor && l.actor.toLowerCase().includes(q)) ||
-        (l.id && l.id.toLowerCase().includes(q))
-      );
-    });
-  }, [auditLogs, auditActionFilter, auditSearch]);
+  const auditTotalPages = Math.max(1, Math.ceil(auditTotal / auditPageSize));
 
-  // Sidebar owns admin ?tab= entries (page-tabs-rule 3.0) — no duplicate top tab bar.
+  const usersFilterCols = useMemo(
+    () => [
+      { key: 'username', header: 'اسم المستخدم', type: 'text' as const, getValue: (u: any) => u.username || '' },
+      {
+        key: 'role',
+        header: 'الدور الوظيفي',
+        type: 'list' as const,
+        getValue: (u: any) => roleLabelAr(u.role, u.roleNameAr),
+      },
+      { key: 'department', header: 'القسم', type: 'list' as const, getValue: (u: any) => u.department || 'ALL' },
+      {
+        key: 'customPermissions',
+        header: 'الصلاحيات المخصصة',
+        type: 'text' as const,
+        getValue: (u: any) => permissionCodesLabelAr(u.customPermissions, accessCatalog?.permissions),
+      },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (u: any) => (u.status === 'suspended' ? 'suspended' : 'active'),
+        labelOf: (v: unknown) => (v === 'suspended' ? 'موقوف' : 'نشط'),
+        toneOf: (v: unknown) => (v === 'suspended' ? 'danger' : 'success'),
+      },
+    ],
+    [accessCatalog]
+  );
+  const usersFilter = useTableAutoFilter(filteredUsers, usersFilterCols);
+
+  const membershipsFilterCols = useMemo(
+    () => [
+      { key: 'userId', header: 'المستخدم', type: 'list' as const, getValue: (m: any) => m.userId || '' },
+      { key: 'department', header: 'القسم', type: 'list' as const, getValue: (m: any) => m.department || '' },
+      { key: 'rank', header: 'الرتبة', type: 'list' as const, getValue: (m: any) => m.rank || '' },
+      { key: 'validFrom', header: 'سارٍ من', type: 'date' as const, getValue: (m: any) => m.validFrom?.split('T')[0] || '' },
+      { key: 'validTo', header: 'سارٍ حتى', type: 'date' as const, getValue: (m: any) => m.validTo?.split('T')[0] || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (m: any) => (m.validTo ? 'ended' : 'active'),
+        labelOf: (v: unknown) => (v === 'ended' ? 'منتهية' : 'نشطة'),
+        toneOf: (v: unknown) => (v === 'ended' ? 'neutral' : 'success'),
+      },
+    ],
+    []
+  );
+  const membershipsFilter = useTableAutoFilter(memberships, membershipsFilterCols);
+
+  const delegationsFilterCols = useMemo(
+    () => [
+      { key: 'fromUser', header: 'المفوض (من)', type: 'list' as const, getValue: (d: any) => d.fromUser || '' },
+      { key: 'toUser', header: 'المفوض إليه (إلى)', type: 'list' as const, getValue: (d: any) => d.toUser || '' },
+      { key: 'operation', header: 'العملية المفوضة', type: 'list' as const, getValue: (d: any) => d.operation || '' },
+      { key: 'validFrom', header: 'سارٍ من', type: 'date' as const, getValue: (d: any) => d.validFrom?.split('T')[0] || '' },
+      { key: 'until', header: 'حتى تاريخ', type: 'date' as const, getValue: (d: any) => d.until?.split('T')[0] || '' },
+      { key: 'reason', header: 'السبب', type: 'text' as const, getValue: (d: any) => d.reason || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (d: any) => (d.until && new Date(d.until).getTime() < Date.now() ? 'expired' : 'active'),
+        labelOf: (v: unknown) => (v === 'expired' ? 'منتهٍ' : 'نشط'),
+        toneOf: (v: unknown) => (v === 'expired' ? 'neutral' : 'success'),
+      },
+    ],
+    []
+  );
+  const delegationsFilter = useTableAutoFilter(delegations, delegationsFilterCols);
+
+  const supervisionsFilterCols = useMemo(
+    () => [
+      { key: 'supervisorUserId', header: 'المشرف المسؤول', type: 'list' as const, getValue: (s: any) => s.supervisorUserId || '' },
+      { key: 'riderName', header: 'اسم المندوب', type: 'text' as const, getValue: (s: any) => s.riderName || 'مندوب مسجل' },
+      { key: 'riderIqama', header: 'رقم الإقامة', type: 'text' as const, getValue: (s: any) => s.riderIqama || '' },
+      { key: 'validFrom', header: 'سارٍ من', type: 'date' as const, getValue: (s: any) => s.validFrom?.split('T')[0] || '' },
+      { key: 'validTo', header: 'سارٍ حتى', type: 'date' as const, getValue: (s: any) => s.validTo?.split('T')[0] || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (s: any) => (s.validTo ? 'ended' : 'active'),
+        labelOf: (v: unknown) => (v === 'ended' ? 'منتهٍ' : 'نشط'),
+        toneOf: (v: unknown) => (v === 'ended' ? 'neutral' : 'success'),
+      },
+    ],
+    []
+  );
+  const supervisionsFilter = useTableAutoFilter(supervisions, supervisionsFilterCols);
+
+  const routingsFilterCols = useMemo(
+    () => [
+      { key: 'operation', header: 'العملية الموجهة', type: 'list' as const, getValue: (r: any) => r.operation || '' },
+      { key: 'department', header: 'القسم', type: 'list' as const, getValue: (r: any) => r.department || '' },
+      { key: 'minRank', header: 'الحد الأدنى للرتبة', type: 'list' as const, getValue: (r: any) => r.minRank || '' },
+      { key: 'users', header: 'المستخدمون المكلفون', type: 'text' as const, getValue: (r: any) => (r.users || []).join(', ') },
+      { key: 'validFrom', header: 'سارٍ من', type: 'date' as const, getValue: (r: any) => r.validFrom?.split('T')[0] || '' },
+      { key: 'validTo', header: 'سارٍ حتى', type: 'date' as const, getValue: (r: any) => r.validTo?.split('T')[0] || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (r: any) => (r.validTo ? 'ended' : 'active'),
+        labelOf: (v: unknown) => (v === 'ended' ? 'منتهٍ' : 'نشط'),
+        toneOf: (v: unknown) => (v === 'ended' ? 'neutral' : 'success'),
+      },
+    ],
+    []
+  );
+  const routingsFilter = useTableAutoFilter(routings, routingsFilterCols);
+
+  const auditFilterCols = useMemo(
+    () => [
+      { key: 'id', header: 'المعرف', type: 'text' as const, getValue: (l: any) => String(l.id ?? '') },
+      {
+        key: 'action',
+        header: 'نوع العملية',
+        type: 'list' as const,
+        getValue: (l: any) => l.action || '',
+        labelOf: (v: unknown) => auditActionLabelAr(String(v ?? '')),
+      },
+      {
+        key: 'actor',
+        header: 'المنفذ',
+        type: 'list' as const,
+        getValue: (l: any) => l.actor || 'system',
+        labelOf: (v: unknown) => auditActorLabelAr(String(v ?? '')),
+      },
+      { key: 'at', header: 'التاريخ والوقت', type: 'date' as const, getValue: (l: any) => l.at || l.createdAt || '' },
+    ],
+    []
+  );
+  const auditFilter = useTableAutoFilter(auditLogs, auditFilterCols);
 
   return (
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
         title="الإدارة والتنظيم المؤسسي"
-        eyebrow="التحكم والأمن ونظام الرتب"
-        description="إدارة المستخدمين والصلاحيات والأقسام وتجاوز الاعتماد وسجل التدقيق وإعدادات النظام."
+        eyebrow={ADMIN_TAB_LABELS[activeTab]}
+        description="إدارة حسابات المستخدمين، سجل الأقسام والرتب والتفويضات، تعيين المشرفين وتوجيه مسؤولي مراجعة وصرف السلف، وفحص سجل التدقيق."
         primaryAction={
           activeTab === 'users'
             ? {
-                label: 'إضافة مستخدم جديد',
+                label: 'إضافة مستخدم',
                 icon: <UserPlus size={15} />,
                 onClick: () => setAddUserOpen(true),
               }
@@ -461,9 +623,45 @@ function AdminPageInner() {
                   icon: <RefreshCw size={15} />,
                   onClick: loadOrgData,
                 }
-              : undefined
+              : activeTab === 'audit'
+                ? {
+                    label: 'تحديث السجل',
+                    icon: <RefreshCw size={15} />,
+                    onClick: () => void loadAudit(auditPage),
+                  }
+              : activeTab === 'lists'
+                ? undefined
+                : undefined
         }
       />
+
+      {/* Stat Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
+        <StatCard
+          label="إجمالي المستخدمين المسجلين"
+          value={users.length}
+          hint="حسابات نشطة في المنظومة"
+          icon={Users}
+        />
+        <StatCard
+          label="العضويات النشطة بالأقسام"
+          value={memberships.filter((m) => !m.validTo).length}
+          hint="أعضاء مثبتون بالرتب التنظيمية"
+          icon={Building2}
+        />
+        <StatCard
+          label="المسؤولين المكلفين بالسلف"
+          value={responsibleUsers.length}
+          hint="مكلفون بمراجعة وصرف السلف"
+          icon={UserCheck}
+        />
+        <StatCard
+          label="عمليات سجل التدقيق"
+          value={auditTotal}
+          hint="سجل الحركات والأمان المالي"
+          icon={History}
+        />
+      </div>
 
       {/* ======================================================== */}
       {/* Tab 1: المستخدمون والصلاحيات                              */}
@@ -485,11 +683,37 @@ function AdminPageInner() {
             <div className="flex items-center gap-2">
               <button
                 type="button"
-                onClick={() => setAddUserOpen(true)}
-                className="px-3.5 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs inline-flex items-center gap-1.5 hover:opacity-90 transition cursor-pointer"
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      const headers = ['اسم المستخدم', 'الدور', 'القسم', 'الحالة'];
+                      const rows = filteredUsers.map((u) => [
+                        u.username,
+                        roleLabelAr(u.role, u.roleNameAr),
+                        u.department || '',
+                        u.disabled ? 'معطل' : 'نشط',
+                      ]);
+                      const blob = await api.exportExcel({
+                        headers,
+                        rows,
+                        numericColumns: [],
+                        filename: 'admin-users.xlsx',
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'admin-users.xlsx';
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch {
+                      toast('تعذر تصدير المستخدمين', 'danger');
+                    }
+                  })();
+                }}
+                className="px-3.5 py-1.5 rounded-xl border border-[var(--line)] font-bold text-xs inline-flex items-center gap-1.5 hover:bg-[var(--raised)] transition cursor-pointer"
               >
-                <UserPlus size={14} />
-                <span>إضافة مستخدم</span>
+                <Download size={14} />
+                <span>تصدير إكسل</span>
               </button>
             </div>
           </div>
@@ -509,34 +733,33 @@ function AdminPageInner() {
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar controller={usersFilter} totalCount={filteredUsers.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">اسم المستخدم</th>
-                      <th className="p-3 text-start">الدور الوظيفي</th>
-                      <th className="p-3 text-start">القسم</th>
-                      <th className="p-3 text-start">الصلاحيات المخصصة</th>
-                      <th className="p-3 text-start">الحالة</th>
+                      <AutoFilterTh controller={usersFilter} colKey="username" className="p-3 text-start" />
+                      <AutoFilterTh controller={usersFilter} colKey="role" className="p-3 text-start" />
+                      <AutoFilterTh controller={usersFilter} colKey="department" className="p-3 text-start" />
+                      <AutoFilterTh controller={usersFilter} colKey="customPermissions" className="p-3 text-start" />
+                      <AutoFilterTh controller={usersFilter} colKey="status" className="p-3 text-start" />
                       <th className="p-3 text-start">إجراءات</th>
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {filteredUsers.map((u) => (
+                    {usersFilter.rows.map((u) => (
                       <tr key={u.id || u.username} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-mono font-bold text-[var(--ink)]">
-                          @{u.username}
+                          <bdi dir="ltr">@{u.username}</bdi>
                         </td>
-                        <td className="p-3 font-medium">{u.roleNameAr || u.role}</td>
+                        <td className="p-3 font-medium">{roleLabelAr(u.role, u.roleNameAr)}</td>
                         <td className="p-3">
                           <span className="px-2 py-0.5 rounded-md text-xs font-mono bg-[var(--raised)]">
                             {u.department || 'ALL'}
                           </span>
                         </td>
                         <td className="p-3 text-xs text-[var(--muted)] max-w-xs truncate">
-                          {u.customPermissions && u.customPermissions.length > 0
-                            ? u.customPermissions.join(', ')
-                            : 'حسب الدور الأساسي'}
+                          {permissionCodesLabelAr(u.customPermissions, accessCatalog?.permissions)}
                         </td>
                         <td className="p-3">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${u.status === 'suspended' ? 'bg-[var(--danger)]/15 text-[var(--danger)]' : 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'}`}>
@@ -662,21 +885,22 @@ function AdminPageInner() {
                 />
               ) : (
                 <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                  <AutoFilterBar controller={membershipsFilter} totalCount={memberships.length} />
                   <div className="overflow-x-auto">
                     <table className="w-full text-start text-xs sm:text-sm">
                       <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                         <tr>
-                          <th className="p-3 text-start">المستخدم</th>
-                          <th className="p-3 text-start">القسم</th>
-                          <th className="p-3 text-start">الرتبة</th>
-                          <th className="p-3 text-start">سارٍ من</th>
-                          <th className="p-3 text-start">سارٍ حتى</th>
-                          <th className="p-3 text-start">الحالة</th>
+                          <AutoFilterTh controller={membershipsFilter} colKey="userId" className="p-3 text-start" />
+                          <AutoFilterTh controller={membershipsFilter} colKey="department" className="p-3 text-start" />
+                          <AutoFilterTh controller={membershipsFilter} colKey="rank" className="p-3 text-start" />
+                          <AutoFilterTh controller={membershipsFilter} colKey="validFrom" className="p-3 text-start" />
+                          <AutoFilterTh controller={membershipsFilter} colKey="validTo" className="p-3 text-start" />
+                          <AutoFilterTh controller={membershipsFilter} colKey="status" className="p-3 text-start" />
                           <th className="p-3 text-start">الإجراءات</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--line)]">
-                        {memberships.map((m) => {
+                        {membershipsFilter.rows.map((m) => {
                           const isEnded = Boolean(m.validTo);
                           return (
                             <tr
@@ -685,7 +909,9 @@ function AdminPageInner() {
                                 isEnded ? 'opacity-60 bg-[var(--raised)]/30 text-[var(--muted)]' : 'hover:bg-[var(--row-hover)]'
                               }`}
                             >
-                              <td className="p-3 font-mono font-bold">@{m.userId}</td>
+                              <td className="p-3 font-mono font-bold">
+                                <bdi dir="ltr">@{m.userId}</bdi>
+                              </td>
                               <td className="p-3">
                                 <span className="px-2 py-0.5 rounded-md text-xs font-mono bg-[var(--raised)]">
                                   {m.department}
@@ -734,7 +960,7 @@ function AdminPageInner() {
                     التفويضات الإدارية وتمرير الصلاحيات
                   </h4>
                   <p className="text-[11px] text-[var(--muted)] mt-0.5">
-                    تفويض الصلاحية يشترط تاريخ انتهاء إلزامي (until)؛ التفويضات المنتهية تُلغى تلقائياً.
+                    تفويض الصلاحية يشترط تاريخ انتهاء إلزامي؛ التفويضات المنتهية تُلغى تلقائياً.
                   </p>
                 </div>
                 {canManageOrg && (
@@ -761,22 +987,23 @@ function AdminPageInner() {
                 />
               ) : (
                 <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                  <AutoFilterBar controller={delegationsFilter} totalCount={delegations.length} />
                   <div className="overflow-x-auto">
                     <table className="w-full text-start text-xs sm:text-sm">
                       <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                         <tr>
-                          <th className="p-3 text-start">المفوض (من)</th>
-                          <th className="p-3 text-start">المفوض إليه (إلى)</th>
-                          <th className="p-3 text-start">العملية المفوضة</th>
-                          <th className="p-3 text-start">سارٍ من</th>
-                          <th className="p-3 text-start">حتى تاريخ</th>
-                          <th className="p-3 text-start">السبب</th>
-                          <th className="p-3 text-start">الحالة</th>
+                          <AutoFilterTh controller={delegationsFilter} colKey="fromUser" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="toUser" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="operation" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="validFrom" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="until" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="reason" className="p-3 text-start" />
+                          <AutoFilterTh controller={delegationsFilter} colKey="status" className="p-3 text-start" />
                           <th className="p-3 text-start">الإجراءات</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--line)]">
-                        {delegations.map((d) => {
+                        {delegationsFilter.rows.map((d) => {
                           const isExpired = d.until && new Date(d.until).getTime() < Date.now();
                           return (
                             <tr
@@ -785,8 +1012,12 @@ function AdminPageInner() {
                                 isExpired ? 'opacity-60 bg-[var(--raised)]/30 text-[var(--muted)]' : 'hover:bg-[var(--row-hover)]'
                               }`}
                             >
-                              <td className="p-3 font-mono font-bold">@{d.fromUser}</td>
-                              <td className="p-3 font-mono font-bold text-[var(--accent)]">@{d.toUser}</td>
+                              <td className="p-3 font-mono font-bold">
+                                <bdi dir="ltr">@{d.fromUser}</bdi>
+                              </td>
+                              <td className="p-3 font-mono font-bold text-[var(--accent)]">
+                                <bdi dir="ltr">@{d.toUser}</bdi>
+                              </td>
                               <td className="p-3 font-mono text-xs">{d.operation}</td>
                               <td className="p-3 num text-xs">{d.validFrom?.split('T')[0] || '—'}</td>
                               <td className="p-3 num text-xs font-semibold">{d.until?.split('T')[0]}</td>
@@ -828,7 +1059,7 @@ function AdminPageInner() {
               <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
                 <div>
                   <h4 className="font-bold text-xs sm:text-sm text-[var(--ink)]">
-                    إشراف المشرفين على المناديب (Supervision)
+                    إشراف المشرفين على المناديب
                   </h4>
                   <p className="text-[11px] text-[var(--muted)] mt-0.5">
                     يحدد المناديب المسموح للمشرف الميداني تقديم طلبات السلف نيابة عنهم.
@@ -858,21 +1089,22 @@ function AdminPageInner() {
                 />
               ) : (
                 <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                  <AutoFilterBar controller={supervisionsFilter} totalCount={supervisions.length} />
                   <div className="overflow-x-auto">
                     <table className="w-full text-start text-xs sm:text-sm">
                       <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                         <tr>
-                          <th className="p-3 text-start">المشرف المسؤول</th>
-                          <th className="p-3 text-start">اسم المندوب</th>
-                          <th className="p-3 text-start">رقم الإقامة</th>
-                          <th className="p-3 text-start">سارٍ من</th>
-                          <th className="p-3 text-start">سارٍ حتى</th>
-                          <th className="p-3 text-start">الحالة</th>
+                          <AutoFilterTh controller={supervisionsFilter} colKey="supervisorUserId" className="p-3 text-start" />
+                          <AutoFilterTh controller={supervisionsFilter} colKey="riderName" className="p-3 text-start" />
+                          <AutoFilterTh controller={supervisionsFilter} colKey="riderIqama" className="p-3 text-start" />
+                          <AutoFilterTh controller={supervisionsFilter} colKey="validFrom" className="p-3 text-start" />
+                          <AutoFilterTh controller={supervisionsFilter} colKey="validTo" className="p-3 text-start" />
+                          <AutoFilterTh controller={supervisionsFilter} colKey="status" className="p-3 text-start" />
                           <th className="p-3 text-start">الإجراءات</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--line)]">
-                        {supervisions.map((s) => {
+                        {supervisionsFilter.rows.map((s) => {
                           const isEnded = Boolean(s.validTo);
                           return (
                             <tr
@@ -881,7 +1113,9 @@ function AdminPageInner() {
                                 isEnded ? 'opacity-60 bg-[var(--raised)]/30 text-[var(--muted)]' : 'hover:bg-[var(--row-hover)]'
                               }`}
                             >
-                              <td className="p-3 font-mono font-bold">@{s.supervisorUserId}</td>
+                              <td className="p-3 font-mono font-bold">
+                                <bdi dir="ltr">@{s.supervisorUserId}</bdi>
+                              </td>
                               <td className="p-3 font-semibold">{s.riderName || 'مندوب مسجل'}</td>
                               <td className="p-3 font-mono text-[var(--accent)]">{s.riderIqama}</td>
                               <td className="p-3 num text-xs">{s.validFrom?.split('T')[0] || '—'}</td>
@@ -923,10 +1157,10 @@ function AdminPageInner() {
               <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
                 <div>
                   <h4 className="font-bold text-xs sm:text-sm text-[var(--ink)]">
-                    جداول التوجيه وتكليف المسؤولين بالعمليات (Routing)
+                    جداول التوجيه وتكليف المسؤولين بالعمليات
                   </h4>
                   <p className="text-[11px] text-[var(--muted)] mt-0.5">
-                    توجيه مهام مراجعة السلف (advance.review) وصرف الخزن والبنوك (advance.payout:&lt;vault&gt;) للمستخدمين المؤهلين رتبوياً.
+                    توجيه مهام مراجعة السلف وصرف الخزن والبنوك حسب الخزينة المحددة، للمستخدمين المؤهلين رتبوياً.
                   </p>
                 </div>
                 {canManageOrg && (
@@ -947,18 +1181,23 @@ function AdminPageInner() {
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <div className="flex items-center gap-2">
                     <span className="text-xs font-bold text-[var(--ink)]">فحص المسؤولين المكلفين حالياً:</span>
-                    <select
+                    <SearchableSelect
+                      id="admin-responsible-op"
                       value={queryOperation}
-                      onChange={(e) => {
-                        setQueryOperation(e.target.value);
-                        loadResponsible(e.target.value);
+                      onChange={(v) => {
+                        setQueryOperation(v);
+                        loadResponsible(v);
                       }}
-                      className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs font-mono font-bold focus:outline-hidden"
-                    >
-                      <option value="advance.review">advance.review (مراجعة السلف)</option>
-                      <option value="advance.payout:MAIN.BW.DEBT">advance.payout:MAIN.BW.DEBT (صرف كفيل BW نقدية)</option>
-                      <option value="advance.payout:BANK.BW">advance.payout:BANK.BW (صرف كفيل BW بنك)</option>
-                    </select>
+                      ariaLabel="عملية التوجيه"
+                      placeholder="اختر العملية..."
+                      size="sm"
+                      className="w-72"
+                      options={[
+                        { value: 'advance.review', label: 'مراجعة السلف' },
+                        { value: 'advance.payout:MAIN.BW.DEBT', label: 'صرف كفيل البوابة نقدية (MAIN.BW.DEBT)' },
+                        { value: 'advance.payout:BANK.BW', label: 'صرف كفيل البوابة بنك (BANK.BW)' },
+                      ]}
+                    />
                   </div>
                   <button
                     type="button"
@@ -977,7 +1216,7 @@ function AdminPageInner() {
                         className="inline-flex items-center gap-1.5 px-3 py-1 rounded-xl bg-[var(--raised)] border border-[var(--line)] text-xs font-bold"
                       >
                         <UserCheck size={13} className="text-[var(--accent)]" />
-                        <span>@{ru.userId}</span>
+                        <bdi dir="ltr">@{ru.userId}</bdi>
                         <span className="text-[10px] text-[var(--muted)] font-mono">
                           ({ru.department}/{ru.rank} — {ru.via === 'delegation' ? 'بتفويض' : 'تعيين مباشر'})
                         </span>
@@ -1002,22 +1241,23 @@ function AdminPageInner() {
                 />
               ) : (
                 <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                  <AutoFilterBar controller={routingsFilter} totalCount={routings.length} />
                   <div className="overflow-x-auto">
                     <table className="w-full text-start text-xs sm:text-sm">
                       <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                         <tr>
-                          <th className="p-3 text-start">العملية الموجهة</th>
-                          <th className="p-3 text-start">القسم</th>
-                          <th className="p-3 text-start">الحد الأدنى للرتبة</th>
-                          <th className="p-3 text-start">المستخدمون المكلفون</th>
-                          <th className="p-3 text-start">سارٍ من</th>
-                          <th className="p-3 text-start">سارٍ حتى</th>
-                          <th className="p-3 text-start">الحالة</th>
+                          <AutoFilterTh controller={routingsFilter} colKey="operation" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="department" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="minRank" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="users" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="validFrom" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="validTo" className="p-3 text-start" />
+                          <AutoFilterTh controller={routingsFilter} colKey="status" className="p-3 text-start" />
                           <th className="p-3 text-start">الإجراءات</th>
                         </tr>
                       </thead>
                       <tbody className="divide-y divide-[var(--line)]">
-                        {routings.map((r) => {
+                        {routingsFilter.rows.map((r) => {
                           const isEnded = Boolean(r.validTo);
                           return (
                             <tr
@@ -1026,14 +1266,16 @@ function AdminPageInner() {
                                 isEnded ? 'opacity-60 bg-[var(--raised)]/30 text-[var(--muted)]' : 'hover:bg-[var(--row-hover)]'
                               }`}
                             >
-                              <td className="p-3 font-mono font-bold text-[var(--accent)]">{r.operation}</td>
+                              <td className="p-3 font-bold text-[var(--accent)]" title={r.operation}>
+                                {orgOperationLabelAr(r.operation)}
+                              </td>
                               <td className="p-3 font-mono text-xs">{r.department}</td>
                               <td className="p-3 font-bold">{r.minRank}</td>
                               <td className="p-3">
                                 <div className="flex items-center gap-1 flex-wrap">
                                   {r.users?.map((u, i) => (
                                     <span key={i} className="px-2 py-0.5 rounded-md bg-[var(--raised)] text-xs font-mono">
-                                      @{u}
+                                      <bdi dir="ltr">@{u}</bdi>
                                     </span>
                                   ))}
                                 </div>
@@ -1102,71 +1344,142 @@ function AdminPageInner() {
             </div>
 
             <div className="flex items-center gap-2">
-              <select
+              <SearchableSelect
+                id="admin-audit-filter"
                 value={auditActionFilter}
-                onChange={(e) => setAuditActionFilter(e.target.value)}
-                className="bg-[var(--surface)] text-[var(--ink)] border border-[var(--line)] text-xs rounded-xl px-3 py-1.5 focus:outline-hidden"
-              >
-                <option value="all">كل التصنيفات</option>
-                <option value="advance">السلف والرتب</option>
-                <option value="platform.hs">فواتير وتسويات هنقرستيشن</option>
-                <option value="finance">الخزينة والمالية</option>
-                <option value="rider">المناديب والدليل</option>
-                <option value="admin">إدارة المستخدمين</option>
-              </select>
+                onChange={setAuditActionFilter}
+                ariaLabel="تصنيف التدقيق"
+                placeholder="كل التصنيفات"
+                size="sm"
+                className="w-52"
+                options={[
+                  { value: 'all', label: 'كل التصنيفات' },
+                  { value: 'advance', label: 'السلف والرتب' },
+                  { value: 'platform.hs', label: 'فواتير وتسويات هنقرستيشن' },
+                  { value: 'finance', label: 'الخزينة والمالية' },
+                  { value: 'rider', label: 'المناديب والدليل' },
+                  { value: 'admin', label: 'إدارة المستخدمين' },
+                ]}
+              />
             </div>
 
             <div className="flex items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  void (async () => {
+                    try {
+                      const headers = ['المعرف', 'نوع العملية', 'المنفذ', 'التاريخ والوقت'];
+                      const rows = auditFilter.rows.map((log, idx) => [
+                        log.id || idx + 1,
+                        auditActionLabelAr(log.action),
+                        auditActorLabelAr(log.actor || 'system'),
+                        formatAuditAt(log.at || log.createdAt),
+                      ]);
+                      const blob = await api.exportExcel({
+                        headers,
+                        rows,
+                        numericColumns: [],
+                        filename: 'admin-audit.xlsx',
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'admin-audit.xlsx';
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch {
+                      toast('تعذر تصدير سجل التدقيق', 'danger');
+                    }
+                  })();
+                }}
+                className="px-3.5 py-1.5 rounded-xl border border-[var(--line)] font-bold text-xs inline-flex items-center gap-1.5 hover:bg-[var(--raised)] transition cursor-pointer"
+              >
+                <Download size={14} />
+                <span>تصدير إكسل</span>
+              </button>
               <span className="text-xs text-[var(--muted)]">
-                {filteredAudit.length} عملية مسجلة
+                {auditTotal} عملية مسجلة
               </span>
             </div>
           </div>
 
           {auditError ? (
-            <ErrorState title="تعذر تحميل سجل التدقيق" message={auditError} onRetry={loadAudit} />
+            <ErrorState title="تعذر تحميل سجل التدقيق" message={auditError} onRetry={() => void loadAudit(auditPage)} />
           ) : loadingAudit ? (
             <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
               <Skeleton className="h-10 w-full" />
             </div>
-          ) : filteredAudit.length === 0 ? (
+          ) : auditLogs.length === 0 ? (
             <EmptyState
               title="لا توجد عمليات تدقيق مطابقة"
               description="سجل العمليات يسجل تلقائياً كافة إجراءات الإنشاء والاعتماد والتعديل."
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+              <AutoFilterBar controller={auditFilter} totalCount={auditLogs.length} />
               <div className="overflow-x-auto">
                 <table className="w-full text-start text-xs sm:text-sm">
                   <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
                     <tr>
-                      <th className="p-3 text-start">المعرف</th>
-                      <th className="p-3 text-start">نوع العملية (Action)</th>
-                      <th className="p-3 text-start">المنفذ (Actor)</th>
-                      <th className="p-3 text-start">التاريخ والوقت</th>
+                      <AutoFilterTh controller={auditFilter} colKey="id" className="p-3 text-start" />
+                      <AutoFilterTh controller={auditFilter} colKey="action" className="p-3 text-start" />
+                      <AutoFilterTh controller={auditFilter} colKey="actor" className="p-3 text-start" />
+                      <AutoFilterTh controller={auditFilter} colKey="at" className="p-3 text-start" />
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-[var(--line)]">
-                    {filteredAudit.map((log, idx) => (
+                    {auditFilter.rows.map((log, idx) => (
                       <tr key={log.id || idx} className="hover:bg-[var(--row-hover)] transition">
-                        <td className="p-3 font-mono text-xs text-[var(--muted)]">{log.id || idx + 1}</td>
+                        <td className="p-3 font-mono text-xs text-[var(--muted)]" title={String(log.id || '')}>
+                          <span className="sm:hidden">{shortAuditId(log.id)}</span>
+                          <span className="hidden sm:inline">{log.id || idx + 1}</span>
+                        </td>
                         <td className="p-3">
-                          <span className="font-mono text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-md">
-                            {log.action}
+                          <span
+                            className="text-xs font-bold text-[var(--accent)] bg-[var(--accent)]/10 px-2 py-0.5 rounded-md"
+                            title={String(log.action || '')}
+                          >
+                            {auditActionLabelAr(log.action)}
                           </span>
                         </td>
-                        <td className="p-3 font-mono font-semibold text-[var(--ink)]">
-                          @{log.actor || 'system'}
+                        <td className="p-3 font-semibold text-[var(--ink)]">
+                          <bdi dir="ltr">{formatAuditActorDisplay(log.actor || 'system')}</bdi>
                         </td>
                         <td className="p-3 num text-xs text-[var(--muted)] whitespace-nowrap">
-                          {log.at || log.createdAt || '-'}
+                          {formatAuditAt(log.at || log.createdAt)}
                         </td>
                       </tr>
                     ))}
                   </tbody>
                 </table>
+              </div>
+              <div className="flex flex-wrap items-center justify-between gap-2 border-t border-[var(--line)] px-3 py-2 text-xs text-[var(--muted)]">
+                <span>
+                  صفحة {auditPage} من {auditTotalPages}
+                </span>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    data-testid="audit-page-prev"
+                    disabled={auditPage <= 1 || loadingAudit}
+                    onClick={() => void loadAudit(auditPage - 1)}
+                    className="px-2.5 py-1 rounded-lg border border-[var(--line)] disabled:opacity-40"
+                  >
+                    السابق
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="audit-page-next"
+                    disabled={auditPage >= auditTotalPages || loadingAudit}
+                    onClick={() => void loadAudit(auditPage + 1)}
+                    className="px-2.5 py-1 rounded-lg border border-[var(--line)] disabled:opacity-40"
+                  >
+                    التالي
+                  </button>
+                </div>
               </div>
             </div>
           )}
@@ -1197,10 +1510,10 @@ function AdminPageInner() {
       >
         <div className="space-y-4 pt-2">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">اسم المستخدم (Username):</label>
+            <label className="text-xs font-bold text-[var(--ink)]">اسم المستخدم:</label>
             <input
               type="text"
-              placeholder="e.g. ahmed.ali"
+              placeholder="مثال: ahmed.ali"
               value={newUsername}
               onChange={(e) => setNewUsername(e.target.value)}
               className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-mono focus:outline-hidden"
@@ -1220,30 +1533,30 @@ function AdminPageInner() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">الدور الوظيفي (Role):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">الدور الوظيفي:</label>
               <select
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value)}
                 className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
-                <option value="Accountant">محاسب (Accountant)</option>
-                <option value="Reviewer">مراجع ومدقق (Reviewer)</option>
-                <option value="Manager">مدير تشغيل (Manager)</option>
-                <option value="Admin">مدير نظام (Admin)</option>
+                <option value="Accountant">محاسب</option>
+                <option value="Reviewer">مراجع ومدقق</option>
+                <option value="Manager">مدير تشغيل</option>
+                <option value="Admin">مدير نظام</option>
               </select>
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">القسم الأساسي (Dept):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">القسم الأساسي:</label>
               <select
                 value={newDept}
                 onChange={(e) => setNewDept(e.target.value)}
                 className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
-                <option value="FIN">المالية والحسابات (FIN)</option>
-                <option value="OPS">التشغيل الميداني (OPS)</option>
-                <option value="HR">الموارد البشرية (HR)</option>
-                <option value="MGMT">الإدارة العامة (MGMT)</option>
+                <option value="FIN">المالية والحسابات</option>
+                <option value="OPS">التشغيل الميداني</option>
+                <option value="HR">الموارد البشرية</option>
+                <option value="MGMT">الإدارة العامة</option>
               </select>
             </div>
           </div>
@@ -1398,7 +1711,7 @@ function AdminPageInner() {
             <label className="text-xs font-bold text-[var(--ink)]">العملية المفوضة:</label>
             <input
               type="text"
-              placeholder="e.g. advance.review"
+              placeholder="مثال: مراجعة السلف"
               value={delOperation}
               onChange={(e) => setDelOperation(e.target.value)}
               required
@@ -1536,7 +1849,7 @@ function AdminPageInner() {
               <input
                 type="text"
                 id="input-route-operation"
-                placeholder="e.g. advance.review or advance.payout:BANK.BW"
+                placeholder="رمز العملية الداخلي (يُملأ من النماذج السريعة)"
                 value={routeOperation}
                 onChange={(e) => setRouteOperation(e.target.value)}
                 required
@@ -1550,21 +1863,21 @@ function AdminPageInner() {
                 onClick={() => setRouteOperation('advance.review')}
                 className="px-2 py-0.5 rounded-md border text-[10px] hover:bg-[var(--raised)]"
               >
-                advance.review
+                مراجعة السلف
               </button>
               <button
                 type="button"
                 onClick={() => setRouteOperation('advance.payout:MAIN.BW.DEBT')}
                 className="px-2 py-0.5 rounded-md border text-[10px] hover:bg-[var(--raised)]"
               >
-                advance.payout:MAIN.BW.DEBT
+                صرف نقدي كفيل البوابة
               </button>
               <button
                 type="button"
                 onClick={() => setRouteOperation('advance.payout:BANK.BW')}
                 className="px-2 py-0.5 rounded-md border text-[10px] hover:bg-[var(--raised)]"
               >
-                advance.payout:BANK.BW
+                صرف بنكي كفيل البوابة
               </button>
             </div>
           </div>
@@ -1608,7 +1921,7 @@ function AdminPageInner() {
             <input
               type="text"
               id="input-route-users"
-              placeholder="e.g. syn-accountant, ahmed.ali"
+              placeholder="أسماء المستخدمين مفصولة بفواصل"
               value={routeUsers}
               onChange={(e) => setRouteUsers(e.target.value)}
               required

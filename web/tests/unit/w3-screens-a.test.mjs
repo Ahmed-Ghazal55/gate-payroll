@@ -109,5 +109,7 @@ test('money formatter and follow-ups', () => {
   assert.doesNotMatch(payReview, /غير معتمد: "\+kind/);
   assert.match(browser, /package_web\.py/);
   assert.match(browser, /assert\.ok\(packaged/);
-  assert.match(riderApp, /getFullYear\(\)/);
+  const periodSrc = readFileSync(path.join(root, 'src/lib/period.ts'), 'utf8');
+  assert.match(periodSrc, /currentYearMonth|new Date/);
+  assert.match(riderApp, /StatementsPanel/);
 });

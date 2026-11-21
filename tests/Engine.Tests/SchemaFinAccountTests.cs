@@ -15,9 +15,7 @@ public sealed class SchemaFinAccountTests
         return c;
     }
 
-    // Independent of FinanceViews / TargetCoa seed source — design §7.1 / D11 required CoA rows.
-    static readonly string[] RequiredDesignCodes=["5268","526801","526802","526803","526804","526805","526806"];
-
+    // Schema-only release keeps 0.31.0 CoA. Design §7.1 / D11 rows (5268xx + 112513 rename) stay on feat/hs-wallet-account-move.
     [TestMethod]
     public void EnsureTwiceSeedsTargetChartIdempotently()
     {
@@ -34,10 +32,8 @@ public sealed class SchemaFinAccountTests
         Assert.AreEqual(7,Guid.Parse(id1).Version);
         Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_postable=1")!)>0);
         Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_postable=0")!)>0);
-        foreach(string code in RequiredDesignCodes)
-            Assert.AreEqual(1L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code=@code",("@code",code))!),code);
-        Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT is_postable FROM fin_account WHERE code='5268'")!));
-        Assert.AreEqual(6L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code LIKE '52680%' AND is_postable=1")!));
+        Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code='5268' OR code LIKE '52680%'")!));
+        Assert.AreEqual(1L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code='112513'")!));
     }
 
     [TestMethod]

@@ -78,7 +78,7 @@ public static class MobileSessions
     {
         string iqama = Validate(c, ctx).S("iqama");
         var rider = Store.Get(c, iqama, "rider")!;
-        return Store.List(c, Kind).Where(s => s.S("iqama") == iqama).OrderByDescending(s => s.S("createdAt")).Select(s => View(s, rider)).ToList();
+        return Store.ListWhere(c, Kind, null, null, ("iqama", iqama)).OrderByDescending(s => s.S("createdAt")).Select(s => View(s, rider)).ToList();
     }
 
     static string Reason(JsonObject input)
@@ -126,13 +126,13 @@ public static class MobileSessions
             .WithTags("Riders").WithSummary("List mobile sessions with safe identifiers within the caller's company scope");
         app.MapGet("/api/rider-mobile/sessions/mine", (HttpContext ctx) =>
         {
-            Authenticate(store, ctx); return store.Read(c => Mine(c, ctx));
+            PushNotifications.AuthenticateAndRateLimit(store, ctx, write: false); return store.Read(c => Mine(c, ctx));
         }).WithTags("Riders").WithSummary("Read own sessions using an active rider bearer token");
         api.MapPost("/rider-mobile/sessions/{id}/revoke", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) => Revoke(c, tx, ctx.User, id, input), false))
             .WithTags("Riders").WithSummary("Revoke a scoped mobile session with a required audited reason");
         api.MapPost("/rider-mobile/sessions/revoke-all", (string iqama, JsonObject input, HttpContext ctx) => store.Write((c, tx) => new { revoked = RevokeAll(c, tx, ctx.User, iqama, input) }, false))
             .WithTags("Riders").WithSummary("Revoke all sessions for a scoped rider, retaining history");
-        app.MapPost("/api/rider-mobile/logout", (HttpContext ctx) => store.Write((c, tx) => { Logout(c, tx, ctx); return new { ok = true }; }, false))
+        app.MapPost("/api/rider-mobile/logout", (HttpContext ctx) => { PushNotifications.AuthenticateAndRateLimit(store, ctx, write: true); return store.Write((c, tx) => { Logout(c, tx, ctx); return new { ok = true }; }, false); })
             .WithTags("Riders").WithSummary("End the rider's current bearer session");
     }
 }

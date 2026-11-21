@@ -21,7 +21,9 @@ import { ErrorState } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { useToast } from '../../components/ui/Toast';
 import { useAuth } from '../../lib/auth-context';
-import { bankLabel } from '../../lib/saudi-banks';
+import { bankLabel, cleanIban } from '../../lib/saudi-banks';
+import { splitForExport } from '../../lib/export-split';
+import { IbanDisplay } from '../../components/ui/IbanDisplay';
 import { ReviewDrawer } from './ReviewDrawer';
 
 export interface ResponsesTabProps {
@@ -40,7 +42,14 @@ export function ResponsesTab({
   onRefresh,
 }: ResponsesTabProps) {
   const { toast } = useToast();
-  const { canReview, isAdmin } = useAuth();
+  const { can, canReview, isAdmin, user } = useAuth();
+  const canViewIban = isAdmin || can('riders.iban.view');
+  const sponsorIds = user?.financialScope?.sponsorIds;
+  const noCompanyScope =
+    !isAdmin &&
+    !can('forms.responses.allCompanies') &&
+    !(Array.isArray(sponsorIds) && sponsorIds.length > 0);
+  const emptyScopeHint = 'لا توجد شركات ضمن نطاقك';
 
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const [campaignFilter, setCampaignFilter] = useState<string>('');
@@ -52,12 +61,6 @@ export function ResponsesTab({
 
   // Full IBAN for review (Ghazal 2026-11-15): reviewers check the collected IBANs on screen and in the exported sheet.
   // The API already returns the full value to anyone allowed to list responses; nothing is unmasked for other roles.
-  const cleanIban = (iban?: string) => (iban ? iban.replace(/\s+/g, '').toUpperCase() : '');
-  // Display form: groups of four, e.g. SA04 8000 0000 6080 1016 7519
-  const formatIban = (iban?: string) => {
-    const clean = cleanIban(iban);
-    return clean ? clean.replace(/(.{4})/g, '$1 ').trim() : '—';
-  };
 
   // Campaign name for the user: the title the API sent, else the title of the loaded campaign.
   // The internal id is never shown.
@@ -77,7 +80,15 @@ export function ResponsesTab({
     [campaignTitles]
   );
   const workSystemLabel = (s: Submission) =>
-    s.workSystem === 'monthly' ? 'راتب شهري' : s.workSystem === 'per-order' ? 'بالطلب' : s.workSystem || '—';
+    s.workSystem === 'tiers'
+      ? 'نظام الراتب الجديد'
+      : s.workSystem === 'commission'
+        ? 'نظام العمولة السابق'
+        : s.workSystem === 'monthly'
+          ? 'راتب شهري'
+          : s.workSystem === 'per-order'
+            ? 'بالطلب'
+            : s.workSystem || '—';
   const statusLabel = (s: Submission) =>
     s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة';
 
@@ -170,7 +181,10 @@ export function ResponsesTab({
   const handleExport = async (format: 'excel-all' | 'excel-filtered' | 'csv-filtered') => {
     setExportLoading(true);
     const targetRows = format === 'excel-all' ? submissions : filteredSubmissions;
-    const headers = ['اسم المندوب', 'الإقامة', 'البيان/الآيبان', 'البنك', 'النظام', 'الحملة', 'الحالة', 'التاريخ'];
+    // R1 / H20: IBAN column only when the caller has riders.iban.view; otherwise omit it entirely.
+    const headers = canViewIban
+      ? ['اسم المندوب', 'الإقامة', 'الجوال', 'المدينة', 'الآيبان', 'النظام', 'المنصات', 'الحملة', 'الحالة', 'ملاحظة المراجعة', 'النسخة', 'التاريخ']
+      : ['اسم المندوب', 'الإقامة', 'الجوال', 'المدينة', 'النظام', 'المنصات', 'الحملة', 'الحالة', 'ملاحظة المراجعة', 'النسخة', 'التاريخ'];
 
     // Formula injection guard matching Frontend/src/table-tools.ts:86
     const sanitize = (val: string) => {
@@ -178,25 +192,34 @@ export function ResponsesTab({
       return val;
     };
 
-    const rows = targetRows.map((s) => [
-      sanitize(s.name),
-      sanitize(s.iqama),
-      // Export the IBAN as one unbroken value so it can be copied into a bank form as is.
-      sanitize(s.iban ? cleanIban(s.iban) : s.workSystem || '—'),
-      sanitize(s.iban ? bankLabel(s) : '—'),
-      sanitize(s.workSystem || '—'),
-      sanitize(campaignName(s)),
-      sanitize(s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'),
-      sanitize(s.createdAt ? new Date(s.createdAt).toLocaleDateString('ar-SA') : '—'),
-    ]);
+    const rows = targetRows.map((s) => {
+      const base = [
+        sanitize(s.name),
+        sanitize(s.iqama),
+        sanitize(s.phone || ''),
+        sanitize(s.city || ''),
+      ];
+      if (canViewIban) base.push(sanitize(s.iban ? cleanIban(s.iban) : ''));
+      base.push(
+        sanitize(workSystemLabel(s)),
+        sanitize((s.platforms || []).join('، ')),
+        sanitize(campaignName(s)),
+        sanitize(s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'),
+        sanitize(s.reviewNote || ''),
+        sanitize(String(s.version || 1)),
+        sanitize(s.createdAt ? new Date(s.createdAt).toLocaleDateString('ar-SA') : '—'),
+      );
+      return base;
+    });
 
     try {
       if (format === 'csv-filtered') {
-        // Client-side CSV generation with UTF-8 BOM and formula guard
+        // Client-side CSV generation with UTF-8 BOM and formula guard; same column split as Excel.
+        const table = splitForExport(headers, rows);
         const quote = (v: any) => `"${String(v).replace(/"/g, '""')}"`;
         const csvContent =
           '\uFEFF' +
-          [headers.map(quote).join(','), ...rows.map((r) => r.map(quote).join(','))].join('\r\n');
+          [table.headers.map(quote).join(','), ...table.rows.map((r) => r.map(quote).join(','))].join('\r\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
@@ -204,13 +227,13 @@ export function ResponsesTab({
         a.download = `responses-filtered.csv`;
         a.click();
         URL.revokeObjectURL(url);
-        toast('تم تنزيل ملف CSV المفلتر بنجاح', 'success');
+        toast('تم تنزيل الملف النصي المفلتر بنجاح', 'success');
       } else {
         // Excel Export via backend
         const blob = await api.exportExcel({
           headers,
           rows,
-          numericColumns: [1], // iqama column
+          numericColumns: [], // iqama and IBAN stay text
           filename: `responses-${format}.xlsx`,
         });
         const url = URL.createObjectURL(blob);
@@ -219,7 +242,7 @@ export function ResponsesTab({
         a.download = `responses-${format}.xlsx`;
         a.click();
         URL.revokeObjectURL(url);
-        toast('تم تنزيل ملف Excel بنجاح', 'success');
+        toast('تم تنزيل جدول البيانات بنجاح', 'success');
       }
     } catch (err: any) {
       toast(err?.message || 'تعذر تصدير الملف', 'danger');
@@ -232,6 +255,9 @@ export function ResponsesTab({
     {
       key: 'name',
       header: 'اسم المندوب',
+      type: 'text',
+      filterType: 'text',
+      getValue: (s) => s.name || '',
       render: (s) => (
         <div className="flex flex-col">
           <strong className="font-bold text-[var(--ink)]">{s.name}</strong>
@@ -246,20 +272,30 @@ export function ResponsesTab({
     {
       key: 'iqama',
       header: 'رقم الإقامة',
+      type: 'text',
+      filterType: 'text',
+      getValue: (s) => s.iqama || '',
       render: (s) => <span className="num font-mono text-xs font-bold">{s.iqama}</span>,
     },
     {
       key: 'choice',
       header: 'البيان / الآيبان',
-      getValue: (s) => (s.iban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : workSystemLabel(s)),
+      type: 'text',
+      filterType: 'text',
+      getValue: (s) => (s.iban ? (canViewIban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : `••••${cleanIban(s.iban).slice(-4)}`) : workSystemLabel(s)),
+      exportColumns: canViewIban
+        ? [
+            { header: 'الآيبان', value: (s) => (s.iban ? cleanIban(s.iban) : '') },
+            { header: 'نظام العمل', value: (s) => (s.iban ? '' : workSystemLabel(s)) },
+          ]
+        : [{ header: 'نظام العمل', value: (s) => (s.iban ? '' : workSystemLabel(s)) }],
       render: (s) =>
         s.iban ? (
-          <div className="flex flex-col">
-            <span className="num font-mono text-xs text-[var(--accent)] font-semibold tracking-wide">
-              {formatIban(s.iban)}
-            </span>
-            <span className="text-[11px] text-[var(--muted)]">{bankLabel(s)}</span>
-          </div>
+          canViewIban ? (
+          <IbanDisplay iban={s.iban} bankCode={s.bankCode} bank={s.bank} />
+          ) : (
+            <span className="font-mono text-xs" dir="ltr">••••{cleanIban(s.iban).slice(-4)}</span>
+          )
         ) : (
           <span className="font-semibold text-xs">
             {workSystemLabel(s)}
@@ -269,6 +305,8 @@ export function ResponsesTab({
     {
       key: 'campaign',
       header: 'الحملة',
+      type: 'list',
+      filterType: 'list',
       getValue: (s) => campaignName(s),
       render: (s) => (
         <span
@@ -282,7 +320,13 @@ export function ResponsesTab({
     {
       key: 'status',
       header: 'الحالة',
-      getValue: (s) => statusLabel(s),
+      type: 'list',
+      filterType: 'list',
+      getValue: (s) => s.status || 'pending',
+      labelOf: (v) =>
+        v === 'approved' ? 'معتمد' : v === 'rejected' ? 'مرفوض' : 'قيد المراجعة',
+      toneOf: (v) =>
+        v === 'approved' ? 'success' : v === 'rejected' ? 'danger' : 'warning',
       render: (s) => {
         const badges = {
           pending: { label: 'قيد المراجعة', class: 'bg-[var(--warning)]/15 text-[var(--warning)]' },
@@ -296,6 +340,9 @@ export function ResponsesTab({
     {
       key: 'createdAt',
       header: 'تاريخ الإرسال',
+      type: 'date',
+      getValue: (s) => s.createdAt || '',
+      labelOf: (v) => (v ? new Date(String(v)).toLocaleDateString('ar-SA') : '—'),
       render: (s) => (
         <span className="num text-xs text-[var(--muted)]">
           {new Date(s.createdAt).toLocaleDateString('ar-SA')}
@@ -397,10 +444,10 @@ export function ResponsesTab({
 
       {error ? (
         <ErrorState
-          title={error.includes('404') ? 'خدمة مراجعة الردود قيد التجهيز في الـ API' : 'تعذر تحميل الردود'}
+          title={error.includes('404') ? 'خدمة مراجعة الردود قيد التجهيز' : 'تعذر تحميل الردود'}
           message={
             error.includes('404')
-              ? 'المسار البرمجي الموحد (/api/responses) قيد الإطلاق من الخادم. يمكنك الاستمرار في مراجعة الردود عبر الواجهة السابقة.'
+              ? 'خدمة مراجعة الردود قيد الإطلاق من الخادم. يمكنك الاستمرار في مراجعة الردود عبر الواجهة السابقة.'
               : error
           }
           onRetry={onRefresh}
@@ -410,12 +457,17 @@ export function ResponsesTab({
           columns={columns}
           data={filteredSubmissions}
           loading={loading}
+          exportable={false}
           selectable={canReview}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           getRowId={(r) => r.id}
-          emptyTitle="لا توجد ردود مسجلة"
-          emptyDescription="لم تصل ردود جديدة تطابق خيارات التصفية المحددة."
+          emptyTitle={noCompanyScope ? emptyScopeHint : 'لا توجد ردود مسجلة'}
+          emptyDescription={
+            noCompanyScope
+              ? emptyScopeHint
+              : 'لم تصل ردود جديدة تطابق خيارات التصفية المحددة.'
+          }
           rowActions={[
             {
               label: 'معاينة وتدقيق',

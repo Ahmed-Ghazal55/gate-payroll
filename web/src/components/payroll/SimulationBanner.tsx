@@ -7,6 +7,7 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../ui/Toast';
 import { Dialog } from '../ui/Dialog';
 import { formatSar } from '../../lib/money';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../ui/ColumnFilterMenu';
 
 export interface SimulationBannerProps {
   simulationId: string;
@@ -103,6 +104,21 @@ export function SimulationBanner({ simulationId, payoutBlocked, onChanged }: Sim
       setBusy(null);
     }
   };
+
+
+  const diffCols = [
+    { key: 'label', header: 'البند', type: 'text' as const, getValue: (row: Record<string, unknown>) => String(row.labelAr ?? row.field ?? row.key ?? '—') },
+    { key: 'simulation', header: 'محاكاة', type: 'text' as const, getValue: (row: Record<string, unknown>) => (typeof row.simulation === 'number' ? formatSar(row.simulation) : String(row.simulation ?? '—')) },
+    { key: 'live', header: 'حي', type: 'text' as const, getValue: (row: Record<string, unknown>) => (typeof row.live === 'number' ? formatSar(row.live) : String(row.live ?? '—')) },
+  ];
+  const diffFilter = useTableAutoFilter(diffRows, diffCols);
+  const previewLines = preview?.lines ?? [];
+  const previewCols = [
+    { key: 'account', header: 'الحساب', type: 'text' as const, getValue: (line: NonNullable<PreviewBody['lines']>[number]) => String(line.accountNameAr ?? line.accountCode ?? '—') },
+    { key: 'debit', header: 'مدين', type: 'number' as const, getValue: (line: NonNullable<PreviewBody['lines']>[number]) => Number(line.debit ?? 0) },
+    { key: 'credit', header: 'دائن', type: 'number' as const, getValue: (line: NonNullable<PreviewBody['lines']>[number]) => Number(line.credit ?? 0) },
+  ];
+  const previewFilter = useTableAutoFilter(previewLines, previewCols);
 
   return (
     <>
@@ -219,23 +235,24 @@ export function SimulationBanner({ simulationId, payoutBlocked, onChanged }: Sim
         }
       >
         <div className="max-h-64 overflow-auto rounded-lg border border-[var(--line)]">
+          <AutoFilterBar controller={diffFilter} totalCount={diffRows.length} />
           <table className="w-full text-xs">
             <thead className="bg-[var(--raised)] sticky top-0">
               <tr>
-                <th className="p-2 text-start">البند</th>
-                <th className="p-2 text-start">محاكاة</th>
-                <th className="p-2 text-start">حي</th>
+                <AutoFilterTh controller={diffFilter} colKey="label" className="p-2 text-start" />
+                <AutoFilterTh controller={diffFilter} colKey="simulation" className="p-2 text-start" />
+                <AutoFilterTh controller={diffFilter} colKey="live" className="p-2 text-start" />
               </tr>
             </thead>
             <tbody>
-              {diffRows.length === 0 ? (
+              {diffFilter.rows.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="p-3 text-[var(--muted)]">
                     لا فروقات ظاهرة بين المحاكاة والوضع الحي.
                   </td>
                 </tr>
               ) : (
-                diffRows.map((row, idx) => (
+                diffFilter.rows.map((row, idx) => (
                   <tr key={idx} className="border-t border-[var(--line)]">
                     <td className="p-2">{String(row.labelAr ?? row.field ?? row.key ?? '—')}</td>
                     <td className="p-2 num">
@@ -254,23 +271,24 @@ export function SimulationBanner({ simulationId, payoutBlocked, onChanged }: Sim
 
       <Dialog open={previewOpen} onClose={() => setPreviewOpen(false)} title="معاينة القيود المتوقعة" description="عرض فقط — بلا ترحيل في وضع المحاكاة.">
         <div className="max-h-72 overflow-auto rounded-lg border border-[var(--line)]">
+          <AutoFilterBar controller={previewFilter} totalCount={previewLines.length} />
           <table className="w-full text-xs">
             <thead className="bg-[var(--raised)] sticky top-0">
               <tr>
-                <th className="p-2 text-start">الحساب</th>
-                <th className="p-2 text-start">مدين</th>
-                <th className="p-2 text-start">دائن</th>
+                <AutoFilterTh controller={previewFilter} colKey="account" className="p-2 text-start" />
+                <AutoFilterTh controller={previewFilter} colKey="debit" className="p-2 text-start" />
+                <AutoFilterTh controller={previewFilter} colKey="credit" className="p-2 text-start" />
               </tr>
             </thead>
             <tbody>
-              {(preview?.lines ?? []).length === 0 ? (
+              {previewFilter.rows.length === 0 ? (
                 <tr>
                   <td colSpan={3} className="p-3 text-[var(--muted)]">
                     لا قيود متوقعة لهذه المحاكاة.
                   </td>
                 </tr>
               ) : (
-                (preview?.lines ?? []).map((line, idx) => (
+                previewFilter.rows.map((line, idx) => (
                   <tr key={idx} className="border-t border-[var(--line)]">
                     <td className="p-2">{String(line.accountNameAr ?? line.accountCode ?? '—')}</td>
                     <td className="p-2 num">{formatSar(Number(line.debit ?? 0))}</td>

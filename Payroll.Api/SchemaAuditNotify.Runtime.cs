@@ -72,7 +72,8 @@ public static partial class SchemaAuditNotify
                 if(bag!=null)
                 {
                     row=(JsonObject)bag.DeepClone();
-                    row["id"]=r["id"].ToString();
+                    // Prefer the document id from the dual-written body (may be a legacy non-GUID key).
+                    if(row.S("id")=="")row["id"]=r["id"].ToString();
                     if(row.S("action")=="")row["action"]=action;
                     if(row.S("actor")=="")row["actor"]=actor;
                     if(row.S("at")=="")row["at"]=at;
@@ -169,21 +170,36 @@ public static partial class SchemaAuditNotify
             else break;
             diff=stored.ToJsonString();
         }
-        string sqlId=Guid.TryParse(row.S("id"),out var gid)?SchemaSql.GuidText(gid):SchemaSql.GuidText(SchemaSql.NewId());
-        row["id"]=sqlId;
+        // Preserve caller document ids in records (AuditQuery / HTTP fixtures). change_log PK stays a GUID.
+        string callerId=row.S("id");
+        if(callerId==""||callerId.Length>128){callerId=SchemaSql.GuidText(SchemaSql.NewId());row["id"]=callerId;}
+        string changeLogId=Guid.TryParse(callerId,out var gid)?SchemaSql.GuidText(gid):SchemaSql.GuidText(SchemaSql.NewId());
         // Always keep the caller document whole in records (evidence + export metadata).
         // change_log.diff_short stays a short label/bag; ListChanges prefers the full body when both exist.
         using(var full=Store.Command(c,tx,"UPDATE records SET body=@body WHERE id=@id AND kind=@kind",
-            ("@id",sqlId),("@kind","audit"),("@body",row.ToJsonString())))
+            ("@id",callerId),("@kind","audit"),("@body",row.ToJsonString())))
         {
             if(full.ExecuteNonQuery()==0)
             {
                 using var insert=Store.Command(c,tx,"INSERT INTO records(id,kind,body) VALUES(@id,@kind,@body)",
-                    ("@id",sqlId),("@kind","audit"),("@body",row.ToJsonString()));
+                    ("@id",callerId),("@kind","audit"),("@body",row.ToJsonString()));
                 insert.ExecuteNonQuery();
             }
         }
         if(diff.Length>400)diff=shortLabel;
+        // Embed the document id so ListChanges can match the records dual-write when change_log uses a new GUID.
+        if(!diff.StartsWith('{'))diff=new JsonObject{["id"]=callerId,["action"]=action,["actor"]=row.S("actor"),["at"]=at.ToString("O"),["diff"]=diff}.ToJsonString();
+        else
+        {
+            try
+            {
+                var bag=JsonNode.Parse(diff) as JsonObject??new JsonObject();
+                if(bag.S("id")=="")bag["id"]=callerId;
+                diff=bag.ToJsonString();
+                if(diff.Length>400)diff=new JsonObject{["id"]=callerId,["action"]=action,["actor"]=row.S("actor"),["at"]=at.ToString("O")}.ToJsonString();
+            }
+            catch{diff=new JsonObject{["id"]=callerId,["action"]=action}.ToJsonString();}
+        }
         string source=MapSource(row.S("source"));
         string actor=row.S("actor");
         object userId=DBNull.Value;
@@ -199,7 +215,7 @@ public static partial class SchemaAuditNotify
             (id,occurred_on,occurred_at,user_id,username,display_name_ar,action_code,entity_type,entity_ref,diff_short,source,created_at)
             VALUES(@id,@on,@at,@uid,@user,@disp,@act,@etype,@eref,@diff,@src,{SchemaSql.NowLiteral(c)})
             """,
-            ("@id",sqlId),
+            ("@id",changeLogId),
             ("@on",onText),
             ("@at",atText),
             ("@uid",userId),
@@ -373,19 +389,22 @@ public static partial class SchemaAuditNotify
         foreach(var h in heads)
         {
             var comments=ListComments(c,tx,h.Id);
-            string companyId="";
+            string companyId="",bodyAr="";
             var visible=new JsonArray();
             foreach(var node in comments.OfType<JsonObject>())
             {
                 string body=node.S("bodyAr");
                 if(body.StartsWith("__company__:",StringComparison.Ordinal)){companyId=body["__company__:".Length..];continue;}
+                if(body.StartsWith("__body__:",StringComparison.Ordinal)){bodyAr=body["__body__:".Length..];continue;}
                 visible.Add(node.DeepClone());
             }
+            // Pre-marker rows stored the body as the first plain comment.
+            if(bodyAr==""&&visible.Count>0)bodyAr=visible[0]!.AsObject().S("bodyAr");
             rows.Add(new()
             {
                 ["id"]=h.Id,
                 ["titleAr"]=h.Title,
-                ["bodyAr"]=visible.Count>0?visible[0]!.AsObject().S("bodyAr"):"",
+                ["bodyAr"]=bodyAr,
                 ["assignee"]=h.Assignee,
                 ["rank"]=h.Rank,
                 ["status"]=h.Status,
@@ -477,8 +496,6 @@ public static partial class SchemaAuditNotify
         if(SchemaSql.TableExists(c,tx,"task","comment"))
         {
             var comments=row["comments"] as JsonArray??new JsonArray();
-            if(comments.Count==0&&row.S("bodyAr")!="")
-                comments=new JsonArray(new JsonObject{["bodyAr"]=row.S("bodyAr"),["by"]=row.S("updatedBy",row.S("createdBy","system"))});
             SchemaSql.Exec(c,tx,$"DELETE FROM {SchemaSql.Q(c,"task","comment")} WHERE task_id=@t",("@t",rawId));
             void InsertComment(string body,string author)
             {
@@ -493,13 +510,17 @@ public static partial class SchemaAuditNotify
                     ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@t",rawId),("@a",authorId),("@b",body.Length<=400?body:body[..400]),
                     ("@by",author));
             }
-            // Persist company scope without a schema column (FINAL task.item has none).
-            if(row.S("companyId")!="")InsertComment("__company__:"+row.S("companyId"),row.S("createdBy",row.S("updatedBy","system")));
+            string author=row.S("updatedBy",row.S("createdBy","system"));
+            // Persist company scope and body without schema columns (FINAL task.item has none).
+            if(row.S("companyId")!="")InsertComment("__company__:"+row.S("companyId"),row.S("createdBy",author));
+            // Body must save even when comments already exist (marker keeps it off the visible list).
+            if(row.S("bodyAr")!="")InsertComment("__body__:"+row.S("bodyAr"),author);
+            else if(comments.Count==0){/* no body, no comments */}
             foreach(var node in comments.OfType<JsonObject>())
             {
                 string body=node.S("bodyAr",node.S("body"));
-                if(body.StartsWith("__company__:",StringComparison.Ordinal))continue;
-                InsertComment(body,node.S("by",row.S("updatedBy",row.S("createdBy","system"))));
+                if(body.StartsWith("__company__:",StringComparison.Ordinal)||body.StartsWith("__body__:",StringComparison.Ordinal))continue;
+                InsertComment(body,node.S("by",author));
             }
         }
         if(SchemaSql.TableExists(c,tx,"task","attachment"))

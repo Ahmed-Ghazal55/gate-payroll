@@ -73,6 +73,8 @@ test('operations sidebar tabs and views exist on the page', () => {
     if (view) assert.ok(ids.has(view), `operations page missing view id ${view} from ${href}`);
   }
   assert.ok(ids.has('cities') && ids.has('housing') && ids.has('vehicles') && ids.has('fuel'));
+  assert.ok(ids.has('period') && ids.has('oil') && ids.has('invoices'));
+  assert.ok(ids.has('usage') && ids.has('cards') && ids.has('log'));
 });
 
 test('removed O7 tabs are absent from Sidebar operations group', () => {

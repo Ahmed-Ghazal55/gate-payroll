@@ -1,11 +1,12 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, ShieldAlert, Ban } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import type { ApprovalBypassGrant } from '../../lib/types';
 
 export function ApprovalBypassPanel() {
@@ -31,6 +32,24 @@ export function ApprovalBypassPanel() {
   }, [allowed]);
 
   useEffect(() => { load(); }, [load]);
+
+  const bypassCols = useMemo(
+    () => [
+      { key: 'username', header: 'المستخدم', type: 'list' as const, getValue: (g: ApprovalBypassGrant) => g.username || '' },
+      { key: 'period', header: 'الفترة', type: 'date' as const, getValue: (g: ApprovalBypassGrant) => g.from || '', labelOf: (v: unknown) => String(v ?? '') },
+      { key: 'reason', header: 'السبب', type: 'text' as const, getValue: (g: ApprovalBypassGrant) => g.reason || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (g: ApprovalBypassGrant) => (g.revokedAt ? 'revoked' : 'active'),
+        labelOf: (v: unknown) => (v === 'revoked' ? 'مسحوب' : 'ساري'),
+        toneOf: (v: unknown) => (v === 'revoked' ? 'danger' : 'success'),
+      },
+    ],
+    []
+  );
+  const bypassFilter = useTableAutoFilter<ApprovalBypassGrant>(rows, bypassCols);
 
   if (!allowed) {
     return <EmptyState title="صلاحية غير كافية" description="منح تجاوز الاعتماد متاح لمدير النظام أو من يملك users.manage." />;
@@ -102,18 +121,19 @@ export function ApprovalBypassPanel() {
         <EmptyState title="لا منح حالياً" description="لم يُمنح تجاوز اعتماد بعد." />
       ) : (
         <div className="rounded-2xl border border-[var(--line)] overflow-hidden bg-[var(--surface)]">
+          <AutoFilterBar controller={bypassFilter} totalCount={rows.length} />
           <table className="w-full text-xs sm:text-sm">
             <thead className="bg-[var(--raised)]/50 text-[var(--muted)]">
               <tr>
-                <th className="p-3 text-start">المستخدم</th>
-                <th className="p-3 text-start">الفترة</th>
-                <th className="p-3 text-start">السبب</th>
-                <th className="p-3 text-start">الحالة</th>
+                <AutoFilterTh controller={bypassFilter} colKey="username" className="p-3 text-start" />
+                <AutoFilterTh controller={bypassFilter} colKey="period" className="p-3 text-start" />
+                <AutoFilterTh controller={bypassFilter} colKey="reason" className="p-3 text-start" />
+                <AutoFilterTh controller={bypassFilter} colKey="status" className="p-3 text-start" />
                 <th className="p-3 text-start">إجراء</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {rows.map((g) => (
+              {bypassFilter.rows.map((g) => (
                 <tr key={g.id}>
                   <td className="p-3 font-mono">{g.username}</td>
                   <td className="p-3 font-mono">{g.from} → {g.to}</td>

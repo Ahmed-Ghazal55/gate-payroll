@@ -20,6 +20,7 @@ import { api, ApiError } from '../../lib/api';
 import type { PayReviewRow, PayReviewItem, PayReviewEdit } from '../../lib/types';
 import { useToast } from '../../components/ui/Toast';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import { formatSar } from '../../lib/money';
 
 export interface PayrollReviewDrawerProps {
   open: boolean;
@@ -58,11 +59,6 @@ export function PayrollReviewDrawer({
   }, [open]);
 
   if (!row) return null;
-
-  const maskIqama = (iqama: string) => {
-    if (!iqama || iqama.length < 6) return iqama;
-    return `${iqama.slice(0, 4)}****${iqama.slice(-2)}`;
-  };
 
   const handleApprove = async () => {
     setSubmitting(true);
@@ -153,7 +149,7 @@ export function PayrollReviewDrawer({
       open={open}
       onClose={onClose}
       title={row.name || 'مراجعة استحقاق المندوب'}
-      subtitle={`رقم الهوية / الإقامة: ${maskIqama(row.rider)}`}
+      subtitle={`رقم الهوية / الإقامة: ${row.rider}`}
       width="max-w-md sm:max-w-2xl"
       footer={
         <div className="flex items-center justify-between w-full">
@@ -164,7 +160,7 @@ export function PayrollReviewDrawer({
                 row.net >= 0 ? 'text-[var(--money-pos)]' : 'text-[var(--danger)]'
               }`}
             >
-              {row.net.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+              {formatSar(row.net)}
             </span>
           </div>
 
@@ -231,51 +227,51 @@ export function PayrollReviewDrawer({
         {/* Financial Flow Cards (BR §29: Phases Flow) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-2xl border border-[var(--line)] bg-[var(--raised)]/40 text-xs">
           <div className="p-2 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
-            <span className="text-[10px] text-[var(--muted)] block">الإجمالي (Gross)</span>
+            <span className="text-[10px] text-[var(--muted)] block">الإجمالي</span>
             <span className="num font-mono font-bold text-[var(--ink)]">
-              {row.gross.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatSar(row.gross)}
             </span>
           </div>
 
           <div className="p-2 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
-            <span className="text-[10px] text-[var(--muted)] block">العمولة (Commission)</span>
+            <span className="text-[10px] text-[var(--muted)] block">العمولة</span>
             <span className="num font-mono font-bold text-[var(--warning)]">
-              {row.commission.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatSar(row.commission)}
             </span>
           </div>
 
           <div className="p-2 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
             <span className="text-[10px] text-[var(--muted)] block">بعد العمولة</span>
             <span className="num font-mono font-bold text-[var(--ink)]">
-              {row.afterCommission.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatSar(row.afterCommission)}
             </span>
           </div>
 
           <div className="p-2 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
             <span className="text-[10px] text-[var(--muted)] block">المرحلة 1 (تشغيلي)</span>
             <span className="num font-mono font-bold text-[var(--danger)]">
-              {row.phase1.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatSar(row.phase1)}
             </span>
           </div>
 
           <div className="p-2 rounded-xl bg-[var(--surface)] border border-[var(--accent)]/30 bg-[var(--accent)]/5 col-span-2 sm:col-span-1">
             <span className="text-[10px] font-bold text-[var(--accent)] block">المستحق الأولي</span>
             <span className="num font-mono font-black text-[var(--accent)]">
-              {row.preliminaryDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatSar(row.preliminaryDue)}
             </span>
           </div>
 
           <div className="p-2 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
             <span className="text-[10px] text-[var(--muted)] block">المرحلة 2 (مديونيات)</span>
             <span className="num font-mono font-bold text-[var(--danger)]">
-              {row.phase2.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatSar(row.phase2)}
             </span>
           </div>
 
           <div className="p-2 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
             <span className="text-[10px] text-[var(--muted)] block">المرحلة 3 (تسويات)</span>
             <span className="num font-mono font-bold text-[var(--ink)]">
-              {row.phase3.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatSar(row.phase3)}
             </span>
           </div>
 
@@ -286,7 +282,7 @@ export function PayrollReviewDrawer({
                 row.net >= 0 ? 'text-[var(--money-pos)]' : 'text-[var(--danger)]'
               }`}
             >
-              {row.net.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+              {formatSar(row.net)}
             </span>
           </div>
         </div>
@@ -296,7 +292,7 @@ export function PayrollReviewDrawer({
           <div className="flex items-center justify-between border-b border-[var(--line)] pb-1.5">
             <h4 className="text-xs font-bold text-[var(--ink)]">المرحلة 1: الخصومات التشغيلية وبدل المركبة</h4>
             <span className="num font-mono text-xs text-[var(--muted)]">
-              إجمالي: {row.phase1.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+              إجمالي: {formatSar(row.phase1)}
             </span>
           </div>
 
@@ -311,7 +307,7 @@ export function PayrollReviewDrawer({
                     <span className="text-[10px] text-[var(--muted)] block">المصدر: {item.source}</span>
                   </div>
                   <span className="num font-mono font-bold text-[var(--danger)]">
-                    {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                    {formatSar(item.amount)}
                   </span>
                 </div>
               ))}
@@ -323,11 +319,11 @@ export function PayrollReviewDrawer({
         <div className="space-y-2">
           <div className="flex items-center justify-between border-b border-[var(--line)] pb-1.5">
             <div>
-              <h4 className="text-xs font-bold text-[var(--ink)]">المرحلة 2: أقساط المديونيات والسلف (BR §32)</h4>
+              <h4 className="text-xs font-bold text-[var(--ink)]">المرحلة 2: أقساط المديونيات والسلف</h4>
               <p className="text-[10px] text-[var(--muted)]">يمكن للمراجع تعديل القسط بين 0 والحد الأقصى مع ذكر السبب.</p>
             </div>
             <span className="num font-mono text-xs text-[var(--muted)]">
-              إجمالي: {row.phase2.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+              إجمالي: {formatSar(row.phase2)}
             </span>
           </div>
 
@@ -341,13 +337,13 @@ export function PayrollReviewDrawer({
                     <div>
                       <span className="font-semibold text-[var(--ink)]">{item.labelAr}</span>
                       <span className="text-[10px] text-[var(--muted)] block">
-                        الحد الأقصى المحسوب: {item.max ?? item.amount} ر.س · المصدر: {item.source}
+                        الحد الأقصى المحسوب: {formatSar(item.max ?? item.amount)} · المصدر: {item.source}
                       </span>
                     </div>
 
                     <div className="flex items-center gap-2">
                       <span className="num font-mono font-bold text-[var(--danger)]">
-                        {item.amount.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                        {formatSar(item.amount)}
                       </span>
 
                       {item.editable && editingKey !== item.key && (
@@ -509,7 +505,7 @@ export function PayrollReviewDrawer({
                       item.amount >= 0 ? 'text-[var(--money-pos)]' : 'text-[var(--danger)]'
                     }`}
                   >
-                    {item.amount > 0 ? `+${item.amount}` : item.amount} ر.س
+                    {item.amount > 0 ? `+${formatSar(item.amount)}` : formatSar(item.amount)}
                   </span>
                 </div>
               ))}
@@ -539,9 +535,9 @@ export function PayrollReviewDrawer({
                   </div>
                   <p className="text-[11px] text-[var(--muted)]">{e.reason}</p>
                   <div className="text-[10px] font-mono flex items-center gap-2 pt-0.5">
-                    <span className="num text-[var(--muted)]">{e.from} ر.س</span>
+                    <span className="num text-[var(--muted)]">{formatSar(e.from)}</span>
                     <ArrowRight size={12} className="text-[var(--muted)]" />
-                    <span className="num font-bold text-[var(--accent)]">{e.to} ر.س</span>
+                    <span className="num font-bold text-[var(--accent)]">{formatSar(e.to)}</span>
                   </div>
                 </div>
               ))}

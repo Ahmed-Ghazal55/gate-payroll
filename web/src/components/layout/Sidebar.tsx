@@ -21,6 +21,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { ApprovalExceptionChip } from '../../features/admin/ApprovalExceptionChip';
+import { appendPeriodToHref, readUrlPeriod } from '../../lib/period';
 
 export interface NavSubItem {
   id: string;
@@ -31,6 +32,8 @@ export interface NavSubItem {
   permission?: string | string[];
   disabled?: boolean;
   laterBadge?: boolean;
+  /** When true, every listed permission is required (default: any one). */
+  requireAll?: boolean;
 }
 
 export interface NavGroup {
@@ -257,6 +260,8 @@ function SidebarInner({
 }: SidebarProps) {
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const urlPeriod = readUrlPeriod(searchParams);
+  const withPeriod = (href: string) => appendPeriodToHref(href, urlPeriod);
   const { can, isAdmin, user } = useAuth();
 
   const navGroups = buildNavGroups(pendingApprovalsCount, pendingResponsesCount);
@@ -287,18 +292,23 @@ function SidebarInner({
     setOpenGroupId((prev) => (prev === groupId ? null : groupId));
   };
 
-  const isItemVisible = (item: NavSubItem) => {
-    if (!user || isAdmin || !item.permission) return true;
-    if (Array.isArray(item.permission)) {
-      return item.permission.some((p) => can(p));
+  const matchesPermission = (permission?: string | string[], requireAll = false) => {
+    if (!permission) return true;
+    if (Array.isArray(permission)) {
+      return requireAll ? permission.every((p) => can(p)) : permission.some((p) => can(p));
     }
-    return can(item.permission);
+    return can(permission);
+  };
+
+  const isItemVisible = (item: NavSubItem, group: NavGroup) => {
+    if (!user || isAdmin) return true;
+    return matchesPermission(item.permission ?? group.permission, item.requireAll);
   };
 
   const visibleGroups = navGroups
     .map((group) => ({
       ...group,
-      items: group.items.filter(isItemVisible),
+      items: group.items.filter((item) => isItemVisible(item, group)),
     }))
     .filter((group) => {
       if (!user) return true;
@@ -316,7 +326,7 @@ function SidebarInner({
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[var(--surface)] text-[var(--ink)] border-e border-[var(--line)]">
       <div className="flex items-center justify-between p-4 border-b border-[var(--line)] min-h-[64px]">
-        <Link href="/" className="flex items-center gap-3 overflow-hidden">
+        <Link href={withPeriod('/')} className="flex items-center gap-3 overflow-hidden">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xl shadow-xs shrink-0">
             ب
           </div>
@@ -365,7 +375,7 @@ function SidebarInner({
                 } ${collapsed ? 'p-2 justify-center' : 'px-2.5 py-2'}`}
               >
                 <Link
-                  href={group.defaultHref}
+                  href={withPeriod(group.items[0]?.href ?? group.defaultHref)}
                   onClick={onCloseMobile}
                   title={collapsed ? group.label : undefined}
                   className={`flex items-center gap-2.5 flex-1 min-w-0 ${collapsed ? 'justify-center' : ''}`}
@@ -407,18 +417,30 @@ function SidebarInner({
                     const cleanCurrentPath = pathname.replace(/\/$/, '') || '/';
                     const pathMatch =
                       cleanCurrentPath === cleanSubPath ||
-                      (cleanSubPath !== '/' && cleanCurrentPath.startsWith(cleanSubPath));
+                      (group.id === 'approvals' && cleanCurrentPath.startsWith('/approvals')) ||
+                      (cleanSubPath !== '/' && cleanCurrentPath.startsWith(cleanSubPath + '/'));
+
+                    const hasTabbedSibling = group.items.some((sibling) => {
+                      const [sibPath, sibQuery] = sibling.href.split('?');
+                      const cleanSibPath = sibPath.replace(/\/$/, '') || '/';
+                      return (
+                        cleanSibPath === cleanSubPath &&
+                        Boolean(sibQuery && new URLSearchParams(sibQuery).get('tab'))
+                      );
+                    });
 
                     let isSubActive = false;
                     if (pathMatch) {
                       if (subQuery) {
                         const targetParam = new URLSearchParams(subQuery).get('tab');
-                        const currentParam = searchParams?.get('tab');
+                        const defaultTab = new URLSearchParams(group.defaultHref.split('?')[1] || '').get('tab');
+                        const currentParam = searchParams?.get('tab') ?? defaultTab;
                         isSubActive = currentParam === targetParam;
                       } else {
-                        isSubActive =
-                          cleanCurrentPath === cleanSubPath ||
-                          (group.id === 'approvals' && cleanCurrentPath.startsWith('/approvals'));
+                        isSubActive = hasTabbedSibling
+                          ? !searchParams?.get('tab')
+                          : cleanCurrentPath === cleanSubPath ||
+                            (group.id === 'approvals' && cleanCurrentPath.startsWith('/approvals'));
                       }
                     }
 
@@ -442,7 +464,7 @@ function SidebarInner({
                     return (
                       <Link
                         key={subItem.id}
-                        href={subItem.href}
+                        href={withPeriod(subItem.href)}
                         onClick={onCloseMobile}
                         className={`flex items-center justify-between py-1.5 px-2 rounded-lg text-xs transition-colors ${
                           isSubActive
