@@ -28,11 +28,19 @@ public sealed class SystemAdminMigrationTests
         Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"audit").Count(a=>a.S("action")=="admin.system_admin_permissions_seeded")));
 
         var actor=UserAccess.Principal(user);
-        var request=new JsonObject{["id"]="synthetic-sysadmin-request",["requestedBy"]="synthetic-sysadmin",["targetDepartment"]="MGT",["requiredRankLevel"]=1};
+        // M-0672: non-dual approvals allow same actor; maker≠checker applies only to dedicated dual codes.
+        var request=new JsonObject{["id"]="synthetic-sysadmin-request",["kind"]="generic",["status"]="pending",["requestedBy"]="synthetic-sysadmin",["targetDepartment"]="MGT",["requiredRankLevel"]=1,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};
         f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(actor,request,new(),c:c,tx:tx);Store.Save(c,"approval_request",request,tx);return true;});
-        Assert.IsTrue(request.B("selfApprovedException"));
+        Assert.IsFalse(request.B("selfApprovedException"));
+        // Dual money-out: SystemAdmin may self-approve with an audited exception badge (M-0667 / M-0672).
+        f.Store.Write((c,tx)=>{
+            var dual=new JsonObject{["id"]="synthetic-sysadmin-dual",["kind"]="payment_out",["status"]="pending",["requestedBy"]="synthetic-sysadmin",["targetDepartment"]="MGT",["requiredRankLevel"]=1,["dualPermission"]=ApprovalsArea.DualPaymentOut,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};
+            AccessPolicy.ValidateApproval(actor,dual,new(),"approvals.decide",c,tx,"approval.decide",dual,ApprovalsArea.DualPaymentOut);
+            Assert.IsTrue(dual.B("selfApprovedException"));
+            return true;
+        });
         var report=f.Store.Read(c=>Store.List(c,"audit").Where(a=>a.B("selfApprovedException")||a.S("action") is "approval.self_exception" or "approval.bypass_maker_checker").ToList());
-        Assert.IsTrue(report.Any(a=>a.S("recordId")=="synthetic-sysadmin-request"&&a.S("badge")=="system_admin"&&a.S("reason")=="system-admin-default"));
+        Assert.IsTrue(report.Any(a=>a.S("recordId")=="synthetic-sysadmin-dual"&&a.S("badge")=="system_admin"&&a.S("reason")=="system-admin-default"));
         Assert.IsTrue(f.Store.Read(c=>AccessPolicy.BypassForView(c,null,actor)));
     }
 }

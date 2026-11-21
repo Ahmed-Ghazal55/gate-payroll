@@ -36,6 +36,7 @@ public sealed class SharedRiderConsolidationTests
         // Bypass / self-approval must not unlock release.
         f.Store.Write((c,tx)=>{
             Store.Save(c,"user",new(){["id"]="u-shared-maker",["username"]="synthetic-hold-maker",["role"]="Admin",["customPermissions"]=new JsonArray(ApprovalsArea.DualSharedRiderRelease,"approvals.decide")},tx);
+            Store.Save(c,"user",new(){["id"]="u-shared-checker",["username"]="synthetic-checker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5,["customPermissions"]=new JsonArray(ApprovalsArea.DualSharedRiderRelease,"approvals.decide")},tx);
             AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-hold-maker",["from"]=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"),["to"]=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).AddDays(7).ToString("yyyy-MM-dd"),["reason"]="shared rider bypass",["scope"]=ApprovalsArea.DualSharedRiderRelease});
             var req=FinancialCore.CreateMutualApproval(c,tx,"shared_rider_release","اعتماد فك حجز مشترك","مرجع اختبار","OPS","FIN",1,consolId,new(){["amountSar"]=50,["fileContentHash"]=payloadHash},"synthetic-hold-maker");
             ApprovalsArea.Decide(c,tx,UserAccess.Principal(new JsonObject{["username"]="synthetic-hold-maker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5,["customPermissions"]=new JsonArray(ApprovalsArea.DualSharedRiderRelease,"approvals.decide")}),req.S("id"),new(){["decision"]="approve",["note"]="self via bypass"});

@@ -88,7 +88,9 @@ public sealed class ValidateGapsAndBankParallelTests
         string reference="bank-payout:"+company+":2026-10:2026-10";
         // Self-approval via bypass must not unlock money-out mark-sent.
         f.Store.Write((c,tx)=>{
-            Store.Save(c,"user",new(){["id"]="u-bank-maker",["username"]="synthetic-pay-maker",["role"]="Admin",["customPermissions"]=new JsonArray(ApprovalsArea.DualBankFile,"approvals.decide")},tx);
+            var maker=Store.Get(c,"synthetic-pay-maker","user",tx)!;
+            maker["customPermissions"]=new JsonArray(ApprovalsArea.DualBankFile,"approvals.decide");
+            Store.Save(c,"user",maker,tx);
             AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-pay-maker",["from"]=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"),["to"]=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).AddDays(7).ToString("yyyy-MM-dd"),["reason"]="pay approvals scope",["scope"]=AccessPolicy.ScopePayApprovals});
             var req=FinancialCore.CreateMutualApproval(c,tx,"bank_sent","اعتماد إرسال ملف بنك","مرجع اختبار", "OPS","FIN",1,reference,new(){["amountSar"]=100}, "synthetic-pay-maker");
             ApprovalsArea.Decide(c,tx,PayFixture.Maker,req.S("id"),new(){["decision"]="approve",["note"]="self via bypass"});

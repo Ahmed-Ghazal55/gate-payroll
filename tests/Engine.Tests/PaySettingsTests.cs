@@ -8,9 +8,18 @@ public sealed class PayFixture:IDisposable
 {
     public string DirectoryPath {get;}=Path.Combine(Path.GetTempPath(),"gate-pay-"+Guid.NewGuid().ToString("N"));
     public Store Store {get;}
-    public static ClaimsPrincipal Actor(string name="synthetic-pay-maker",string role="Admin")=>UserAccess.Principal(new JsonObject{["username"]=name,["role"]=role});
+    public static ClaimsPrincipal Actor(string name="synthetic-pay-maker",string role="Admin")=>UserAccess.Principal(new JsonObject{["username"]=name,["role"]=role,["department"]="FIN",["rankLevel"]=5});
     public static ClaimsPrincipal Maker=>Actor();public static ClaimsPrincipal Checker=>Actor("synthetic-pay-checker","FinancialAccountant");
-    public PayFixture(){Store=new Store(DirectoryPath);}
+    public PayFixture()
+    {
+        Store=new Store(DirectoryPath);
+        // money-core: SchemaApprovals bridges only existing document users — never invents auth.user rows.
+        Store.Write((c,tx)=>{
+            Store.Save(c,"user",new(){["id"]="synthetic-pay-maker",["username"]="synthetic-pay-maker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5},tx);
+            Store.Save(c,"user",new(){["id"]="synthetic-pay-checker",["username"]="synthetic-pay-checker",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=5},tx);
+            return true;
+        });
+    }
     public JsonObject Draft(string kind,string app,JsonObject data,string code="default",string period="2026-10")=>Store.Write((c,tx)=>PaySettings.Create(c,tx,Maker,kind,app,new(){["code"]=code,["period"]=period,["data"]=data}));
     public JsonObject Approve(string kind,string app,JsonObject doc)=>Store.Write((c,tx)=>PaySettings.Approve(c,tx,Checker,kind,app,doc.S("id")));
     public static JsonObject Terms(string model="per_order")=>new(){["name"]="Synthetic parent terms",["billingModel"]=model,["parameters"]=model switch{
