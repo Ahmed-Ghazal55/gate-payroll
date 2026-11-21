@@ -176,6 +176,7 @@ PushNotifications.Map(app, api, store);
 FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
 ApprovalsArea.Map(api,store);
 SalSimulations.Map(api,store);
+OpsSnapshotCapture.Map(api,store);
 FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);TreasurySummary.Map(api,store);
 TreasuryEntries.Map(api,store);
 ManualJournals.Map(api,store);

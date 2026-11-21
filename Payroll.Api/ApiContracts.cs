@@ -125,6 +125,7 @@ public static class ApiContracts
         if(get&&path=="/api/pay/apps/ninja/live/daily-deductions")return NinjaLivePage(NinjaLiveDailyDeductionRow());
         if(get&&path=="/api/pay/apps/ninja/live/payment-methods")return NinjaLivePaymentMethodsPage();
         if(get&&path=="/api/pay/apps/ninja/live/account-bearers")return NinjaLiveAccountBearersPage();
+        if(path is "/api/sal/pay-runs/{id}/capture-ops" or "/api/sal/pay-runs/{id}/freeze-capture")return O(new(){["id"]=S(),["companyId"]=S(),["app"]=S(),["periodMonth"]=S(),["captureState"]=N(),["snapshotCount"]=N(),["requiredKinds"]=N(),["frozenAt"]=S(),["noteAr"]=S(),["allowedActions"]=A(S())},"id","captureState","allowedActions");
         if(get&&path is "/api/operations/distinct")return O(new(){["column"]=S(),["values"]=A(S())},"column","values");
         if(path=="/api/operations/{kind}"&&get)return OperationsPage();
         if(path=="/api/riders/{iqama}/accounts"&&get)return OperationsPage();
