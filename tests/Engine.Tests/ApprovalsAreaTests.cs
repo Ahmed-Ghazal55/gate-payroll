@@ -86,4 +86,23 @@ public sealed class ApprovalsAreaTests
         var req=new JsonObject{["id"]="synthetic-shared",["kind"]="shared_rider_release",["requestedBy"]="scoped",["targetDepartment"]="FIN",["requiredRankLevel"]=1,["dualPermission"]=ApprovalsArea.DualSharedRiderRelease};
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(actor,req,new(),"approvals.decide",c,tx,dualPermission:ApprovalsArea.DualSharedRiderRelease);return true;})).Status);
     }
+
+    [TestMethod]
+    public void BypassGrantDoesNotOverrideDepartmentOrRank()
+    {
+        using var f=new PayFixture();
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,"user",new(){["id"]="u-ops",["username"]="ops-bypass",["role"]="FinancialAccountant",["department"]="OPS",["customPermissions"]=new JsonArray(ApprovalsArea.DualPaymentOut,"approvals.decide")},tx);
+            AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="ops-bypass",["from"]=Day(0),["to"]=Day(7),["reason"]="maker-checker only",["scope"]=AccessPolicy.ScopePayApprovals});
+            return true;
+        });
+        // Wrong department even with an active pay-approvals bypass grant.
+        var wrongDept=UserAccess.Principal(new JsonObject{["username"]="ops-bypass",["role"]="FinancialAccountant",["department"]="OPS",["rankLevel"]=4,["customPermissions"]=new JsonArray(ApprovalsArea.DualPaymentOut,"approvals.decide")});
+        var req=new JsonObject{["id"]="synthetic-dept-rank",["kind"]="payment_out",["requestedBy"]="other-maker",["targetDepartment"]="FIN",["requiredRankLevel"]=1,["dualPermission"]=ApprovalsArea.DualPaymentOut,["amountSar"]=10};
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(wrongDept,req,new(),"approvals.decide",c,tx,"approval.decide",req,ApprovalsArea.DualPaymentOut);return true;})).Status);
+        // Correct department but rank below required — bypass still must not open it.
+        var lowRank=UserAccess.Principal(new JsonObject{["username"]="ops-bypass",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=1,["customPermissions"]=new JsonArray(ApprovalsArea.DualPaymentOut,"approvals.decide")});
+        req["requiredRankLevel"]=4;
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(lowRank,req,new(),"approvals.decide",c,tx,"approval.decide",req,ApprovalsArea.DualPaymentOut);return true;})).Status);
+    }
 }

@@ -168,9 +168,9 @@ public static partial class AccessPolicy
         // BR §35 / M-0672: maker≠checker only for dedicated dual money-out / shared-rider codes.
         if(ApprovalsArea.RequiresDual(dual))
             J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request,scope:dual),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
-        // Department/rank still apply; §35 bypass grant can open them via Independent (same as before).
+        // Bypass lifts maker≠checker only — never department, rank, approval limit, or company/platform scope.
         if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))
-            J.Need(Independent(actor,name,operation+".department_rank",c,tx,record??request,scope:dual),"القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
+            throw new ApiError("القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
         DemandApprovalLimit(actor,request,c,tx);
     }
 
