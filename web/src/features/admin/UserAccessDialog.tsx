@@ -106,7 +106,7 @@ export function UserAccessDialog({ user, users, catalog, isAdmin, onClose, onSav
       <div className="max-h-[70vh] space-y-4 overflow-y-auto">
         <div className="grid gap-3 sm:grid-cols-3">
           <label className="space-y-1 text-xs font-bold">الدور
-            <SearchableSelect ariaLabel="الدور" value={role} onChange={setRole} options={catalog.roles.map((r) => ({ value: r.code, label: r.nameAr }))} />
+            <SearchableSelect ariaLabel="الدور" value={role} onChange={setRole} options={catalog.roles.map((r) => ({ value: r.code, label: (r.nameAr || '').replace(/\s*\([A-Za-z][^)]*\)\s*/g, '').trim() || r.nameAr }))} />
           </label>
           <label className="space-y-1 text-xs font-bold">القسم
             <SearchableSelect ariaLabel="القسم" value={department} onChange={setDepartment} options={catalog.departments.map((d) => ({ value: d.code, label: d.nameAr }))} />
@@ -126,7 +126,7 @@ export function UserAccessDialog({ user, users, catalog, isAdmin, onClose, onSav
             {list.map((p) => (
               <div key={p.code} data-permission={p.code} className="flex flex-wrap items-center justify-between gap-2 py-1 text-xs">
                 <div className="min-w-0 flex-1">
-                  <span className={effective(p.code) ? 'font-bold text-[var(--ink)]' : 'text-[var(--muted)]'}>{p.nameAr}</span>
+                  <span className={effective(p.code) ? 'font-bold text-[var(--ink)]' : 'text-[var(--muted)]'}>{(p.nameAr || '').replace(/\s*\([A-Za-z][^)]*\)\s*/g, '').trim() || p.nameAr}</span>
                   <p className="text-[11px] text-[var(--muted)]">{p.descriptionAr}</p>
                 </div>
                 <select aria-label={p.nameAr} value={mark(p.code)} onChange={(e) => setMark(p.code, e.target.value as Mark)} className="rounded-md border border-[var(--line)] bg-[var(--surface)] p-1 text-[var(--ink)]">
@@ -200,7 +200,7 @@ export function RolePermissionsEditor({ catalog, onSaved }: { catalog: AccessCat
     <section id="role-editor" className="space-y-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4">
       <h3 className="text-sm font-bold text-[var(--ink)]">صلاحيات الأدوار</h3>
       <div className="flex flex-wrap items-center gap-2">
-        <div className="min-w-64"><SearchableSelect ariaLabel="الدور" value={code} onChange={pick} options={roles.map((r) => ({ value: r.code, label: r.nameAr }))} /></div>
+        <div className="min-w-64"><SearchableSelect ariaLabel="الدور" value={code} onChange={pick} options={roles.map((r) => ({ value: r.code, label: (r.nameAr || '').replace(/\s*\([A-Za-z][^)]*\)\s*/g, '').trim() || r.nameAr }))} /></div>
         <input aria-label="سبب التعديل" value={reason} onChange={(e) => setReason(e.target.value)} placeholder="سبب التعديل (مطلوب)" className="min-w-64 rounded-lg border border-[var(--line)] bg-[var(--surface)] p-2 text-xs text-[var(--ink)]" />
         <button type="button" disabled={busy || reason.trim().length < 3} onClick={save} className="rounded-lg bg-[var(--accent)] px-3 py-2 text-xs font-bold text-white disabled:opacity-50">حفظ الدور</button>
       </div>
@@ -210,7 +210,7 @@ export function RolePermissionsEditor({ catalog, onSaved }: { catalog: AccessCat
           {list.map((p) => (
             <label key={p.code} title={p.descriptionAr} className="flex items-center gap-2 text-xs">
               <input type="checkbox" checked={selected.includes(p.code)} onChange={(e) => setSelected((s) => (e.target.checked ? [...s, p.code] : s.filter((x) => x !== p.code)))} />
-              <span>{p.nameAr}</span>
+              <span>{(p.nameAr || '').replace(/\s*\([A-Za-z][^)]*\)\s*/g, '').trim() || p.nameAr}</span>
             </label>
           ))}
         </fieldset>

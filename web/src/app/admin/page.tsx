@@ -2,7 +2,13 @@
 
 import React, { useCallback, useState, useEffect, useMemo, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import {
+  ADMIN_TAB_LABELS,
+  buildTabRedirectUrl,
+  resolveAdminTab,
+  type AdminTab,
+} from '../../lib/page-tabs';
 import {
   ShieldCheck,
   Users,
@@ -41,12 +47,11 @@ import {
   formatAuditAt,
   shortAuditId,
 } from '../../lib/audit-labels';
-import { orgOperationLabelAr } from '../../lib/payroll-labels';
+import { orgOperationLabelAr, permissionCodesLabelAr, roleLabelAr } from '../../lib/payroll-labels';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
-import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Dialog } from '../../components/ui/Dialog';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
@@ -67,16 +72,17 @@ import type {
 function AdminPageInner() {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
-  const tabFromUrl = searchParams?.get('tab') || 'users';
-  const [activeTab, setActiveTab] = useState<string>(tabFromUrl);
+  const resolvedTab = resolveAdminTab(searchParams?.get('tab'));
+  const activeTab: AdminTab = resolvedTab.tab;
 
   useEffect(() => {
-    if (tabFromUrl && tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
-    }
-  }, [tabFromUrl]);
+    if (!resolvedTab.legacy) return;
+    router.replace(buildTabRedirectUrl(pathname || '/admin/', searchParams, resolvedTab), { scroll: false });
+  }, [resolvedTab.legacy, resolvedTab.tab, pathname, router, searchParams]);
 
   // Users State
   const [users, setUsers] = useState<any[]>([]);
@@ -463,13 +469,18 @@ function AdminPageInner() {
   const usersFilterCols = useMemo(
     () => [
       { key: 'username', header: 'اسم المستخدم', type: 'text' as const, getValue: (u: any) => u.username || '' },
-      { key: 'role', header: 'الدور الوظيفي', type: 'list' as const, getValue: (u: any) => u.roleNameAr || u.role || '' },
+      {
+        key: 'role',
+        header: 'الدور الوظيفي',
+        type: 'list' as const,
+        getValue: (u: any) => roleLabelAr(u.role, u.roleNameAr),
+      },
       { key: 'department', header: 'القسم', type: 'list' as const, getValue: (u: any) => u.department || 'ALL' },
       {
         key: 'customPermissions',
         header: 'الصلاحيات المخصصة',
         type: 'text' as const,
-        getValue: (u: any) => (u.customPermissions?.length ? u.customPermissions.join(', ') : 'حسب الدور الأساسي'),
+        getValue: (u: any) => permissionCodesLabelAr(u.customPermissions, accessCatalog?.permissions),
       },
       {
         key: 'status',
@@ -480,7 +491,7 @@ function AdminPageInner() {
         toneOf: (v: unknown) => (v === 'suspended' ? 'danger' : 'success'),
       },
     ],
-    []
+    [accessCatalog]
   );
   const usersFilter = useTableAutoFilter(filteredUsers, usersFilterCols);
 
@@ -589,21 +600,12 @@ function AdminPageInner() {
   );
   const auditFilter = useTableAutoFilter(auditLogs, auditFilterCols);
 
-  const sectionTabs: SectionTabItem[] = [
-    { id: 'users', label: 'المستخدمون والصلاحيات', icon: <Users size={16} /> },
-    { id: 'org', label: 'الأقسام والرتب والتفويضات', icon: <Building2 size={16} /> },
-    { id: 'lists', label: 'القوائم والإعدادات', icon: <SlidersHorizontal size={16} /> },
-    { id: 'bypass', label: 'تجاوز الاعتماد', icon: <ShieldAlert size={16} /> },
-    { id: 'audit', label: 'سجل التدقيق الشامل', icon: <History size={16} />, badge: auditTotal || undefined },
-    { id: 'settings', label: 'إعدادات المنظومة', icon: <Settings size={16} /> },
-  ];
-
   return (
     <div className="space-y-6">
       {/* Header */}
       <PageHeader
         title="الإدارة والتنظيم المؤسسي"
-        eyebrow="التحكم والأمن ونظام الرتب"
+        eyebrow={ADMIN_TAB_LABELS[activeTab]}
         description="إدارة حسابات المستخدمين، سجل الأقسام والرتب والتفويضات، تعيين المشرفين وتوجيه مسؤولي مراجعة وصرف السلف، وفحص سجل التدقيق."
         primaryAction={
           activeTab === 'users'
@@ -658,9 +660,6 @@ function AdminPageInner() {
         />
       </div>
 
-      {/* Section Tabs */}
-      <SectionTabs tabs={sectionTabs} activeTab={activeTab} onChange={setActiveTab} />
-
       {/* ======================================================== */}
       {/* Tab 1: المستخدمون والصلاحيات                              */}
       {/* ======================================================== */}
@@ -687,7 +686,7 @@ function AdminPageInner() {
                       const headers = ['اسم المستخدم', 'الدور', 'القسم', 'الحالة'];
                       const rows = filteredUsers.map((u) => [
                         u.username,
-                        u.roleNameAr || u.role,
+                        roleLabelAr(u.role, u.roleNameAr),
                         u.department || '',
                         u.disabled ? 'معطل' : 'نشط',
                       ]);
@@ -750,16 +749,14 @@ function AdminPageInner() {
                         <td className="p-3 font-mono font-bold text-[var(--ink)]">
                           <bdi dir="ltr">@{u.username}</bdi>
                         </td>
-                        <td className="p-3 font-medium">{u.roleNameAr || u.role}</td>
+                        <td className="p-3 font-medium">{roleLabelAr(u.role, u.roleNameAr)}</td>
                         <td className="p-3">
                           <span className="px-2 py-0.5 rounded-md text-xs font-mono bg-[var(--raised)]">
                             {u.department || 'ALL'}
                           </span>
                         </td>
                         <td className="p-3 text-xs text-[var(--muted)] max-w-xs truncate">
-                          {u.customPermissions && u.customPermissions.length > 0
-                            ? u.customPermissions.join(', ')
-                            : 'حسب الدور الأساسي'}
+                          {permissionCodesLabelAr(u.customPermissions, accessCatalog?.permissions)}
                         </td>
                         <td className="p-3">
                           <span className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold ${u.status === 'suspended' ? 'bg-[var(--danger)]/15 text-[var(--danger)]' : 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'}`}>
@@ -960,7 +957,7 @@ function AdminPageInner() {
                     التفويضات الإدارية وتمرير الصلاحيات
                   </h4>
                   <p className="text-[11px] text-[var(--muted)] mt-0.5">
-                    تفويض الصلاحية يشترط تاريخ انتهاء إلزامي (until)؛ التفويضات المنتهية تُلغى تلقائياً.
+                    تفويض الصلاحية يشترط تاريخ انتهاء إلزامي؛ التفويضات المنتهية تُلغى تلقائياً.
                   </p>
                 </div>
                 {canManageOrg && (
@@ -1059,7 +1056,7 @@ function AdminPageInner() {
               <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
                 <div>
                   <h4 className="font-bold text-xs sm:text-sm text-[var(--ink)]">
-                    إشراف المشرفين على المناديب (Supervision)
+                    إشراف المشرفين على المناديب
                   </h4>
                   <p className="text-[11px] text-[var(--muted)] mt-0.5">
                     يحدد المناديب المسموح للمشرف الميداني تقديم طلبات السلف نيابة عنهم.
@@ -1539,30 +1536,30 @@ function AdminPageInner() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">الدور الوظيفي (Role):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">الدور الوظيفي:</label>
               <select
                 value={newRole}
                 onChange={(e) => setNewRole(e.target.value)}
                 className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
-                <option value="Accountant">محاسب (Accountant)</option>
-                <option value="Reviewer">مراجع ومدقق (Reviewer)</option>
-                <option value="Manager">مدير تشغيل (Manager)</option>
-                <option value="Admin">مدير نظام (Admin)</option>
+                <option value="Accountant">محاسب</option>
+                <option value="Reviewer">مراجع ومدقق</option>
+                <option value="Manager">مدير تشغيل</option>
+                <option value="Admin">مدير نظام</option>
               </select>
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">القسم الأساسي (Dept):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">القسم الأساسي:</label>
               <select
                 value={newDept}
                 onChange={(e) => setNewDept(e.target.value)}
                 className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
               >
-                <option value="FIN">المالية والحسابات (FIN)</option>
-                <option value="OPS">التشغيل الميداني (OPS)</option>
-                <option value="HR">الموارد البشرية (HR)</option>
-                <option value="MGMT">الإدارة العامة (MGMT)</option>
+                <option value="FIN">المالية والحسابات</option>
+                <option value="OPS">التشغيل الميداني</option>
+                <option value="HR">الموارد البشرية</option>
+                <option value="MGMT">الإدارة العامة</option>
               </select>
             </div>
           </div>

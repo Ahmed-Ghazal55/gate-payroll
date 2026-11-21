@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { ClipboardCheck } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
+import { usePeriod } from '../../lib/use-period';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState } from '../../components/ui/EmptyState';
 import { formatReadableValue } from '../../lib/formatRecord';
@@ -12,7 +13,7 @@ export function ChefzReviewPanel() {
   const { can, isAdmin } = useAuth();
   const { toast } = useToast();
   const [companyId, setCompanyId] = useState('BW');
-  const [period, setPeriod] = useState('2026-10');
+  const { period, setPeriod } = usePeriod();
   const [invoiceId, setInvoiceId] = useState('');
   const [operatorsJson, setOperatorsJson] = useState('[]');
   const [result, setResult] = useState<Record<string, unknown> | null>(null);

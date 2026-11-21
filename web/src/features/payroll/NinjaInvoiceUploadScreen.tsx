@@ -30,6 +30,7 @@ import {
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
+import { usePeriod } from '../../lib/use-period';
 import { useToast } from '../../components/ui/Toast';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
@@ -52,13 +53,13 @@ type ApiNinjaInvoice = paths['/api/platforms/ninja/invoices']['get']['responses'
 type DeductionGroup = { category: string; lineIds: string[]; amount: number; unclassified: number; companyOnly: boolean };
 
 const DEDUCTION_LABELS: Record<string, string> = {
-  penalty: 'غرامة (Penalty / الخصم)',
-  naqilBlocked: 'حظر نقل (NAQIL BLOCKED)',
+  penalty: 'غرامة / خصم',
+  naqilBlocked: 'حظر نقل',
   stopsWithoutNotice: 'توقف بدون إشعار',
   supplier_adjustment: 'تعديل المورد',
   deductionRefund: 'رد خصم',
   gasolineSupport: 'دعم بنزين',
-  onDemand: 'On demand',
+  onDemand: 'عند الطلب',
   other_deduction: 'خصومات أخرى',
   penalty_fine: 'غرامة مُخالفة',
   food_damage: 'تعويض عن تلف الطعام',
@@ -89,7 +90,7 @@ const isCompanyMatch = (invoiceCompanyId?: string, target?: string) => {
 };
 
 export function NinjaInvoiceUploadScreen({
-  initialPeriod = new Date().toISOString().slice(0, 7),
+  initialPeriod,
   platform = 'ninja',
 }: NinjaInvoiceUploadScreenProps) {
   const { user } = useAuth();
@@ -98,7 +99,7 @@ export function NinjaInvoiceUploadScreen({
   const platformNameAr = isKeeta ? 'كيتا' : 'نينجا';
   const platformPrefix = isKeeta ? 'KEETA' : 'NINJA';
 
-  const [period, setPeriod] = useState<string>(initialPeriod);
+  const { period, setPeriod } = usePeriod(initialPeriod);
   const [companyOptions, setCompanyOptions] = useState<CompanySponsor[]>([]);
   const [companyId, setCompanyId] = useState<string>('');
   const [odooVoucherNo, setOdooVoucherNo] = useState<string>('');
@@ -959,7 +960,7 @@ export function NinjaInvoiceUploadScreen({
             </div>
             <div>
               <h2 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-                مسار فاتورة {platformNameAr} ({isKeeta ? 'Keeta' : 'Ninja'} Invoice Stepper)
+                مسار فاتورة {platformNameAr}
               </h2>
               <p className="text-xs text-[var(--muted)] mt-0.5">
                 دورة الفاتورة المعتمدة: رفع ← مطابقة ← تأكيد ← اعتماد ← ترحيل.
@@ -1209,7 +1210,7 @@ export function NinjaInvoiceUploadScreen({
 
           {isKeeta && (needsSheetName || detectedSheets.length > 1) && (
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">ورقة الفاتورة الأصلية (sheetName):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">ورقة الفاتورة الأصلية:</label>
               {detectedSheets.length > 1 ? (
                 <SearchableSelect
                   ariaLabel="ورقة الفاتورة الأصلية"
@@ -1233,7 +1234,7 @@ export function NinjaInvoiceUploadScreen({
 
           {isKeeta && needsCompanyRows && (
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">أسطر تعديل الشركة (companyRows):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">أسطر تعديل الشركة:</label>
               <input
                 type="text"
                 aria-label="أسطر تعديل الشركة"
@@ -1472,7 +1473,7 @@ export function NinjaInvoiceUploadScreen({
             <div>
               <div className="flex items-center gap-2">
                 <span className="text-xs sm:text-sm font-bold text-[var(--ink)]">
-                  إجراءات الفاتورة المتاحة من المحرك (Allowed Actions):
+                  إجراءات الفاتورة المتاحة:
                 </span>
                 <span className="text-[11px] font-bold px-2 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-mono">
                   {currentInvoice.approvalStatus || 'pending'}
@@ -1586,7 +1587,7 @@ export function NinjaInvoiceUploadScreen({
               icon={CheckCircle}
             />
             <StatCard
-              label="إجمالي المستحق (Gross)"
+              label="إجمالي المستحق"
               value={formatSar(gross)}
               hint="قبل الخصومات"
               icon={DollarSign}
@@ -1598,7 +1599,7 @@ export function NinjaInvoiceUploadScreen({
               icon={AlertTriangle}
             />
             <StatCard
-              label="الضريبة (VAT)"
+              label="الضريبة"
               value={formatSar(vat)}
               hint="ضريبة القيمة المضافة"
               icon={Percent}
@@ -1702,7 +1703,7 @@ export function NinjaInvoiceUploadScreen({
                     )}
                   </div>
                   <div className="text-[11px] text-[var(--muted)]">
-                    مصدر الشروط: {reconcileResult.termsSource === 'approved' ? 'شروط معتمدة' : 'شروط البداية (Seed)'}
+                    مصدر الشروط: {reconcileResult.termsSource === 'approved' ? 'شروط معتمدة' : 'الشروط الافتراضية'}
                   </div>
                 </div>
 
@@ -1749,7 +1750,7 @@ export function NinjaInvoiceUploadScreen({
                   <div className="flex items-center justify-between">
                     <div>
                       <h4 className="text-xs sm:text-sm font-bold text-[var(--ink)]">
-                        تسويات على مستوى الفاتورة (Invoice-level Adjustments)
+                        تسويات على مستوى الفاتورة
                       </h4>
                       <p className="text-[11px] text-[var(--muted)] mt-0.5">
                         بنود بدون كابتن محدد (مثل الخصومات العامة DEDUCTIONS)؛ تم تضمينها كما وردت من نينجا.

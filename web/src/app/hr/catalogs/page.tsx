@@ -119,8 +119,9 @@ function HrCatalogsPageInner() {
 
   const handleTabChange = (tabId: string) => {
     setActiveTab(tabId);
-    const sp = new URLSearchParams();
+    const sp = new URLSearchParams(searchParams?.toString() || '');
     if (tabId !== 'job-titles') sp.set('tab', tabId);
+    else sp.delete('tab');
     const qs = sp.toString() ? `?${sp.toString()}` : '';
     router.replace(`${pathname}${qs}`, { scroll: false });
   };

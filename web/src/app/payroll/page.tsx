@@ -1,9 +1,17 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useMemo, useRef, useCallback, Suspense } from 'react';
 import Link from 'next/link';
-import { useSearchParams } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { formatReadableValue, formatRecordEntries } from '../../lib/formatRecord';
+import {
+  PAYROLL_TAB_LABELS,
+  buildTabRedirectUrl,
+  resolvePayrollTab,
+  type PayrollTab,
+} from '../../lib/page-tabs';
+import { appendPeriodToHref } from '../../lib/period';
+import { usePeriod } from '../../lib/use-period';
 import {
   Calculator,
   Upload,
@@ -60,7 +68,6 @@ import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
-import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Drawer } from '../../components/ui/Drawer';
 import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
@@ -159,51 +166,70 @@ const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
 };
 
 const NINJA_METRICS_MAP: Record<string, string> = {
-  orders: 'عدد الطلبات الفعلية (orders)',
-  days: 'أيام التشغيل (days)',
-  gross: 'إجمالي دخل المنصة (gross)',
-  incentives: 'الحوافز الإضافية (incentives)',
-  attendanceDays: 'أيام الحضور والعمل (attendanceDays)',
-  hours8Days: 'أيام تحقيق 8 ساعات (hours8Days)',
-  weekendDays: 'أيام عطلة نهاية الأسبوع (weekendDays)',
-  workingHours: 'ساعات العمل الإجمالية (workingHours)',
-  activeWorkingHours: 'ساعات العمل الفعلية (activeWorkingHours)',
-  committedWorkingHours: 'ساعات الالتزام (committedWorkingHours)',
-  shiftCompliancePercent: 'نسبة الالتزام بالورديات (shiftCompliancePercent)',
-  onTimeAttendancePercent: 'نسبة الحضور بالوقت (onTimeAttendancePercent)',
+  orders: 'عدد الطلبات الفعلية',
+  days: 'أيام التشغيل',
+  gross: 'إجمالي دخل المنصة',
+  incentives: 'الحوافز الإضافية',
+  attendanceDays: 'أيام الحضور والعمل',
+  hours8Days: 'أيام تحقيق 8 ساعات',
+  weekendDays: 'أيام عطلة نهاية الأسبوع',
+  workingHours: 'ساعات العمل الإجمالية',
+  activeWorkingHours: 'ساعات العمل الفعلية',
+  committedWorkingHours: 'ساعات الالتزام',
+  shiftCompliancePercent: 'نسبة الالتزام بالورديات',
+  onTimeAttendancePercent: 'نسبة الحضور بالوقت',
 };
 
 const OPERATORS_MAP: Record<string, string> = {
-  gte: 'أكبر من أو يساوي (>=)',
-  gt: 'أكبر من (>)',
-  lte: 'أصغر من أو يساوي (<=)',
-  lt: 'أصغر من (<)',
-  eq: 'يساوي (==)',
-  neq: 'لا يساوي (!=)',
+  gte: 'أكبر من أو يساوي',
+  gt: 'أكبر من',
+  lte: 'أصغر من أو يساوي',
+  lt: 'أصغر من',
+  eq: 'يساوي',
+  neq: 'لا يساوي',
 };
 
 const EFFECT_TYPES_MAP: Record<string, string> = {
-  zero: 'تصفير المستحق (Zero Entitlement)',
-  next_band: 'الانتقال للشريحة التالية (Next Band)',
-  per_order: 'محاسبة بسعر الطلب الفردي (Per Order)',
+  zero: 'تصفير المستحق',
+  next_band: 'الانتقال للشريحة التالية',
+  per_order: 'محاسبة بسعر الطلب الفردي',
 };
 
 function PayrollPageInner() {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
+  const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
 
   const showToast = (msg: string, type: 'success' | 'error' | 'info' | 'warning' = 'info') => {
     toast(msg, type === 'error' ? 'danger' : type);
   };
 
-  // Main shared tabs: platforms · current-cycle · cycle · rules · deductions · bank · policies
+  // Main shared sections (sidebar-driven, page-tabs-rule 3.0):
+  // platforms · cycle · current-cycle · ninja_upload · rules · deductions · bank · policies
   type PayAppSubTab = 'settlements' | 'parent_terms' | 'internal_schemes' | 'eligibility' | 'accounts';
-  const tabFromUrl = searchParams?.get('tab') || 'platforms';
+  const resolvedTab = resolvePayrollTab(searchParams?.get('tab'));
+  const tabFromUrl: PayrollTab = resolvedTab.tab;
   const appFromUrl = searchParams?.get('app') || 'hungerstation';
   const subFromUrl = (searchParams?.get('sub') as PayAppSubTab) || 'settlements';
-  const periodFromUrl = searchParams?.get('period') || new Date().toISOString().slice(0, 7);
-  const [mainTab, setMainTab] = useState<string>(tabFromUrl);
+  const [mainTab, setMainTab] = useState<PayrollTab>(tabFromUrl);
+
+  // Redirect legacy or unknown ?tab= ids cleanly while keeping all other query params (period, app, sub, etc.).
+  useEffect(() => {
+    if (!resolvedTab.legacy) return;
+    router.replace(buildTabRedirectUrl(pathname || '/payroll/', searchParams, resolvedTab), { scroll: false });
+  }, [resolvedTab.legacy, resolvedTab.tab, pathname, router, searchParams]);
+
+  const navigateMainTab = useCallback(
+    (nextTab: PayrollTab) => {
+      setMainTab(nextTab);
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('tab', nextTab);
+      router.replace(`${pathname || '/payroll/'}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
 
   // Selected App within platforms tab
   const [selectedPlatform, setSelectedPlatform] = useState<string>(appFromUrl);
@@ -218,8 +244,28 @@ function PayrollPageInner() {
   // Sub-tabs inside selected app
   const [appSubTab, setAppSubTab] = useState<PayAppSubTab>(subFromUrl);
 
-  // Filters & period
-  const [selectedPeriod, setSelectedPeriod] = useState<string>(periodFromUrl);
+  const selectPlatformInUrl = useCallback(
+    (nextApp: string) => {
+      setSelectedPlatform(nextApp);
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('app', nextApp);
+      router.replace(`${pathname || '/payroll/'}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  const selectAppSubInUrl = useCallback(
+    (nextSub: PayAppSubTab) => {
+      setAppSubTab(nextSub);
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('sub', nextSub);
+      router.replace(`${pathname || '/payroll/'}?${params.toString()}`, { scroll: false });
+    },
+    [pathname, router, searchParams]
+  );
+
+  // Filters & period (URL ?period=YYYY-MM single source of truth)
+  const { period: selectedPeriod, setPeriod: setSelectedPeriod } = usePeriod();
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
 
@@ -233,15 +279,10 @@ function PayrollPageInner() {
     if (subFromUrl && subFromUrl !== appSubTab) {
       setAppSubTab(subFromUrl);
     }
-    if (periodFromUrl && periodFromUrl !== selectedPeriod) {
-      setSelectedPeriod(periodFromUrl);
-      setRulesMonth(periodFromUrl);
-      setLegacyPeriod(periodFromUrl);
-    }
     if (searchParams?.get('opsImport') === '1' && canShowImportStep(NINJA_OPS_IMPORT, { isAdmin, can })) {
       setOpsImportStep(NINJA_OPS_IMPORT);
     }
-  }, [tabFromUrl, appFromUrl, subFromUrl, periodFromUrl, searchParams, isAdmin, can]);
+  }, [tabFromUrl, appFromUrl, subFromUrl, searchParams, isAdmin, can]);
 
   // Navigation tabs within HungerStation settlements
   const [activeTab, setActiveTab] = useState<string>('invoices');
@@ -598,14 +639,12 @@ function PayrollPageInner() {
   const [globalSettings, setGlobalSettings] = useState<PayConfigDoc[]>([]);
   const [loadingGlobalSettings, setLoadingGlobalSettings] = useState<boolean>(false);
   const [globalSettingsError, setGlobalSettingsError] = useState<string | null>(null);
-  const [rulesMonth, setRulesMonth] = useState<string>(() => new Date().toISOString().slice(0, 7));
 
   const [copyingMonth, setCopyingMonth] = useState<boolean>(false);
 
   // ========================================================
   // LEGACY PRODUCTION PAYROLL RUN STATES (F2)
   // ========================================================
-  const [legacyPeriod, setLegacyPeriod] = useState<string>(() => new Date().toISOString().slice(0, 7));
   const [legacyPreview, setLegacyPreview] = useState<LegacyPayrollPreviewRow[]>([]);
   const [legacyRuns, setLegacyRuns] = useState<LegacyPayrollRun[]>([]);
   const [ridersList, setRidersList] = useState<any[]>([]);
@@ -877,7 +916,7 @@ function PayrollPageInner() {
   // Create Cycle from Draft (A5)
   const handleCreateCycleFromDraft = async () => {
     if (!reviewDraft || !reviewDraft.canCreate || (reviewDraft.blockers && reviewDraft.blockers.length > 0)) {
-      showToast('لا يمكن إنشاء الدورة مع وجود موانع استحقاق (Blockers)', 'error');
+      showToast('لا يمكن إنشاء الدورة مع وجود موانع استحقاق', 'error');
       return;
     }
     setCreatingCycle(true);
@@ -903,17 +942,17 @@ function PayrollPageInner() {
   // Rule Editing Handlers (A6)
   const activeNinjaEligibility = useMemo(() => {
     if (!ninjaEligibilityList || ninjaEligibilityList.length === 0) return null;
-    const forPeriod = ninjaEligibilityList.filter((d) => d.period === rulesMonth);
+    const forPeriod = ninjaEligibilityList.filter((d) => d.period === selectedPeriod);
     if (forPeriod.length === 0) return ninjaEligibilityList[0];
     const draft = forPeriod.find((d) => d.status === 'draft');
     if (draft) return draft;
     return forPeriod.sort((a, b) => (b.version || 0) - (a.version || 0))[0];
-  }, [ninjaEligibilityList, rulesMonth]);
+  }, [ninjaEligibilityList, selectedPeriod]);
 
   const handleSaveNewRule = async () => {
     const trimmedThreshold = newRuleThreshold.trim();
     if (trimmedThreshold === '' || Number.isNaN(Number(trimmedThreshold))) {
-      showToast('يرجى إدخال قيمة الحد الأدنى (Threshold) للشرط قبل الحفظ', 'error');
+      showToast('يرجى إدخال قيمة الحد الأدنى للشرط قبل الحفظ', 'error');
       return;
     }
     setSubmittingRuleLifecycle(true);
@@ -929,10 +968,10 @@ function PayrollPageInner() {
       await api.createAppEligibility(
         'ninja',
         {
-          name: activeNinjaEligibility?.data?.name || `شروط أهلية نينجا ${rulesMonth}`,
+          name: activeNinjaEligibility?.data?.name || `شروط أهلية نينجا ${selectedPeriod}`,
           rules: existingRules,
         },
-        rulesMonth
+        selectedPeriod
       );
       showToast('تمت إضافة الشرط إلى نسخة الأهلية بنجاح', 'success');
       setRuleModalOpen(false);
@@ -954,10 +993,10 @@ function PayrollPageInner() {
       await api.createAppEligibility(
         'ninja',
         {
-          name: activeNinjaEligibility.data?.name || `شروط أهلية نينجا ${rulesMonth}`,
+          name: activeNinjaEligibility.data?.name || `شروط أهلية نينجا ${selectedPeriod}`,
           rules: existingRules,
         },
-        rulesMonth
+        selectedPeriod
       );
       showToast('تم حذف الشرط من المسودة', 'success');
       await loadNinjaEligibility();
@@ -973,7 +1012,7 @@ function PayrollPageInner() {
     setSubmittingRuleLifecycle(true);
     try {
       await api.approveAppEligibility('ninja', activeNinjaEligibility.id);
-      showToast('تم اعتماد شروط الأهلية بنجاح (Maker-Checker)', 'success');
+      showToast('تم اعتماد شروط الأهلية بنجاح', 'success');
       await loadNinjaEligibility();
     } catch (err: any) {
       showToast(err.message || 'تعذر اعتماد شروط الأهلية', 'error');
@@ -1028,12 +1067,12 @@ function PayrollPageInner() {
       await api.createAppEligibility(
         'ninja',
         {
-          name: `شروط أهلية نينجا ${rulesMonth}`,
+          name: `شروط أهلية نينجا ${selectedPeriod}`,
           rules: existingRules,
         },
-        rulesMonth
+        selectedPeriod
       );
-      showToast('تم إنشاء نسخة شروط أهلية جديدة لشهر ' + rulesMonth, 'success');
+      showToast('تم إنشاء نسخة شروط أهلية جديدة لشهر ' + selectedPeriod, 'success');
       await loadNinjaEligibility();
     } catch (err: unknown) {
       showToast(err instanceof Error ? err.message : 'تعذر إنشاء نسخة شروط الأهلية', 'error');
@@ -1179,7 +1218,7 @@ function PayrollPageInner() {
     setLegacyError(null);
     try {
       const [prevRes, runsRes, ridersRes, catRes] = await Promise.allSettled([
-        api.getLegacyPayrollPreview(legacyPeriod),
+        api.getLegacyPayrollPreview(selectedPeriod),
         api.getLegacyPayrollRuns(),
         api.getRiders(),
         api.getFinanceCatalog(),
@@ -1244,7 +1283,7 @@ function PayrollPageInner() {
     } else if (mainTab === 'current-cycle') {
       loadLegacyPayroll();
     }
-  }, [mainTab, appSubTab, selectedPlatform, selectedPeriod, selectedCompany, legacyPeriod, rulesMonth]);
+  }, [mainTab, appSubTab, selectedPlatform, selectedPeriod, selectedCompany]);
 
   // Derived KPI values for HungerStation
   const totalInvoicesAmount = useMemo(() => {
@@ -1324,7 +1363,7 @@ function PayrollPageInner() {
   // Approve TGA Allocation (maker-checker)
   const handleApproveAllocation = async (alloc: HsAllocation) => {
     if (alloc.requestedBy && user && alloc.requestedBy.toLowerCase() === user.username.toLowerCase()) {
-      showToast('لا يمكن لمنشئ التوزيع اعتماده بنفسه (قاعدة التدقيق المستقل Maker-Checker)', 'error');
+      showToast('لا يجوز أن يعتمد نفس الشخص الذي أنشأ التوزيع؛ يلزم مراجع آخر', 'error');
       return;
     }
 
@@ -1342,7 +1381,7 @@ function PayrollPageInner() {
     if (!selectedDispute) return;
 
     if (selectedDispute.createdBy && user && selectedDispute.createdBy.toLowerCase() === user.username.toLowerCase()) {
-      showToast('لا يمكنك البت في اعتراض أنشأته بنفسك (قاعدة التدقيق المستقل Maker-Checker)', 'error');
+      showToast('لا يجوز أن يبت نفس الشخص الذي أنشأ الاعتراض؛ يلزم مراجع آخر', 'error');
       return;
     }
 
@@ -1420,7 +1459,7 @@ function PayrollPageInner() {
 
   const handleApproveTerms = async (termsDoc: PayConfigDoc) => {
     if (isSelfMaker(termsDoc)) {
-      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
+      showToast('لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة؛ يلزم مستخدم آخر مستقل.', 'warning');
       return;
     }
     try {
@@ -1446,7 +1485,7 @@ function PayrollPageInner() {
 
   const handleApproveScheme = async (schemeDoc: PayConfigDoc) => {
     if (isSelfMaker(schemeDoc)) {
-      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
+      showToast('لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة؛ يلزم مستخدم آخر مستقل.', 'warning');
       return;
     }
     try {
@@ -1474,7 +1513,7 @@ function PayrollPageInner() {
 
   const handleApproveEligibility = async (elDoc: PayConfigDoc) => {
     if (isSelfMaker(elDoc)) {
-      showToast('قاعدة الرقابة المالية (Maker ≠ Checker): لا يمكن لمنشئ المسودة اعتمادها بنفسه. يتطلب مستخدم ثانٍ مستقل.', 'warning');
+      showToast('لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة؛ يلزم مستخدم آخر مستقل.', 'warning');
       return;
     }
     try {
@@ -1537,7 +1576,7 @@ function PayrollPageInner() {
   // Preview assignments import
   const handlePreviewAssignments = async () => {
     if (!assignmentFormId.trim()) {
-      showToast('يرجى إدخال معرّف النموذج أو الحملة (Campaign ID)', 'warning');
+      showToast('يرجى إدخال معرّف النموذج أو الحملة', 'warning');
       return;
     }
     setPreviewingAssignments(true);
@@ -1632,7 +1671,7 @@ function PayrollPageInner() {
   const handleCreateGlobalSettingsDraft = async () => {
     try {
       await api.createGlobalPaySettings({
-        effectiveFrom: `${rulesMonth}-01`,
+        effectiveFrom: `${selectedPeriod}-01`,
         fromDefaults: true,
       });
       showToast('تم إنشاء مسودة الإعدادات العامة من القيم الافتراضية بنجاح', 'success');
@@ -1666,7 +1705,7 @@ function PayrollPageInner() {
     try {
       await api.approveLegacyPayrollRun({
         iqama: approvePreviewRow.iqama,
-        period: legacyPeriod,
+        period: selectedPeriod,
         sponsorId: approveSponsorId,
         fingerprint: approvePreviewRow.fingerprint,
       });
@@ -1690,7 +1729,7 @@ function PayrollPageInner() {
     try {
       await api.createAdjustment({
         iqama: adjIqama,
-        period: legacyPeriod,
+        period: selectedPeriod,
         amount: parseFloat(adjAmount),
         sourceRef: adjSourceRef.trim(),
         category: adjCategory,
@@ -1719,7 +1758,7 @@ function PayrollPageInner() {
     try {
       await api.createPayment({
         iqama: payIqama,
-        period: legacyPeriod,
+        period: selectedPeriod,
         amount: parseFloat(payAmount),
         sourceRef: paySourceRef.trim(),
         sponsorId: paySponsorId,
@@ -1774,7 +1813,7 @@ function PayrollPageInner() {
         type: 'number' as const,
         numeric: true,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           return Number((run?.result || row).orders ?? 0);
         },
       },
@@ -1783,7 +1822,7 @@ function PayrollPageInner() {
         header: 'السياسة',
         type: 'list' as const,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           return (run?.result || row).policyName || '';
         },
       },
@@ -1793,7 +1832,7 @@ function PayrollPageInner() {
         type: 'number' as const,
         numeric: true,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           return Number((run?.result || row).openingBalance ?? 0);
         },
       },
@@ -1803,7 +1842,7 @@ function PayrollPageInner() {
         type: 'number' as const,
         numeric: true,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           return Number((run?.result || row).periodMovement ?? 0);
         },
       },
@@ -1813,7 +1852,7 @@ function PayrollPageInner() {
         type: 'number' as const,
         numeric: true,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           return Number((run?.result || row).closingBalance ?? 0);
         },
       },
@@ -1822,7 +1861,7 @@ function PayrollPageInner() {
         header: 'الموقف',
         type: 'list' as const,
         getValue: (row: LegacyPayrollPreviewRow) => {
-          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === legacyPeriod);
+          const run = legacyRuns.find((x) => x.iqama === row.iqama && x.period === selectedPeriod);
           if (run) return 'approved';
           if (row.blockers && row.blockers.length > 0) return 'blocked';
           return 'ready';
@@ -1831,7 +1870,7 @@ function PayrollPageInner() {
         toneOf: (v: unknown) => (v === 'approved' ? 'success' : v === 'blocked' ? 'danger' : 'warning'),
       },
     ],
-    [ridersList, legacyRuns, legacyPeriod]
+    [ridersList, legacyRuns, selectedPeriod]
   );
   const legacyPreviewFilter = useTableAutoFilter(legacyPreview, legacyPreviewFilterCols);
 
@@ -2007,18 +2046,6 @@ function PayrollPageInner() {
   );
   const ledgerRowsFilter = useTableAutoFilter(ledgerRows, ledgerFilterCols);
 
-  // Section Tabs (Shared across Payroll)
-  const sharedSectionTabs: SectionTabItem[] = [
-    { id: 'platforms', label: 'منصات التشغيل والفواتير', icon: <Calculator size={16} /> },
-    { id: 'ninja_upload', label: 'رفع فاتورة نينجا', icon: <FileSpreadsheet size={16} /> },
-    { id: 'current-cycle', label: 'الدورة الحالية (النظام القائم)', icon: <Layers size={16} />, badge: legacyPreview.length },
-    { id: 'cycle', label: 'دورة الرواتب والمسير (0-7)', icon: <RefreshCw size={16} /> },
-    { id: 'rules', label: 'محرر الأنظمة والقواعد', icon: <FileText size={16} /> },
-    { id: 'deductions', label: 'الاستقطاعات الشهرية', icon: <DollarSign size={16} /> },
-    { id: 'bank', label: 'التحويل والبنوك', icon: <Landmark size={16} /> },
-    { id: 'policies', label: 'السياسات السابقة', icon: <BookOpen size={16} />, badge: policies.length },
-  ];
-
   // Platforms List
   const platformsList = [
     { id: 'hungerstation', nameAr: 'هنقرستيشن', nameEn: 'HungerStation', tag: 'فواتير معتمدة', active: true },
@@ -2046,7 +2073,7 @@ function PayrollPageInner() {
       {/* Header */}
       <PageHeader
         title="الرواتب والمسيرات · منظومة المنصات الموحدة"
-        eyebrow="الرواتب والتعويضات"
+        eyebrow={PAYROLL_TAB_LABELS[mainTab]}
         description="إدارة ومراجعة فواتير المنصات، الدورة القائمة الفعالة للرواتب، محرر الأنظمة الداخلية، الاستقطاعات، واعتماد ملفات الصرف."
         primaryAction={
           mainTab === 'platforms' &&
@@ -2069,24 +2096,12 @@ function PayrollPageInner() {
         />
       )}
 
-      {/* Main Top Navigation Tabs */}
-      <SectionTabs
-        tabs={sharedSectionTabs}
-        activeTab={mainTab}
-        onChange={(tabId) => setMainTab(tabId)}
-      />
-
       {/* ======================================================== */}
-      {/* SECTION: NINJA / KEETA INVOICE RECONCILE (BR §26, §31)   */}
+      {/* SECTION: NINJA INVOICE RECONCILE (BR §26, §31)           */}
       {/* ======================================================== */}
       {mainTab === 'ninja_upload' && (
         <div className="space-y-6">
           <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} platform="ninja" />
-        </div>
-      )}
-      {mainTab === 'keeta_upload' && (
-        <div className="space-y-6">
-          <NinjaInvoiceUploadScreen initialPeriod={selectedPeriod} platform="keeta" />
         </div>
       )}
 
@@ -2102,8 +2117,8 @@ function PayrollPageInner() {
                 <label className="text-xs text-[var(--muted)] font-medium block mb-1">شهر المسير:</label>
                 <input
                   type="month"
-                  value={legacyPeriod}
-                  onChange={(e) => setLegacyPeriod(e.target.value)}
+                  value={selectedPeriod}
+                  onChange={(e) => setSelectedPeriod(e.target.value)}
                   className="p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs sm:text-sm font-bold focus:outline-hidden"
                 />
               </div>
@@ -2130,7 +2145,7 @@ function PayrollPageInner() {
 
             <div className="flex items-center gap-2">
               <a
-                href={`/api/payroll/export.csv?period=${encodeURIComponent(legacyPeriod)}`}
+                href={`/api/payroll/export.csv?period=${encodeURIComponent(selectedPeriod)}`}
                 download
                 className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs sm:text-sm font-bold hover:opacity-90 transition inline-flex items-center gap-1.5 shadow-xs"
               >
@@ -2153,12 +2168,12 @@ function PayrollPageInner() {
             <StatCard
               label="إجمالي مناديب المسير"
               value={legacyPreview.length}
-              hint={`شهر ${legacyPeriod}`}
+              hint={`شهر ${selectedPeriod}`}
               icon={Users}
             />
             <StatCard
               label="كشوف معتمدة ومرحلة"
-              value={legacyRuns.filter((r) => r.period === legacyPeriod).length}
+              value={legacyRuns.filter((r) => r.period === selectedPeriod).length}
               hint="مرحلة محاسبياً"
               icon={CheckCircle2}
             />
@@ -2168,7 +2183,7 @@ function PayrollPageInner() {
                 legacyPreview.filter(
                   (p) =>
                     (!p.blockers || p.blockers.length === 0) &&
-                    !legacyRuns.some((r) => r.iqama === p.iqama && r.period === legacyPeriod)
+                    !legacyRuns.some((r) => r.iqama === p.iqama && r.period === selectedPeriod)
                 ).length
               }
               hint="بلا موانع نظامية"
@@ -2197,7 +2212,7 @@ function PayrollPageInner() {
             />
           ) : legacyPreview.length === 0 ? (
             <EmptyState
-              title={`لا توجد بيانات مسير لشهر ${legacyPeriod}`}
+              title={`لا توجد بيانات مسير لشهر ${selectedPeriod}`}
               description="ارفع مصدر التشغيل والتسوية وحدد سياسة حساب المناديب لاحتساب المسودة."
             />
           ) : (
@@ -2220,7 +2235,7 @@ function PayrollPageInner() {
                   <tbody className="divide-y divide-[var(--line)]">
                     {legacyPreviewFilter.rows.map((row) => {
                       const run = legacyRuns.find(
-                        (x) => x.iqama === row.iqama && x.period === legacyPeriod
+                        (x) => x.iqama === row.iqama && x.period === selectedPeriod
                       );
                       const displayRow = run?.result || row;
                       const hasBlockers = row.blockers && row.blockers.length > 0;
@@ -2328,7 +2343,7 @@ function PayrollPageInner() {
                 <button
                   key={p.id}
                   type="button"
-                  onClick={() => setSelectedPlatform(p.id)}
+                  onClick={() => selectPlatformInUrl(p.id)}
                   className={`inline-flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs sm:text-sm font-bold transition-all whitespace-nowrap cursor-pointer ${
                     isSelected
                       ? 'bg-[var(--surface)] text-[var(--accent)] shadow-xs'
@@ -2362,7 +2377,7 @@ function PayrollPageInner() {
               <button
                 key={sub.id}
                 type="button"
-                onClick={() => setAppSubTab(sub.id as any)}
+                onClick={() => selectAppSubInUrl(sub.id as PayAppSubTab)}
                 className={`py-2 px-3.5 text-xs sm:text-sm font-semibold border-b-2 transition whitespace-nowrap ${
                   appSubTab === sub.id
                     ? 'border-[var(--accent)] text-[var(--accent)]'
@@ -2920,7 +2935,7 @@ function PayrollPageInner() {
                                 <button
                                   type="button"
                                   disabled={isMaker}
-                                  title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد العقد'}
+                                  title={isMaker ? 'لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة' : 'اعتماد العقد'}
                                   onClick={() => handleApproveTerms(t)}
                                   className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
                                 >
@@ -3079,7 +3094,7 @@ function PayrollPageInner() {
                               </span>
                             )}
                             <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--raised)] font-mono">
-                              صفة: {sc.data?.accountingRole === 'principal' ? 'أصيل (Principal)' : 'وكيل (Agent)'}
+                              صفة: {sc.data?.accountingRole === 'principal' ? 'أصيل' : 'وكيل'}
                             </span>
                             <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] font-mono">
                               نوع: {sc.data?.type || 'daily_commission'}
@@ -3106,7 +3121,7 @@ function PayrollPageInner() {
                                 <button
                                   type="button"
                                   disabled={isMaker}
-                                  title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد النظام'}
+                                  title={isMaker ? 'لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة' : 'اعتماد النظام'}
                                   onClick={() => handleApproveScheme(sc)}
                                   className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
                                 >
@@ -3304,7 +3319,7 @@ function PayrollPageInner() {
                                     <button
                                       type="button"
                                       disabled={isMaker}
-                                      title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد الأهلية'}
+                                      title={isMaker ? 'لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة' : 'اعتماد الأهلية'}
                                       onClick={() => handleApproveEligibility(el)}
                                       className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
                                     >
@@ -3453,7 +3468,7 @@ function PayrollPageInner() {
                   description="ارفع واعتمد فاتورة نينجا أولاً لتوليد مسودة المراجعة المقترحة."
                   action={{
                     label: 'انتقل لرفع فاتورة نينجا',
-                    onClick: () => setMainTab('ninja_upload'),
+                    onClick: () => navigateMainTab('ninja_upload'),
                   }}
                 />
               ) : (
@@ -3551,10 +3566,10 @@ function PayrollPageInner() {
                                   fixAct === 'classify_invoice'
                                 ) {
                                   e.preventDefault();
-                                  setMainTab('ninja_upload');
+                                  navigateMainTab('ninja_upload');
                                 } else if (fixAct === 'approve_settings') {
                                   e.preventDefault();
-                                  setMainTab('rules');
+                                  navigateMainTab('rules');
                                 }
                               }}
                               className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition inline-flex items-center gap-1.5 shadow-xs"
@@ -3569,7 +3584,7 @@ function PayrollPageInner() {
                           href="/app/payroll?tab=ninja_upload"
                           onClick={(e) => {
                             e.preventDefault();
-                            setMainTab('ninja_upload');
+                            navigateMainTab('ninja_upload');
                           }}
                           className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition inline-flex items-center gap-1.5 shadow-xs"
                         >
@@ -3644,10 +3659,10 @@ function PayrollPageInner() {
                                     b.fixAction === 'classify_invoice'
                                   ) {
                                     e.preventDefault();
-                                    setMainTab('ninja_upload');
+                                    navigateMainTab('ninja_upload');
                                   } else if (b.fixAction === 'approve_settings') {
                                     e.preventDefault();
-                                    setMainTab('rules');
+                                    navigateMainTab('rules');
                                   }
                                 }}
                                 className="px-3 py-1.5 rounded-xl bg-[var(--raised)] text-[var(--accent)] font-bold hover:bg-[var(--accent)] hover:text-[var(--accent-ink)] transition inline-flex items-center gap-1 shrink-0"
@@ -3823,7 +3838,7 @@ function PayrollPageInner() {
                               تم اعتماد جميع المناديب في جدول المراجعة — بانتظار مستخدم مستقل لاعتماد المرحلة 7 والترحيل
                             </p>
                             <p className="text-xs text-[var(--muted)]">
-                              لماذا لا يكتمل الاعتماد النهائي بحسابك؟ قاعدة الرقابة المستقلة (Maker ≠ Checker) تشترط أن يكون معتمد المرحلة 7 مستقلاً عن من أنشأ الدورة أو قدّم مراحلها.
+                              لماذا لا يكتمل الاعتماد النهائي بحسابك؟ لا يجوز أن يعتمد المرحلة 7 نفس الشخص الذي أنشأ الدورة أو قدّم مراحلها؛ يلزم مستخدم آخر مستقل.
                             </p>
                           </>
                         ) : (
@@ -3894,10 +3909,10 @@ function PayrollPageInner() {
                                     fixAct === 'classify_invoice'
                                   ) {
                                     e.preventDefault();
-                                    setMainTab('ninja_upload');
+                                    navigateMainTab('ninja_upload');
                                   } else if (fixAct === 'approve_settings') {
                                     e.preventDefault();
-                                    setMainTab('rules');
+                                    navigateMainTab('rules');
                                   }
                                 }}
                                 className="px-3.5 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] font-bold text-xs hover:bg-[var(--raised)] transition inline-flex items-center gap-1"
@@ -3911,7 +3926,7 @@ function PayrollPageInner() {
                       ) : activeCycle.status === 'approved' || activeCycle.stage >= 7 ? (
                         <>
                           <Link
-                            href="/treasury/?tab=bank_file"
+                            href={appendPeriodToHref('/treasury/?tab=bank_file', selectedPeriod)}
                             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs sm:text-sm hover:opacity-90 transition inline-flex items-center gap-1.5 shadow-xs"
                           >
                             <span>تصدير ملف البنك (CSV)</span>
@@ -4360,7 +4375,7 @@ function PayrollPageInner() {
             <div className="flex items-center justify-between">
               <div>
                 <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                  كشوف احتساب المناديب وشرح المعادلات (Explain Lines)
+                  كشوف احتساب المناديب وشرح المعادلات
                 </h4>
                 <p className="text-xs text-[var(--muted)] mt-0.5">
                   تفاصيل احتساب كل مندوب مع أثر كل بند وصافي الاستحقاق.
@@ -4456,8 +4471,8 @@ function PayrollPageInner() {
             <div className="flex items-center gap-2">
               <input
                 type="month"
-                value={rulesMonth}
-                onChange={(e) => setRulesMonth(e.target.value)}
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
                 className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold focus:outline-hidden"
               />
               <button
@@ -4491,9 +4506,9 @@ function PayrollPageInner() {
               ) : !activeNinjaEligibility ? (
                 <EmptyState
                   title="لا توجد شروط أهلية مسجلة لشهر "
-                  description={`لم يتم العثور على شروط أهلية مسجلة لتطبيق نينجا في شهر ${rulesMonth}. يمكنك إنشاء مسودة جديدة من القيم القياسية بنقرة زر.`}
+                  description={`لم يتم العثور على شروط أهلية مسجلة لتطبيق نينجا في شهر ${selectedPeriod}. يمكنك إنشاء مسودة جديدة من القيم القياسية بنقرة زر.`}
                   action={{
-                    label: `إنشاء مسودة شروط أهلية لشهر ${rulesMonth}`,
+                    label: `إنشاء مسودة شروط أهلية لشهر ${selectedPeriod}`,
                     onClick: handleCreateNewNinjaDraft,
                   }}
                 />
@@ -4513,7 +4528,7 @@ function PayrollPageInner() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-base sm:text-lg text-[var(--ink)]">
-                            {activeNinjaEligibility.data?.name || `شروط أهلية نينجا ${rulesMonth}`} (إصدار #{activeNinjaEligibility.version})
+                            {activeNinjaEligibility.data?.name || `شروط أهلية نينجا ${selectedPeriod}`} (إصدار #{activeNinjaEligibility.version})
                           </h4>
                           <span
                             className={`px-3 py-1 rounded-full text-xs font-bold ${
@@ -4532,7 +4547,7 @@ function PayrollPageInner() {
                           </span>
                         </div>
                         <p className="text-xs text-[var(--muted)] mt-1">
-                          تخضع شروط الأهلية لمعايير الحوكمة والاعتماد المستقل (Maker ≠ Checker). التعديل يتم في المسودة حصراً.
+                          تخضع شروط الأهلية للاعتماد المستقل من شخص آخر غير المنشئ. التعديل يتم في المسودة حصراً.
                         </p>
                       </div>
 
@@ -4556,7 +4571,7 @@ function PayrollPageInner() {
                               className="px-3.5 py-2 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer flex items-center gap-1.5 shadow-xs disabled:opacity-50"
                             >
                               {submittingRuleLifecycle ? <RefreshCw size={14} className="animate-spin" /> : <ShieldCheck size={14} />}
-                              <span>اعتماد المسودة (Approve)</span>
+                              <span>اعتماد المسودة</span>
                             </button>
 
                             <button
@@ -4565,7 +4580,7 @@ function PayrollPageInner() {
                               className="px-3 py-2 rounded-xl bg-[var(--raised)] text-[var(--danger)] border border-[var(--danger)]/30 text-xs font-bold hover:bg-[var(--danger)]/10 transition cursor-pointer flex items-center gap-1.5"
                             >
                               <Ban size={14} />
-                              <span>رفض (Reject)</span>
+                              <span>رفض</span>
                             </button>
 
                             <button
@@ -4614,7 +4629,7 @@ function PayrollPageInner() {
                       data={activeNinjaEligibility.data?.rules || []}
                       emptyTitle="لا توجد شروط مسجلة في هذه المسودة"
                       emptyDescription="انقر على «إضافة شرط» لإدراج مقياس جديد للأهلية."
-                      exportFilename={`ninja_eligibility_rules_${rulesMonth}`}
+                      exportFilename={`ninja_eligibility_rules_${selectedPeriod}`}
                       showTotals={false}
                     />
                   </div>
@@ -4628,7 +4643,7 @@ function PayrollPageInner() {
             <RuleRecordWorkspace
               appSlug={appSlug}
               appNameAr={platformsList.find((p) => p.id === selectedPlatform)?.nameAr || appSlug}
-              period={rulesMonth}
+              period={selectedPeriod}
               onOpenExceptionModal={() => {
                 setEditorKind('account_exception');
                 setEditingDoc(null);
@@ -4671,8 +4686,8 @@ function PayrollPageInner() {
             <div className="flex items-center gap-2">
               <input
                 type="month"
-                value={rulesMonth}
-                onChange={(e) => setRulesMonth(e.target.value)}
+                value={selectedPeriod}
+                onChange={(e) => setSelectedPeriod(e.target.value)}
                 className="p-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold focus:outline-hidden"
               />
               <button
@@ -4823,7 +4838,7 @@ function PayrollPageInner() {
           </p>
           <div className="pt-2">
             <Link
-              href="/treasury/?tab=bank_file"
+              href={appendPeriodToHref('/treasury/?tab=bank_file', selectedPeriod)}
               className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs sm:text-sm font-bold hover:opacity-90 transition shadow-xs inline-flex items-center gap-2"
             >
               <span>الانتقال لمولد ملف البنك بالخزينة</span>
@@ -4878,7 +4893,12 @@ function PayrollPageInner() {
                     {policiesFilter.rows.map((p) => (
                       <tr key={p.id} className="hover:bg-[var(--row-hover)] transition">
                         <td className="p-3 font-bold text-[var(--ink)]">{p.name || p.id}</td>
-                        <td className="p-3 text-xs text-[var(--muted)]">{p.kind}</td>
+                        <td className="p-3 text-xs text-[var(--muted)]">{({
+                          pay_scheme: 'خطة احتساب', scheme: 'خطة احتساب',
+                          pay_terms: 'شروط تشغيل', terms: 'شروط تشغيل',
+                          pay_eligibility: 'قاعدة استحقاق', eligibility: 'قاعدة استحقاق',
+                          deduction: 'سياسة استقطاع', allowance: 'سياسة بدل',
+                        } as Record<string, string>)[String(p.kind ?? '').toLowerCase()] || String(p.kind ?? '')}</td>
                         <td className="p-3">{p.platform}</td>
                         <td className="p-3 font-mono text-xs">{p.effectiveFrom}</td>
                         <td className="p-3">
@@ -4927,19 +4947,19 @@ function PayrollPageInner() {
       >
         <div className="space-y-4 pt-2">
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">نوع المصدر (Source Type):</label>
+            <label className="text-xs font-bold text-[var(--ink)]">نوع المصدر:</label>
             <select
               value={assignmentSourceType}
               onChange={(e) => setAssignmentSourceType(e.target.value)}
               className="w-full p-2.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs focus:outline-hidden"
             >
-              <option value="campaign">حملة / استبيان (Campaign)</option>
-              <option value="custom_form">نموذج مخصص (Custom Form)</option>
+              <option value="campaign">حملة / استبيان</option>
+              <option value="custom_form">نموذج مخصص</option>
             </select>
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">معرف الحملة / النموذج (Form / Campaign ID):</label>
+            <label className="text-xs font-bold text-[var(--ink)]">معرف الحملة / النموذج:</label>
             <input
               type="text"
               placeholder="مثال: synthetic-choice-campaign"
@@ -4951,7 +4971,7 @@ function PayrollPageInner() {
 
           <div className="grid grid-cols-2 gap-2">
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">حقل الاختيار (Field ID):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">حقل الاختيار:</label>
               <input
                 type="text"
                 placeholder="workSystem"
@@ -4961,7 +4981,7 @@ function PayrollPageInner() {
               />
             </div>
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">قيمة الرد (Choice Key):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">قيمة الرد:</label>
               <input
                 type="text"
                 placeholder="commission"
@@ -4973,7 +4993,7 @@ function PayrollPageInner() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-xs font-bold text-[var(--ink)]">النظام المستهدف المعتمد (Scheme):</label>
+            <label className="text-xs font-bold text-[var(--ink)]">النظام المستهدف المعتمد:</label>
             <SearchableSelect
               value={assignmentMappingScheme}
               onChange={setAssignmentMappingScheme}
@@ -4993,7 +5013,7 @@ function PayrollPageInner() {
               onClick={handlePreviewAssignments}
               className="px-4 py-2 rounded-xl bg-[var(--raised)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--line)] transition cursor-pointer"
             >
-              {previewingAssignments ? 'جاري الفحص والمعاينة...' : 'معاينة الاستيراد (Dry-Run)'}
+              {previewingAssignments ? 'جاري الفحص والمعاينة...' : 'معاينة الاستيراد التجريبي'}
             </button>
 
             {assignmentPreviewResult && (
@@ -5065,7 +5085,7 @@ function PayrollPageInner() {
             </div>
 
             <div className="space-y-2">
-              <h5 className="font-bold text-xs text-[var(--ink)]">بنود المعادلة والأدلة المحاسبية (Explain Lines):</h5>
+              <h5 className="font-bold text-xs text-[var(--ink)]">بنود المعادلة والأدلة المحاسبية:</h5>
               {(!selectedLineForExplain.lines || selectedLineForExplain.lines.length === 0) ? (
                 <div className="p-4 text-center text-[var(--muted)] bg-[var(--surface)] rounded-xl border border-[var(--line)]">
                   لا توجد بنود تفصيلية مسجلة لهذا السطر.
@@ -5119,7 +5139,7 @@ function PayrollPageInner() {
       >
         <div className="space-y-4 text-xs pt-2">
           <div className="space-y-1">
-            <label className="font-bold text-[var(--ink)] block">المقياس المطلوب (Metric):</label>
+            <label className="font-bold text-[var(--ink)] block">المقياس المطلوب:</label>
             <SearchableSelect
               value={newRuleMetric}
               onChange={setNewRuleMetric}
@@ -5134,7 +5154,7 @@ function PayrollPageInner() {
 
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="font-bold text-[var(--ink)] block">المعامل (Operator):</label>
+              <label className="font-bold text-[var(--ink)] block">المعامل:</label>
               <select
                 value={newRuleOperator}
                 onChange={(e) => setNewRuleOperator(e.target.value)}
@@ -5149,7 +5169,7 @@ function PayrollPageInner() {
             </div>
 
             <div className="space-y-1">
-              <label className="font-bold text-[var(--ink)] block">الحد الأدنى / القيمة (Threshold):</label>
+              <label className="font-bold text-[var(--ink)] block">الحد الأدنى / القيمة:</label>
               <input
                 type="number"
                 value={newRuleThreshold}
@@ -5162,7 +5182,7 @@ function PayrollPageInner() {
           </div>
 
           <div className="space-y-1">
-            <label className="font-bold text-[var(--ink)] block">الأثر عند عدم التحقق (Effect):</label>
+            <label className="font-bold text-[var(--ink)] block">الأثر عند عدم التحقق:</label>
             <select
               value={newRuleEffectType}
               onChange={(e) => setNewRuleEffectType(e.target.value)}
@@ -5178,7 +5198,7 @@ function PayrollPageInner() {
 
           <div className="p-3 rounded-xl bg-[var(--raised)]/60 border border-[var(--line)] flex items-center justify-between">
             <div>
-              <span className="font-bold text-[var(--ink)] block">ضمن القاعدة (Included)</span>
+              <span className="font-bold text-[var(--ink)] block">ضمن القاعدة</span>
               <span className="text-[11px] text-[var(--muted)]">
                 تفعيل الشرط ضمن احتساب الأهلية الفعلي للدورة.
               </span>
@@ -5322,12 +5342,12 @@ function PayrollPageInner() {
           <div className="space-y-4 pt-2 text-xs">
             <div className="p-3 rounded-xl bg-[var(--raised)]/50 border border-[var(--line)] text-xs space-y-1">
               <div>المندوب: <span className="font-mono font-bold">{approvePreviewRow.iqama}</span></div>
-              <div>الشهر: <span className="font-mono">{legacyPeriod}</span></div>
+              <div>الشهر: <span className="font-mono">{selectedPeriod}</span></div>
               <div>صافي الرصيد الختامي: <span className="num font-bold text-[var(--accent)]">{formatSar(approvePreviewRow.closingBalance)}</span></div>
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">السجل المالي صاحب المسير (Sponsor):</label>
+              <label className="text-xs font-bold text-[var(--ink)]">السجل المالي صاحب المسير:</label>
               <SearchableSelect
                 value={approveSponsorId}
                 onChange={setApproveSponsorId}
@@ -5636,7 +5656,7 @@ function PayrollPageInner() {
             </div>
 
             <div className="space-y-1">
-              <label className="text-xs font-bold">مرجع المنصة الرسمي (Platform Reference):</label>
+              <label className="text-xs font-bold">مرجع المنصة الرسمي:</label>
               <input
                 type="text"
                 placeholder="مثال: HS-TICKET-89421"

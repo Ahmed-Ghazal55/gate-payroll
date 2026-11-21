@@ -25,6 +25,8 @@ import { SourceBadge } from '../../components/ui/SourceBadge';
 import { Drawer } from '../../components/ui/Drawer';
 import { useToast } from '../../components/ui/Toast';
 import { formatSar } from '../../lib/money';
+import { appendPeriodToHref, periodDateRange } from '../../lib/period';
+import { usePeriod } from '../../lib/use-period';
 
 const MAIN_TABS = new Set(['cities', 'housing', 'vehicles', 'fuel']);
 const NO_SOURCE = 'لا يوجد مصدر بعد';
@@ -85,24 +87,29 @@ function OperationsPageInner() {
   const searchParams = useSearchParams();
   const { toast } = useToast();
 
+  const { period: urlActivePeriod, urlPeriod, setPeriod } = usePeriod();
   const rawTab = searchParams?.get('tab') || 'cities';
   useEffect(() => {
     if (rawTab === 'cases') {
-      router.replace('/workforce/?tab=cases');
+      if (urlPeriod) router.replace(appendPeriodToHref('/workforce/?tab=cases', urlPeriod));
+      else router.replace('/workforce/?tab=cases');
       return;
     }
     if (rawTab === 'accounts') {
-      router.replace('/workforce/');
+      if (urlPeriod) router.replace(appendPeriodToHref('/workforce/', urlPeriod));
+      else router.replace('/workforce/');
       return;
     }
     if (rawTab === 'custody' || rawTab === 'guarantees') {
-      router.replace('/operations/?tab=vehicles');
+      if (urlPeriod) router.replace(appendPeriodToHref('/operations/?tab=vehicles', urlPeriod));
+      else router.replace('/operations/?tab=vehicles');
       return;
     }
     if (!MAIN_TABS.has(rawTab)) {
-      router.replace('/operations/?tab=cities');
+      if (urlPeriod) router.replace(appendPeriodToHref('/operations/?tab=cities', urlPeriod));
+      else router.replace('/operations/?tab=cities');
     }
-  }, [rawTab, router]);
+  }, [rawTab, router, urlPeriod]);
 
   const tab = MAIN_TABS.has(rawTab) ? rawTab : 'cities';
   const view = searchParams?.get('view') || (tab === 'vehicles' ? 'period' : tab === 'fuel' ? 'usage' : '');
@@ -112,10 +119,10 @@ function OperationsPageInner() {
     : 25;
   const q = searchParams?.get('q') || '';
   const mode = (searchParams?.get('mode') === 'rider' ? 'rider' : 'vehicle') as 'vehicle' | 'rider';
-  const defaults = monthBounds();
+  const defaults = periodDateRange(urlActivePeriod);
   const from = searchParams?.get('from') || defaults.from;
   const to = searchParams?.get('to') || defaults.to;
-  const month = searchParams?.get('month') || defaults.month;
+  const month = urlActivePeriod;
 
   const [query, setQuery] = useState(q);
   const [debouncedQ, setDebouncedQ] = useState(q);
@@ -828,7 +835,7 @@ function OperationsPageInner() {
         {tab === 'fuel' && view !== 'log' ? (
           <label className="text-sm">
             الشهر
-            <input type="month" className="block mt-1 rounded-lg border border-[var(--border)] px-2 py-2" value={month} onChange={(e) => replaceParams({ month: e.target.value, page: '1' })} />
+            <input type="month" className="block mt-1 rounded-lg border border-[var(--border)] px-2 py-2" value={month} onChange={(e) => setPeriod(e.target.value, { page: '1' })} />
           </label>
         ) : null}
         {tab === 'vehicles' && view === 'period' ? (

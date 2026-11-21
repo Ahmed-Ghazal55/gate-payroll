@@ -1,8 +1,11 @@
 'use client';
 
 import React, { useState, useEffect, useMemo, useRef, Suspense } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams, useRouter, usePathname } from 'next/navigation';
 import { formatSar } from '../../lib/money';
+import { DEBTS_TAB_LABELS, buildTabRedirectUrl, resolveDebtsTab } from '../../lib/page-tabs';
+import { periodDateRange } from '../../lib/period';
+import { usePeriod } from '../../lib/use-period';
 import {
   Receipt,
   Coins,
@@ -121,17 +124,19 @@ function DebtsPageContent() {
   const { toast } = useToast();
   const searchParams = useSearchParams();
   const router = useRouter();
+  const pathname = usePathname();
 
-  // Tab State & URL Synchronization
-  const tabFromUrl = searchParams?.get('tab');
-  const resolvedTab: TabId = useMemo(() => {
-    if (tabFromUrl === 'advance_requests') return 'advance_requests';
-    if (tabFromUrl === 'statement' || tabFromUrl === 'statements') return 'statements';
-    if (tabFromUrl === 'approvals') return 'approvals';
-    if (tabFromUrl === 'actions') return 'actions';
-    if (tabFromUrl === 'promissory') return 'promissory';
-    return 'debts';
-  }, [tabFromUrl]);
+  // Tab State & URL Synchronization (sidebar-driven, page-tabs-rule 3.0)
+  const resolvedUrlTab = resolveDebtsTab(searchParams?.get('tab'));
+  const resolvedTab: TabId = useMemo(
+    () => (resolvedUrlTab.tab === 'statement' ? 'statements' : resolvedUrlTab.tab),
+    [resolvedUrlTab.tab]
+  );
+
+  useEffect(() => {
+    if (!resolvedUrlTab.legacy) return;
+    router.replace(buildTabRedirectUrl(pathname || '/debts/', searchParams, resolvedUrlTab), { scroll: false });
+  }, [resolvedUrlTab.legacy, resolvedUrlTab.tab, pathname, router, searchParams]);
 
   const [activeTab, setActiveTab] = useState<TabId>(resolvedTab);
   const [debtImportStep, setDebtImportStep] = useState<PageImportStep | null>(null);
@@ -145,7 +150,9 @@ function DebtsPageContent() {
   const handleTabChange = (newTab: TabId) => {
     setActiveTab(newTab);
     const urlParam = newTab === 'statements' ? 'statement' : newTab;
-    router.replace(`/debts/?tab=${urlParam}`, { scroll: false });
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.set('tab', urlParam);
+    router.replace(`${pathname || '/debts/'}?${params.toString()}`, { scroll: false });
   };
 
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
@@ -180,13 +187,17 @@ function DebtsPageContent() {
   const [promissoryFeatureEnabled, setPromissoryFeatureEnabled] = useState<boolean>(false);
   const [advancesLoaded, setAdvancesLoaded] = useState(false);
 
-  // Statement search states
+  // Statement search states (default to URL ?period=YYYY-MM)
+  const { period: urlPeriod } = usePeriod();
   const [statementIqama, setStatementIqama] = useState<string>('');
-  const [statementFrom, setStatementFrom] = useState<string>(() => {
-    const d = new Date();
-    return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-01`;
-  });
-  const [statementTo, setStatementTo] = useState<string>(() => new Date().toISOString().slice(0, 10));
+  const [statementFrom, setStatementFrom] = useState<string>(() => periodDateRange(urlPeriod).from);
+  const [statementTo, setStatementTo] = useState<string>(() => periodDateRange(urlPeriod).to);
+
+  useEffect(() => {
+    const r = periodDateRange(urlPeriod);
+    setStatementFrom(r.from);
+    setStatementTo(r.to);
+  }, [urlPeriod]);
   const [statementMode, setStatementMode] = useState<'detailed' | 'simple'>('detailed');
   const [statementData, setStatementData] = useState<RiderStatement | null>(null);
   const [loadingStatement, setLoadingStatement] = useState<boolean>(false);
@@ -1185,7 +1196,7 @@ function DebtsPageContent() {
       <PageHeader
         title="المديونيات والسلف والتحصيل"
         description="إدارة مديونيات وسلف وتكاليف المناديب، منظومة طلبات ومراجعة وصرف السلف، كشوف الحساب المطابقة 360 والمبسطة، وسندات الأمر التنفيذية."
-        eyebrow="الذمم والعهد المالية"
+        eyebrow={DEBTS_TAB_LABELS[resolvedUrlTab.tab]}
         primaryAction={{
           label: 'تحديث البيانات',
           icon: <RefreshCw size={15} />,
@@ -1285,57 +1296,6 @@ function DebtsPageContent() {
           onClick={() => handleTabChange(activeTab === 'approvals' ? 'debts' : 'approvals')}
           loading={loading && !approvalsLoaded}
         />
-      </div>
-
-      {/* Sub Tabs */}
-      <div className="border-b border-[var(--line)]">
-        <div className="flex items-center gap-2 overflow-x-auto no-scrollbar">
-          {[
-            {
-              id: 'debts' as TabId,
-              label: 'المديونيات والتكاليف',
-              count: debtsLoaded ? debtsTotal : undefined,
-            },
-            { id: 'actions' as TabId, label: 'تحصيل وإنشاء' },
-            {
-              id: 'advance_requests' as TabId,
-              label: 'طلبات السلف (نظام الرتب)',
-              count: advancesLoaded ? advanceRequests.length : undefined,
-              alert: advancesLoaded && pendingAdvancesCount > 0,
-            },
-            { id: 'statements' as TabId, label: 'كشوف حساب المناديب' },
-            {
-              id: 'approvals' as TabId,
-              label: 'منظومة الاعتمادات',
-              count: approvalsLoaded ? pendingApprovalsCount : undefined,
-              alert: approvalsLoaded && pendingApprovalsCount > 0,
-            },
-            { id: 'promissory' as TabId, label: 'أرشيف سندات الأمر', count: promissoryNotes.length },
-          ].map((tab) => (
-            <button
-              key={tab.id}
-              id={`tab-${tab.id}`}
-              type="button"
-              onClick={() => handleTabChange(tab.id)}
-              className={`inline-flex items-center gap-2 px-4 py-3 font-bold text-xs sm:text-sm border-b-2 transition whitespace-nowrap cursor-pointer ${
-                activeTab === tab.id
-                  ? 'border-[var(--accent)] text-[var(--accent)]'
-                  : 'border-transparent text-[var(--muted)] hover:text-[var(--ink)]'
-              }`}
-            >
-              <span>{tab.label}</span>
-              {tab.count !== undefined && tab.count > 0 && (
-                <span
-                  className={`num px-1.5 py-0.2 rounded-full text-[10px] font-bold ${
-                    tab.alert ? 'bg-[var(--danger)] text-white' : 'bg-[var(--raised)] text-[var(--ink)]'
-                  }`}
-                >
-                  {tab.count}
-                </span>
-              )}
-            </button>
-          ))}
-        </div>
       </div>
 
       {/* ======================================================== */}
@@ -1851,7 +1811,7 @@ function DebtsPageContent() {
           {newReqType === 'internet' && (
             <div className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/50 space-y-3">
               <div className="space-y-1">
-                <label className="text-xs font-bold text-[var(--ink)]">طريقة الصرف (Fulfilment):</label>
+                <label className="text-xs font-bold text-[var(--ink)]">طريقة الصرف:</label>
                 <div className="grid grid-cols-3 gap-2">
                   <label
                     className={`p-2 rounded-lg border text-xs font-medium flex items-center justify-center gap-1.5 cursor-pointer transition ${

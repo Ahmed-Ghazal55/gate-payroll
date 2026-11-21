@@ -2,7 +2,7 @@
 
 // Statements to riders: preview one rider's approved statement at phone width, then notify the period.
 // No amounts are sent in notifications (the server sends only "your statement is ready").
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Bell, Eye } from 'lucide-react';
 import { api, type RiderMonthlyStatement } from '../../lib/api';
@@ -12,6 +12,8 @@ import { Skeleton } from '../../components/ui/EmptyState';
 import { useToast } from '../../components/ui/Toast';
 import { shouldWarnUnapproved } from './statement-preview';
 import { formatSar } from '../../lib/money';
+import { appendPeriodToHref } from '../../lib/period';
+import { usePeriod } from '../../lib/use-period';
 
 const money = (n?: number | null) => formatSar((n ?? 0));
 
@@ -26,16 +28,9 @@ function platformLabelAr(raw?: string | null): string {
   return raw || '—';
 }
 
-function previousMonth(): string {
-  const d = new Date();
-  d.setUTCDate(1);
-  d.setUTCMonth(d.getUTCMonth() - 1);
-  return d.toISOString().slice(0, 7);
-}
-
 export function StatementsPanel({ canSend }: { canSend: boolean }) {
   const { toast } = useToast();
-  const [period, setPeriod] = useState(previousMonth());
+  const { period, setPeriod } = usePeriod();
   const [iqama, setIqama] = useState('');
   const [statement, setStatement] = useState<RiderMonthlyStatement | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,6 +51,12 @@ export function StatementsPanel({ canSend }: { canSend: boolean }) {
       setLoading(false);
     }
   };
+
+  useEffect(() => {
+    if (iqama) {
+      void load(iqama, period);
+    }
+  }, [period]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const notify = async () => {
     setSending(true);
@@ -103,7 +104,7 @@ export function StatementsPanel({ canSend }: { canSend: boolean }) {
         </div>
         {iqama ? (
           <Link
-            href={`/riders/statement/?iqama=${encodeURIComponent(iqama)}`}
+            href={appendPeriodToHref(`/riders/statement/?iqama=${encodeURIComponent(iqama)}`, period)}
             className="px-3 py-2 rounded-xl border border-[var(--line)] text-xs font-bold inline-flex items-center gap-1.5"
           >
             <Eye size={14} /> كشف الحساب الكامل

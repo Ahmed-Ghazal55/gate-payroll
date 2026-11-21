@@ -1,6 +1,8 @@
 'use client';
 
 import { formatSar } from '../../lib/money';
+import { periodDateRange } from '../../lib/period';
+import { usePeriod } from '../../lib/use-period';
 import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
 import type { CompanySponsor } from '../../lib/types';
 import {
@@ -53,12 +55,16 @@ export function JahezWorkspace() {
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
 
   const [companyId, setCompanyId] = useState('');
-  const [period, setPeriod] = useState('2026-10');
+  const { period, setPeriod } = usePeriod();
   const [invoiceNet, setInvoiceNet] = useState('0');
   const [invoiceVat, setInvoiceVat] = useState('0');
-  const [lastTransactionDate, setLastTransactionDate] = useState('2026-10-31');
+  const [lastTransactionDate, setLastTransactionDate] = useState(() => periodDateRange(period).to);
   const [invoiceReference, setInvoiceReference] = useState('');
   const [notes, setNotes] = useState('');
+
+  useEffect(() => {
+    setLastTransactionDate(periodDateRange(period).to);
+  }, [period]);
 
   const [transfer, setTransfer] = useState({
     fromVaultCode: '',
@@ -66,7 +72,6 @@ export function JahezWorkspace() {
     amount: '',
     sourceRef: '',
     notes: '',
-    period: '2026-10',
   });
   const [settlement, setSettlement] = useState({
     sponsorId: '',
@@ -74,14 +79,12 @@ export function JahezWorkspace() {
     amount: '',
     sourceRef: '',
     notes: '',
-    period: '2026-10',
   });
   const [feeDeposit, setFeeDeposit] = useState({
     sponsorId: '',
     amount: '',
     sourceRef: '',
     notes: '',
-    period: '2026-10',
   });
   const [fee, setFee] = useState({ sponsorId: '', iqama: '', amount: '200', notes: '' });
 
@@ -384,7 +387,7 @@ export function JahezWorkspace() {
             className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-2 text-xs"
             onSubmit={(e) => {
               e.preventDefault();
-              void runOp('تم التحويل', () => api.jahezTransfer({ ...transfer, amount: Number(transfer.amount) }));
+              void runOp('تم التحويل', () => api.jahezTransfer({ ...transfer, period, amount: Number(transfer.amount) }));
             }}
           >
             <h4 className="font-bold">نقل عهدة جاهز</h4>
@@ -436,8 +439,8 @@ export function JahezWorkspace() {
               <input
                 required
                 type="month"
-                value={transfer.period}
-                onChange={(e) => setTransfer({ ...transfer, period: e.target.value })}
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
                 className={inputClass}
               />
             </Field>
@@ -455,7 +458,7 @@ export function JahezWorkspace() {
             onSubmit={(e) => {
               e.preventDefault();
               void runOp('تمت التسوية', () =>
-                api.jahezPlatformSettlement({ ...settlement, amount: Number(settlement.amount) })
+                api.jahezPlatformSettlement({ ...settlement, period, amount: Number(settlement.amount) })
               );
             }}
           >
@@ -511,8 +514,8 @@ export function JahezWorkspace() {
               <input
                 required
                 type="month"
-                value={settlement.period}
-                onChange={(e) => setSettlement({ ...settlement, period: e.target.value })}
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
                 className={inputClass}
               />
             </Field>
@@ -530,7 +533,7 @@ export function JahezWorkspace() {
             onSubmit={(e) => {
               e.preventDefault();
               void runOp('تم الإيداع', () =>
-                api.jahezFeeDeposit({ ...feeDeposit, amount: Number(feeDeposit.amount) })
+                api.jahezFeeDeposit({ ...feeDeposit, period, amount: Number(feeDeposit.amount) })
               );
             }}
           >
@@ -576,8 +579,8 @@ export function JahezWorkspace() {
               <input
                 required
                 type="month"
-                value={feeDeposit.period}
-                onChange={(e) => setFeeDeposit({ ...feeDeposit, period: e.target.value })}
+                value={period}
+                onChange={(e) => setPeriod(e.target.value)}
                 className={inputClass}
               />
             </Field>
