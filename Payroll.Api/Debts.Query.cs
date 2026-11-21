@@ -29,6 +29,34 @@ public static partial class Debts
         ["company"] = "creditorSponsorId"
     };
 
+    static readonly TableFilterContract.FilterOptions DebtFilterOptions = new(
+        LabelOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["active"] = "قائم",
+            ["settled"] = "مسدد",
+            ["waived"] = "معفي",
+            ["disputed"] = "متنازع عليه",
+            ["pending_approval"] = "بانتظار الاعتماد",
+            ["cancelled"] = "ملغي",
+            ["canceled"] = "ملغي"
+        },
+        ToneOverrides: new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["active"] = "danger",
+            [TableFilterContract.NormalizeText("قائم")] = "danger",
+            ["settled"] = "success",
+            [TableFilterContract.NormalizeText("مسدد")] = "success",
+            ["waived"] = "warning",
+            [TableFilterContract.NormalizeText("معفي")] = "warning",
+            ["disputed"] = "warning",
+            [TableFilterContract.NormalizeText("متنازع عليه")] = "warning",
+            ["pending_approval"] = "warning",
+            [TableFilterContract.NormalizeText("بانتظار الاعتماد")] = "warning",
+            ["cancelled"] = "warning",
+            ["canceled"] = "warning",
+            [TableFilterContract.NormalizeText("ملغي")] = "warning"
+        });
+
     /// <summary>
     /// List debts with optional SQL filters and generic Excel-style filter/sort contract (FL2).
     /// Without <c>page</c>, returns the legacy JSON array (backward compatible).
@@ -58,7 +86,7 @@ public static partial class Debts
             var allViews = ReadBodies(c, where, parms, OrderBy(c, ""), null, null)
                 .Select(d => View(c, null, actor, d))
                 .ToList();
-            var filtered = TableFilterContract.Apply(allViews, query, AllowedDebtColumns, DebtColumnAliases);
+            var filtered = TableFilterContract.Apply(allViews, query, AllowedDebtColumns, DebtColumnAliases, options: DebtFilterOptions);
             if (!paged) return filtered;
             long filteredTotal = filtered.Count;
             long filteredOffset = ((long)page - 1) * pageSize;
@@ -113,7 +141,7 @@ public static partial class Debts
         {
             var allViews = ReadBodies(c, where, parms, OrderBy(c, ""), null, null)
                 .Select(d => View(c, null, actor, d));
-            return TableFilterContract.BuildDistinct(allViews, rawCol, query, AllowedDebtColumns, DebtColumnAliases);
+            return TableFilterContract.BuildDistinct(allViews, rawCol, query, AllowedDebtColumns, DebtColumnAliases, options: DebtFilterOptions);
         }
 
         string expr = RiderDataIndexes.FieldExpr(c, field);

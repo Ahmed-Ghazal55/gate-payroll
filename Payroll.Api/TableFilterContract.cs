@@ -26,6 +26,11 @@ public static class TableFilterContract
         string Dir = "asc",
         string? Tone = null);
 
+    public sealed record FilterOptions(
+        IReadOnlyDictionary<string, string>? LabelOverrides = null,
+        IReadOnlyDictionary<string, string>? ToneOverrides = null,
+        IReadOnlyDictionary<string, IReadOnlyList<string>>? CompositeColumns = null);
+
     static readonly HashSet<string> AllowedOperators = new(StringComparer.OrdinalIgnoreCase)
     {
         "contains", "notContains", "beginsWith", "startsWith", "endsWith",
@@ -57,6 +62,8 @@ public static class TableFilterContract
         ["rejected"] = "مرفوض",
         ["cancelled"] = "ملغي",
         ["canceled"] = "ملغي",
+        ["waived"] = "معفي",
+        ["disputed"] = "متنازع عليه",
         ["settled"] = "مسدد بالكامل",
         ["paid"] = "مسدد",
         ["posted"] = "مرحّل",
@@ -294,20 +301,22 @@ public static class TableFilterContract
         IQueryCollection query,
         IReadOnlySet<string>? whitelist = null,
         IReadOnlyDictionary<string, string>? columnAliases = null,
-        DateOnly? referenceDate = null)
+        DateOnly? referenceDate = null,
+        FilterOptions? options = null)
     {
         var filters = ParseFilters(query, whitelist, columnAliases);
         var sorts = ParseSort(query, whitelist, columnAliases);
         var rows = source.ToList();
-        if (filters.Count > 0) rows = ApplyFilters(rows, filters, referenceDate);
-        if (sorts.Count > 0) rows = ApplySort(rows, sorts);
+        if (filters.Count > 0) rows = ApplyFilters(rows, filters, referenceDate, options);
+        if (sorts.Count > 0) rows = ApplySort(rows, sorts, options);
         return rows;
     }
 
     public static List<JsonObject> ApplyFilters(
         IEnumerable<JsonObject> source,
         IReadOnlyList<FilterClause> filters,
-        DateOnly? referenceDate = null)
+        DateOnly? referenceDate = null,
+        FilterOptions? options = null)
     {
         var rows = source.ToList();
         if (filters.Count == 0 || rows.Count == 0) return rows;
@@ -335,7 +344,7 @@ public static class TableFilterContract
             for (int i = 0; i < filters.Count; i++)
             {
                 topNThresholds.TryGetValue(i, out decimal? threshold);
-                if (!MatchesClause(row, filters[i], threshold, refDate))
+                if (!MatchesClause(row, filters[i], threshold, refDate, options))
                     return false;
             }
             return true;
@@ -344,7 +353,8 @@ public static class TableFilterContract
 
     public static List<JsonObject> ApplySort(
         IEnumerable<JsonObject> source,
-        IReadOnlyList<SortClause> sorts)
+        IReadOnlyList<SortClause> sorts,
+        FilterOptions? options = null)
     {
         var rows = source.ToList();
         if (sorts.Count == 0 || rows.Count <= 1) return rows;
@@ -353,7 +363,7 @@ public static class TableFilterContract
         {
             foreach (var s in sorts)
             {
-                int cmp = CompareCells(a, b, s);
+                int cmp = CompareCells(a, b, s, options);
                 if (cmp != 0) return cmp;
             }
             return 0;
@@ -366,7 +376,8 @@ public static class TableFilterContract
         string rawColumn,
         IQueryCollection? query = null,
         IReadOnlySet<string>? whitelist = null,
-        IReadOnlyDictionary<string, string>? columnAliases = null)
+        IReadOnlyDictionary<string, string>? columnAliases = null,
+        FilterOptions? options = null)
     {
         string col = (rawColumn ?? "").Trim();
         if (col.Length == 0)
@@ -388,7 +399,7 @@ public static class TableFilterContract
                             !string.Equals(f.Col, col, StringComparison.OrdinalIgnoreCase))
                 .ToList();
             if (otherFilters.Count > 0)
-                rows = ApplyFilters(rows, otherFilters);
+                rows = ApplyFilters(rows, otherFilters, options: options);
         }
 
         var counts = new Dictionary<string, (string Canonical, int Count)>(StringComparer.OrdinalIgnoreCase);
@@ -425,12 +436,13 @@ public static class TableFilterContract
         JsonObject row,
         FilterClause clause,
         decimal? topNThreshold,
-        DateOnly refDate)
+        DateOnly refDate,
+        FilterOptions? options = null)
     {
         string rawStr = GetRawString(row, clause.Col).Trim();
         bool blank = IsBlank(rawStr);
         if (blank) rawStr = "";
-        string dispStr = DisplayLabel(row, clause.Col, rawStr);
+        string dispStr = DisplayLabel(row, clause.Col, rawStr, options);
         string normRaw = NormalizeText(rawStr);
         string normDisp = NormalizeText(dispStr);
 
@@ -448,7 +460,7 @@ public static class TableFilterContract
                         continue;
                     }
                     string normAllowed = NormalizeText(trimAllowed);
-                    string allowedDisp = NormalizeText(DisplayLabel(row, clause.Col, trimAllowed));
+                    string allowedDisp = NormalizeText(DisplayLabel(row, clause.Col, trimAllowed, options));
                     if (normAllowed == normRaw || normAllowed == normDisp ||
                         (allowedDisp.Length > 0 && (allowedDisp == normRaw || allowedDisp == normDisp)))
                         return true;
@@ -458,21 +470,24 @@ public static class TableFilterContract
 
             case "color":
             {
-                string targetTone = (clause.Value ?? "").Trim().ToLowerInvariant();
-                if (targetTone.Length == 0) return true;
-                string? rowTone = InferTone(rawStr, dispStr);
-                if (string.Equals(rowTone, targetTone, StringComparison.OrdinalIgnoreCase))
-                    return true;
                 if (clause.Values != null && clause.Values.Count > 0)
                 {
                     foreach (string allowed in clause.Values)
                     {
-                        string normAllowed = NormalizeText(allowed);
-                        if (normAllowed.Length > 0 && (normAllowed == normRaw || normAllowed == normDisp))
+                        string trimAllowed = (allowed ?? "").Trim();
+                        string normAllowed = NormalizeText(trimAllowed);
+                        string allowedDisp = NormalizeText(DisplayLabel(row, clause.Col, trimAllowed, options));
+                        if (normAllowed.Length > 0 &&
+                            (normAllowed == normRaw || normAllowed == normDisp ||
+                             (allowedDisp.Length > 0 && (allowedDisp == normRaw || allowedDisp == normDisp))))
                             return true;
                     }
+                    return false;
                 }
-                return false;
+                string targetTone = (clause.Value ?? "").Trim().ToLowerInvariant();
+                if (targetTone.Length == 0) return true;
+                string? rowTone = InferTone(rawStr, dispStr, options);
+                return string.Equals(rowTone, targetTone, StringComparison.OrdinalIgnoreCase);
             }
 
             case "topN":
@@ -586,7 +601,7 @@ public static class TableFilterContract
                 }
 
                 string normTarget = NormalizeText(opVal);
-                string normTargetDisp = NormalizeText(DisplayLabel(row, clause.Col, opVal));
+                string normTargetDisp = NormalizeText(DisplayLabel(row, clause.Col, opVal, options));
                 bool textEq = normRaw == normTarget || normDisp == normTarget ||
                               (normTargetDisp.Length > 0 && (normRaw == normTargetDisp || normDisp == normTargetDisp));
                 return clause.Op == "eq" ? textEq : !textEq;
@@ -618,19 +633,19 @@ public static class TableFilterContract
         }
     }
 
-    static int CompareCells(JsonObject a, JsonObject b, SortClause sort)
+    static int CompareCells(JsonObject a, JsonObject b, SortClause sort, FilterOptions? options = null)
     {
         string rawA = GetRawString(a, sort.Col).Trim();
         string rawB = GetRawString(b, sort.Col).Trim();
         bool blankA = IsBlank(rawA);
         bool blankB = IsBlank(rawB);
-        string dispA = blankA ? "" : DisplayLabel(a, sort.Col, rawA);
-        string dispB = blankB ? "" : DisplayLabel(b, sort.Col, rawB);
+        string dispA = blankA ? "" : DisplayLabel(a, sort.Col, rawA, options);
+        string dispB = blankB ? "" : DisplayLabel(b, sort.Col, rawB, options);
 
         if (!string.IsNullOrEmpty(sort.Tone))
         {
-            string? toneA = InferTone(rawA, dispA);
-            string? toneB = InferTone(rawB, dispB);
+            string? toneA = InferTone(rawA, dispA, options);
+            string? toneB = InferTone(rawB, dispB, options);
             bool matchA = string.Equals(toneA, sort.Tone, StringComparison.OrdinalIgnoreCase);
             bool matchB = string.Equals(toneB, sort.Tone, StringComparison.OrdinalIgnoreCase);
             if (matchA != matchB) return matchA ? -1 : 1;
@@ -675,9 +690,11 @@ public static class TableFilterContract
         return "";
     }
 
-    static string DisplayLabel(JsonObject row, string col, string rawValue)
+    static string DisplayLabel(JsonObject row, string col, string rawValue, FilterOptions? options = null)
     {
         if (rawValue.Length == 0) return "";
+        if (options?.LabelOverrides != null && options.LabelOverrides.TryGetValue(rawValue, out string? customLabel))
+            return customLabel;
         if (col.Equals("category", StringComparison.OrdinalIgnoreCase) && row.S("categoryAr").Length > 0)
             return row.S("categoryAr");
         var cat = FinancialCore.CategoriesCatalog.FirstOrDefault(c =>
@@ -696,8 +713,20 @@ public static class TableFilterContract
         return rawValue;
     }
 
-    public static string? InferTone(string? rawValue, string? displayValue = null)
+    public static string? InferTone(string? rawValue, string? displayValue = null, FilterOptions? options = null)
     {
+        if (options?.ToneOverrides != null)
+        {
+            foreach (string? candidate in new[] { rawValue, displayValue })
+            {
+                if (string.IsNullOrWhiteSpace(candidate)) continue;
+                if (options.ToneOverrides.TryGetValue(candidate.Trim(), out string? customTone))
+                    return customTone;
+                string norm = NormalizeText(candidate);
+                if (norm.Length > 0 && options.ToneOverrides.TryGetValue(norm, out string? customNormTone))
+                    return customNormTone;
+            }
+        }
         foreach (string? candidate in new[] { rawValue, displayValue })
         {
             if (string.IsNullOrWhiteSpace(candidate)) continue;
