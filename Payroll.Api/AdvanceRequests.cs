@@ -59,7 +59,7 @@ public static class AdvanceRequests
         AccessPolicy.Demand(actor,"advances.request");
         string iqama=DirectoryProfiles.Iqama(input.Required("riderIqama"));var rider=Store.Get(c,iqama,"rider",tx)??throw new ApiError("المندوب غير موجود.");
         J.Need(OrgDirectory.Supervises(c,tx,Me(actor),iqama),"المندوب ليس تحت إشرافك حسب نظام الرتب.",403);
-        J.Need(!Store.List(c,Kind,tx).Any(r=>r.S("riderIqama")==iqama&&!Final.Contains(r.S("status"))),"للمندوب طلب سلفة مفتوح بالفعل.",409);
+        PaymentAdvances.DemandNoOpenAdvance(c,tx,actor,iqama,rider.S("erpId",rider.S("erpRiderId")));
         string type=Type(input.Required("type"));string fulfilment=Fulfilment(type,input.S("fulfilment"));
         (string Network,string Package,decimal Price)? card=fulfilment=="recharge_card"?Card(c,tx,input):null;
         decimal amount=card?.Price??Amount(input,"amount");J.Need(card==null||input["amount"] is null||Debts.Amount(input,"amount")==card.Value.Price,"مبلغ كارت الشحن = سعر الباقة.");
