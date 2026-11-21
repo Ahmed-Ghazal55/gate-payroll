@@ -101,7 +101,6 @@ public static class UserAccess
         new("admin.read_summary.view", "Admin", "إدارة المستخدمين والأدوار والنظام", "عرض ملخص القراءة اليومي", "ملخص يومي لقراءات المناطق الحساسة والتصدير دون صف لكل قراءة."),
         new("admin.settings.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة إعدادات النظام", "قراءة وحفظ إعدادات النظام في المرجع."),
         new("admin.notify.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة إعدادات الإشعارات", "مصفوفة التنبيهات وقنوات الإشعار."),
-        new("admin.org.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة حدود الاعتماد وسياسات المهلة", "حدود الرتب وسياسات التصعيد."),
         new("notify.send.general", "Admin", "إدارة المستخدمين والأدوار والنظام", "إرسال إشعار عام", "بث إشعار عام للأدوار أو الأقسام."),
         new("notify.send.custom", "Admin", "إدارة المستخدمين والأدوار والنظام", "إرسال إشعار مخصص", "إشعار لمستخدمين محددين."),
         new("tasks.assign", "Admin", "إدارة المستخدمين والأدوار والنظام", "تعيين المهام", "إنشاء وتعيين مهام تشغيلية."),
@@ -389,6 +388,22 @@ public static class UserAccess
     static void ValidateUsername(string username)=>J.Need(username.Length is >= 3 and <= 60 && Regex.IsMatch(username, @"^[\p{L}\p{N}_.@-]+$"), "اسم المستخدم من3إلى60حرفًا دون مسافات أو محارف خاصة.");
     public static JsonObject? Find(DbConnection c, string username, DbTransaction? tx = null) =>
         Store.List(c, "user", tx).SingleOrDefault(u => Normalize(u.S("username")) == Normalize(username));
+
+    /// <summary>Bridge an authenticated principal into a document user before auth.user EnsureAuthUserId.
+    /// Uses the claim role (falls back to Reviewer) — never invents Admin for strangers.</summary>
+    public static void EnsureDocumentUser(DbConnection c,DbTransaction tx,ClaimsPrincipal actor)
+    {
+        string name=actor.Identity?.Name??"";
+        if(name==""||Find(c,name,tx)!=null)return;
+        string role=actor.FindFirst(ClaimTypes.Role)?.Value??"Reviewer";
+        if(!Roles.Contains(role))role="Reviewer";
+        var def=ResolveRoleDef(role);
+        string dept=actor.FindFirst("department")?.Value??"";
+        if(string.IsNullOrWhiteSpace(dept))dept=def.DefaultDepartment;
+        int rank=def.DefaultRankLevel;
+        if(int.TryParse(actor.FindFirst("rankLevel")?.Value,out var rl))rank=rl;
+        Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]=name,["role"]=role,["status"]="active",["department"]=dept,["rankLevel"]=rank},tx);
+    }
 
     public static JsonObject Public(JsonObject u)
     {

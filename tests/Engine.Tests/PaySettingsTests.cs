@@ -10,7 +10,18 @@ public sealed class PayFixture:IDisposable
     public Store Store {get;}
     public static ClaimsPrincipal Actor(string name="synthetic-pay-maker",string role="Admin")=>UserAccess.Principal(new JsonObject{["username"]=name,["role"]=role});
     public static ClaimsPrincipal Maker=>Actor();public static ClaimsPrincipal Checker=>Actor("synthetic-pay-checker","FinancialAccountant");
-    public PayFixture(){Store=new Store(DirectoryPath);}
+    public PayFixture()
+    {
+        Store=new Store(DirectoryPath);
+        // Admin auth.user bridge requires document users; seed the fixture principals once.
+        Store.Write((c,tx)=>{
+            if(UserAccess.Find(c,"synthetic-pay-maker",tx)==null)
+                Store.Save(c,"user",new(){["id"]="u-pay-maker",["username"]="synthetic-pay-maker",["role"]="Admin",["status"]="active",["department"]="FIN",["rankLevel"]=5},tx);
+            if(UserAccess.Find(c,"synthetic-pay-checker",tx)==null)
+                Store.Save(c,"user",new(){["id"]="u-pay-checker",["username"]="synthetic-pay-checker",["role"]="FinancialAccountant",["status"]="active",["department"]="FIN",["rankLevel"]=4},tx);
+            return true;
+        });
+    }
     public JsonObject Draft(string kind,string app,JsonObject data,string code="default",string period="2026-10")=>Store.Write((c,tx)=>PaySettings.Create(c,tx,Maker,kind,app,new(){["code"]=code,["period"]=period,["data"]=data}));
     public JsonObject Approve(string kind,string app,JsonObject doc)=>Store.Write((c,tx)=>PaySettings.Approve(c,tx,Checker,kind,app,doc.S("id")));
     public static JsonObject Terms(string model="per_order")=>new(){["name"]="Synthetic parent terms",["billingModel"]=model,["parameters"]=model switch{

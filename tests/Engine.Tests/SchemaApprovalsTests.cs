@@ -102,7 +102,8 @@ public sealed class SchemaApprovalsTests
     {
         using var f=new PayFixture();
         f.Store.Write((c,tx)=>{
-            Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]="synthetic-pay-maker",["role"]="Admin"},tx);
+            var maker=UserAccess.Find(c,"synthetic-pay-maker",tx)??new JsonObject{["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]="synthetic-pay-maker",["role"]="Admin"};
+            Store.Save(c,"user",maker,tx);
             ApprovalsArea.PutLimits(c,tx,PayFixture.Maker,new(){["items"]=new JsonArray(new JsonObject{["rank"]="A",["department"]="FIN",["limitSar"]=1234})});
             ApprovalsArea.PutSla(c,tx,PayFixture.Maker,new(){["items"]=new JsonArray(new JsonObject{["requestType"]="default",["workingDays"]=2})});
             AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-pay-maker",["from"]="2026-01-01",["to"]="2026-12-31",["reason"]="table read",["scope"]=AccessPolicy.ScopePayApprovals});

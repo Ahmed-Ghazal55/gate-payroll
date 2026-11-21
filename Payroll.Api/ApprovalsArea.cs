@@ -45,6 +45,7 @@ public static class ApprovalsArea
         J.Need(!string.IsNullOrWhiteSpace(referenceId),"مرجع الاعتماد مطلوب.",400);
         J.Need(amountSar>=0&&amountSar==J.Money(amountSar),"مبلغ الاعتماد غير صالح.",400);
         string actorName=actor.Identity?.Name??throw new ApiError("هوية المستخدم مطلوبة.",401);
+        UserAccess.EnsureDocumentUser(c,tx,actor);
         string hash=fileOrPayloadHash??"";
         var existing=Store.List(c,"approval_request",tx).FirstOrDefault(r=>
         {
@@ -131,6 +132,7 @@ public static class ApprovalsArea
     public static JsonObject Decide(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
         EscalateOverdue(c,tx);
+        UserAccess.EnsureDocumentUser(c,tx,actor);
         var req=Store.Get(c,id,"approval_request",tx)??throw new ApiError("طلب الاعتماد غير موجود.",404);
         if(!FinancialScopes.Approval(actor,req,c,tx))throw new ApiError("الطلب خارج نطاق القسم/السجل المسند لك.",403);
         string decision=input.S("decision",input.S("outcome"));
