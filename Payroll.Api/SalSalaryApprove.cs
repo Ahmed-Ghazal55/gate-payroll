@@ -6,7 +6,8 @@ using System.Text.Json.Nodes;
 namespace Payroll;
 
 /// <summary>U-W2-15b: final salary approval after debt confirm (M-0670); bypass M-0677; statement snapshot X10;
-/// negative net → new debt 112507 here only.</summary>
+/// negative net → new debt 112507 here only. Positive net → accrual journal + payable (Codex RWC4).
+/// Ordinary salary self-approval allowed by permission (§35 / answer 4); shared-hold release stays two-person.</summary>
 public static class SalSalaryApprove
 {
     public const string ApprovePermission="pay.approve";
@@ -15,7 +16,7 @@ public static class SalSalaryApprove
     {
         AccessPolicy.Demand(actor,ApprovePermission);
         Ensure(c,tx);
-        var run=LoadRun(c,tx,payRunId);
+        var run=LoadRun(c,tx,actor,payRunId);
         MoneyWriteGuards.Demand((byte)run.N("runMode"),run.B("payoutBlocked"),MoneyEffectKind.Accounting);
         var ids=(input["payRunRiderIds"] as JsonArray??[]).Select(x=>x!.ToString()!).Where(s=>s!="").ToList();
         J.Need(ids.Count>0,"حدد مناديب الاعتماد.",400);
@@ -26,14 +27,18 @@ public static class SalSalaryApprove
             var rider=LoadRider(c,tx,payRunId,riderId);
             J.Need(rider.S("debtConfirmStatus") is "confirmed" or "deferred","أكمل تأكيد الدين قبل اعتماد الراتب.",409);
             J.Need(string.IsNullOrEmpty(rider.S("salaryApprovedAt")),"الراتب معتمد مسبقاً.",409);
-            // Maker-checker: independent unless dated bypass (M-0677 / M-0672 permission-based + dual only for money-out).
+            DemandNoOpenSharedHold(c,tx,rider.S("erpRiderId"),run.S("periodMonth"));
+
             string calcBy=rider.S("createdBy",run.S("createdBy"));
-            J.Need(AccessPolicy.Independent(actor,calcBy,"pay.salary_approved",c,tx,new JsonObject{["id"]=payRunId},scope:AccessPolicy.ScopePayApprovals),
-                "المعتمد يجب أن يختلف عن معدّ الاحتساب ما لم يوجد منح تجاوز مؤرخ.",403);
+            bool self=AccessPolicy.SamePerson(actor,calcBy);
+            // Answer 4: permission-based salary approval; audit self-approval. Two-person retained for money-out / shared-hold release elsewhere.
+            if(self)Store.Audit(c,tx,"sal.salary_self_approved",riderId,actor.Identity!.Name!);
 
             bool negDebt=false;
             decimal net=rider.N("salaryNet");
             bool keetaIneligible=rider.B("keetaIneligible");
+            string? payableId=null;
+
             Exec(c,tx,$"""
                 UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}
                 SET salary_approved_at=@at,updated_by=@by,updated_at=@at
@@ -41,15 +46,16 @@ public static class SalSalaryApprove
                 """,("@at",now),("@by",actor.Identity!.Name!),("@id",riderId));
 
             if(net<0&&!keetaIneligible)
-            {
                 negDebt=CreateNegativeCarryover(c,tx,actor,run,rider,now);
-            }
+            else if(net>0)
+                payableId=CreatePayableAndAccrual(c,tx,actor,run,rider,now);
 
-            FreezeStatement(c,tx,actor,run,rider,now);
+            FreezeStatement(c,tx,actor,run,rider,now,payableId);
             outRows.Add(new JsonObject
             {
                 ["payRunRiderId"]=riderId,["erpRiderId"]=rider.S("erpRiderId"),
-                ["salaryApprovedAt"]=now,["salaryNet"]=net,["negativeDebtCreated"]=negDebt
+                ["salaryApprovedAt"]=now,["salaryNet"]=net,["negativeDebtCreated"]=negDebt,
+                ["payableId"]=payableId??"",["selfApproved"]=self
             });
         }
         Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","pay_run")} SET stage=CASE WHEN stage<9 THEN 9 ELSE stage END,updated_by=@by,updated_at=@at WHERE id=@id",
@@ -64,6 +70,49 @@ public static class SalSalaryApprove
         {
             Ensure(c,tx);return Approve(c,tx,ctx.User,id,input);
         })).WithTags("Payroll").WithSummary("Final salary approval after debt confirmation");
+    }
+
+    static void DemandNoOpenSharedHold(DbConnection c,DbTransaction tx,string erpRiderId,string periodMonth)
+    {
+        object? open=SchemaSql.Scalar(c,tx,$"""
+            SELECT 1 FROM {SchemaSql.Q(c,"sal","shared_rider_hold")}
+            WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'
+            """,("@erp",erpRiderId),("@pm",periodMonth));
+        J.Need(open is null or DBNull,"مندوب عمل مشترك معلّق — أكمل دمج التطبيقات قبل الاعتماد.",409);
+    }
+
+    static string CreatePayableAndAccrual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
+    {
+        decimal amount=J.Money(rider.N("salaryNet"));
+        J.Need(amount>0,"لا مستحق بلا صافٍ موجب.",400);
+        string payableId=SchemaSql.GuidText(SchemaSql.NewId());
+        Exec(c,tx,$"""
+            INSERT INTO {SchemaSql.Q(c,"pay","payable")}
+            (id,kind,source_table,source_id,company_id,erp_rider_id,amount_due,currency_code,status,period_month,created_by,created_at)
+            VALUES(@id,'pay_run_rider','sal.pay_run_rider',@src,@c,@erp,@amt,'SAR',1,@pm,@by,@at)
+            """,("@id",payableId),("@src",rider.S("id")),("@c",run.S("companyId")),("@erp",rider.S("erpRiderId")),
+            ("@amt",amount),("@pm",run.S("periodMonth")),("@by",actor.Identity!.Name!),("@at",now));
+
+        Guid company=Guid.Parse(run.S("companyId"));
+        Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
+        Guid expenseAcc=AccountId(c,tx,"512101");
+        Guid payableAcc=AccountId(c,tx,"212103");
+        JournalPosting.Post(c,tx,new JournalPosting.Draft(
+            company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+            DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+            "sal_pay_run_rider",Guid.Parse(rider.S("id")),"salary_accrual",(byte)run.N("runMode"),run.B("payoutBlocked"),
+            actor.Identity!.Name!,
+            [
+                new(expenseAcc,SchemaOrgCostCentre.NoneId,run.S("app"),amount,0m,"استحقاق راتب"),
+                new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,amount,"استحقاق راتب")
+            ]));
+
+        Exec(c,tx,$"""
+            UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}
+            SET payable_id=@p,bank_eligible=CASE WHEN run_mode=0 AND @pb=0 THEN 1 ELSE 0 END,updated_by=@by,updated_at=@at
+            WHERE id=@id
+            """,("@p",payableId),("@pb",run.B("payoutBlocked")?1:0),("@by",actor.Identity!.Name!),("@at",now),("@id",rider.S("id")));
+        return payableId;
     }
 
     static bool CreateNegativeCarryover(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
@@ -82,7 +131,7 @@ public static class SalSalaryApprove
         Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
         Guid debtAcc=AccountId(c,tx,"112507");
         Guid payableAcc=AccountId(c,tx,"212103");
-            var journal=JournalPosting.Post(c,tx,new JournalPosting.Draft(
+        var journal=JournalPosting.Post(c,tx,new JournalPosting.Draft(
             company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
             DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
             "sal_pay_run_rider",Guid.Parse(rider.S("id")),"salary_approval",(byte)run.N("runMode"),run.B("payoutBlocked"),
@@ -104,7 +153,7 @@ public static class SalSalaryApprove
         return true;
     }
 
-    static void FreezeStatement(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
+    static void FreezeStatement(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now,string? payableId)
     {
         var items=new JsonArray();
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
@@ -127,7 +176,7 @@ public static class SalSalaryApprove
             ["payRunId"]=run.S("id"),["app"]=run.S("app"),["periodMonth"]=run.S("periodMonth"),
             ["erpRiderId"]=rider.S("erpRiderId"),["gross"]=rider.N("gross"),["commission"]=rider.N("commission"),
             ["salaryNet"]=rider.N("salaryNet"),["debtConfirmStatus"]=rider.S("debtConfirmStatus"),
-            ["items"]=items,["frozenAt"]=now
+            ["payableId"]=payableId??"",["items"]=items,["frozenAt"]=now
         };
         string snapId=SchemaSql.GuidText(SchemaSql.NewId());
         Exec(c,tx,$"""
@@ -149,20 +198,25 @@ public static class SalSalaryApprove
         SchemaSalStatement.Ensure(c,tx);
     }
 
-    static JsonObject LoadRun(DbConnection c,DbTransaction tx,string id)
+    static JsonObject LoadRun(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
         cmd.CommandText=$"SELECT id,company_id,app_code,period_month,run_mode,payout_blocked,created_by FROM {SchemaSql.Q(c,"sal","pay_run")} WHERE id=@id";
         Add(cmd,"@id",id);
         using var r=cmd.ExecuteReader();
         J.Need(r.Read(),"مسير الرواتب غير موجود.",404);
-        return new()
+        var run=new JsonObject
         {
             ["id"]=r["id"].ToString()!,["companyId"]=r["company_id"].ToString()!,["app"]=r["app_code"].ToString()!,
             ["periodMonth"]=ReadMonth(r["period_month"]),["runMode"]=Convert.ToInt32(r["run_mode"]),
             ["payoutBlocked"]=Convert.ToInt32(r["payout_blocked"])==1,
             ["createdBy"]=r["created_by"] is DBNull?"":r["created_by"].ToString()!
         };
+        r.Close();
+        FinancialScopes.DemandSponsor(actor,run.S("companyId"));
+        var platform=PayPlatforms.For(run.S("app"));
+        J.Need(FinancialScopes.Platform(actor,platform.Platform),"المنصة خارج نطاق المستخدم.",403);
+        return run;
     }
 
     static JsonObject LoadRider(DbConnection c,DbTransaction tx,string payRunId,string riderId)
