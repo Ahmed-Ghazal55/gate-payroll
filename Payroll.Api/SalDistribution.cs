@@ -64,12 +64,12 @@ public static class SalDistribution
         MoneyWriteGuards.Demand((byte)invoice.N("runMode"),invoice.B("payoutBlocked"),MoneyEffectKind.Accounting);
         J.Need(string.Equals(invoice.S("app"),app,StringComparison.Ordinal),"التطبيق لا يطابق الفاتورة.",409);
         DemandCaptureFrozen(c,tx,payRunId,invoice);
-        DemandNoUndatedPending(c,tx,invoiceId);
+        DemandNoPendingBearers(c,tx,invoiceId);
         bool ninja=app=="ninja";
         if(!ninja)
             throw new ApiError("توزيع الحصة بنسبة الطلبات لنينجا فقط؛ لباقي التطبيقات عيّن متحمّلاً صريحاً لكل بند.",409);
 
-        var lines=LoadLines(c,tx,invoiceId);
+        var lines=AggregateLinesByAccount(LoadLines(c,tx,invoiceId));
         J.Need(lines.Count>0,"لا بنود فاتورة للتوزيع.",409);
         var assignments=LoadFrozenKind(c,tx,payRunId,"assignment");
         var daily=LoadFrozenKind(c,tx,payRunId,"ninja_daily");
@@ -77,6 +77,7 @@ public static class SalDistribution
         RejectConflictingWorkers(input,assignments,daily);
 
         decimal entitlement=EntitlementBeforeTga(c,tx,invoiceId);
+        var riderPenalties=RiderNonTgaBearers(c,tx,invoiceId);
         SchemaSql.Exec(c,tx,$"DELETE FROM {SchemaSql.Q(c,"sal","distribution")} WHERE invoice_id=@id",("@id",invoiceId));
         var rows=new JsonArray();
         decimal distributed=0;
@@ -93,8 +94,11 @@ public static class SalDistribution
             for(int i=0;i<workers.Count;i++)
             {
                 var w=workers[i];
-                decimal share=i==workers.Count-1?J.Money(lineShare-kept):J.Money(lineShare*((decimal)w.Orders/orders));
-                kept+=share;distributed+=share;
+                decimal raw=i==workers.Count-1?J.Money(lineShare-kept):J.Money(lineShare*((decimal)w.Orders/orders));
+                kept+=raw;
+                decimal penalty=riderPenalties.GetValueOrDefault(w.RiderId);
+                if(penalty>0){riderPenalties[w.RiderId]=0;raw=J.Money(raw-penalty);J.Need(raw>=0,"حصة المندوب لا تغطي بنود التحميل المعينة.",409);}
+                distributed+=raw;
                 string id=SchemaSql.GuidText(SchemaSql.NewId());
                 SchemaSql.Exec(c,tx,$"""
                     INSERT INTO {SchemaSql.Q(c,"sal","distribution")}
@@ -102,8 +106,8 @@ public static class SalDistribution
                     VALUES(@id,@pm,@inv,@acc,@rider,@orders,@days,@from,@to,@share,'order_share','ready',@by,@at)
                     """,("@id",id),("@pm",invoice.S("periodMonth")),("@inv",invoiceId),("@acc",account),("@rider",w.RiderId),
                     ("@orders",w.Orders),("@days",w.Days),("@from",NullDate(w.From)),("@to",NullDate(w.To)),
-                    ("@share",share),("@by",actor.Identity!.Name!),("@at",DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture)));
-                rows.Add(new JsonObject{["id"]=id,["erpPlatformAccountId"]=account,["erpRiderId"]=w.RiderId,["orders"]=w.Orders,["shareAmount"]=share,["fromDate"]=w.From,["toDate"]=w.To,["status"]="ready"});
+                    ("@share",raw),("@by",actor.Identity!.Name!),("@at",DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture)));
+                rows.Add(new JsonObject{["id"]=id,["erpPlatformAccountId"]=account,["erpRiderId"]=w.RiderId,["orders"]=w.Orders,["shareAmount"]=raw,["fromDate"]=w.From,["toDate"]=w.To,["status"]="ready"});
             }
         }
         Store.Audit(c,tx,"sal.distribution_proposed",invoiceId,actor.Identity!.Name!);
@@ -210,6 +214,8 @@ public static class SalDistribution
                     ["allowedActions"]=new JsonArray("assign_shared_bearer")
                 };
             }
+            foreach(var row in allocations.Where(a=>a.S("bearer")=="rider"))
+                DemandRiderInFrozenAssignment(c,tx,item,input.S("payRunId"),row.S("erpRiderId"),"");
             PersistBearers(c,tx,actor,item,allocations);
             SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","platform_invoice_item")} SET bearer_status=@st WHERE id=@id",("@st",BearerReady),("@id",itemId));
             Store.Audit(c,tx,"sal.shared_bearer_assigned",itemId,actor.Identity!.Name!);
@@ -223,6 +229,7 @@ public static class SalDistribution
 
         string actual=input.S("actualRiderId");
         J.Need(actual!="","المندوب الفعلي بتاريخ البند مطلوب.",400);
+        DemandRiderInFrozenAssignment(c,tx,item,input.S("payRunId"),actual,itemDate);
         foreach(var row in allocations.Where(a=>a.S("bearer")=="rider"))
             row["erpRiderId"]=actual;
         PersistBearers(c,tx,actor,item,allocations);
@@ -378,25 +385,69 @@ public static class SalDistribution
         return lines;
     }
 
-    /// <summary>Entitlement before TGA: line net + TGA amounts (TGA never reduces the distributable pool).</summary>
+    /// <summary>Distributable pool: line net + every platform-deducted item (TGA and ordinary). TGA never reduces the pool; rider-borne non-TGA amounts are subtracted from that rider after the split.</summary>
     static decimal EntitlementBeforeTga(DbConnection c,DbTransaction? tx,string invoiceId)
     {
         object? net=SchemaSql.Scalar(c,tx,$"SELECT COALESCE(SUM(net),0) FROM {SchemaSql.Q(c,"sal","platform_invoice_line")} WHERE invoice_id=@id",("@id",invoiceId));
-        object? tga=SchemaSql.Scalar(c,tx,$"""
+        object? deducted=SchemaSql.Scalar(c,tx,$"""
             SELECT COALESCE(SUM(i.amount),0) FROM {SchemaSql.Q(c,"sal","platform_invoice_item")} i
             INNER JOIN {SchemaSql.Q(c,"sal","platform_invoice_line")} l ON l.id=i.line_id
-            WHERE l.invoice_id=@id AND LOWER(i.item_code)='tga'
+            WHERE l.invoice_id=@id AND i.platform_deducted=1
             """,("@id",invoiceId));
-        return J.Money(Convert.ToDecimal(net??0m)+Convert.ToDecimal(tga??0m));
+        return J.Money(Convert.ToDecimal(net??0m)+Convert.ToDecimal(deducted??0m));
     }
 
     static decimal LineEntitlement(DbConnection c,DbTransaction? tx,JsonObject line)
     {
-        object? tga=SchemaSql.Scalar(c,tx,$"""
-            SELECT COALESCE(SUM(amount),0) FROM {SchemaSql.Q(c,"sal","platform_invoice_item")}
-            WHERE line_id=@id AND LOWER(item_code)='tga'
-            """,("@id",line.S("id")));
-        return J.Money(line.N("net")+Convert.ToDecimal(tga??0m));
+        // Aggregated account lines carry summed net and may span several source line ids.
+        string idsCsv=line.S("lineIds",line.S("id"));
+        var ids=idsCsv.Split(',',StringSplitOptions.RemoveEmptyEntries|StringSplitOptions.TrimEntries);
+        decimal addBack=0;
+        foreach(string id in ids)
+        {
+            object? deducted=SchemaSql.Scalar(c,tx,$"""
+                SELECT COALESCE(SUM(amount),0) FROM {SchemaSql.Q(c,"sal","platform_invoice_item")}
+                WHERE line_id=@id AND platform_deducted=1
+                """,("@id",id));
+            addBack+=Convert.ToDecimal(deducted??0m);
+        }
+        return J.Money(line.N("net")+addBack);
+    }
+
+    static Dictionary<string,decimal> RiderNonTgaBearers(DbConnection c,DbTransaction? tx,string invoiceId)
+    {
+        var map=new Dictionary<string,decimal>(StringComparer.Ordinal);
+        using var cmd=Store.Command(c,tx,$"""
+            SELECT b.erp_rider_id, SUM(b.amount) AS amt
+            FROM {SchemaSql.Q(c,"sal","item_bearer")} b
+            INNER JOIN {SchemaSql.Q(c,"sal","platform_invoice_item")} i ON i.id=b.item_id
+            INNER JOIN {SchemaSql.Q(c,"sal","platform_invoice_line")} l ON l.id=i.line_id
+            WHERE l.invoice_id=@id AND b.bearer='rider' AND LOWER(i.item_code)<>'tga'
+            GROUP BY b.erp_rider_id
+            """,("@id",invoiceId));
+        using var reader=cmd.ExecuteReader();
+        while(reader.Read())
+        {
+            string rider=reader["erp_rider_id"] is DBNull?"":reader["erp_rider_id"].ToString()!;
+            if(rider=="")continue;
+            map[rider]=J.Money(Convert.ToDecimal(reader["amt"]));
+        }
+        return map;
+    }
+
+    static List<JsonObject> AggregateLinesByAccount(List<JsonObject> lines)
+    {
+        return lines.GroupBy(l=>l.S("erpPlatformAccountId"),StringComparer.Ordinal)
+            .Select(g=>
+            {
+                var first=g.First().DeepClone()!.AsObject();
+                first["gross"]=g.Sum(x=>x.N("gross"));
+                first["deductions"]=g.Sum(x=>x.N("deductions"));
+                first["net"]=g.Sum(x=>x.N("net"));
+                first["orders"]=g.Sum(x=>(int)x.N("orders"));
+                first["lineIds"]=string.Join(",",g.Select(x=>x.S("id")));
+                return first;
+            }).ToList();
     }
 
     static void DemandCaptureFrozen(DbConnection c,DbTransaction? tx,string payRunId,JsonObject invoice)
@@ -409,16 +460,48 @@ public static class SalDistribution
         J.Need(Convert.ToInt32(reader["capture_state"])>0,"التقاط المدخلات غير مجمّد.",409);
         J.Need(string.Equals(reader["company_id"].ToString(),invoice.S("companyId"),StringComparison.Ordinal),"دورة التقاط لا تطابق شركة الفاتورة.",409);
         J.Need(string.Equals(reader["app_code"].ToString(),invoice.S("app"),StringComparison.Ordinal),"دورة التقاط لا تطابق تطبيق الفاتورة.",409);
+        string runMonth=ReadMonth(reader["period_month"]);
+        J.Need(string.Equals(runMonth,invoice.S("periodMonth"),StringComparison.Ordinal),"دورة التقاط لا تطابق شهر الفاتورة.",409);
     }
 
-    static void DemandNoUndatedPending(DbConnection c,DbTransaction? tx,string invoiceId)
+    static void DemandNoPendingBearers(DbConnection c,DbTransaction? tx,string invoiceId)
     {
         object? pending=SchemaSql.Scalar(c,tx,$"""
             SELECT COUNT(1) FROM {SchemaSql.Q(c,"sal","platform_invoice_item")} i
             INNER JOIN {SchemaSql.Q(c,"sal","platform_invoice_line")} l ON l.id=i.line_id
-            WHERE l.invoice_id=@id AND i.bearer_status=@st
-            """,("@id",invoiceId),("@st",BearerNeedsDecision));
-        J.Need(Convert.ToInt32(pending??0)==0,"بنود مشتركة بلا تاريخ ما زالت تحتاج تعيين المشرف قبل التوزيع.",409);
+            WHERE l.invoice_id=@id AND i.bearer_status IN (@pending,@needs)
+            """,("@id",invoiceId),("@pending",BearerPending),("@needs",BearerNeedsDecision));
+        J.Need(Convert.ToInt32(pending??0)==0,"بنود معلّقة أو بلا تعيين متحمّل تمنع التوزيع.",409);
+    }
+
+    static void DemandRiderInFrozenAssignment(DbConnection c,DbTransaction? tx,JsonObject item,string payRunId,string riderId,string itemDate)
+    {
+        J.Need(riderId!="","مندوب المتحمّل مطلوب.",400);
+        string runId=payRunId;
+        if(runId=="")
+            runId=FindFrozenPayRun(c,tx,item.S("companyId"),item.S("app"),item.S("periodMonth"));
+        if(runId=="")return; // no freeze yet — dated forge check waits for a frozen run when provided
+        var assignments=LoadFrozenKind(c,tx,runId,"assignment");
+        J.Need(assignments.Count>0,"لا تعيينات مجمّدة للتحقق من المندوب.",409);
+        bool ok=assignments.Any(a=>
+        {
+            string assigned=a.S("actualRiderProfileId",a.S("riderProfileId"));
+            if(!string.Equals(assigned,riderId,StringComparison.Ordinal))return false;
+            if(itemDate=="")return true;
+            return OverlapsDate(a.S("effectiveFrom"),a.S("effectiveTo"),itemDate);
+        });
+        J.Need(ok,"المندوب ليس ضمن التعيينات المجمّدة للحساب/التاريخ.",409);
+    }
+
+    static string FindFrozenPayRun(DbConnection c,DbTransaction? tx,string companyId,string app,string periodMonth)
+    {
+        if(companyId==""||app==""||periodMonth=="")return "";
+        using var cmd=Store.Command(c,tx,$"""
+            SELECT id FROM {SchemaSql.Q(c,"sal","pay_run")}
+            WHERE company_id=@c AND app_code=@app AND period_month=@pm AND capture_state>0
+            ORDER BY created_at DESC
+            """,("@c",companyId),("@app",app),("@pm",periodMonth.Length>=10?periodMonth[..10]:periodMonth));
+        return cmd.ExecuteScalar()?.ToString()??"";
     }
 
     static List<JsonObject> LoadFrozenKind(DbConnection c,DbTransaction? tx,string payRunId,string kind)
@@ -442,8 +525,10 @@ public static class SalDistribution
 
     static List<Worker> WorkersForAccount(string account,List<JsonObject> assignments,List<JsonObject> daily)
     {
-        var riders=assignments
+        var accountAssignments=assignments
             .Where(a=>string.Equals(a.S("platformRiderAccountId"),account,StringComparison.Ordinal))
+            .ToList();
+        var riders=accountAssignments
             .Select(a=>a.S("actualRiderProfileId",a.S("riderProfileId")))
             .Where(id=>id!="")
             .Distinct(StringComparer.Ordinal)
@@ -451,35 +536,18 @@ public static class SalDistribution
         var list=new List<Worker>();
         foreach(string rider in riders)
         {
+            var riderAssignments=accountAssignments.Where(a=>string.Equals(a.S("actualRiderProfileId",a.S("riderProfileId")),rider,StringComparison.Ordinal)).ToList();
+            // Only orders inside a dated assignment window for this rider on this account.
             var days=daily.Where(d=>string.Equals(d.S("platformRiderAccountId"),account,StringComparison.Ordinal)
-                &&string.Equals(d.S("riderProfileId",d.S("actualRiderProfileId")),rider,StringComparison.Ordinal)).ToList();
+                &&string.Equals(d.S("riderProfileId",d.S("actualRiderProfileId")),rider,StringComparison.Ordinal)
+                &&riderAssignments.Any(a=>OverlapsDate(a.S("effectiveFrom"),a.S("effectiveTo"),d.S("reportDate")))).ToList();
             int orders=days.Sum(d=>(int)d.N("orders"));
-            if(orders==0&&days.Count==0)
-            {
-                // Assignment without daily rows: still include with 0 orders only when other riders cover — skip zero.
-                continue;
-            }
-            var from=assignments.Where(a=>string.Equals(a.S("platformRiderAccountId"),account,StringComparison.Ordinal)
-                &&string.Equals(a.S("actualRiderProfileId",a.S("riderProfileId")),rider,StringComparison.Ordinal))
-                .Select(a=>a.S("effectiveFrom")).Where(d=>d!="").DefaultIfEmpty("").Min()!;
-            var to=assignments.Where(a=>string.Equals(a.S("platformRiderAccountId"),account,StringComparison.Ordinal)
-                &&string.Equals(a.S("actualRiderProfileId",a.S("riderProfileId")),rider,StringComparison.Ordinal))
-                .Select(a=>a.S("effectiveTo")).Where(d=>d!="").DefaultIfEmpty("").Max()!;
+            if(orders<=0)continue;
+            var from=riderAssignments.Select(a=>a.S("effectiveFrom")).Where(d=>d!="").DefaultIfEmpty("").Min()!;
+            var to=riderAssignments.Select(a=>a.S("effectiveTo")).Where(d=>d!="").DefaultIfEmpty("").Max()!;
             list.Add(new(rider,orders,days.Count,from,to));
         }
-        // If assignments missing but daily has the account, derive workers from daily alone.
-        if(list.Count==0)
-        {
-            foreach(var g in daily.Where(d=>string.Equals(d.S("platformRiderAccountId"),account,StringComparison.Ordinal))
-                .GroupBy(d=>d.S("riderProfileId",d.S("actualRiderProfileId")),StringComparer.Ordinal)
-                .Where(g=>g.Key!=""))
-            {
-                int orders=g.Sum(d=>(int)d.N("orders"));
-                if(orders<=0)continue;
-                var dates=g.Select(d=>d.S("reportDate")).Where(d=>d!="").OrderBy(d=>d).ToList();
-                list.Add(new(g.Key,orders,g.Count(),dates.FirstOrDefault()??"",dates.LastOrDefault()??""));
-            }
-        }
+        // Never invent workers from daily alone — forged / unassigned riders are rejected.
         return list;
     }
 

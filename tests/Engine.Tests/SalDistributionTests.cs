@@ -191,7 +191,7 @@ public sealed class SalDistributionTests
     [DataRow(true)]
     public void Propose_NeverUsesRegistrationFallback_SharesStayOnFrozenAccount(bool sqlServer)
     {
-        var (c,company,invoice,_,_)=SeedInvoice(sqlServer);
+        var (c,company,invoice,_,tga)=SeedInvoice(sqlServer);
         using(c)
         {
             string account=(string)MoneySchemaFixture.Scalar(c,null,"SELECT erp_platform_account_id FROM sal_platform_invoice_line WHERE invoice_id=@id LIMIT 1",("@id",invoice))!;
@@ -200,6 +200,11 @@ public sealed class SalDistributionTests
             var actor=Actor();
             string run=FreezeAssignments(c,actor,company,account,rider,ordersA:90);
             using var tx=c.BeginTransaction();
+            SalDistribution.AllocateTga(c,tx,actor,new JsonObject
+            {
+                ["invoiceId"]=invoice,["itemId"]=tga,
+                ["allocations"]=new JsonArray(new JsonObject{["bearer"]="company",["amount"]=100})
+            });
             // Old bug: worker without account fell back to erp_cr_id (registration). Caller may still send it — must not win.
             var result=SalDistribution.Propose(c,tx,actor,new JsonObject
             {
@@ -231,7 +236,7 @@ public sealed class SalDistributionTests
             facts.Rows["ninja_daily"]=
             [
                 new(){["id"]=MoneySchemaFixture.Id(),["reportDate"]="2026-10-01",["platformRiderAccountId"]=account,["riderProfileId"]=riderA,["orders"]=45},
-                new(){["id"]=MoneySchemaFixture.Id(),["reportDate"]="2026-10-02",["platformRiderAccountId"]=account,["riderProfileId"]=riderB,["orders"]=45}
+                new(){["id"]=MoneySchemaFixture.Id(),["reportDate"]="2026-10-16",["platformRiderAccountId"]=account,["riderProfileId"]=riderB,["orders"]=45}
             ];
             facts.Rows["assignment"]=
             [
@@ -266,7 +271,7 @@ public sealed class SalDistributionTests
     [DataRow(true)]
     public void ProposeDistribution_NinjaUsesOrderShare_OtherAppsNeedExplicitBearer(bool sqlServer)
     {
-        var (c,company,invoice,_,_)=SeedInvoice(sqlServer);
+        var (c,company,invoice,_,tga)=SeedInvoice(sqlServer);
         using(c)
         {
             MoneySchemaFixture.Exec(c,null,"UPDATE sal_platform_invoice SET app_code='ninja' WHERE id=@id",("@id",invoice));
@@ -292,6 +297,11 @@ public sealed class SalDistributionTests
             {
                 OpsSnapshotCapture.Capture(c,tx,actor,run,facts,reasons);
                 OpsSnapshotCapture.Freeze(c,tx,actor,run);
+                SalDistribution.AllocateTga(c,tx,actor,new JsonObject
+                {
+                    ["invoiceId"]=invoice,["itemId"]=tga,
+                    ["allocations"]=new JsonArray(new JsonObject{["bearer"]="company",["amount"]=100})
+                });
                 var ninja=SalDistribution.Propose(c,tx,actor,new JsonObject{["invoiceId"]=invoice,["app"]="ninja",["payRunId"]=run});
                 Assert.AreEqual("order_share",ninja.S("method"));
                 Assert.AreEqual(1000m,ninja.N("distributedTotal"));
@@ -428,6 +438,181 @@ public sealed class SalDistributionTests
             Assert.AreEqual("combine_settlement",combined["allowedActions"]!.AsArray().First()?.ToString());
             Assert.AreEqual(2m,combined.N("invoiceCount"));
             tx.Commit();
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void AssignShared_ForgedRider_Rejects_AndOutOfPeriodOrdersExcluded(bool sqlServer)
+    {
+        var (c,company,invoice,line,tga)=SeedInvoice(sqlServer);
+        using(c)
+        {
+            var actor=Actor();
+            string account=(string)MoneySchemaFixture.Scalar(c,null,"SELECT erp_platform_account_id FROM sal_platform_invoice_line WHERE id=@id",("@id",line))!;
+            string actual=MoneySchemaFixture.Id(),forged=MoneySchemaFixture.Id();
+            string run=FreezeAssignments(c,actor,company,account,actual,ordersA:90);
+            using(var tx=c.BeginTransaction())
+            {
+                Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalDistribution.AssignSharedBearer(c,tx,actor,new JsonObject
+                {
+                    ["itemId"]=tga,["itemDate"]="2026-10-10",["payRunId"]=run,["actualRiderId"]=forged,
+                    ["allocations"]=new JsonArray(new JsonObject{["bearer"]="rider",["erpRiderId"]=actual,["amount"]=100})
+                })).Status);
+                tx.Rollback();
+            }
+        }
+        // Fresh seed: orders on Oct 1 with assignment only Oct 16–31 → no in-window worker.
+        var (c2,company2,invoice2,_,tga2)=SeedInvoice(sqlServer);
+        using(c2)
+        {
+            var actor=Actor();
+            string account=(string)MoneySchemaFixture.Scalar(c2,null,"SELECT erp_platform_account_id FROM sal_platform_invoice_line WHERE invoice_id=@id LIMIT 1",("@id",invoice2))!;
+            string riderB=MoneySchemaFixture.Id();
+            string run2=MoneySchemaFixture.Run(c2,company2,"ninja","2026-10-01");
+            var facts=new FakeOpsLiveFactsReader();
+            facts.Rows["ninja_daily"]=[new(){["id"]=MoneySchemaFixture.Id(),["reportDate"]="2026-10-01",["platformRiderAccountId"]=account,["riderProfileId"]=riderB,["orders"]=90}];
+            facts.Rows["assignment"]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["actualRiderProfileId"]=riderB,["effectiveFrom"]="2026-10-16",["effectiveTo"]="2026-10-31"}];
+            facts.Rows["ninja_daily_deduction"]=[];facts.Rows["platform_account"]=[new(){["id"]=account}];
+            facts.Rows["housing"]=[];facts.Rows["fuel"]=[];facts.Rows["vehicle"]=[];facts.Rows["scheme"]=[];facts.Rows["eligibility"]=[];
+            var reasons=new Dictionary<string,string>{["ninja_daily_deduction"]="n",["housing"]="n",["fuel"]="n",["vehicle"]="n",["scheme"]="n",["eligibility"]="n"};
+            using(var tx=c2.BeginTransaction())
+            {
+                OpsSnapshotCapture.Capture(c2,tx,actor,run2,facts,reasons);
+                OpsSnapshotCapture.Freeze(c2,tx,actor,run2);
+                SalDistribution.AllocateTga(c2,tx,actor,new JsonObject
+                {
+                    ["invoiceId"]=invoice2,["itemId"]=tga2,
+                    ["allocations"]=new JsonArray(new JsonObject{["bearer"]="company",["amount"]=100})
+                });
+                Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalDistribution.Propose(c2,tx,actor,new JsonObject
+                {
+                    ["invoiceId"]=invoice2,["app"]="ninja",["payRunId"]=run2
+                })).Status);
+                tx.Rollback();
+            }
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Propose_PendingDamage50_BlocksDistributionOf1000(bool sqlServer)
+    {
+        var (c,company,invoice,line,_)=SeedInvoice(sqlServer,lineNet:900,tga:100);
+        using(c)
+        {
+            var actor=Actor();
+            string account=(string)MoneySchemaFixture.Scalar(c,null,"SELECT erp_platform_account_id FROM sal_platform_invoice_line WHERE id=@id",("@id",line))!;
+            string rider=MoneySchemaFixture.Id();
+            string run=FreezeAssignments(c,actor,company,account,rider,ordersA:90);
+            // Resolve TGA so the blocker is the untouched pending damage (status=1), not TGA.
+            MoneySchemaFixture.Exec(c,null,"UPDATE sal_platform_invoice_item SET bearer_status=2 WHERE line_id=@line AND item_code='tga'",("@line",line));
+            MoneySchemaFixture.Exec(c,null,"INSERT INTO sal_platform_invoice_item(id,line_id,period_month,item_code,amount,bearer_status,platform_deducted) VALUES(@id,@line,'2026-10-01','damage',50,1,0)",
+                ("@id",MoneySchemaFixture.Id()),("@line",line));
+            using var tx=c.BeginTransaction();
+            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalDistribution.Propose(c,tx,actor,new JsonObject
+            {
+                ["invoiceId"]=invoice,["app"]="ninja",["payRunId"]=run
+            })).Status);
+            tx.Rollback();
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Propose_Entitlement1000_Penalty100OnRiderA_EqualOrders_A400_B500(bool sqlServer)
+    {
+        var (c,company,invoice,line,_)=SeedInvoice(sqlServer,lineNet:900,tga:0);
+        using(c)
+        {
+            var actor=Actor();
+            string account=(string)MoneySchemaFixture.Scalar(c,null,"SELECT erp_platform_account_id FROM sal_platform_invoice_line WHERE id=@id",("@id",line))!;
+            MoneySchemaFixture.Exec(c,null,"UPDATE sal_platform_invoice_line SET gross=1000,deductions=100,net=900 WHERE id=@id",("@id",line));
+            string riderA=MoneySchemaFixture.Id(),riderB=MoneySchemaFixture.Id();
+            // Seed with tga:0 still inserts a zero TGA row; keep it ready and add a separate penalty item.
+            MoneySchemaFixture.Exec(c,null,"UPDATE sal_platform_invoice_item SET bearer_status=2 WHERE line_id=@line AND item_code='tga'",("@line",line));
+            string damage=MoneySchemaFixture.Id();
+            MoneySchemaFixture.Exec(c,null,"INSERT INTO sal_platform_invoice_item(id,line_id,period_month,item_code,amount,bearer_status,platform_deducted) VALUES(@id,@line,'2026-10-01','damage',100,1,1)",
+                ("@id",damage),("@line",line));
+            string run=MoneySchemaFixture.Run(c,company,"ninja","2026-10-01");
+            var facts=new FakeOpsLiveFactsReader();
+            facts.Rows["ninja_daily"]=
+            [
+                new(){["id"]=MoneySchemaFixture.Id(),["reportDate"]="2026-10-01",["platformRiderAccountId"]=account,["riderProfileId"]=riderA,["orders"]=45},
+                new(){["id"]=MoneySchemaFixture.Id(),["reportDate"]="2026-10-16",["platformRiderAccountId"]=account,["riderProfileId"]=riderB,["orders"]=45}
+            ];
+            facts.Rows["assignment"]=
+            [
+                new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["actualRiderProfileId"]=riderA,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-15"},
+                new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["actualRiderProfileId"]=riderB,["effectiveFrom"]="2026-10-16",["effectiveTo"]="2026-10-31"}
+            ];
+            facts.Rows["ninja_daily_deduction"]=[];facts.Rows["platform_account"]=[new(){["id"]=account}];
+            facts.Rows["housing"]=[];facts.Rows["fuel"]=[];facts.Rows["vehicle"]=[];facts.Rows["scheme"]=[];facts.Rows["eligibility"]=[];
+            var reasons=new Dictionary<string,string>{["ninja_daily_deduction"]="n",["housing"]="n",["fuel"]="n",["vehicle"]="n",["scheme"]="n",["eligibility"]="n"};
+            using var tx=c.BeginTransaction();
+            OpsSnapshotCapture.Capture(c,tx,actor,run,facts,reasons);
+            OpsSnapshotCapture.Freeze(c,tx,actor,run);
+            SalDistribution.AssignSharedBearer(c,tx,actor,new JsonObject
+            {
+                ["itemId"]=damage,["payRunId"]=run,
+                ["allocations"]=new JsonArray(new JsonObject{["bearer"]="rider",["erpRiderId"]=riderA,["amount"]=100})
+            });
+            var proposed=SalDistribution.Propose(c,tx,actor,new JsonObject{["invoiceId"]=invoice,["app"]="ninja",["payRunId"]=run});
+            Assert.AreEqual(1000m,proposed.N("entitlementBeforeTga"));
+            var byRider=proposed["rows"]!.AsArray().OfType<JsonObject>().ToDictionary(r=>r.S("erpRiderId"),r=>r.N("shareAmount"));
+            Assert.AreEqual(400m,byRider[riderA]);
+            Assert.AreEqual(500m,byRider[riderB]);
+            tx.Commit();
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Propose_SameAccountLines100And900_Aggregates_AndPeriodMismatchRejected(bool sqlServer)
+    {
+        var c=MoneySchemaFixture.Payments(sqlServer);
+        SchemaSalInvoice.Ensure(c);SchemaSalDistribution.Ensure(c);SchemaSalPayRun.Ensure(c);SchemaOperationCapture.Ensure(c);
+        EnsureRecords(c);
+        using(c)
+        {
+            string company=MoneySchemaFixture.Company(c);
+            string invoice=MoneySchemaFixture.Invoice(c,company,month:"2026-11-01");
+            string account=MoneySchemaFixture.Id(),rider=MoneySchemaFixture.Id();
+            string line1=MoneySchemaFixture.Id(),line2=MoneySchemaFixture.Id();
+            MoneySchemaFixture.Exec(c,null,"INSERT INTO sal_platform_invoice_line(id,invoice_id,period_month,source_row,account_key,erp_platform_account_id,gross,deductions,net,orders) VALUES(@id,@inv,'2026-11-01',1,'a',@acc,100,0,100,10)",
+                ("@id",line1),("@inv",invoice),("@acc",account));
+            MoneySchemaFixture.Exec(c,null,"INSERT INTO sal_platform_invoice_line(id,invoice_id,period_month,source_row,account_key,erp_platform_account_id,gross,deductions,net,orders) VALUES(@id,@inv,'2026-11-01',2,'a',@acc,900,0,900,10)",
+                ("@id",line2),("@inv",invoice),("@acc",account));
+            var actor=Actor();
+            // October freeze must not serve a November invoice.
+            string octRun=FreezeAssignments(c,actor,company,account,rider,ordersA:20);
+            using(var tx=c.BeginTransaction())
+            {
+                Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalDistribution.Propose(c,tx,actor,new JsonObject
+                {
+                    ["invoiceId"]=invoice,["app"]="ninja",["payRunId"]=octRun
+                })).Status);
+                tx.Rollback();
+            }
+            string novRun=MoneySchemaFixture.Run(c,company,"ninja","2026-11-01");
+            var facts=new FakeOpsLiveFactsReader();
+            facts.Rows["ninja_daily"]=[new(){["id"]=MoneySchemaFixture.Id(),["reportDate"]="2026-11-01",["platformRiderAccountId"]=account,["riderProfileId"]=rider,["orders"]=20}];
+            facts.Rows["assignment"]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["actualRiderProfileId"]=rider,["effectiveFrom"]="2026-11-01",["effectiveTo"]="2026-11-30"}];
+            facts.Rows["ninja_daily_deduction"]=[];facts.Rows["platform_account"]=[new(){["id"]=account}];
+            facts.Rows["housing"]=[];facts.Rows["fuel"]=[];facts.Rows["vehicle"]=[];facts.Rows["scheme"]=[];facts.Rows["eligibility"]=[];
+            var reasons=new Dictionary<string,string>{["ninja_daily_deduction"]="n",["housing"]="n",["fuel"]="n",["vehicle"]="n",["scheme"]="n",["eligibility"]="n"};
+            using var tx2=c.BeginTransaction();
+            OpsSnapshotCapture.Capture(c,tx2,actor,novRun,facts,reasons);
+            OpsSnapshotCapture.Freeze(c,tx2,actor,novRun);
+            var proposed=SalDistribution.Propose(c,tx2,actor,new JsonObject{["invoiceId"]=invoice,["app"]="ninja",["payRunId"]=novRun});
+            Assert.AreEqual(1000m,proposed.N("distributedTotal"));
+            Assert.AreEqual(1,proposed["rows"]!.AsArray().Count);
+            Assert.AreEqual(1000m,proposed["rows"]!.AsArray().OfType<JsonObject>().Single().N("shareAmount"));
+            tx2.Commit();
         }
     }
 }
