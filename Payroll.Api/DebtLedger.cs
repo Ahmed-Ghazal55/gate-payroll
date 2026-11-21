@@ -79,8 +79,12 @@ public static class DebtLedger
             J.Need(reader.Read(),"المديونية غير موجودة.",404);
             platform=reader["platform"] is DBNull?"":reader["platform"].ToString()!;
         }
-        string code=platform!=""&&PlatformWaiver.TryGetValue(platform,out var mapped)?mapped:"526601";
-        return (code,AccountId(c,tx,code));
+        if(platform!="")
+        {
+            J.Need(PlatformWaiver.TryGetValue(platform,out var mapped)&&mapped is {Length:>0},"حساب إعفاء المنصة غير مربوط للمنصة: "+platform,409);
+            return (mapped!,AccountId(c,tx,mapped!));
+        }
+        return ("526601",AccountId(c,tx,"526601"));
     }
 
     public static (string ExpenseCode,string ReceivableCode,Guid ExpenseId,Guid ReceivableId) ResolveAbsorbAccounts(DbConnection c,DbTransaction tx,Guid debtId)
@@ -117,7 +121,20 @@ public static class DebtLedger
         if(reason=="تصحيح رصيد افتتاحي")return AccountId(c,tx,"331301");
         if(reason=="خطأ إدخال")
         {
-            // Reverse the original contra: last positive movement's paired journal credit, else cash/bank collection path → cash.
+            // Reverse the original credit line (opening equity / vault / expense), never the same receivable.
+            object? contraCode=SchemaSql.Scalar(c,tx,$"""
+                SELECT a.code FROM {SchemaSql.Q(c,"debt","debt_movement")} m
+                JOIN {SchemaSql.Q(c,"fin","journal")} j ON j.id=m.journal_id
+                JOIN {SchemaSql.Q(c,"fin","journal_line")} jl ON jl.journal_id=j.id AND jl.credit>0
+                JOIN {SchemaSql.Q(c,"fin","account")} a ON a.id=jl.account_id
+                WHERE m.debt_id=@d AND m.amount>0
+                ORDER BY m.occurred_on DESC,m.id DESC,jl.line_no
+                """,("@d",SchemaSql.GuidText(debtId)));
+            if(contraCode is string code && code!="")
+            {
+                string recv=ReceivableForCategory(LoadCategory(c,tx,debtId));
+                if(!code.Equals(recv,StringComparison.Ordinal))return AccountId(c,tx,code=="3101"?"331301":code);
+            }
             object? last=SchemaSql.Scalar(c,tx,$"""
                 SELECT j.purpose FROM {SchemaSql.Q(c,"debt","debt_movement")} m
                 LEFT JOIN {SchemaSql.Q(c,"fin","journal")} j ON j.id=m.journal_id
@@ -125,7 +142,9 @@ public static class DebtLedger
                 """,("@d",SchemaSql.GuidText(debtId)));
             string purpose=last?.ToString()??"";
             if(purpose.Contains("collection",StringComparison.OrdinalIgnoreCase))return AccountId(c,tx,"111101");
-            return AccountId(c,tx,ReceivableForCategory(LoadCategory(c,tx,debtId)));
+            if(purpose.Contains("opening",StringComparison.OrdinalIgnoreCase)||purpose.Contains("import",StringComparison.OrdinalIgnoreCase)||purpose.Contains("accrual",StringComparison.OrdinalIgnoreCase))
+                return AccountId(c,tx,"331301");
+            throw new ApiError("لا يوجد حساب مقابل أصلي لعكس خطأ الإدخال.",409);
         }
         J.Need(string.IsNullOrWhiteSpace(clientContra)||clientContra is "3101" or "331301","حساب التخفيض غير مسموح إلا لتصحيح الرصيد الافتتاحي.",400);
         return AccountId(c,tx,"331301");
@@ -194,9 +213,9 @@ public static class DebtLedger
     public static JsonObject CommitReduce(DbConnection c,DbTransaction tx,Guid companyId,Guid periodId,DateOnly periodMonth,ClaimsPrincipal maker,ClaimsPrincipal checker,byte[] file,string filename,string fingerprint,Guid receivableAccountId,Guid contraAccountId)
     {
         AccessPolicy.Demand(maker,"debts.create.administrative");
-        DemandChecker(c,tx,maker,checker,fingerprint,0m);
         var preview=PreviewReduce(c,tx,companyId,maker,file,filename,periodMonth);
         J.Need(preview.S("fingerprint")==fingerprint,"بصمة المعاينة لا تطابق الملف؛ أعد المعاينة.",409);
+        DemandChecker(c,tx,maker,checker,fingerprint,preview.N("totalReduce"));
         var flags=ResolveMoneyFlags(c,tx,companyId,periodMonth);
         MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.Debt);
         string hash=preview.S("fileHash");
@@ -264,6 +283,7 @@ public static class DebtLedger
         amount=J.Money(amount);J.Need(amount>0,"مبلغ التحصيل مطلوب.",400);
         string cashCode=AccountCode(c,tx,cashAccountId);
         J.Need(MoneyWriteGuards.IsBankOrCashAccountCode(cashCode),"التحصيل فقط إلى صندوق أو بنك لنفس الشركة.",400);
+        DemandCashVaultScope(actor,cashCode);
         Guid receivable=AccountId(c,tx,ReceivableForCategory(LoadCategory(c,tx,debtId)));
         decimal locked=SchemaDebt.LockDebt(c,tx,SchemaSql.GuidText(debtId));
         J.Need(locked>=amount,"المبلغ يتجاوز الرصيد.",400);
@@ -311,6 +331,7 @@ public static class DebtLedger
     {
         AccessPolicy.Demand(maker,"debts.waive");
         DemandDebtScope(c,tx,maker,debtId,companyId);
+        DemandDebtScope(c,tx,checker,debtId,companyId);
         J.Need(allowed.Contains(expenseCode),"حساب المصروف غير مسموح لهذا الإجراء: "+expenseCode,400);
         DemandChecker(c,tx,maker,checker,SchemaSql.GuidText(debtId),amount);
         var flags=ResolveMoneyFlags(c,tx,companyId,periodMonth);
@@ -413,12 +434,13 @@ public static class DebtLedger
     {
         AccessPolicy.Demand(actor,"debts.create.administrative");
         var note=Store.Get(c,noteId,"promissory_note",tx)??throw new ApiError("سند الأمر غير موجود.",404);
+        string noteCompany=note.S("beneficiarySponsorId",note.S("companyId",note.S("creditorSponsorId",note.S("sponsorId"))));
+        J.Need(noteCompany!="","سند الأمر بلا سجل مالك (beneficiarySponsorId).",400);
+        FinancialScopes.DemandSponsor(actor,noteCompany);
         object? company=SchemaSql.Scalar(c,tx,$"SELECT company_id FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)));
         J.Need(company!=null,"المديونية غير موجودة.",404);
         Guid companyId=company is Guid g?g:Guid.Parse(company!.ToString()!);
         DemandDebtScope(c,tx,actor,debtId,companyId);
-        string noteCompany=note.S("companyId",note.S("creditorSponsorId",note.S("sponsorId")));
-        if(noteCompany!="")FinancialScopes.DemandSponsor(actor,noteCompany);
         DemandOpenDebt(c,tx,debtId,companyId);
         note["debtId"]=SchemaSql.GuidText(debtId);note["linkedAt"]=DateTimeOffset.UtcNow.ToString("O");note["linkedBy"]=actor.Identity!.Name!;
         Store.Save(c,"promissory_note",note,tx);
@@ -452,6 +474,18 @@ public static class DebtLedger
             VALUES(@id,@on,@at,'import','debt',@ref,@diff,'import',@bc,@h,@u,@at)
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@on",DateOnly.FromDateTime(DateTime.UtcNow).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)),
             ("@at",now),("@ref",entityRef),("@diff",diffShort),("@bc",bulkCount),("@h",fileHash),("@u",userId));
+    }
+
+    static void DemandCashVaultScope(ClaimsPrincipal actor,string cashCode)
+    {
+        // Chart vaults use assigned accountCodes; target CoA bank/cash codes need company-wide finance scope.
+        if(FinancialCore.ChartOfAccounts.Any(a=>a.IsVault&&string.Equals(a.Code,cashCode,StringComparison.OrdinalIgnoreCase)))
+        {
+            FinancialScopes.DemandAccount(actor,cashCode);
+            return;
+        }
+        J.Need(AccessPolicy.Administrator(actor)||AccessPolicy.Has(actor,"treasury.journals")||FinancialScopes.AllCompanies(actor),
+            "الحساب المالي خارج النطاق المسند للمستخدم.",403);
     }
 
     static string AccountCode(DbConnection c,DbTransaction tx,Guid accountId)=>
