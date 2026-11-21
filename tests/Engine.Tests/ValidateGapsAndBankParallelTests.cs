@@ -52,4 +52,21 @@ public sealed class ValidateGapsAndBankParallelTests
         var audit=f.Store.Read(c=>Store.List(c,"audit").Single(a=>a.S("action")=="finance.bankfile.export_comparison_only"));
         Assert.IsTrue(audit.B("doNotSend"));
     }
+
+    [TestMethod]
+    public void MarkSentUsesStoredPayoutBlockedNotRequestFlags()
+    {
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id,rider="2000000094";
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic bank rider",["sponsorId"]=company,["isDeliveryRider"]=true,["status"]="Active",["iban"]="SA0380000000608010167519",["verifiedIban"]="SA0380000000608010167519"},tx);
+            Store.Save(c,PayCycles.Kind,new(){["id"]="cycle-blocked",["companyId"]=company,["period"]="2026-10",["status"]="approved",["payoutBlocked"]=true,["runMode"]=0,["riders"]=new JsonArray(new JsonObject{["rider"]=rider,["salaryApprovedAt"]=DateTimeOffset.UtcNow.ToString("O"),["net"]=100})},tx);
+            return true;
+        });
+        var preview=f.Store.Read(c=>BankPayrollFiles.Preview(c,PayFixture.Maker,new(){["sponsorId"]=company,["period"]="2026-10"}));
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,PayFixture.Maker,new()
+        {
+            ["sponsorId"]=company,["period"]="2026-10",["markSent"]=true,["previewToken"]=preview.S("previewToken"),
+            ["rows"]=preview["rows"]!.DeepClone()
+        }))).Status);
+    }
 }

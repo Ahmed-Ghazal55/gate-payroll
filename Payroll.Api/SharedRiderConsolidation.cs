@@ -59,9 +59,17 @@ public static class SharedRiderConsolidation
     {
         J.Need(reason.Trim().Length is >2 and <=500,"سبب الإفراج مطلوب.");
         var doc=Store.Get(c,Id(rider,period),Kind,tx)?.Clone()??throw new ApiError("سجل التجميع غير موجود.",404);
-        AccessPolicy.Demand(actor,"pay.approve");
+        AccessPolicy.Demand(actor,ApprovalsArea.DualSharedRiderRelease);
+        var approval=new JsonObject
+        {
+            ["id"]=doc.S("id"),["kind"]="shared_rider_release",["requestedBy"]=doc.S("createdBy",doc.S("heldBy")),
+            ["targetDepartment"]="FIN",["requiredRankLevel"]=1,["dualPermission"]=ApprovalsArea.DualSharedRiderRelease,
+            ["amountSar"]=CombinedNet(doc)
+        };
+        AccessPolicy.ValidateApproval(actor,approval,new(),"approvals.decide",c,tx,"pay.consolidation_released",doc,ApprovalsArea.DualSharedRiderRelease);
         doc["released"]=true;doc["status"]="released";doc["releaseReason"]=reason.Trim();doc["releasedBy"]=actor.Identity!.Name;doc["releasedAt"]=DateTimeOffset.UtcNow.ToString("O");
         doc["combinedNet"]=J.Money(CombinedNet(doc));
+        if(doc.B("selfApprovedException")||approval.B("selfApprovedException"))doc["selfApprovedException"]=true;
         Store.Save(c,Kind,doc,tx);Store.Audit(c,tx,"pay.consolidation_released",doc.S("id"),actor.Identity!.Name!);
         return doc;
     }
