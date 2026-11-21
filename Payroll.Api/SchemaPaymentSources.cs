@@ -28,6 +28,33 @@ public static class SchemaPaymentSources
                 """);
             SchemaMoneyGuard.Retain(c,tx,"pay",table);SchemaMoneyRegister.Immutable(c,tx,"pay",table,"contract_id","document_id","period_month","due_date","principal","interest");SchemaSql.EnsureMonthIndex(c,tx,"pay",table);
         }
+        foreach(string table in new[]{"fuel_wallet","prepaid_wallet"})
+        {
+            SchemaSql.EnsureTable(c,tx,"pay",table,$"""
+                id {g} NOT NULL {SchemaSql.PrimaryKey(c)},company_id {g} NOT NULL REFERENCES {company}(id),
+                provider {SchemaSql.Text(c,100)} NOT NULL,account_id {g} NOT NULL REFERENCES {SchemaSql.Q(c,"fin","account")}(id),
+                kind {SchemaSql.Varchar(c,20)} NOT NULL,status {SchemaSql.Tiny(c)} NOT NULL DEFAULT 1 CHECK(status IN (1,2)),
+                {SchemaSql.MoneyAuditCols(c)},CONSTRAINT UQ_{table}_account UNIQUE(company_id,account_id)
+                """);
+            SchemaMoneyGuard.Retain(c,tx,"pay",table);SchemaMoneyRegister.Immutable(c,tx,"pay",table,"company_id","account_id","kind","provider");
+            SchemaSql.EnsureTable(c,tx,"pay",table+"_movement",$"""
+                id {g} NOT NULL {SchemaSql.PrimaryKey(c)},wallet_id {g} NOT NULL REFERENCES {SchemaSql.Q(c,"pay",table)}(id),
+                document_id {g} NULL REFERENCES {SchemaSql.Q(c,"pay","document")}(id),
+                payment_id {g} NULL REFERENCES {SchemaSql.Q(c,"pay","payment")}(id),
+                journal_id {g} NOT NULL REFERENCES {SchemaSql.Q(c,"fin","journal")}(id),
+                occurred_on {SchemaSql.Date(c)} NOT NULL,period_month {SchemaSql.Date(c)} NOT NULL,
+                source_type {SchemaSql.Varchar(c,30)} NOT NULL,source_id {SchemaSql.Varchar(c,100)} NOT NULL,
+                amount {m} NOT NULL CHECK(amount<>0),{SchemaSql.MoneyAuditCols(c)},
+                CONSTRAINT UQ_{table}_movement_source UNIQUE(wallet_id,source_type,source_id)
+                """);
+            SchemaMoneyGuard.Retain(c,tx,"pay",table+"_movement","o.wallet_id=NEW.wallet_id AND o.source_type=NEW.source_type AND o.source_id=NEW.source_id");SchemaMoneyRegister.Immutable(c,tx,"pay",table+"_movement","wallet_id","document_id","payment_id","journal_id","occurred_on","period_month","source_type","source_id","amount");SchemaSql.EnsureMonthIndex(c,tx,"pay",table+"_movement");
+        }
+        SchemaSql.EnsureTable(c,tx,"pay","wallet_reconciliation",$"""
+            id {g} NOT NULL {SchemaSql.PrimaryKey(c)},wallet_id {g} NOT NULL,wallet_kind {SchemaSql.Varchar(c,20)} NOT NULL,
+            period_month {SchemaSql.Date(c)} NOT NULL,statement_balance {m} NOT NULL CHECK(statement_balance>=0),
+            book_balance {m} NOT NULL,reference {SchemaSql.Varchar(c,100)} NOT NULL,{SchemaSql.MoneyAuditCols(c)}
+            """);
+        SchemaMoneyGuard.Retain(c,tx,"pay","wallet_reconciliation");SchemaMoneyRegister.Immutable(c,tx,"pay","wallet_reconciliation","wallet_id","wallet_kind","period_month","statement_balance","book_balance","reference");
         foreach(string table in new[]{"hr_fee_request"})
         {
             SchemaSql.EnsureTable(c,tx,"pay",table,$"""

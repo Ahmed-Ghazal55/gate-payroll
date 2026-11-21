@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:44383/"
+      "url": "http://127.0.0.1:36281/"
     }
   ],
   "paths": {
@@ -26817,6 +26817,652 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/fuel-wallets": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "List fuel wallet balances",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Create a fuel provider wallet on an existing account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/fuel-wallets/{id}/fund": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Create a fuel wallet funding document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/fuel-wallets/{id}/reconcile": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Record a fuel wallet statement comparison without adjusting its balance",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/prepaid-wallets": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "List prepaid wallets",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Create a prepaid wallet on an existing account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/prepaid-wallets/{id}/movements": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Create a prepaid wallet funding document",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/mada/wallets": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Read Mada wallet balances",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/mada/topups": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Create a Mada top-up through the payment engine",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/mada/reconcile": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Reconcile a Mada statement",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful response (stored wire field names)",

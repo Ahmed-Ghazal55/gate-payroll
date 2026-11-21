@@ -11,4 +11,6 @@ public static class PaymentAdvances
         if(doc.S("type") is not ("advance" or "hs_topup"))return;
         throw new ApiError("مسار السلف تحت المدفوعات غير مفعل بعد.",409);
     }
+    // Filled in U-W2-09 when advances create debt rows on payout.
+    internal static void RecordDebt(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject doc,JsonObject payment,Guid journal){}
 }

@@ -14,10 +14,10 @@ public static class PaymentsApi
     }
     public static bool Allowed(System.Security.Claims.ClaimsPrincipal user,string method,string path)
     {
-        if(method=="GET")return AccessPolicy.Has(user,"payments.view");
+        if(method=="GET")return AccessPolicy.Has(user,path.Contains("wallets",StringComparison.Ordinal)||path.Contains("/mada/",StringComparison.Ordinal)?"payments.fuel.manage":"payments.view");
         if(method is not ("POST" or "PUT"))return false;
-        string permission=path.EndsWith("/approve",StringComparison.Ordinal)?"approvals.decide":path=="/api/payments/hr-fees"?"payments.hr_request.create":"payments.disburse";
-        if(path.Contains("/documents/",StringComparison.Ordinal))return AccessPolicy.Has(user,permission)||AccessPolicy.Has(user,"payments.hr_request.create")||AccessPolicy.Has(user,"payments.disburse");
+        string permission=path.EndsWith("/approve",StringComparison.Ordinal)?"approvals.decide":path=="/api/payments/hr-fees"?"payments.hr_request.create":path.Contains("wallets",StringComparison.Ordinal)||path.Contains("/mada/",StringComparison.Ordinal)?"payments.fuel.manage":"payments.disburse";
+        if(path.Contains("/documents/",StringComparison.Ordinal))return AccessPolicy.Has(user,permission)||AccessPolicy.Has(user,"payments.hr_request.create")||AccessPolicy.Has(user,"payments.fuel.manage")||AccessPolicy.Has(user,"payments.disburse");
         if(path.Contains("/vouchers/",StringComparison.Ordinal))return AccessPolicy.Has(user,"payments.disburse");
         return AccessPolicy.Has(user,permission);
     }
@@ -57,5 +57,15 @@ public static class PaymentsApi
         api.MapGet("/payments/finance-contracts/{id}/schedule",(string id,HttpContext ctx)=>store.Read(c=>PaymentContracts.Schedule(c,ctx.User,"finance-contracts",id))).WithTags("Banks and treasury").WithSummary("Read financing schedule principal and interest");
         api.MapPost("/payments/contracts/{kind}/{id}/archive",(string kind,string id,HttpContext ctx)=>Write(store,(c,tx)=>PaymentContracts.Archive(c,tx,ctx.User,kind,id))).WithTags("Banks and treasury").WithSummary("Archive a payment master without deletion");
         api.MapGet("/payments/due-calendar",(string? companyId,string? from,string? to,HttpContext ctx)=>store.Read(c=>PaymentContracts.DueCalendar(c,ctx.User,companyId,from??DateTime.UtcNow.ToString("yyyy-MM-01"),to??DateTime.UtcNow.AddMonths(1).ToString("yyyy-MM-01")))).WithTags("Banks and treasury").WithSummary("Read due amounts after paid and reserved claims");
+        api.MapGet("/payments/fuel-wallets",(HttpContext ctx)=>store.Read(c=>PaymentWallets.List(c,ctx.User,"fuel"))).WithTags("Banks and treasury").WithSummary("List fuel wallet balances");
+        api.MapPost("/payments/fuel-wallets",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentWallets.Create(c,tx,ctx.User,"fuel",input))).WithTags("Banks and treasury").WithSummary("Create a fuel provider wallet on an existing account");
+        api.MapPost("/payments/fuel-wallets/{id}/fund",(string id,JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentWallets.Fund(c,tx,ctx.User,"fuel",id,input))).WithTags("Banks and treasury").WithSummary("Create a fuel wallet funding document");
+        api.MapPost("/payments/fuel-wallets/{id}/reconcile",(string id,JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentWallets.Reconcile(c,tx,ctx.User,"fuel",id,input))).WithTags("Banks and treasury").WithSummary("Record a fuel wallet statement comparison without adjusting its balance");
+        api.MapGet("/payments/prepaid-wallets",(HttpContext ctx)=>store.Read(c=>PaymentWallets.List(c,ctx.User,"prepaid"))).WithTags("Banks and treasury").WithSummary("List prepaid wallets");
+        api.MapPost("/payments/prepaid-wallets",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentWallets.Create(c,tx,ctx.User,"prepaid",input))).WithTags("Banks and treasury").WithSummary("Create a prepaid wallet on an existing account");
+        api.MapPost("/payments/prepaid-wallets/{id}/movements",(string id,JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentWallets.Fund(c,tx,ctx.User,"prepaid",id,input))).WithTags("Banks and treasury").WithSummary("Create a prepaid wallet funding document");
+        api.MapGet("/payments/mada/wallets",(HttpContext ctx)=>store.Read(c=>PaymentWallets.List(c,ctx.User,"fuel",true))).WithTags("Banks and treasury").WithSummary("Read Mada wallet balances");
+        api.MapPost("/payments/mada/topups",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentWallets.Fund(c,tx,ctx.User,"fuel",input.Required("walletId"),input))).WithTags("Banks and treasury").WithSummary("Create a Mada top-up through the payment engine");
+        api.MapPost("/payments/mada/reconcile",(JsonObject input,HttpContext ctx)=>Write(store,(c,tx)=>PaymentWallets.Reconcile(c,tx,ctx.User,"fuel",input.Required("walletId"),input))).WithTags("Banks and treasury").WithSummary("Reconcile a Mada statement");
     }
 }
