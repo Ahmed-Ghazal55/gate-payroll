@@ -97,13 +97,13 @@ public static partial class Debts
         }
 
         string sort = query["sort"].ToString();
-        string orderBy = OrderBy(c, sort);
-        long total = Count(c, where, parms);
         if (!paged)
         {
-            var all = ReadBodies(c, where, parms, orderBy, null, null);
+            var all = ReadBodies(c, where, parms, OrderBy(c, ""), null, null);
             return all.Select(d => View(c, null, actor, d)).ToList();
         }
+        string orderBy = OrderBy(c, sort);
+        long total = Count(c, where, parms);
         long offset = ((long)page - 1) * pageSize;
         var items = offset >= total
             ? new List<JsonObject>()
