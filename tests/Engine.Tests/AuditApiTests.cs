@@ -39,7 +39,7 @@ public sealed class AuditApiTests
             // WMRG: persisted in audit.change_log (real table), surfaced via Store kind redirect.
             Assert.IsTrue(store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"audit","change_log")} WHERE entity_ref=@r",("@r","599901"))!)>=1));
             // Read events must not create change_log rows.
-            store.Write((c,tx)=>{AuditApi.NoteRead(c,tx,"audit-admin","iban",false);return true;});
+            store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]="audit-admin",["role"]="Accountant",["status"]="active"},tx);AuditApi.NoteRead(c,tx,"audit-admin","iban",false);return true;});
             Assert.AreEqual(1,store.Read(c=>AuditApi.List(c,admin,null,null,null,null,null,1,50)["items"]!.AsArray().Count));
             Assert.IsTrue(store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"audit","read_summary_daily")}")!)>=1));
         });
@@ -57,6 +57,8 @@ public sealed class AuditApiTests
             Assert.IsTrue(AccessPolicy.Allowed(summary,"GET","/api/admin/read-summary"));
             store.Write((c,tx)=>
             {
+                Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]="reader",["role"]="Accountant",["status"]="active"},tx);
+                Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]="sysadmin",["role"]="Admin",["status"]="active"},tx);
                 Store.Save(c,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.self_decision",["entityId"]="req1",["actor"]="sysadmin",["at"]=DateTimeOffset.UtcNow.ToString("O"),["selfApprovedException"]=true},tx);
                 AuditApi.NoteRead(c,tx,"reader","iban",true);
                 return true;

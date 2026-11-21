@@ -12,6 +12,7 @@ public static partial class SchemaApprovals
 
     public static bool IsApprovalKind(string kind)=>kind is "approval_limit" or "sla_policy" or "approval_decision" or "approval_bypass_grant" or "approval_request";
 
+    /// <summary>Resolve auth.user for an existing identity. Never invent users or Admin bridges for strangers.</summary>
     public static string EnsureAuthUserId(DbConnection c,DbTransaction tx,string username,string? department=null,int? rankLevel=null)
     {
         string display=username.Trim();
@@ -19,22 +20,25 @@ public static partial class SchemaApprovals
         J.Need(display.Length is >=1 and <=80,"اسم المستخدم مطلوب لسجل الاعتماد.",400);
         object? existing=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"auth","user")} WHERE username=@u OR username=@n",("@u",display),("@n",name));
         if(existing is not null and not DBNull)return existing switch{Guid g=>SchemaSql.GuidText(g),_=>Convert.ToString(existing,CultureInfo.InvariantCulture)!};
-        object? role=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"auth","role")} WHERE code=@c",("@c","Admin"))
-            ??SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"auth","role")} ORDER BY code");
-        J.Need(role is not null and not DBNull,"دور النظام غير مهيأ لربط مستخدم الاعتماد.",500);
+
+        // Bridge only a known document user, keeping their real role/status — never auto-create Admins or strangers.
+        var doc=Store.List(c,"user",tx).FirstOrDefault(u=>UserAccess.Normalize(u.S("username"))==name)
+            ??throw new ApiError("المستخدم غير موجود؛ لا يُنشأ حساب تلقائيًا.",400);
+        string roleCode=UserAccess.Role(doc);
+        object? role=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"auth","role")} WHERE code=@c",("@c",roleCode));
+        J.Need(role is not null and not DBNull,"دور المستخدم غير مهيأ في كتالوج الصلاحيات.",500);
         string roleId=role switch{Guid g=>SchemaSql.GuidText(g),_=>Convert.ToString(role,CultureInfo.InvariantCulture)!};
-        string id=SchemaSql.GuidText(SchemaSql.NewId());
-        // Prefer a stable document-user id when present so request FKs stay aligned.
-        var doc=Store.List(c,"user",tx).FirstOrDefault(u=>UserAccess.Normalize(u.S("username"))==name);
-        if(doc!=null&&Guid.TryParse(doc.S("id"),out var docGuid))id=SchemaSql.GuidText(docGuid);
+        string id=Guid.TryParse(doc.S("id"),out var docGuid)?SchemaSql.GuidText(docGuid):SchemaSql.GuidText(SchemaSql.NewId());
+        int status=UserAccess.Status(doc) switch{"suspended"=>2,"disabled"=>3,_=>1};
+        int? rank=rankLevel??(int.TryParse(doc.S("rankLevel"),NumberStyles.Integer,CultureInfo.InvariantCulture,out var rl)?rl:null);
         SchemaSql.Exec(c,tx,$"""
             INSERT INTO {SchemaSql.Q(c,"auth","user")}
             (id,username,role_id,security_version,status,department,rank_level,created_at)
-            VALUES(@id,@u,@role,1,1,@dept,@rank,{SchemaSql.NowLiteral(c)})
+            VALUES(@id,@u,@role,1,@st,@dept,@rank,{SchemaSql.NowLiteral(c)})
             """,
-            ("@id",id),("@u",display),("@role",roleId),
-            ("@dept",(object?)(department??doc?.S("department"))??DBNull.Value),
-            ("@rank",(object?)(rankLevel??(int?)(doc!=null&&int.TryParse(doc.S("rankLevel"),out var rl)?rl:null))??DBNull.Value));
+            ("@id",id),("@u",doc.S("username")),("@role",roleId),("@st",status),
+            ("@dept",(object?)(department??doc.S("department"))??DBNull.Value),
+            ("@rank",(object?)rank??DBNull.Value));
         return id;
     }
 
