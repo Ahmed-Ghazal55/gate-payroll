@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:33647/"
+      "url": "http://127.0.0.1:33187/"
     }
   ],
   "paths": {
@@ -10189,7 +10189,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndboolean"
+                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray"
                 }
               }
             }
@@ -16337,6 +16337,890 @@
               "application/json": {
                 "schema": {
                   "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/ninja/live/daily-performance": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Live Ninja daily performance per account and day with coverage (L1)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize",
+                    "coverage",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "reportDate",
+                          "captainId",
+                          "platformRiderAccountId",
+                          "externalAccountId",
+                          "riderProfileId"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "reportDate": {
+                            "type": "string"
+                          },
+                          "captainId": {
+                            "type": "string"
+                          },
+                          "platformRiderAccountId": {
+                            "type": "string"
+                          },
+                          "externalAccountId": {
+                            "type": "string"
+                          },
+                          "accountCode": {
+                            "type": "string"
+                          },
+                          "riderProfileId": {
+                            "type": "string"
+                          },
+                          "riderClientAssignmentId": {
+                            "type": "string"
+                          },
+                          "sourceId": {
+                            "type": "string"
+                          },
+                          "sourceRowNumber": {
+                            "type": "number"
+                          },
+                          "orders": {
+                            "type": "number"
+                          },
+                          "hours": {
+                            "type": "number"
+                          },
+                          "ownerUnifiedNumber": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "coverage": {
+                      "required": [
+                        "requestedFrom",
+                        "requestedTo",
+                        "firstDay",
+                        "lastDay",
+                        "total",
+                        "hasGapAtPeriodEnd"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "requestedFrom": {
+                          "type": "string"
+                        },
+                        "requestedTo": {
+                          "type": "string"
+                        },
+                        "firstDay": {
+                          "type": "string"
+                        },
+                        "lastDay": {
+                          "type": "string"
+                        },
+                        "total": {
+                          "type": "number"
+                        },
+                        "hasGapAtPeriodEnd": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/ninja/live/daily-deductions": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Live Ninja daily deductions per actual rider of each day with coverage (L1)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize",
+                    "coverage",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "reportDate",
+                          "captainId",
+                          "platformRiderAccountId",
+                          "externalAccountId",
+                          "actualRiderProfileId"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "reportDate": {
+                            "type": "string"
+                          },
+                          "captainId": {
+                            "type": "string"
+                          },
+                          "platformRiderAccountId": {
+                            "type": "string"
+                          },
+                          "externalAccountId": {
+                            "type": "string"
+                          },
+                          "accountCode": {
+                            "type": "string"
+                          },
+                          "actualRiderProfileId": {
+                            "type": "string"
+                          },
+                          "riderClientAssignmentId": {
+                            "type": "string"
+                          },
+                          "sourceId": {
+                            "type": "string"
+                          },
+                          "sourceRowNumber": {
+                            "type": "number"
+                          },
+                          "collectedAmount": {
+                            "type": "number"
+                          },
+                          "deductionsAmount": {
+                            "type": "number"
+                          },
+                          "ownerUnifiedNumber": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "coverage": {
+                      "required": [
+                        "requestedFrom",
+                        "requestedTo",
+                        "firstDay",
+                        "lastDay",
+                        "total",
+                        "hasGapAtPeriodEnd"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "requestedFrom": {
+                          "type": "string"
+                        },
+                        "requestedTo": {
+                          "type": "string"
+                        },
+                        "firstDay": {
+                          "type": "string"
+                        },
+                        "lastDay": {
+                          "type": "string"
+                        },
+                        "total": {
+                          "type": "number"
+                        },
+                        "hasGapAtPeriodEnd": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/ninja/live/payment-methods": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Live Ninja account payment method / pay scheme from Omar (L1 / U-W2-14)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize",
+                    "coverage",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "platformRiderAccountId",
+                          "externalAccountId",
+                          "payScheme",
+                          "ownerUnifiedNumber"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "platformRiderAccountId": {
+                            "type": "string"
+                          },
+                          "externalAccountId": {
+                            "type": "string"
+                          },
+                          "accountCode": {
+                            "type": "string"
+                          },
+                          "accountStatus": {
+                            "type": "string"
+                          },
+                          "accountPaymentModel": {
+                            "type": "string"
+                          },
+                          "assignmentPaymentModel": {
+                            "type": "string"
+                          },
+                          "payScheme": {
+                            "type": "string"
+                          },
+                          "ownerEmployeeId": {
+                            "type": "string"
+                          },
+                          "ownerUnifiedNumber": {
+                            "type": "string"
+                          },
+                          "openAssignmentId": {
+                            "type": "string"
+                          },
+                          "openActualRiderProfileId": {
+                            "type": "string"
+                          },
+                          "ninjaRiderType": {
+                            "type": "string"
+                          },
+                          "openEffectiveFrom": {
+                            "type": "string"
+                          },
+                          "openEffectiveTo": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "coverage": {
+                      "required": [
+                        "total"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/ninja/live/account-bearers": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Live Ninja account owner vs actual rider periods with holder dates (L1 / U-W2-12/13)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize",
+                    "coverage",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "assignmentId",
+                          "platformRiderAccountId",
+                          "externalAccountId",
+                          "owningUnifiedNumber",
+                          "ownerEmployeeId",
+                          "actualRiderProfileId",
+                          "effectiveFrom"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "assignmentId": {
+                            "type": "string"
+                          },
+                          "platformRiderAccountId": {
+                            "type": "string"
+                          },
+                          "externalAccountId": {
+                            "type": "string"
+                          },
+                          "accountCode": {
+                            "type": "string"
+                          },
+                          "owningSponsorId": {
+                            "type": "string"
+                          },
+                          "owningUnifiedNumber": {
+                            "type": "string"
+                          },
+                          "ownerEmployeeId": {
+                            "type": "string"
+                          },
+                          "ownerRiderProfileId": {
+                            "type": "string"
+                          },
+                          "actualRiderProfileId": {
+                            "type": "string"
+                          },
+                          "holderRiderProfileId": {
+                            "type": "string"
+                          },
+                          "effectiveFrom": {
+                            "type": "string"
+                          },
+                          "effectiveTo": {
+                            "type": "string"
+                          },
+                          "assignmentPaymentModel": {
+                            "type": "string"
+                          },
+                          "assignmentStatus": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "coverage": {
+                      "required": [
+                        "total",
+                        "requestedFrom",
+                        "requestedTo"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "total": {
+                          "type": "number"
+                        },
+                        "requestedFrom": {
+                          "type": "string"
+                        },
+                        "requestedTo": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/sources/fuel-consumption": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "L1 fuel consumption per rider/card/period (Omar live, facts only)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "summary": {
+                      "type": "object"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "mode": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "month": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/sources/vehicle-assignment-periods": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "L1 vehicle assignment periods per rider (Omar live, facts only)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "summary": {
+                      "type": "object"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "mode": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "month": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/sources/housing-periods": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "L1 housing residence periods per rider (Omar live, facts only)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "summary": {
+                      "type": "object"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "mode": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "month": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/sources/keeta-eligibility": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Keeta expected eligibility result per user/period (Omar live; not approval)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "summary": {
+                      "type": "object"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "mode": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "month": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/sources/hs-stamp-queue": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "HungerStation WalletPending queue and stamped financial events (read side)",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "summary": {
+                      "type": "object"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "mode": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "month": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -23497,7 +24381,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean"
+                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndbooleanAndJsonArray"
                 }
               }
             }
@@ -28497,7 +29381,7 @@
           }
         }
       },
-      "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndboolean": {
+      "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray": {
         "required": [
           "apps",
           "schemeTypes",
@@ -28505,7 +29389,8 @@
           "operators",
           "ninjaMetrics",
           "defaults",
-          "defaultsAreDraftOnly"
+          "defaultsAreDraftOnly",
+          "allowedActions"
         ],
         "type": "object",
         "properties": {
@@ -28559,10 +29444,13 @@
           },
           "defaultsAreDraftOnly": {
             "type": "boolean"
+          },
+          "allowedActions": {
+            "$ref": "#/components/schemas/JsonArray"
           }
         }
       },
-      "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean": {
+      "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndbooleanAndJsonArray": {
         "required": [
           "sponsors",
           "unassignedDebtCount",
@@ -28571,7 +29459,8 @@
           "departments",
           "roles",
           "permissions",
-          "promissoryNotesArchiveEnabled"
+          "promissoryNotesArchiveEnabled",
+          "allowedActions"
         ],
         "type": "object",
         "properties": {
@@ -28633,6 +29522,9 @@
           },
           "promissoryNotesArchiveEnabled": {
             "type": "boolean"
+          },
+          "allowedActions": {
+            "$ref": "#/components/schemas/JsonArray"
           }
         }
       },
