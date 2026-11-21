@@ -257,6 +257,10 @@ public static partial class PayCycles
                 decimal carry=-row.N("salaryNet");row["net"]=0;row["phase3"]=row.N("phase3")+carry;row["closing"]=row.N("carried");
                 Rows(cycle["deductions"]).Add(new JsonObject{["rider"]=row.S("rider"),["category"]="NegativeSalaryCarryover",["amount"]=carry,["type"]="carryover",["source"]=row.S("carryDebtId"),["accountCode"]="112507",["phase"]=3,["order"]=100,["labelAr"]="ترحيل العجز عند الاعتماد النهائي"});
             }
+            // U-W2-21 / X10: freeze short rider statement at final salary approval (no Omar live-read later).
+            string period=cycle.S("period");
+            var facing=RiderStatements.BuildRiderFacing(c,row.S("rider"),period,period,null,"ar",actor);
+            RiderStatements.SaveApprovalSnapshot(c,tx,row.S("rider"),period,period,null,actor,facing);
         }
         bool complete=Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!="");
         cycle["status"]=complete?"approved":"partially_approved";cycle["debtDeductionStatus"]="pending";
