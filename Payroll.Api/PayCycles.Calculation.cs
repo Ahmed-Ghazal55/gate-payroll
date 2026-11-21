@@ -259,7 +259,7 @@ public static partial class PayCycles
             }
             // U-W2-21 / X10: freeze short rider statement at final salary approval (no Omar live-read later).
             string period=cycle.S("period");
-            var facing=RiderStatements.BuildRiderFacing(c,row.S("rider"),period,period,null,"ar",actor);
+            var facing=RiderStatements.BuildRiderFacing(c,row.S("rider"),period,period,null,"ar",actor,tx);
             RiderStatements.SaveApprovalSnapshot(c,tx,row.S("rider"),period,period,null,actor,facing);
         }
         bool complete=Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!="");

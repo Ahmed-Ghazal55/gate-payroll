@@ -10,13 +10,13 @@ public static partial class RiderStatements
 {
     static readonly string[] RiderLangs=["ar","en","ur"];
 
-    public static JsonObject BuildRiderFacing(DbConnection c,string iqama,string from,string to,string? sponsorId,string lang,ClaimsPrincipal user)
+    public static JsonObject BuildRiderFacing(DbConnection c,string iqama,string from,string to,string? sponsorId,string lang,ClaimsPrincipal user,DbTransaction? tx=null)
     {
         lang=string.IsNullOrWhiteSpace(lang)?"ar":lang.Trim().ToLowerInvariant();
         J.Need(RiderLangs.Contains(lang),"اللغة المدعومة: العربية أو الإنجليزية أو الأوردية.");
         // Prefer an approved payroll snapshot for the period; never call Omar ERP here (X10).
-        var snapshot=FindApprovalSnapshot(c,iqama,from,to,sponsorId);
-        var core=snapshot??BuildSimple(c,iqama,from,to,sponsorId,user);
+        var snapshot=FindApprovalSnapshot(c,iqama,from,to,sponsorId,tx);
+        var core=snapshot??BuildSimple(c,iqama,from,to,sponsorId,user,tx);
         decimal closing=core.N("closingNet");
         string closingKey=closing>0?"you":closing<0?"company":"even";
         var labels=Labels(lang);
@@ -51,10 +51,10 @@ public static partial class RiderStatements
         };
     }
 
-    static JsonObject? FindApprovalSnapshot(DbConnection c,string iqama,string from,string to,string? sponsorId)
+    static JsonObject? FindApprovalSnapshot(DbConnection c,string iqama,string from,string to,string? sponsorId,DbTransaction? tx=null)
     {
         // Snapshot documents are stored at final salary approval; never synthesize from Omar.
-        var snap=Store.List(c,"rider_statement_snapshot")
+        var snap=Store.List(c,"rider_statement_snapshot",tx)
             .Where(s=>s.S("iqama")==iqama&&string.CompareOrdinal(s.S("from"),from)<=0&&string.CompareOrdinal(s.S("to"),to)>=0)
             .Where(s=>string.IsNullOrWhiteSpace(sponsorId)||s.S("sponsorId")==sponsorId||s.S("sponsorId")=="")
             .OrderByDescending(s=>s.S("approvedAt"),StringComparer.Ordinal)
