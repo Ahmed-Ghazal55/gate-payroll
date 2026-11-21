@@ -395,7 +395,7 @@ export function CampaignsTab({
                     : 'border-[var(--line)] text-[var(--muted)]'
                 }`}
               >
-                <div className="text-xs font-bold">تحديث الآيبان (IBAN)</div>
+                <div className="text-xs font-bold">تحديث الآيبان</div>
                 <div className="text-[11px] font-normal opacity-80 mt-0.5">
                   جمع الحساب البنكي والتحقق التلقائي
                 </div>

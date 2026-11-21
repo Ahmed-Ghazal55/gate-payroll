@@ -167,7 +167,7 @@ export function ConfigListsPanel() {
 
       toast(
         activeGroup.financial
-          ? 'تم حفظ العنصر، وهو بانتظار اعتماد مسؤول مالي آخر (Maker-Checker).'
+          ? 'تم حفظ العنصر، وهو بانتظار اعتماد مسؤول مالي آخر.'
           : 'تم حفظ وتحديث العنصر بنجاح.',
         'success'
       );
@@ -304,7 +304,7 @@ export function ConfigListsPanel() {
                 )}
               </div>
               <p className="text-xs text-[var(--muted)] mt-0.5">
-                كود المجموعة: <span className="font-mono">{activeGroup.group}</span> · {activeGroup.fields?.length || 0} حقول مخصصة
+                {activeGroup.labelAr} · {activeGroup.fields?.length || 0} حقول مخصصة
               </p>
             </div>
 
@@ -483,7 +483,7 @@ export function ConfigListsPanel() {
         <div className="space-y-3.5 text-xs text-[var(--ink)]">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div className="space-y-1">
-              <label className="text-[11px] font-bold text-[var(--ink)]">الكود البرمجي (Code):</label>
+              <label className="text-[11px] font-bold text-[var(--ink)]">الكود البرمجي:</label>
               <input
                 type="text"
                 disabled={Boolean(editingItem)}
@@ -604,7 +604,7 @@ export function ConfigListsPanel() {
       >
         <div className="space-y-3.5 text-xs text-[var(--ink)]">
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-[var(--ink)]">اسم الحقل بالعربي (Label):</label>
+            <label className="text-[11px] font-bold text-[var(--ink)]">اسم الحقل بالعربي:</label>
             <input
               type="text"
               placeholder="مثلاً: رمز الحساب المحاسبي أو السرعة"
@@ -615,7 +615,7 @@ export function ConfigListsPanel() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-[var(--ink)]">المفتاح البرمجي (Key):</label>
+            <label className="text-[11px] font-bold text-[var(--ink)]">المفتاح البرمجي:</label>
             <input
               type="text"
               placeholder="مثلاً: accountCode أو speed"
@@ -626,17 +626,17 @@ export function ConfigListsPanel() {
           </div>
 
           <div className="space-y-1">
-            <label className="text-[11px] font-bold text-[var(--ink)]">نوع الحقل (Type):</label>
+            <label className="text-[11px] font-bold text-[var(--ink)]">نوع الحقل:</label>
             <select
               value={fieldType}
               onChange={(e) => setFieldType(e.target.value as any)}
               className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] text-xs"
             >
-              <option value="text">نص (Text)</option>
-              <option value="number">رقمي (Number)</option>
-              <option value="select">قائمة اختيارات (Select)</option>
-              <option value="account">حساب محاسبي (Account 1125xx)</option>
-              <option value="bool">منطقي / نعم أو لا (Boolean)</option>
+              <option value="text">نص</option>
+              <option value="number">رقمي</option>
+              <option value="select">قائمة اختيارات</option>
+              <option value="account">حساب محاسبي (1125xx)</option>
+              <option value="bool">منطقي (نعم أو لا)</option>
             </select>
           </div>
 

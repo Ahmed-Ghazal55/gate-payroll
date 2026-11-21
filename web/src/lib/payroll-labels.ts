@@ -35,3 +35,44 @@ export function orgOperationLabelAr(operation: string | null | undefined): strin
   if (key === 'advance.review') return 'مراجعة السلف';
   return key;
 }
+
+/** Fallback Arabic when API roleNameAr is missing or still carries an English gloss. */
+const ROLE_LABELS_AR: Record<string, string> = {
+  Admin: 'مدير النظام العام',
+  SuperAdmin: 'المدير العام / الإدارة العليا',
+  SystemAdmin: 'مسؤول النظام',
+  Accountant: 'محاسب مالي ومسؤول خزينة',
+  Reviewer: 'مراجع ومدقق',
+  Manager: 'مدير تشغيل',
+  FinancialManager: 'المدير المالي',
+  FinancialAccountant: 'رئيس الحسابات والخزينة المركزية',
+};
+
+export function roleLabelAr(role: string | null | undefined, roleNameAr?: string | null): string {
+  const code = (role || '').trim();
+  const named = (roleNameAr || '').trim();
+  if (named) {
+    // Drop leftover English glosses like «(Super Admin)» / «(RBAC)» if any remain.
+    const cleaned = named.replace(/\s*\([A-Za-z][^)]*\)\s*/g, '').trim();
+    if (cleaned) return cleaned;
+  }
+  if (ROLE_LABELS_AR[code]) return ROLE_LABELS_AR[code];
+  return code || '—';
+}
+
+export function permissionCodesLabelAr(
+  codes: string[] | null | undefined,
+  catalog?: Array<{ code: string; nameAr: string }> | null
+): string {
+  if (!codes || codes.length === 0) return 'حسب الدور الأساسي';
+  const byCode = new Map((catalog || []).map((p) => [p.code, p.nameAr]));
+  return codes
+    .map((c) => {
+      const named = byCode.get(c);
+      if (named) return named.replace(/\s*\([A-Za-z][^)]*\)\s*/g, '').trim() || named;
+      // Never show raw English fragments like «checker» from API codes.
+      if (c.includes('maker_checker') || c.includes('bypass_maker_checker')) return 'تجاوز شرط الشخصين';
+      return c;
+    })
+    .join('، ');
+}

@@ -429,8 +429,8 @@ try {
     assert.equal(await approveBtn.isDisabled(), true, 'Approve button must be disabled for User A (maker)');
     const buttonTitle = await approveBtn.getAttribute('title');
     assert.ok(
-      buttonTitle && buttonTitle.includes('Maker ≠ Checker'),
-      `Tooltip must explain Maker ≠ Checker: ${buttonTitle}`,
+      buttonTitle && buttonTitle.includes('لا يجوز أن يعتمد نفس الشخص'),
+      `Tooltip must explain independent approval in Arabic: ${buttonTitle}`,
     );
     console.log('✓ Maker ≠ Checker enforced: User A cannot approve their own scheme');
 
