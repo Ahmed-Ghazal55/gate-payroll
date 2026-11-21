@@ -93,6 +93,23 @@ public static partial class PaymentsEngine
         var apps=lines.OfType<JsonObject>().Select(l=>l.S("appCode","none")).Where(a=>a!="none").Select(a=>PayPlatforms.For(a).Platform).Distinct().ToArray();
         J.Need(apps.Length<=1,"مستند الدفع يخص منصة واحدة؛ افصل المستندات حسب المنصة.");
         if(apps.Length==1){J.Need(input.S("platform")==""||input.S("platform")==apps[0],"منصة المستند لا تطابق منصة البنود.");input=input.DeepClone().AsObject();input["platform"]=apps[0];Scope(actor,new(){["companyId"]=company,["platform"]=apps[0]});}
+        // RWP1c: every rider/account pair resolves through trusted platform_account attribution (central).
+        string? attributed=null;
+        foreach(var l in lines.OfType<JsonObject>())
+        {
+            J.Need((l.S("erpRiderId")=="")==(l.S("erpPlatformAccountId")==""),"بند المندوب يحتاج معرف المندوب وحساب المنصة معًا.");
+            if(l.S("erpRiderId")=="")continue;
+            string platform=PaymentDocuments.DemandPlatformAttribution(c,tx,actor,company,Id(l.S("erpRiderId")),Id(l.S("erpPlatformAccountId")));
+            J.Need(attributed is null||attributed==platform,"مستند الدفع يخص منصة واحدة؛ افصل المستندات حسب المنصة.");
+            attributed=platform;
+            string app=l.S("appCode","none");
+            if(app!="none")J.Need(PayPlatforms.For(app).Platform==platform,"منصة البند لا تطابق حساب المنصة المعتمد.",409);
+        }
+        if(attributed!=null)
+        {
+            J.Need(input.S("platform")==""||input.S("platform")==attributed,"منصة المستند لا تطابق حساب المنصة المعتمد.",409);
+            input=input.DeepClone().AsObject();input["platform"]=attributed;Scope(actor,new(){["companyId"]=company,["platform"]=attributed});
+        }
         string supplier=input.S("supplierId");
         if(supplier!="")J.Need(SchemaSql.Scalar(c,tx,$"SELECT id FROM {Q(c,"supplier")} WHERE id=@id AND company_id=@c AND status=1",("@id",Id(supplier)),("@c",company))!=null,"المورد غير موجود في نطاق الشركة.",404);
         J.Need(type!="purchase"||supplier!="","المورد مطلوب لفاتورة المشتريات.");
@@ -105,7 +122,6 @@ public static partial class PaymentsEngine
         {
             Guid account=Account(c,tx,l.Required("accountCode"));string centre=l.S("costCentreId",SchemaOrgCostCentre.NoneId.ToString("D"));
             ValidateCentre(c,tx,company,Id(centre));
-            J.Need((l.S("erpRiderId")=="")==(l.S("erpPlatformAccountId")==""),"بند المندوب يحتاج معرف المندوب وحساب المنصة معًا.");
             string app=l.S("appCode","none");if(app!="none")J.Need(FinancialScopes.Platform(actor,PayPlatforms.For(app).Platform),"المنصة خارج نطاقك.",403);
             SchemaSql.Exec(c,tx,$"INSERT INTO {Q(c,"document_line")}(id,document_id,company_id,line_no,period_month,account_id,cost_centre_id,erp_rider_id,erp_platform_account_id,app_code,amount,created_by) VALUES(@id,@doc,@c,@ln,@pm,@a,@cc,@r,@p,@app,@amount,@by)",("@id",MoneyId()),("@doc",id),("@c",company),("@ln",++index),("@pm",month),("@a",account.ToString("D")),("@cc",centre),("@r",NullId(l.S("erpRiderId"))),("@p",NullId(l.S("erpPlatformAccountId"))),("@app",app),("@amount",l.N("amount")),("@by",Me(actor)));
         }

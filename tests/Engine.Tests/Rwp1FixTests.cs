@@ -98,6 +98,25 @@ public sealed class Rwp1FixTests
     }
 
     [TestMethod][DataRow(false)][DataRow(true)]
+    public void Row4c_GenericQuickDocumentRequiresTrustedAttribution(bool sql)
+    {
+        using var f=new PaymentsEngineTests.Fixture(sql);
+        string employee=Guid.NewGuid().ToString("D"),platform=Guid.NewGuid().ToString("D"),foreign=Guid.NewGuid().ToString("D");
+        f.Store.Write((c,tx)=>
+        {
+            Store.Save(c,"platform_account",new(){["id"]=platform,["companyId"]=f.Company,["sponsorId"]=f.Company,["platformCode"]="ninja",["registeredEmployeeId"]=employee,["assignments"]=new JsonArray(new JsonObject{["riderId"]=employee})},tx);
+            Store.Save(c,"platform_account",new(){["id"]=foreign,["companyId"]=FinancialCore.Sponsors[1].Id,["sponsorId"]=FinancialCore.Sponsors[1].Id,["platformCode"]="keeta",["registeredEmployeeId"]=employee},tx);
+            return true;
+        });
+        Assert.AreEqual(404,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PaymentsEngine.Create(c,tx,f.Maker,new(){["idempotencyKey"]=Guid.NewGuid().ToString("N"),["companyId"]=f.Company,["type"]="expense",["period"]="2026-11",["occurredOn"]="2026-11-05",["dueOn"]="2026-11-15",["reference"]="SYN-QD-MISS",["lines"]=new JsonArray(new JsonObject{["accountCode"]="112501",["amount"]=65m,["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),["erpRiderId"]=employee,["erpPlatformAccountId"]=Guid.NewGuid().ToString("D")})}))).Status);
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PaymentsEngine.Create(c,tx,f.Maker,new(){["idempotencyKey"]=Guid.NewGuid().ToString("N"),["companyId"]=f.Company,["type"]="expense",["period"]="2026-11",["occurredOn"]="2026-11-05",["dueOn"]="2026-11-15",["reference"]="SYN-QD-FOR",["lines"]=new JsonArray(new JsonObject{["accountCode"]="112501",["amount"]=65m,["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),["erpRiderId"]=employee,["erpPlatformAccountId"]=foreign})}))).Status);
+        var ok=f.Store.Write((c,tx)=>PaymentsEngine.Create(c,tx,f.Maker,new(){["idempotencyKey"]=Guid.NewGuid().ToString("N"),["companyId"]=f.Company,["type"]="expense",["period"]="2026-11",["occurredOn"]="2026-11-05",["dueOn"]="2026-11-15",["reference"]="SYN-QD-OK",["lines"]=new JsonArray(new JsonObject{["accountCode"]="112501",["amount"]=65m,["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),["erpRiderId"]=employee,["erpPlatformAccountId"]=platform})}));
+        Assert.AreEqual(65m,ok.N("amount"));
+        Assert.AreEqual("Ninja",ok.S("platform"));
+        Assert.AreEqual(1L,f.Scalar("SELECT COUNT(*) FROM pay_document_line WHERE erp_rider_id IS NOT NULL AND amount=65"));
+    }
+
+    [TestMethod][DataRow(false)][DataRow(true)]
     public void Row6_WalletMetadataOnlyFromAuthorizedFundingDebit(bool sql)
     {
         using var f=new PaymentsEngineTests.Fixture(sql);
