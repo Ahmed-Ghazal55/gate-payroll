@@ -129,6 +129,11 @@ public static class ApiContracts
         if(path=="/api/pay/shared-riders/{rider}/{period}/release")return SharedRider();
         if(path=="/api/pay/review-draft")return O(new(){["app"]=S(),["period"]=S(),["companyId"]=S(),["invoices"]=A(Review()),["blockers"]=A(O(new(){["code"]=S(),["message"]=S(),["fixAction"]=S(),["sourceLineId"]=S()},"code","message","fixAction","sourceLineId")),["warnings"]=A(O(new(){["code"]=S(),["message"]=S(),["sourceLineId"]=S(),["erpOrders"]=N(),["invoiceOrders"]=N()},"code","message","sourceLineId")),["allocationProposals"]=A(Free()),["dataThrough"]=S(),["unassignedOrders"]=A(Free()),["ridersNotFound"]=A(Free()),["evidence"]=A(Free()),["canCreate"]=B(),["totals"]=O(new(){["gross"]=N(),["deductions"]=N(),["vat"]=N()},"gross","deductions","vat")},"app","period","companyId","invoices","blockers","unassignedOrders","ridersNotFound","evidence","canCreate","totals");
         if(path=="/api/finance/treasury/summary")return TreasurySummarySchema();
+        if(path=="/api/treasury/balances/tree"&&get)return O(new(){["periodMonth"]=S(),["items"]=A(Free()),["totals"]=O(new(){["cash"]=N(),["bank"]=N(),["custody"]=N(),["total"]=N()},"cash","bank","custody","total"),["allowedActions"]=A(S()),["noteAr"]=S()},"periodMonth","items","totals","allowedActions");
+        if(path.StartsWith("/api/treasury/bank-statements",StringComparison.Ordinal)||path.StartsWith("/api/treasury/bank-adjustments",StringComparison.Ordinal)||path.StartsWith("/api/treasury/vault-counts",StringComparison.Ordinal))
+            return Free();
+        if(path.StartsWith("/api/sal/erp-settlements",StringComparison.Ordinal))return Free();
+        if(path.StartsWith("/api/finance/jahez-reconciliations/day",StringComparison.Ordinal))return Free();
         if(path=="/api/finance/bank-file/preview")return BankFilePreview();
         if(path=="/api/finance/vault-transfer")return Journal();
         if(path=="/api/finance/sponsors")return A(O(new(){["id"]=S(),["sponsorId"]=S(),["code"]=S(),["nameAr"]=S(),["shortNameAr"]=S(),["vaultBalance"]=N(),["mainVaultBalance"]=N(),["bankBalance"]=N(),["allowedActions"]=A(S())},"id","code"));

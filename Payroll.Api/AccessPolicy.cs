@@ -136,6 +136,17 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/finance/opening/",StringComparison.Ordinal))return Has("treasury.opening");
         if(path.StartsWith("/api/finance/legacy-cash-allocation/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
         if(path.StartsWith("/api/finance/jahez-handovers/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.jahez.receive")&&(path.EndsWith("/confirm",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal));
+        if(path.StartsWith("/api/treasury/",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("treasury.view");
+            if(method!="POST")return false;
+            if(path=="/api/treasury/transfers")return Has("treasury.transfer");
+            if(path.StartsWith("/api/treasury/bank-statements",StringComparison.Ordinal)||path.StartsWith("/api/treasury/bank-adjustments",StringComparison.Ordinal))
+                return Has("treasury.bank_reconcile")||Has("treasury.transfer");
+            if(path.StartsWith("/api/treasury/vault-counts",StringComparison.Ordinal))
+                return Has("treasury.vault_reconcile")||Has("treasury.transfer")||(path.EndsWith("/approve",StringComparison.Ordinal)&&Has("approvals.decide"));
+            return false;
+        }
         if(path.StartsWith("/api/finance/",StringComparison.Ordinal))return method=="GET"?Has("treasury.view"):method=="POST"&&(path switch{
             "/api/finance/vault-transfer"=>Has("treasury.transfer"),
             "/api/finance/liability-payment"=>Has("treasury.liability.settle"),
@@ -145,6 +156,7 @@ public static partial class AccessPolicy
             "/api/finance/jahez-fee"=>Has("treasury.jahez.manage"),
             "/api/finance/jahez-handover"=>Has("treasury.jahez.handover"),
             "/api/finance/jahez-reconciliations"=>Has("treasury.transfer")||Has("treasury.jahez.receive"),
+            "/api/finance/jahez-reconciliations/day"=>Has("treasury.transfer")||Has("treasury.jahez.receive"),
             _ when path.StartsWith("/api/finance/jahez-reconciliations/",StringComparison.Ordinal)=>Has("treasury.transfer")||Has("treasury.jahez.receive"),
             _=>false});
         if(path=="/api/org/supervision"&&method=="GET")return Has("advances.request")||Has("org.manage"); // mine=1 for supervisors; the full list is re-checked in the handler.
@@ -175,13 +187,14 @@ public static partial class AccessPolicy
             if(method=="POST"&&path.Contains("/lines",StringComparison.Ordinal))return Has("salaries.mudad.edit");
             return method=="POST"&&Has("people.mudad.manage");
         }
-        // U-W2-12/13/15 money capture + distribution + pay-run calc/approve.
+        // U-W2-12/13/15 money capture + distribution + pay-run calc/approve; U-W2-18 Chefz freeze.
         if(path.StartsWith("/api/sal/",StringComparison.Ordinal))
         {
             if(method=="GET")return Has("pay.view");
             if(method=="POST"&&(path.EndsWith("/approve-salary",StringComparison.Ordinal)||path.EndsWith("/approve",StringComparison.Ordinal)
-                ||path.Contains("/debt-confirm",StringComparison.Ordinal)))
+                ||path.EndsWith("/freeze",StringComparison.Ordinal)||path.Contains("/debt-confirm",StringComparison.Ordinal)))
                 return Has("pay.approve")||Has("pay.manage");
+            if(method=="POST"&&path.EndsWith("/midnight-capture",StringComparison.Ordinal))return Has("admin.settings.manage");
             return method=="POST"&&Has("pay.manage");
         }
         // DELETE / campaign PUT stay admin-only (blanket deny). forms.delete is deprecated and unused.
