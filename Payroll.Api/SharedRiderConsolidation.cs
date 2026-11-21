@@ -80,9 +80,10 @@ public static class SharedRiderConsolidation
     {
         J.Need(reason.Trim().Length is >2 and <=500,"سبب الإفراج مطلوب.");
         var doc=Store.Get(c,Id(rider,period),Kind,tx)?.Clone()??throw new ApiError("سجل التجميع غير موجود.",404);
-        // Same gate as bank mark-sent: recorded two-person decision; when request-release froze a payload hash, verify it.
-        string? expectedHash=string.IsNullOrWhiteSpace(doc.S("releasePayloadHash"))?null:doc.S("releasePayloadHash");
-        ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,actor,ApprovalsArea.DualSharedRiderRelease,doc.S("id"),expectedHash);
+        // Same gate as bank mark-sent / advance payout: recompute from current nets; any post-approval change voids the approval.
+        decimal amount=J.Money(CombinedNet(doc));
+        string currentHash=ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",rider),("period",period),("reason",reason.Trim()));
+        ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,actor,ApprovalsArea.DualSharedRiderRelease,doc.S("id"),currentHash);
         doc["released"]=true;doc["status"]="released";doc["releaseReason"]=reason.Trim();doc["releasedBy"]=actor.Identity!.Name;doc["releasedAt"]=DateTimeOffset.UtcNow.ToString("O");
         doc["combinedNet"]=J.Money(CombinedNet(doc));
         Store.Save(c,Kind,doc,tx);Store.Audit(c,tx,"pay.consolidation_released",doc.S("id"),actor.Identity!.Name!);

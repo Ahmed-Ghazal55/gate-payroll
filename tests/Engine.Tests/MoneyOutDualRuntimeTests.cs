@@ -127,23 +127,50 @@ public sealed class MoneyOutDualRuntimeTests
         });
         Assert.IsTrue(f.Store.Read(c=>FinancialScopes.Approval(scoped,opened,c)));
         f.Store.Write((c,tx)=>ApprovalsArea.Decide(c,tx,Checker,opened.S("id"),new(){["decision"]="approve",["note"]="hash bound"}));
-        // Corrupt the frozen payload hash → release must refuse (same gate as bank file hash).
+        // Change a recorded net after approval → release recomputes hash and must refuse.
         f.Store.Write((c,tx)=>{
             var doc=Store.Get(c,consolId,SharedRiderConsolidation.Kind,tx)!;
-            doc["releasePayloadHash"]="deadbeef";
+            var apps=doc["apps"] as JsonObject??new JsonObject();
+            apps["a"]=new JsonObject{["net"]=99,["apps"]=new JsonArray("ninja"),["cycleId"]="post-approval"};
+            doc["apps"]=apps;
             Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
             return true;
         });
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>SharedRiderConsolidation.Release(c,tx,Checker,rider,period,"سبب الطلب الأصلي"))).Status);
-        // Restore the real frozen hash from the approval request → release proceeds.
+        // Restore the approved net → release recomputes the same hash and proceeds.
         f.Store.Write((c,tx)=>{
             var doc=Store.Get(c,consolId,SharedRiderConsolidation.Kind,tx)!;
-            doc["releasePayloadHash"]=opened.S("fileContentHash");
+            var apps=doc["apps"] as JsonObject??new JsonObject();
+            apps["a"]=new JsonObject{["net"]=80,["apps"]=new JsonArray("ninja")};
+            doc["apps"]=apps;
             Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
             return true;
         });
         var released=f.Store.Write((c,tx)=>SharedRiderConsolidation.Release(c,tx,Checker,rider,period,"سبب الطلب الأصلي"));
         Assert.IsTrue(released.B("released"));
         Assert.IsTrue(f.Store.Read(c=>SchemaApprovals.ListDecisions(c,null).Any(d=>d.S("requestId")==opened.S("id")&&d.S("outcome")=="approved")));
+    }
+
+    [TestMethod]
+    public void Release_RecomputesPayloadHash_RejectsWhenNetChangedAfterApproval()
+    {
+        using var f=new PayFixture();
+        string rider="2000000194",period="2026-10",company=FinancialCore.Sponsors[0].Id,reason="وصلت فاتورة كيتا يدويًا";
+        f.Store.Write((c,tx)=>{
+            var doc=SharedRiderConsolidation.Ensure(c,tx,rider,period,company);
+            doc["apps"]=new JsonObject{["a"]=new JsonObject{["net"]=50,["apps"]=new JsonArray("ninja"),["cycleId"]="c1",["companyId"]=company}};
+            doc["missingApps"]=new JsonArray("keeta");
+            Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
+            return true;
+        });
+        var opened=f.Store.Write((c,tx)=>SharedRiderConsolidation.RequestRelease(c,tx,PayFixture.Maker,rider,period,reason));
+        f.Store.Write((c,tx)=>ApprovalsArea.Decide(c,tx,Checker,opened.S("id"),new(){["decision"]="approve",["note"]="independent checker"}));
+        // RecordAppNet-equivalent: another app net arrives after approval and changes CombinedNet.
+        f.Store.Write((c,tx)=>{
+            var cycle=new JsonObject{["id"]="c2",["period"]=period,["companyId"]=company};
+            SharedRiderConsolidation.RecordAppNet(c,tx,cycle,rider,40m,["keeta"],["ninja","keeta"]);
+            return true;
+        });
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>SharedRiderConsolidation.Release(c,tx,Checker,rider,period,reason))).Status);
     }
 }

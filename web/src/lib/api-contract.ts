@@ -8607,6 +8607,1525 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/operations/cities-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per operating city live summary (O3) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                code?: string;
+                                nameAr?: string;
+                                nameEn?: string;
+                                status?: string;
+                                activeRegistrations?: number;
+                                registrationNames?: string;
+                                vehiclesCars?: number;
+                                vehiclesMotorbikes?: number;
+                                vehiclesTotal?: number;
+                                ridersTotal?: number;
+                                appsWorking?: string;
+                                accountsTotal?: number;
+                                accountsActive?: number;
+                                accountsAssigned?: number;
+                                byRegistration?: Record<string, never>[];
+                                byApp?: Record<string, never>[];
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/cities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Operating city detail split by registration and app (O3) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            code?: string;
+                            nameAr?: string;
+                            status?: string;
+                            byRegistration?: Record<string, never>[];
+                            byApp?: Record<string, never>[];
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/housing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Housing list with occupancy KPIs (O4) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                code?: string;
+                                nameAr: string;
+                                city?: string;
+                                cityCode?: string;
+                                roomsCount?: number;
+                                capacity?: number;
+                                residentsTotal?: number;
+                                ridersPerRoom?: number;
+                                status?: string;
+                                supervisor?: null | string;
+                                supervisorSource?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/housing/{id}/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Housing rooms and residents (O4) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            nameAr?: string;
+                            code?: string;
+                            status?: string;
+                            city?: string;
+                            supervisor?: null | string;
+                            supervisorSource?: string;
+                            rooms?: {
+                                id: string;
+                                name?: string;
+                                capacity?: number;
+                                currentOccupancy?: number;
+                                residents?: {
+                                    employeeId?: string;
+                                    nameAr?: string;
+                                    iqama?: string;
+                                    checkInDate?: string;
+                                }[];
+                            }[];
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/period-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Vehicle/rider period report (O5) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                assetNumber?: string;
+                                plateNumberAr?: string;
+                                vehicleType?: string;
+                                city?: string;
+                                riderNameAr?: string;
+                                iqama?: string;
+                                vehicleId?: string;
+                                operatingDays?: number;
+                                sparePartsCost?: number;
+                                amountToCollect?: number;
+                                oilChangesCount?: number;
+                                oilChangesCost?: number;
+                                oilMileage?: number;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/purchase-invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Vehicle purchase receipts (O5) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                receiptNumber?: string;
+                                supplierInvoiceNumber?: string;
+                                invoiceDate?: string;
+                                receivedAt?: string;
+                                subtotal?: number;
+                                taxAmount?: number;
+                                totalAmount?: number;
+                                status?: string;
+                                supplierNameAr?: string;
+                                lines?: Record<string, never>[];
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/purchase-invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Purchase receipt lines (O5) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            receiptNumber?: string;
+                            lines?: Record<string, never>[];
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/oil-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Oil changes in period (M9) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                vehicleId?: string;
+                                plateNumberAr?: string;
+                                assetNumber?: string;
+                                vehicleType?: string;
+                                performedAt?: string;
+                                odometer?: number;
+                                oilLiters?: number;
+                                oilCost?: number;
+                                filterCost?: number;
+                                laborCost?: number;
+                                otherCost?: number;
+                                totalCost?: number;
+                                notes?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/{id}/oil-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Oil changes for a vehicle (O5) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                vehicleId?: string;
+                                plateNumberAr?: string;
+                                assetNumber?: string;
+                                vehicleType?: string;
+                                performedAt?: string;
+                                odometer?: number;
+                                oilLiters?: number;
+                                oilCost?: number;
+                                filterCost?: number;
+                                laborCost?: number;
+                                otherCost?: number;
+                                totalCost?: number;
+                                notes?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Vehicle details drawer including VIN (O5) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            assetNumber?: string;
+                            serialNumber?: string;
+                            plateNumberAr?: string;
+                            plateNumberEn?: string;
+                            vin?: string;
+                            chassisNumber?: string;
+                            vehicleType?: string;
+                            modelYear?: string;
+                            currentOdometer?: number;
+                            status?: string;
+                            sponsorNameAr?: string;
+                            city?: string;
+                            assignmentHistory?: Record<string, never>[];
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/fuel-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fuel cards and monthly usage (O6) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                cardNumber?: string;
+                                provider?: string;
+                                providerNameAr?: string;
+                                cardName?: string;
+                                cardNotes?: string;
+                                plateNumber?: string;
+                                riderNameAr?: string;
+                                iqama?: string;
+                                liters?: number;
+                                amountBeforeTax?: number;
+                                vat?: number;
+                                totalInclVat?: number;
+                                transactionCount?: number;
+                                fuelType?: string;
+                                cap?: number;
+                                capSource?: string;
+                                status?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/fuel-cards/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fuel card hand-over log (O6) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                cardNumber?: string;
+                                provider?: string;
+                                providerNameAr?: string;
+                                cardName?: string;
+                                cardNotes?: string;
+                                plateNumber?: string;
+                                riderNameAr?: string;
+                                iqama?: string;
+                                effectiveFrom?: string;
+                                effectiveTo?: string;
+                                assignmentReason?: string;
+                                endReason?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/cities-summary/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export cities summary */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/housing/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export housing list */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/period-report/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export vehicles period report */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/oil-changes/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export vehicle oil changes */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/purchase-invoices/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export vehicle purchase invoices */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/fuel-cards/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export fuel cards */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/fuel-log/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export fuel card assignment log */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/distinct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Distinct column values for operations table filters */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            column: string;
+                            values: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/sources/fuel-consumption": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** L1 fuel consumption per rider/card/period (Omar live, facts only) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/sources/vehicle-assignment-periods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** L1 vehicle assignment periods per rider (Omar live, facts only) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/sources/housing-periods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** L1 housing residence periods per rider (Omar live, facts only) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/sources/keeta-eligibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Keeta expected eligibility result per user/period (Omar live; not approval) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/sources/hs-stamp-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** HungerStation WalletPending queue and stamped financial events (read side) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/ninja/live/daily-performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja daily performance per account and day with coverage (L1) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                reportDate: string;
+                                captainId: string;
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                riderProfileId: string;
+                                riderClientAssignmentId?: string;
+                                sourceId?: string;
+                                sourceRowNumber?: number;
+                                orders?: number;
+                                hours?: number;
+                                ownerUnifiedNumber?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                requestedFrom: string;
+                                requestedTo: string;
+                                firstDay: string;
+                                lastDay: string;
+                                total: number;
+                                hasGapAtPeriodEnd: boolean;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/ninja/live/daily-deductions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja daily deductions per actual rider of each day with coverage (L1) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                reportDate: string;
+                                captainId: string;
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                actualRiderProfileId: string;
+                                riderClientAssignmentId?: string;
+                                sourceId?: string;
+                                sourceRowNumber?: number;
+                                collectedAmount?: number;
+                                deductionsAmount?: number;
+                                ownerUnifiedNumber?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                requestedFrom: string;
+                                requestedTo: string;
+                                firstDay: string;
+                                lastDay: string;
+                                total: number;
+                                hasGapAtPeriodEnd: boolean;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/ninja/live/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja account payment method / pay scheme from Omar (L1 / U-W2-14) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                accountStatus?: string;
+                                accountPaymentModel?: string;
+                                assignmentPaymentModel?: string;
+                                payScheme: string;
+                                ownerEmployeeId?: string;
+                                ownerUnifiedNumber: string;
+                                openAssignmentId?: string;
+                                openActualRiderProfileId?: string;
+                                ninjaRiderType?: string;
+                                openEffectiveFrom?: string;
+                                openEffectiveTo?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                total: number;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/ninja/live/account-bearers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja account owner vs actual rider periods with holder dates (L1 / U-W2-12/13) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                assignmentId: string;
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                owningSponsorId?: string;
+                                owningUnifiedNumber: string;
+                                ownerEmployeeId: string;
+                                ownerRiderProfileId?: string;
+                                actualRiderProfileId: string;
+                                holderRiderProfileId?: string;
+                                effectiveFrom: string;
+                                effectiveTo?: string;
+                                assignmentPaymentModel?: string;
+                                assignmentStatus?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                total: number;
+                                requestedFrom: string;
+                                requestedTo: string;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/finance/statement/rider/{iqama}/monthly": {
         parameters: {
             query?: never;
@@ -12594,6 +14113,345 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/pay-runs/{id}/capture-ops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Capture used ERP fields into sal.ops_snapshot for a pay run */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            companyId?: string;
+                            app?: string;
+                            periodMonth?: string;
+                            captureState: number;
+                            snapshotCount?: number;
+                            requiredKinds?: number;
+                            frozenAt?: string;
+                            noteAr?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/pay-runs/{id}/freeze-capture": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Freeze ops snapshot capture after every required kind is linked */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            companyId?: string;
+                            app?: string;
+                            periodMonth?: string;
+                            captureState: number;
+                            snapshotCount?: number;
+                            requiredKinds?: number;
+                            frozenAt?: string;
+                            noteAr?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/tga/allocate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Allocate TGA item bearers (sum=item, residual last) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            invoiceId: string;
+                            itemId: string;
+                            allocatedTotal: number;
+                            bearers: Record<string, never>[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/settlements/combine": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Combine CR invoices into an app settlement */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            app: string;
+                            periodFrom?: string;
+                            periodTo?: string;
+                            invoiceCount: number;
+                            gross?: number;
+                            deductions?: number;
+                            net?: number;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/distributions/propose": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Propose Ninja order-share distribution to actual riders */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            invoiceId: string;
+                            app: string;
+                            method: string;
+                            distributedTotal: number;
+                            rows: Record<string, never>[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/item-bearers/assign-shared": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Assign shared-user bearer: dated actual rider or undated supervisor queue */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            itemId: string;
+                            status: string;
+                            noteAr?: string;
+                            actualRiderId?: string;
+                            itemDate?: string;
+                            allocations?: Record<string, never>[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/keeta/rejection-split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Split Keeta rejection charges after free daily quota on account ID */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            erpPlatformAccountId: string;
+                            chargeTotal: number;
+                            freeQuotaPerDay?: number;
+                            rateSar?: number;
+                            bearers: Record<string, never>[];
+                        };
                     };
                 };
             };
