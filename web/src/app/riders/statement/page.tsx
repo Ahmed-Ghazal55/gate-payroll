@@ -158,35 +158,42 @@ function RiderStatementPageInner() {
     }
   };
 
-  // Export CSV
-  const handleExportCsv = () => {
+  const handleExportExcel = async () => {
     if (!statement?.entries || statement.entries.length === 0) {
       toast('لا توجد حركات للتصدير', 'warning');
       return;
     }
 
-    const headers = ['التاريخ', 'نوع الحركة', 'البيان', 'المرجع', 'مدين (ر.س)', 'دائن (ر.س)', 'الرصيد التراكمي (ر.س)'];
-    const rows = (statement.entries || []).map((e) => [
-      e.date,
-      e.entryType,
-      `"${(e.description || '').replace(/"/g, '""')}"`,
-      e.reference || '',
-      e.debit || 0,
-      e.credit || 0,
-      e.balance || 0,
-    ]);
-
-    const csvContent = '\uFEFF' + [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const pFrom = statement.period?.from || fromDate;
-    const pTo = statement.period?.to || toDate;
-    a.download = `statement-${statement.iqama}-${pFrom}-to-${pTo}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    toast('تم تصدير كشف الحساب بصيغة CSV بنجاح', 'success');
+    try {
+      const headers = ['التاريخ', 'نوع الحركة', 'البيان', 'المرجع', 'مدين (ر.س)', 'دائن (ر.س)', 'الرصيد التراكمي (ر.س)'];
+      const rows = (statement.entries || []).map((e) => [
+        e.date,
+        e.entryType,
+        e.description || '',
+        e.reference || '',
+        e.debit || 0,
+        e.credit || 0,
+        e.balance || 0,
+      ]);
+      const pFrom = statement.period?.from || fromDate;
+      const pTo = statement.period?.to || toDate;
+      const filename = `statement-${statement.iqama}-${pFrom}-to-${pTo}.xlsx`;
+      const blob = await api.exportExcel({
+        headers,
+        rows,
+        numericColumns: [4, 5, 6],
+        filename,
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      a.click();
+      URL.revokeObjectURL(url);
+      toast('تم تصدير كشف الحساب بنجاح', 'success');
+    } catch {
+      toast('تعذر تصدير كشف الحساب', 'danger');
+    }
   };
 
   const isDueToCompany = (statement?.closingBalance || 0) < 0; // عليه
@@ -226,11 +233,11 @@ function RiderStatementPageInner() {
             </button>
             <button
               type="button"
-              onClick={handleExportCsv}
+              onClick={() => void handleExportExcel()}
               className="px-3.5 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <Download size={15} />
-              <span>تصدير CSV</span>
+              <span>تصدير إكسل</span>
             </button>
           </div>
         </div>

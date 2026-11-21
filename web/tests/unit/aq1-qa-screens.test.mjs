@@ -39,6 +39,24 @@ test('admin routing UI avoids raw advance.review in user-facing strings', () => 
   assert.match(admin, /auditFilter\.rows/);
 });
 
+test('admin and rider statement export via api.exportExcel with Arabic headers', () => {
+  assert.match(admin, /api\.exportExcel\(/);
+  assert.match(admin, /اسم المستخدم/);
+  assert.match(admin, /الدور/);
+  assert.match(admin, /القسم/);
+  assert.match(admin, /الحالة/);
+  assert.match(admin, /المعرف/);
+  assert.match(admin, /نوع العملية/);
+  assert.match(admin, /المنفذ/);
+  assert.match(admin, /التاريخ والوقت/);
+  assert.match(admin, /auditActorLabelAr/);
+  assert.doesNotMatch(admin, /\['username', 'role', 'department', 'status'\]/);
+  assert.doesNotMatch(admin, /\['id', 'action', 'actor', 'at'\]/);
+  assert.match(statement, /api\.exportExcel\(/);
+  assert.match(statement, /تصدير إكسل/);
+  assert.doesNotMatch(statement, /تصدير CSV/);
+});
+
 test('payroll uses blocker label helper and scopes ninja import CTA', () => {
   assert.match(payroll, /payrollBlockerLabelAr/);
   assert.match(payroll, /selectedPlatform === 'ninja'/);
@@ -73,8 +91,8 @@ test('responses tab disables duplicate DataTable export', () => {
   assert.match(responses, /exportable=\{false\}/);
 });
 
-test('rider statement CSV label and timeline title Arabic', () => {
-  assert.match(statement, /تصدير CSV/);
+test('rider statement Excel label and timeline title Arabic', () => {
+  assert.match(statement, /تصدير إكسل/);
   assert.doesNotMatch(statement, /Timeline Table/);
   assert.match(statement, /مدين: /);
   assert.match(statement, /دائن: /);

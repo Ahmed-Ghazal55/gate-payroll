@@ -677,29 +677,31 @@ function AdminPageInner() {
               <button
                 type="button"
                 onClick={() => {
-                  const headers = ['username', 'role', 'department', 'status'];
-                  const lines = [
-                    headers.join(','),
-                    ...filteredUsers.map((u) =>
-                      [
+                  void (async () => {
+                    try {
+                      const headers = ['اسم المستخدم', 'الدور', 'القسم', 'الحالة'];
+                      const rows = filteredUsers.map((u) => [
                         u.username,
                         u.roleNameAr || u.role,
                         u.department || '',
                         u.disabled ? 'معطل' : 'نشط',
-                      ]
-                        .map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`)
-                        .join(',')
-                    ),
-                  ];
-                  const blob = new Blob(['\ufeff' + lines.join('\n')], {
-                    type: 'text/csv;charset=utf-8',
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = 'admin-users.csv';
-                  a.click();
-                  URL.revokeObjectURL(url);
+                      ]);
+                      const blob = await api.exportExcel({
+                        headers,
+                        rows,
+                        numericColumns: [],
+                        filename: 'admin-users.xlsx',
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'admin-users.xlsx';
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch {
+                      toast('تعذر تصدير المستخدمين', 'danger');
+                    }
+                  })();
                 }}
                 className="px-3.5 py-1.5 rounded-xl border border-[var(--line)] font-bold text-xs inline-flex items-center gap-1.5 hover:bg-[var(--raised)] transition cursor-pointer"
               >
@@ -1360,29 +1362,31 @@ function AdminPageInner() {
               <button
                 type="button"
                 onClick={() => {
-                  const headers = ['id', 'action', 'actor', 'at'];
-                  const lines = [
-                    headers.join(','),
-                    ...auditFilter.rows.map((log, idx) =>
-                      [
+                  void (async () => {
+                    try {
+                      const headers = ['المعرف', 'نوع العملية', 'المنفذ', 'التاريخ والوقت'];
+                      const rows = auditFilter.rows.map((log, idx) => [
                         log.id || idx + 1,
                         auditActionLabelAr(log.action),
-                        log.actor || 'system',
+                        auditActorLabelAr(log.actor || 'system'),
                         formatAuditAt(log.at || log.createdAt),
-                      ]
-                        .map((c) => `"${String(c ?? '').replace(/"/g, '""')}"`)
-                        .join(',')
-                    ),
-                  ];
-                  const blob = new Blob(['\ufeff' + lines.join('\n')], {
-                    type: 'text/csv;charset=utf-8',
-                  });
-                  const url = URL.createObjectURL(blob);
-                  const a = document.createElement('a');
-                  a.href = url;
-                  a.download = 'admin-audit.csv';
-                  a.click();
-                  URL.revokeObjectURL(url);
+                      ]);
+                      const blob = await api.exportExcel({
+                        headers,
+                        rows,
+                        numericColumns: [],
+                        filename: 'admin-audit.xlsx',
+                      });
+                      const url = URL.createObjectURL(blob);
+                      const a = document.createElement('a');
+                      a.href = url;
+                      a.download = 'admin-audit.xlsx';
+                      a.click();
+                      URL.revokeObjectURL(url);
+                    } catch {
+                      toast('تعذر تصدير سجل التدقيق', 'danger');
+                    }
+                  })();
                 }}
                 className="px-3.5 py-1.5 rounded-xl border border-[var(--line)] font-bold text-xs inline-flex items-center gap-1.5 hover:bg-[var(--raised)] transition cursor-pointer"
               >
