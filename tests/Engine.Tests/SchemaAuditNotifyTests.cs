@@ -18,6 +18,18 @@ public sealed class SchemaAuditNotifyTests
             Assert.IsTrue(SchemaSql.TableExists(c,null,schema,table),schema+"."+table);
         Assert.IsTrue(Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM audit_action_label")!)>=1);
         Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM audit_change_log"));
+        foreach(string index in new[]{
+            "IX_notify_reply_author_user_id","IX_task_item_assignee_user_id","IX_task_comment_author_user_id",
+            "IX_chat_message_author_user_id","IX_chat_receipt_user_id","IX_chat_moderation_message_id",
+            "IX_chat_moderation_moderator_user_id","IX_chat_block_blocked_user_id"})
+            Assert.IsTrue(IndexExists(c,index),index);
+    }
+
+    static bool IndexExists(System.Data.Common.DbConnection c,string name)
+    {
+        if(SchemaSql.IsSql(c))
+            return Convert.ToInt32(MoneySchemaFixture.Scalar(c,null,"SELECT CASE WHEN EXISTS(SELECT 1 FROM sys.indexes WHERE name=@n) THEN 1 ELSE 0 END",("@n",name))!)==1;
+        return Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(1) FROM sqlite_master WHERE type='index' AND name=@n",("@n",name))!)>0;
     }
 
     [TestMethod,DataRow(false),DataRow(true)]

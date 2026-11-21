@@ -260,6 +260,7 @@ public static class SchemaAuditNotify
         }
         SchemaSql.CreateIndexIfMissing(c,tx,"notify","notification","IX_notify_notification_user_created","user_id, created_at");
         SchemaSql.CreateIndexIfMissing(c,tx,"notify","reply","IX_notify_reply_notification_id","notification_id");
+        SchemaSql.CreateIndexIfMissing(c,tx,"notify","reply","IX_notify_reply_author_user_id","author_user_id");
     }
 
     static void EnsureTask(DbConnection c,DbTransaction? tx)
@@ -354,7 +355,9 @@ public static class SchemaAuditNotify
                 );
                 """);
         }
+        SchemaSql.CreateIndexIfMissing(c,tx,"task","item","IX_task_item_assignee_user_id","assignee_user_id");
         SchemaSql.CreateIndexIfMissing(c,tx,"task","comment","IX_task_comment_task_id","task_id");
+        SchemaSql.CreateIndexIfMissing(c,tx,"task","comment","IX_task_comment_author_user_id","author_user_id");
         SchemaSql.CreateIndexIfMissing(c,tx,"task","attachment","IX_task_attachment_task_id","task_id");
     }
 
@@ -425,6 +428,11 @@ public static class SchemaAuditNotify
         }
         EnsureChatChildren(c,tx,message,user,g);
         SchemaSql.CreateIndexIfMissing(c,tx,"chat","message","IX_chat_message_channel_created","channel_id, created_at");
+        SchemaSql.CreateIndexIfMissing(c,tx,"chat","message","IX_chat_message_author_user_id","author_user_id");
+        SchemaSql.CreateIndexIfMissing(c,tx,"chat","receipt","IX_chat_receipt_user_id","user_id");
+        SchemaSql.CreateIndexIfMissing(c,tx,"chat","moderation","IX_chat_moderation_message_id","message_id");
+        SchemaSql.CreateIndexIfMissing(c,tx,"chat","moderation","IX_chat_moderation_moderator_user_id","moderator_user_id");
+        SchemaSql.CreateIndexIfMissing(c,tx,"chat","block","IX_chat_block_blocked_user_id","blocked_user_id");
     }
 
     static void EnsureChatChildren(DbConnection c,DbTransaction? tx,string message,string user,string g)
