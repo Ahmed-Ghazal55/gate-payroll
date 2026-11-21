@@ -22,12 +22,17 @@ public static class SalSimulations
         {
             decimal net=J.Money(Convert.ToDecimal(rider["salary_net"]));
             if(net==0)continue;
-            // Preview only — no post, no period_balance (N1).
+            // Preview only — no post, no period_balance (N1). Negative nets surface as expected debt lines.
             if(net>0)
             {
                 lines.Add(new JsonObject{["side"]="credit",["accountHint"]="212103",["erpRiderId"]=rider["erp_rider_id"]!.ToString(),["amount"]=net,["labelAr"]="صافي راتب متوقع"});
                 lines.Add(new JsonObject{["side"]="debit",["accountHint"]="526401",["erpRiderId"]=rider["erp_rider_id"]!.ToString(),["amount"]=net,["labelAr"]="مصروف راتب متوقع"});
                 debit+=net;credit+=net;
+            }
+            else
+            {
+                decimal debt=J.Money(-net);
+                lines.Add(new JsonObject{["side"]="debit",["accountHint"]="debt",["erpRiderId"]=rider["erp_rider_id"]!.ToString(),["amount"]=debt,["labelAr"]="مديونية متوقعة من صافي سالب",["posted"]=false});
             }
         }
         return WithActions(actor,run,new()
@@ -69,7 +74,17 @@ public static class SalSimulations
             decimal simNet=s==null?0:J.Money(Convert.ToDecimal(s["salary_net"]));
             decimal liveNet=l==null?0:J.Money(Convert.ToDecimal(l["salary_net"]));
             string change=s==null?"live_only":l==null?"sim_only":simNet==liveNet?"same":"changed";
-            rows.Add(new JsonObject{["erpRiderId"]=key,["simNet"]=simNet,["liveNet"]=liveNet,["change"]=change});
+            rows.Add(new JsonObject
+            {
+                ["erpRiderId"]=key,["simNet"]=simNet,["liveNet"]=liveNet,["change"]=change,
+                ["changeAr"]=change switch
+                {
+                    "sim_only"=>"في المحاكاة فقط",
+                    "live_only"=>"في الحي فقط",
+                    "changed"=>"تغيّر",
+                    _=>"متطابق"
+                }
+            });
         }
         return WithActions(actor,run,new()
         {
@@ -94,13 +109,13 @@ public static class SalSimulations
             "يوجد دورة حية لنفس التطبيق والشركة والشهر؛ أغلقها أو ألغها قبل الترقية.",409);
         string newId=SchemaSql.GuidText(SchemaSql.NewId());
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
-        // Live draft only — still needs every normal approval path after this (U-W2-27 / pay.approve).
+        // Live draft: payout stays blocked until normal approval; simulation row itself keeps no live balances.
         SchemaSql.Exec(c,tx,$"""
             INSERT INTO {SchemaSql.Q(c,"sal","pay_run")}
             (id,period_month,app_code,company_id,stage,status,run_mode,payout_blocked,currency_code,capture_state,created_by,created_at)
-            VALUES(@id,@pm,@app,@c,0,@st,@rm,@pb,'SAR',0,@by,@at)
+            VALUES(@id,@pm,@app,@c,0,@st,@rm,1,'SAR',0,@by,@at)
             """,("@id",newId),("@pm",run.S("periodMonth")),("@app",run.S("app")),("@c",run.S("companyId")),
-            ("@st",StatusActive),("@rm",RunModeLive),("@pb",run.B("payoutBlocked")?1:0),
+            ("@st",StatusActive),("@rm",RunModeLive),
             ("@by",actor.Identity!.Name!),("@at",now));
         foreach(var rider in ListRiders(c,tx,id))
         {
@@ -113,13 +128,19 @@ public static class SalSimulations
                 ("@erp",rider["erp_rider_id"]!.ToString()!),("@g",rider["gross"]!),("@comm",rider["commission"]!),
                 ("@net",rider["salary_net"]!),("@debt",rider["old_debt_instalment"]!),("@by",actor.Identity!.Name!),("@at",now));
         }
+        var approval=FinancialCore.CreateMutualApproval(c,tx,"pay_run_promote","ترقية محاكاة إلى مسودة حية",
+            "مسودة حية من محاكاة — تحتاج الاعتماد قبل أي صرف.",
+            "OPS","FIN",1,newId,new(){["simulationId"]=id,["companyId"]=run.S("companyId"),["app"]=run.S("app")},actor.Identity!.Name!);
         Store.Audit(c,tx,"sal.simulation_promoted",newId,actor.Identity!.Name!);
-        return WithActions(actor,run,new()
+        var draft=new JsonObject
         {
-            ["id"]=newId,["sourceSimulationId"]=id,["runMode"]=0,["status"]=StatusActive,
+            ["id"]=newId,["sourceSimulationId"]=id,["runMode"]=0,["status"]=StatusActive,["payoutBlocked"]=true,
             ["companyId"]=run.S("companyId"),["app"]=run.S("app"),["periodMonth"]=run.S("periodMonth"),
-            ["noteAr"]="مسودة حية — ما زالت تحتاج كل الاعتمادات العادية قبل أي أثر."
-        });
+            ["approvalRequestId"]=approval.S("id"),
+            ["noteAr"]="مسودة حية — الصرف موقوف حتى الاعتماد العادي.",
+            ["allowedActions"]=new JsonArray("submit_for_approval")
+        };
+        return draft;
     }
 
     static JsonObject LoadSim(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id)
@@ -136,15 +157,25 @@ public static class SalSimulations
             ["id"]=reader["id"].ToString(),
             ["companyId"]=reader["company_id"].ToString(),
             ["app"]=reader["app_code"].ToString(),
-            ["periodMonth"]=reader["period_month"].ToString()!.Length>=10?reader["period_month"].ToString()![..10]:reader["period_month"].ToString(),
+            ["periodMonth"]=ReadMonth(reader["period_month"]),
             ["status"]=Convert.ToInt32(reader["status"]),
             ["runMode"]=1,
             ["payoutBlocked"]=Convert.ToInt32(reader["payout_blocked"])==1
         };
         reader.Close();
         FinancialScopes.DemandSponsor(actor,run.S("companyId"));
+        var platform=PayPlatforms.For(run.S("app"));
+        J.Need(FinancialScopes.Platform(actor,platform.Platform),"المنصة خارج نطاق المستخدم.",403);
         return run;
     }
+
+    static string ReadMonth(object value)=>value switch
+    {
+        DateTime dt=>DateOnly.FromDateTime(dt).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
+        DateOnly d=>d.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
+        string s=>s.Length>=10?s[..10]:s,
+        _=>Convert.ToDateTime(value,CultureInfo.InvariantCulture).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)
+    };
 
     static JsonObject? FindLive(DbConnection c,DbTransaction? tx,string company,string app,string month)
     {
