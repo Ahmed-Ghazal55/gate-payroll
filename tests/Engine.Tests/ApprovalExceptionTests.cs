@@ -68,7 +68,8 @@ public sealed class ApprovalExceptionTests
             // Ownership of mutable drafts / "my queue" filters are authorization, not maker/checker.
             // Jahez Approve uses AccessPolicy.Independent for createdBy (not a raw inequality gate).
             string file=Path.GetFileName(path);
-            bool ownership=file is "ManualJournals.cs" or "PaySettings.Lifecycle.cs"&&(line.Contains("المسودة لصاحبها")||line.Contains("bool author="));
+            bool ownership=file is "ManualJournals.cs" or "PaySettings.Lifecycle.cs"&&(line.Contains("المسودة لصاحبها")||line.Contains("bool author="))
+                ||file=="NotifyTasksApi.cs"&&(line.Contains("createdBy")||line.Contains("assignee"));
             bool mineQueue=file=="ApprovalsArea.cs"&&line.Contains("mineOnly");
             bool viaIndependent=file=="JahezReconciliation.cs"&&line.Contains("AccessPolicy.Independent");
             Assert.IsTrue(ownership||mineQueue||viaIndependent,"Raw maker comparison bypasses AccessPolicy.Independent: "+file+" :: "+line.Trim());

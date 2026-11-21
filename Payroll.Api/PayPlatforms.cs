@@ -42,6 +42,12 @@ public static class PayPlatforms
     public static IReadOnlyList<string> ErpCodes(string app)=>ErpImport.ErpPlatformCode.Accept(App(app));
     public static string Active(string account)
     {J.Need(FinanceViews.Accounts.Any(a=>a.S("code")==account&&a.B("posting")&&a.S("status")=="active"),"الحساب غير معتمد للترحيل؛ لا نفعّل حسابًا موقوفًا تلقائيًا.");return account;}
+    public static string Active(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction? tx,string account)
+    {
+        Active(account);
+        ChartOfAccountsApi.DemandPostable(c,tx,account);
+        return account;
+    }
     public static string Revenue(string app,string role)
     {J.Need(role is "principal" or "agent","حدد صفة الأصيل أو الوكيل.");return Active((role=="principal"?For(app).Principal:For(app).Agent)??throw new ApiError("حساب إيراد هذا النظام غير محدد للتطبيق؛ راجع ملف المنصة.",409));}
 }

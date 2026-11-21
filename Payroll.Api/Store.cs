@@ -125,6 +125,10 @@ public sealed partial class Store
         if(kind=="approval_decision")return SchemaApprovals.ListDecisions(c,tx);
         if(kind=="approval_bypass_grant")return SchemaApprovals.ListBypassGrants(c,tx);
         if(kind=="approval_request")return SchemaApprovals.ListRequests(c,tx);
+        if(kind=="audit")return SchemaAuditNotify.ListChanges(c,tx);
+        if(kind=="audit_read_summary_daily")return SchemaAuditNotify.ListReadSummaries(c,tx);
+        if(kind=="notify_settings")return [SchemaAuditNotify.GetNotifySettings(c,tx)];
+        if(kind=="task_item")return SchemaAuditNotify.ListTasks(c,tx);
         // Stable order is portable and keeps every legacy JSON body intact.
         using var cmd = Command(c, tx, c is SqliteConnection ? "SELECT body FROM records WHERE kind=@kind ORDER BY rowid DESC" : "SELECT body FROM records WHERE kind=@kind ORDER BY COALESCE(JSON_VALUE(body,'$.createdAt'),JSON_VALUE(body,'$.at'),JSON_VALUE(body,'$.approvedAt'),'') DESC,id DESC", ("@kind",kind));
         using var r = cmd.ExecuteReader(); var rows = new List<JsonObject>();
@@ -137,6 +141,10 @@ public sealed partial class Store
         if(kind=="approval_limit")return SchemaApprovals.ListLimits(c,tx).FirstOrDefault(r=>r.S("id")==id);
         if(kind=="sla_policy")return SchemaApprovals.ListSla(c,tx).FirstOrDefault(r=>r.S("id")==id);
         if(kind=="approval_decision")return SchemaApprovals.ListDecisions(c,tx).FirstOrDefault(r=>r.S("id")==id);
+        if(kind=="audit")return SchemaAuditNotify.GetChange(c,tx,id);
+        if(kind=="audit_read_summary_daily")return SchemaAuditNotify.GetReadSummary(c,tx,id);
+        if(kind=="notify_settings")return id=="notify-settings:global"?SchemaAuditNotify.GetNotifySettings(c,tx):null;
+        if(kind=="task_item")return SchemaAuditNotify.GetTask(c,tx,id);
         using var cmd = Command(c, tx, "SELECT body FROM records WHERE id=@id AND kind=@kind", ("@id",id),("@kind",kind));
         return cmd.ExecuteScalar() is string body ? JsonNode.Parse(body)!.AsObject() : null;
     }
@@ -147,6 +155,10 @@ public sealed partial class Store
         if(kind=="approval_decision"){SchemaApprovals.SaveDecision(c,tx,doc);return;}
         if(kind=="approval_bypass_grant"){SchemaApprovals.SaveBypassGrant(c,tx,doc);return;}
         if(kind=="approval_request"){SchemaApprovals.SaveRequest(c,tx,doc);return;}
+        if(kind=="audit"){SchemaAuditNotify.SaveChange(c,tx,doc);return;}
+        if(kind=="audit_read_summary_daily"){SchemaAuditNotify.SaveReadSummary(c,tx,doc);return;}
+        if(kind=="notify_settings"){SchemaAuditNotify.SaveNotifySettings(c,tx,doc);return;}
+        if(kind=="task_item"){SchemaAuditNotify.SaveTask(c,tx,doc);return;}
         if(kind=="run")PayCycles.GuardLegacyRun(c,tx,doc);
         if(!preserveSnapshot)Vouchers.OnSaving(c,tx,kind,doc);
         if(kind is not ("voucher_sequence" or "voucher_index" or "odoo_voucher_index")&&TryBuffer(tx,kind,doc))return;
@@ -161,7 +173,19 @@ public sealed partial class Store
     }
     public static void Audit(DbConnection c, DbTransaction tx, string action, string entity, string actor)
     {
-        Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = action, ["entityId"] = entity, ["actor"] = actor, ["at"] = DateTimeOffset.UtcNow.ToString("O") }, tx);
+        // M-0606: short data-change row only (never call for reads). Keep legacy keys for existing readers.
+        Save(c, "audit", new()
+        {
+            ["id"] = Guid.NewGuid().ToString("N"),
+            ["action"] = action,
+            ["actionAr"] = AuditApi.LabelAr(action),
+            ["entityId"] = entity,
+            ["entityRef"] = entity,
+            ["actor"] = actor,
+            ["at"] = DateTimeOffset.UtcNow.ToString("O"),
+            ["occurredAt"] = DateTimeOffset.UtcNow.ToString("O"),
+            ["source"] = "نظام"
+        }, tx);
         Notifications.OnAudit(c,tx,action,entity,actor);
     }
 }

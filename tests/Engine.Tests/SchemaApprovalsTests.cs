@@ -106,10 +106,23 @@ public sealed class SchemaApprovalsTests
             ApprovalsArea.PutLimits(c,tx,PayFixture.Maker,new(){["items"]=new JsonArray(new JsonObject{["rank"]="A",["department"]="FIN",["limitSar"]=1234})});
             ApprovalsArea.PutSla(c,tx,PayFixture.Maker,new(){["items"]=new JsonArray(new JsonObject{["requestType"]="default",["workingDays"]=2})});
             AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-pay-maker",["from"]="2026-01-01",["to"]="2026-12-31",["reason"]="table read",["scope"]=AccessPolicy.ScopePayApprovals});
+            Store.Save(c,"approval_request",new()
+            {
+                ["kind"]="synthetic.table_read",["titleAr"]="طلب",["targetDepartment"]="FIN",["requiredRankLevel"]=1,
+                ["referenceId"]="",["status"]="pending",["requestedBy"]="synthetic-pay-maker",["payload"]=new JsonObject()
+            },tx);
+            Store.Save(c,"approval_decision",new()
+            {
+                ["requestId"]=Store.List(c,"approval_request",tx).First(r=>r.S("kind")=="synthetic.table_read").S("id"),
+                ["decidedBy"]="synthetic-pay-maker",["decidedAt"]=DateTimeOffset.UtcNow.ToString("O"),
+                ["outcome"]="approved",["membershipSnapshot"]=new JsonObject()
+            },tx);
             return true;
         });
         Assert.AreEqual(1234m,f.Store.Read(c=>Convert.ToDecimal(SchemaSql.Scalar(c,null,$"SELECT limit_amount FROM {SchemaSql.Q(c,"auth","approval_limit")} WHERE rank=@r AND department=@d",("@r","A"),("@d","FIN"))!)));
         Assert.AreEqual(2,f.Store.Read(c=>Convert.ToInt32(SchemaSql.Scalar(c,null,$"SELECT working_days FROM {SchemaSql.Q(c,"org","sla_policy")} WHERE request_type=@t",("@t","default"))!)));
         Assert.IsTrue(f.Store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"auth","bypass_grant")}")!)>0));
+        Assert.IsTrue(f.Store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"approvals","request")}")!)>0));
+        Assert.IsTrue(f.Store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"approvals","decision")}")!)>0));
     }
 }

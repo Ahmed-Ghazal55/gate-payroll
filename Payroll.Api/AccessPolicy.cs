@@ -99,6 +99,15 @@ public static partial class AccessPolicy
         if(path is "/api/finance/bank-file/preview" or "/api/finance/bank-file/export")return method=="POST"&&Has("finance.bankfile.export")&&Has("payroll.view");
         if(path is "/api/finance/trial-balance" or "/api/finance/income-statement")return method=="GET"&&Has("treasury.journals");
         if(path=="/api/finance/catalog")return method=="GET"&&(Has("debts.view")||Has("treasury.view"));
+        if(path=="/api/finance/coa"||path.StartsWith("/api/finance/coa/",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("accounting.chart.view")||Has("treasury.view");
+            if(method=="DELETE")return false;
+            if(method=="PUT")return Has("accounting.chart.edit");
+            if(method!="POST")return false;
+            if(path.EndsWith("/deactivate",StringComparison.Ordinal)||path.EndsWith("/reactivate",StringComparison.Ordinal))return Has("accounting.chart.deactivate");
+            return path=="/api/finance/coa"&&Has("accounting.chart.create");
+        }
         if(path.StartsWith("/api/finance/opening/",StringComparison.Ordinal))return Has("treasury.opening");
         if(path.StartsWith("/api/finance/legacy-cash-allocation/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
         if(path.StartsWith("/api/finance/jahez-handovers/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.jahez.receive")&&(path.EndsWith("/confirm",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal));
@@ -155,6 +164,16 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/submissions",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="POST"&&(path.EndsWith("/review",StringComparison.Ordinal)||path=="/api/submissions/bulk-approve")&&Has("forms.review");
         if(Get("/api/forms/catalog")||Get("/api/forms/analytics")||Get("/api/forms/responses"))return Has("forms.view");
         if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))return Has("forms.manage");
+        if(path=="/api/audit")return method=="GET"&&Has("admin.audit.view");
+        if(path=="/api/admin/audit/self-approvals")return method=="GET"&&Has("admin.audit.view");
+        if(path=="/api/admin/read-summary")return method=="GET"&&Has("admin.read_summary.view");
+        if(path=="/api/admin/settings")return (method=="GET"||method=="PUT")&&Has("admin.settings.manage");
+        if(path=="/api/admin/notify-settings")return (method=="GET"||method=="PUT")&&Has("admin.notify.manage");
+        if(path=="/api/notify/send")return method=="POST"&&(Has("notify.send.general")||Has("notify.send.custom"));
+        if(path=="/api/tasks"||path.StartsWith("/api/tasks/",StringComparison.Ordinal))
+            return method=="GET"?(Has("tasks.assign")||Has("tasks.manage")):(method is "POST" or "PUT")&&(Has("tasks.assign")||Has("tasks.manage"));
+        if(path.StartsWith("/api/users/",StringComparison.Ordinal)&&path.EndsWith("/effective-permissions",StringComparison.Ordinal))return method=="GET"&&Has("users.manage");
+        if(path.StartsWith("/api/users/",StringComparison.Ordinal)&&path.EndsWith("/copy-permissions",StringComparison.Ordinal))return method=="POST"&&Has("users.manage");
         return false;
     }
     /// <summary>BR §35 / M-0672: permission-only in general; two-person only when the server-derived dual code
