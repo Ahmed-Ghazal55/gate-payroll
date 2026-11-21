@@ -21,13 +21,20 @@ public static class SalPayCalc
         var riders=(input["riders"] as JsonArray??[]).OfType<JsonObject>().ToList();
         J.Need(riders.Count>0,"أدخل مناديب الاحتساب.",400);
         var assignments=LoadFrozenKind(c,tx,payRunId,"assignment");
+        var frozenScheme=LoadFrozenKind(c,tx,payRunId,"scheme");
+        var frozenEligibility=LoadFrozenKind(c,tx,payRunId,"eligibility");
+        var frozenChefz=LoadFrozenKind(c,tx,payRunId,"chefz_settlement");
+        var frozenKeeta=LoadFrozenKind(c,tx,payRunId,"keeta_invoice_row");
+        var frozenWallet=LoadFrozenKind(c,tx,payRunId,"hs_wallet");
 
         var outRiders=new JsonArray();
         foreach(var src in riders)
         {
-            rules.ValidateRider(src);
             string erpRider=src.Required("erpRiderId");
             DemandAssigned(assignments,erpRider);
+            BindFromFrozen(src,run.S("app"),erpRider,frozenScheme,frozenEligibility,frozenChefz,frozenKeeta,frozenWallet);
+            DetectAndOpenSharedHold(c,tx,run,erpRider);
+            rules.ValidateRider(src);
             decimal gross=J.Money(src.N("gross"));
             decimal commission=J.Money(src.N("commission"));
             // Chefz: RiderAmount is the entitlement; commission is Omar's already-netted figure — do not subtract again.
@@ -45,8 +52,14 @@ public static class SalPayCalc
                 bool operating=rules.OperatingCostOnCompany(src,item);
                 string code=item.S("itemCode","l1");
                 string account=item.S("accountCode","112505");
-                if(operating){companyOperating+=amount;l1Items.Add(Item("level1",code,amount,false,account,item.S("debtId")));}
-                else{level1Personal+=amount;l1Items.Add(Item("level1",code,amount,true,account,item.S("debtId")));}
+                var row=Item("level1",code,amount,!operating,account,item.S("debtId"));
+                // Preserve app-specific evidence fields for AdjustLevel1 (HS funding/eventType).
+                if(item.S("fundingType")!="")row["fundingType"]=item.S("fundingType");
+                if(item.S("eventType")!="")row["eventType"]=item.S("eventType");
+                if(item.B("offsetsTopup"))row["offsetsTopup"]=true;
+                if(item.ContainsKey("operating"))row["operating"]=item.B("operating");
+                if(operating){companyOperating+=amount;l1Items.Add(row);}
+                else{level1Personal+=amount;l1Items.Add(row);}
             }
 
             decimal wagesRoom=entitlement;
@@ -268,21 +281,11 @@ public static class SalPayCalc
             ||ex.GetBaseException().Message.Contains("Money row replacement",StringComparison.OrdinalIgnoreCase))
         {throw new ApiError("خصم مدد لهذا الصف مسجل مسبقاً.",409);}
 
-        // Fold into L1 conceptually: reduce net now; caller should recalculate for L2 reorder.
-        decimal newNet=J.Money(net-amount);
-        Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")} SET salary_net=@net,updated_by=@by,updated_at=@at WHERE id=@id",
-            ("@net",newNet),("@by",actor.Identity!.Name!),("@at",now),("@id",riderId));
-
-        int nextLine=Convert.ToInt32(SchemaSql.Scalar(c,tx,$"SELECT COALESCE(MAX(line_no),0)+1 FROM {SchemaSql.Q(c,"sal","pay_run_item")} WHERE pay_run_rider_id=@r",("@r",riderId))!);
-        Exec(c,tx,$"""
-            INSERT INTO {SchemaSql.Q(c,"sal","pay_run_item")}
-            (id,period_month,pay_run_rider_id,line_no,stage_code,item_code,amount,affects_net,account_code,debt_id,created_by,created_at)
-            VALUES(@id,@pm,@r,@line,'level1','mudad_salary',@amt,1,'112505',NULL,@by,@at)
-            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pm",period),("@r",riderId),("@line",nextLine),
-            ("@amt",amount),("@by",actor.Identity!.Name!),("@at",now));
+        // Atomic reorder: mudad is L1 before NET/L2 (M-0669); never net−amount after L2 (RWC4b H13).
+        decimal newNet=ReorderAfterMudad(c,tx,actor,riderId,period,amount,now);
 
         Store.Audit(c,tx,"sal.mudad_applied",dedId,actor.Identity!.Name!);
-        return new(){["id"]=dedId,["payRunRiderId"]=riderId,["mudadLineId"]=lineId,["amount"]=amount,["salaryNet"]=newNet,["noteAr"]="أعد الاحتساب لضم مدد قبل المستوى 2."};
+        return new(){["id"]=dedId,["payRunRiderId"]=riderId,["mudadLineId"]=lineId,["amount"]=amount,["salaryNet"]=newNet,["noteAr"]="مدد ضمن المستوى 1 قبل الصافي والمستوى 2."};
     }
 
     public static void Map(RouteGroupBuilder api,Store store)
@@ -436,6 +439,177 @@ public static class SalPayCalc
     };
 
     static string? NullIfEmpty(string? s)=>string.IsNullOrWhiteSpace(s)?null:s.Trim();
+
+    /// <summary>RWC4b H1: scheme/eligibility/gross/wallet from frozen capture; reject conflicting caller values.</summary>
+    static void BindFromFrozen(JsonObject src,string app,string erpRider,
+        List<JsonObject> schemes,List<JsonObject> eligibility,List<JsonObject> chefz,List<JsonObject> keeta,List<JsonObject> wallet)
+    {
+        var schemeRow=schemes.FirstOrDefault(s=>RiderMatch(s,erpRider));
+        if(schemeRow!=null)
+        {
+            string frozenScheme=schemeRow.S("schemeCode","commission");
+            if(frozenScheme is "salary" or "commission")
+            {
+                if(src.ContainsKey("schemeType")&&src.S("schemeType")!=""&&!string.Equals(src.S("schemeType"),frozenScheme,StringComparison.OrdinalIgnoreCase))
+                    throw new ApiError("نظام الأجر في الطلب يتعارض مع التجميد.",409);
+                src["schemeType"]=frozenScheme;
+            }
+        }
+        var elig=eligibility.FirstOrDefault(s=>RiderMatch(s,erpRider));
+        if(elig!=null)
+        {
+            bool frozenIneligible=!elig.B("eligible");
+            if(src.ContainsKey("keetaIneligible")&&src.B("keetaIneligible")!=frozenIneligible)
+                throw new ApiError("حالة أهلية كيتا في الطلب تتعارض مع التجميد.",409);
+            src["keetaIneligible"]=frozenIneligible;
+        }
+        if(string.Equals(app,"chefz",StringComparison.OrdinalIgnoreCase))
+        {
+            var settle=chefz.FirstOrDefault(s=>RiderMatch(s,erpRider));
+            J.Need(settle!=null,"شيفز: لا تسوية مجمّدة لهذا المندوب.",409);
+            decimal frozenAmount=J.Money(settle!.N("RiderAmount",settle.N("riderAmount")));
+            if(src.ContainsKey("riderAmount")&&src["riderAmount"] is not null&&J.Money(src.N("riderAmount"))!=frozenAmount)
+                throw new ApiError("شيفز: RiderAmount لا يطابق التسوية المجمّدة.",409);
+            if(src.ContainsKey("gross")&&J.Money(src.N("gross"))!=0&&J.Money(src.N("gross"))!=frozenAmount)
+                throw new ApiError("شيفز: الإجمالي لا يطابق التسوية المجمّدة.",409);
+            src["riderAmount"]=frozenAmount;
+            src["gross"]=frozenAmount;
+            src["frozenSettlement"]=true;
+            src["frozenRiderAmount"]=frozenAmount;
+        }
+        if(string.Equals(app,"keeta",StringComparison.OrdinalIgnoreCase))
+        {
+            // Prefer rider-tagged invoice row; else sole frozen gross for the run.
+            var inv=keeta.FirstOrDefault(s=>RiderMatch(s,erpRider))
+                ??(keeta.Count==1?keeta[0]:null);
+            if(inv!=null&&inv.ContainsKey("gross"))
+            {
+                decimal frozenGross=J.Money(inv.N("gross"));
+                if(src.ContainsKey("gross")&&J.Money(src.N("gross"))!=0&&J.Money(src.N("gross"))!=frozenGross)
+                    throw new ApiError("إجمالي كيتا في الطلب يتعارض مع فاتورة التجميد.",409);
+                if(!src.ContainsKey("gross")||J.Money(src.N("gross"))==0)src["gross"]=frozenGross;
+                else src["gross"]=frozenGross; // authoritative frozen
+            }
+        }
+        if(string.Equals(app,"hs",StringComparison.OrdinalIgnoreCase))
+        {
+            var rows=wallet.Where(s=>RiderMatch(s,erpRider)).Select(s=>
+            {
+                var copy=s.DeepClone()!.AsObject();
+                if(!copy.ContainsKey("amount"))copy["amount"]=copy.N("balance");
+                return (JsonNode)copy;
+            }).ToArray();
+            src["frozenWallet"]=new JsonArray(rows);
+        }
+    }
+
+    static bool RiderMatch(JsonObject row,string erpRider)
+        =>string.Equals(row.S("erpRiderId",row.S("riderProfileId",row.S("actualRiderProfileId"))),erpRider,StringComparison.Ordinal);
+
+    /// <summary>§40.5 / RWC4b H11: open shared hold when the rider already has another app run this month.</summary>
+    static void DetectAndOpenSharedHold(DbConnection c,DbTransaction tx,JsonObject run,string erpRider)
+    {
+        var otherApps=new List<string>();
+        using(var cmd=c.CreateCommand())
+        {
+            cmd.Transaction=tx;
+            cmd.CommandText=$"""
+                SELECT DISTINCT pr.app_code FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
+                INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+                WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND pr.app_code<>@app AND pr.status<>4
+                """;
+            Add(cmd,"@erp",erpRider);Add(cmd,"@pm",run.S("periodMonth"));Add(cmd,"@app",run.S("app"));
+            using var reader=cmd.ExecuteReader();
+            while(reader.Read())otherApps.Add(reader.GetString(0));
+        }
+        if(otherApps.Count==0)return;
+        object? existing=SchemaSql.Scalar(c,tx,$"""
+            SELECT id FROM {SchemaSql.Q(c,"sal","shared_rider_hold")}
+            WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'
+            """,("@erp",erpRider),("@pm",run.S("periodMonth")));
+        string holdId;
+        if(existing is null or DBNull)
+        {
+            holdId=SchemaSql.GuidText(SchemaSql.NewId());
+            Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"sal","shared_rider_hold")}
+                (id,erp_rider_id,period_month,status,created_at)
+                VALUES(@id,@erp,@pm,'open',@at)
+                """,("@id",holdId),("@erp",erpRider),("@pm",run.S("periodMonth")),
+                ("@at",DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture)));
+        }
+        else holdId=existing.ToString()!;
+        foreach(string app in otherApps.Append(run.S("app")).Distinct(StringComparer.Ordinal))
+        {
+            object? has=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"sal","shared_rider_hold_app")} WHERE hold_id=@h AND app_code=@a",
+                ("@h",holdId),("@a",app));
+            if(has is null or DBNull)
+                Exec(c,tx,$"INSERT INTO {SchemaSql.Q(c,"sal","shared_rider_hold_app")}(id,hold_id,app_code,received) VALUES(@id,@h,@a,0)",
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@h",holdId),("@a",app));
+        }
+    }
+
+    /// <summary>Rebuild L1 (incl. mudad) then cap L2 by remaining positive net — exact: 100−50 L1, L2 min(80,50)=50 → 0.</summary>
+    static decimal ReorderAfterMudad(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string riderId,string period,decimal mudadAmount,string now)
+    {
+        decimal gross=0,commission=0,l1Other=0;
+        var l2=new List<(string Code,decimal Amount,string Account,string? DebtId)>();
+        using(var cmd=c.CreateCommand())
+        {
+            cmd.Transaction=tx;
+            cmd.CommandText=$"""
+                SELECT stage_code,item_code,amount,account_code,debt_id FROM {SchemaSql.Q(c,"sal","pay_run_item")}
+                WHERE pay_run_rider_id=@r AND amount<>0 ORDER BY line_no
+                """;
+            Add(cmd,"@r",riderId);
+            using var r=cmd.ExecuteReader();
+            while(r.Read())
+            {
+                string stage=r["stage_code"].ToString()!;
+                string code=r["item_code"].ToString()!;
+                decimal amt=Convert.ToDecimal(r["amount"]);
+                string acc=r["account_code"].ToString()!;
+                string? debt=r["debt_id"] is DBNull?null:r["debt_id"].ToString();
+                if(stage=="invoice"&&code=="gross")gross=amt;
+                else if(stage=="commission")commission=amt;
+                else if(stage=="level1"&&code!="mudad_salary")l1Other=J.Money(l1Other+amt);
+                else if(stage=="level2")l2.Add((code,amt,acc,debt));
+            }
+        }
+        decimal entitlement=J.Money(gross-commission);
+        decimal level1=J.Money(l1Other+mudadAmount);
+        decimal netAfterL1=J.Money(Math.Max(0,entitlement-level1));
+        decimal level2Total=0;
+        var l2Takes=new List<(string Code,decimal Take,string Account,string? DebtId)>();
+        foreach(var item in l2)
+        {
+            decimal room=Math.Max(0,netAfterL1-level2Total);
+            decimal take=J.Money(Math.Min(item.Amount,room));
+            level2Total=J.Money(level2Total+take);
+            l2Takes.Add((item.Code,take,item.Account,item.DebtId));
+        }
+        decimal salaryNet=J.Money(netAfterL1-level2Total);
+        Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","pay_run_item")} SET amount=0,updated_by=@by,updated_at=@at WHERE pay_run_rider_id=@r AND (item_code='mudad_salary' OR stage_code='level2' OR item_code='net_after_l1')",
+            ("@by",actor.Identity!.Name!),("@at",now),("@r",riderId));
+        int nextLine=Convert.ToInt32(SchemaSql.Scalar(c,tx,$"SELECT COALESCE(MAX(line_no),0)+1 FROM {SchemaSql.Q(c,"sal","pay_run_item")} WHERE pay_run_rider_id=@r",("@r",riderId))!);
+        void Ins(string stage,string code,decimal amt,string acc,string? debt)
+        {
+            Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"sal","pay_run_item")}
+                (id,period_month,pay_run_rider_id,line_no,stage_code,item_code,amount,affects_net,account_code,debt_id,created_by,created_at)
+                VALUES(@id,@pm,@r,@line,@stage,@code,@amt,1,@acc,@debt,@by,@at)
+                """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pm",period),("@r",riderId),("@line",nextLine++),
+                ("@stage",stage),("@code",code),("@amt",amt),("@acc",acc),
+                ("@debt",(object?)debt??DBNull.Value),("@by",actor.Identity!.Name!),("@at",now));
+        }
+        Ins("level1","mudad_salary",mudadAmount,"112505",null);
+        Ins("net","net_after_l1",netAfterL1,"212103",null);
+        foreach(var t in l2Takes)if(t.Take>0)Ins("level2",t.Code,t.Take,t.Account,t.DebtId);
+        Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")} SET salary_net=@net,updated_by=@by,updated_at=@at WHERE id=@id",
+            ("@net",salaryNet),("@by",actor.Identity!.Name!),("@at",now),("@id",riderId));
+        return salaryNet;
+    }
+
     static int Exec(DbConnection c,DbTransaction tx,string sql,params (string Name,object Value)[] values)
     {
         using var cmd=c.CreateCommand();cmd.Transaction=tx;cmd.CommandText=sql;

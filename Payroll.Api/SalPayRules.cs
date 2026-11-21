@@ -69,15 +69,20 @@ public sealed class KeetaPayRules:IAppPayRules
         if(!rider.B("keetaIneligible"))return 0m;
         if(!string.Equals(rider.S("schemeType"),"salary",StringComparison.OrdinalIgnoreCase))return 0m;
         // Commission riders never use §22.9.2.
+        // §22.9.2 journal order: operating (D/fuel) first, then personal — never caller order.
         decimal room=Math.Max(0,wagesRoom);
         decimal residualPersonal=0;
         var rebuilt=new List<JsonObject>();
         level1Personal=0;companyOperating=0;
-        foreach(var item in l1Items)
+        var ordered=l1Items
+            .Select((item,idx)=>(item,idx,operating:IsOperating(item)))
+            .OrderBy(x=>x.operating?0:1).ThenBy(x=>x.idx)
+            .Select(x=>x.item);
+        foreach(var item in ordered)
         {
             decimal amount=J.Money(item.N("amount"));
             string code=item.S("itemCode","l1");
-            bool operating=code is "fuel" or "vehicle" or "housing" || item.B("operating");
+            bool operating=IsOperating(item);
             if(operating)
             {
                 decimal recover=J.Money(Math.Min(amount,room));
@@ -117,6 +122,12 @@ public sealed class KeetaPayRules:IAppPayRules
         return residualPersonal;
     }
 
+    static bool IsOperating(JsonObject item)
+    {
+        string code=item.S("itemCode","l1");
+        return code is "fuel" or "vehicle" or "housing" || item.B("operating");
+    }
+
     static JsonObject CloneItem(JsonObject item,decimal amount,bool affects,string account)=>new()
     {
         ["stageCode"]="level1",["itemCode"]=item.S("itemCode","l1"),["amount"]=amount,
@@ -124,7 +135,8 @@ public sealed class KeetaPayRules:IAppPayRules
     };
 }
 
-/// <summary>HungerStation: custody top-up 112501; invoice close R on 112513; collected top-ups never payroll (file 68).</summary>
+/// <summary>HungerStation: custody top-up 112501; invoice close R on 112513; collected top-ups never payroll (file 68).
+/// Wallet L1 must match stamped frozen hs_wallet evidence; close_refund offsets same-holder top-ups (file 68 §4.1).</summary>
 public sealed class HungerStationPayRules:IAppPayRules
 {
     readonly SharedAppRules _shared=new("hs");
@@ -132,6 +144,7 @@ public sealed class HungerStationPayRules:IAppPayRules
     public void ValidateRider(JsonObject rider)
     {
         _shared.ValidateRider(rider);
+        var evidence=(rider["frozenWallet"] as JsonArray??[]).OfType<JsonObject>().ToList();
         foreach(var item in (rider["level1"] as JsonArray??[]).OfType<JsonObject>())
         {
             string code=item.S("itemCode");
@@ -148,14 +161,52 @@ public sealed class HungerStationPayRules:IAppPayRules
                 item["itemCode"]="hs_wallet_close";
             if(funding=="custody"&&item.S("accountCode")=="")item["accountCode"]="112501";
             if(funding=="invoice_close"&&item.S("accountCode")=="")item["accountCode"]="112513";
+            decimal amount=J.Money(item.N("amount"));
+            bool matched=evidence.Any(e=>
+                string.Equals(e.S("fundingType"),funding,StringComparison.OrdinalIgnoreCase)
+                &&J.Money(e.N("amount",e.N("balance")))==amount);
+            J.Need(matched,"محفظة هنقر: البند غير مطابق لدليل التجميد المختوم.",409);
         }
     }
     public bool OperatingCostOnCompany(JsonObject rider,JsonObject item)=>_shared.OperatingCostOnCompany(rider,item);
-    public decimal AdjustLevel1(JsonObject rider,List<JsonObject> l1Items,ref decimal level1Personal,ref decimal companyOperating,ref decimal wagesRoom)=>0m;
+    public decimal AdjustLevel1(JsonObject rider,List<JsonObject> l1Items,ref decimal level1Personal,ref decimal companyOperating,ref decimal wagesRoom)
+    {
+        // Same-holder close_refund offsets custody top-up (file 68 synthetic: 300 − 250 = 50).
+        decimal topup=0,refund=0;
+        var kept=new List<JsonObject>();
+        foreach(var item in l1Items)
+        {
+            string code=item.S("itemCode");
+            if(!IsWallet(code)){kept.Add(item);continue;}
+            string funding=item.S("fundingType").Trim().ToLowerInvariant();
+            string eventType=item.S("eventType").Trim().ToLowerInvariant();
+            decimal amount=J.Money(item.N("amount"));
+            if(funding=="custody")topup=J.Money(topup+amount);
+            else if(funding=="invoice_close"&&(eventType is "close_refund" or "refund"||item.B("offsetsTopup")))
+                refund=J.Money(refund+amount);
+            else kept.Add(item);
+        }
+        decimal netWallet=J.Money(Math.Max(0,topup-refund));
+        level1Personal=0;
+        foreach(var item in kept)
+            if(!item.ContainsKey("affectsNet")||item.B("affectsNet"))level1Personal=J.Money(level1Personal+item.N("amount"));
+        l1Items.Clear();
+        l1Items.AddRange(kept);
+        if(netWallet>0)
+        {
+            level1Personal=J.Money(level1Personal+netWallet);
+            l1Items.Add(new JsonObject
+            {
+                ["stageCode"]="level1",["itemCode"]="hs_wallet_topup",["amount"]=netWallet,
+                ["affectsNet"]=true,["accountCode"]="112501",["fundingType"]="custody",["debtId"]=""
+            });
+        }
+        return 0m;
+    }
     static bool IsWallet(string code)=>code is "hs_wallet_topup" or "hs_wallet_close" or "hs_wallet";
 }
 
-/// <summary>Chefz: consume Omar RiderAmount only — never recompute gross/commission (M-0704).</summary>
+/// <summary>Chefz: consume Omar RiderAmount only from frozen settlement provenance (M-0704 / RWC4b H9).</summary>
 public sealed class ChefzPayRules:IAppPayRules
 {
     public string AppCode=>"chefz";
@@ -165,6 +216,9 @@ public sealed class ChefzPayRules:IAppPayRules
         decimal riderAmount=J.Money(rider.N("riderAmount"));
         decimal gross=J.Money(rider.N("gross"));
         J.Need(gross==riderAmount,"شيفز: الاستحقاق من RiderAmount لعمر فقط؛ إعادة احتساب الإجمالي ممنوعة.",409);
+        J.Need(rider.B("frozenSettlement"),"شيفز: مطلوب دليل تسوية عمر المجمّد.",409);
+        decimal frozen=J.Money(rider.N("frozenRiderAmount"));
+        J.Need(frozen==riderAmount,"شيفز: RiderAmount لا يطابق التسوية المجمّدة.",409);
     }
     public bool OperatingCostOnCompany(JsonObject rider,JsonObject item)
     {

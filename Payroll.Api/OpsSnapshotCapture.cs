@@ -29,7 +29,7 @@ public static class OpsSnapshotCapture
         ["eligibility"]=["id","erpRiderId","eligible","source"],
         ["keeta_invoice_row"]=["id","erpPlatformAccountId","gross","deductions","orders"],
         ["hs_ops"]=["id","erpPlatformAccountId","orders","workDate"],
-        ["hs_wallet"]=["id","erpRiderId","balance","asOf","fundingType"],
+        ["hs_wallet"]=["id","erpRiderId","balance","asOf","fundingType","amount","eventType","offsetsTopup"],
         ["platform_ops"]=["id","erpPlatformAccountId","orders","workDate"],
         ["chefz_settlement"]=["id","erpRiderId","RiderAmount","GrossEarnings","CompanyAmount"],
         ["jahez_day"]=["id","erpRiderId","platformRiderAccountId","net","commission","orders","workDate"]
