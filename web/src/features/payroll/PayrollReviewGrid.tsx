@@ -275,7 +275,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
     return (
       <div className="flex flex-col items-center justify-center py-16 text-[var(--muted)] space-y-3">
         <Loader2 size={32} className="animate-spin text-[var(--accent)]" />
-        <p className="text-xs">جاري تحميل جدول مراجعة المسير (BR §32)...</p>
+        <p className="text-xs">جاري تحميل جدول مراجعة المسير...</p>
       </div>
     );
   }

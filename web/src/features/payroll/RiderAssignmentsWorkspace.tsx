@@ -321,7 +321,7 @@ export function RiderAssignmentsWorkspace({
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <ArrowRightLeft size={14} />
-            <span>استيراد وتوزيع خيارات المناديب (R4.3)</span>
+            <span>استيراد وتوزيع خيارات المناديب</span>
           </button>
         </div>
       </div>

@@ -381,7 +381,7 @@ function RiderStatementPageInner() {
               <div className="flex items-center justify-between">
                 <div>
                   <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                    كروت استحقاق المنصات الشهرية وتفاصيل الاحتساب (R4.8)
+                    كروت استحقاق المنصات الشهرية وتفاصيل الاحتساب
                   </h3>
                   <p className="text-xs text-[var(--muted)] mt-0.5">
                     مصدر الاحتساب: {monthlyStatement.source === 'pay_cycle' ? 'دورة الرواتب المعتمدة' : 'مسير الرواتب القائم'} · الحالة: {monthlyStatement.status === 'approved' ? 'معتمد' : 'معاينة'}
@@ -398,7 +398,7 @@ function RiderStatementPageInner() {
                   <div className="flex items-center justify-between border-b border-[var(--line)] pb-2">
                     <div>
                       <h4 className="font-bold text-xs sm:text-sm text-[var(--ink)]">
-                        مراحل احتساب الاستقطاعات وصافي الاستحقاق (BR §29)
+                        مراحل احتساب الاستقطاعات وصافي الاستحقاق
                       </h4>
                       <p className="text-[11px] text-[var(--muted)] mt-0.5">
                         التدرج المالي المعتمد لحسم المستحقات من الإجمالي حتى الصافي النهائي.

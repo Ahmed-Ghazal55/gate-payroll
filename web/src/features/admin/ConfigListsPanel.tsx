@@ -234,7 +234,7 @@ export function ConfigListsPanel() {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-[var(--muted)] space-y-3">
         <Loader2 size={32} className="animate-spin text-[var(--accent)]" />
-        <p className="text-xs">جاري تحميل القوائم والإعدادات (BR §27)...</p>
+        <p className="text-xs">جاري تحميل القوائم والإعدادات...</p>
       </div>
     );
   }

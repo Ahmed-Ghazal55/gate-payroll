@@ -2037,7 +2037,7 @@ function PayrollPageInner() {
     { num: 3, title: 'تطبيق الأنظمة الداخلية', desc: 'حساب إجمالي الأجر وفق النظام المعتمد (راتب/عمولة/نسبة) لكل مندوب' },
     { num: 4, title: 'الاستقطاعات والتحملات', desc: 'حسم السلف، المخالفات، المحروقات، باقات النت، والخصومات التشغيلية' },
     { num: 5, title: 'الدمج وتحديد الصافي', desc: 'دمج مستحقات المناديب العاملين على أكثر من تطبيق وفحص الصافي السالب (§22.9.2)' },
-    { num: 6, title: 'مراجعة واعتماد المسير', desc: 'مراجعة أسطر المسير واعتماد المناديب (BR §32) تمهيداً للاعتماد النهائي' },
+    { num: 6, title: 'مراجعة واعتماد المسير', desc: 'مراجعة أسطر المسير واعتماد المناديب تمهيداً للاعتماد النهائي' },
     { num: 7, title: 'ملف الصرف البنكي والترحيل', desc: 'إصدار ملف CSV لصرف الرواتب وترحيل القيود اليومية للدليل المستهدف' },
   ];
 
@@ -3156,7 +3156,7 @@ function PayrollPageInner() {
                     جاهز بلا شروط أهلية وله دورة تصفيات منفصلة
                   </h4>
                   <p className="text-xs text-[var(--muted)] max-w-md mx-auto">
-                    وفق ضوابط نموذج العمل BR §24، تصفيات جاهز مستقلة محاسبياً وتتبع الدورة الميدانية المنفصلة.
+                    وفق ضوابط نموذج العمل المالي، تصفيات جاهز مستقلة محاسبياً وتتبع الدورة الميدانية المنفصلة.
                   </p>
                 </div>
               ) : (
@@ -3991,7 +3991,7 @@ function PayrollPageInner() {
                       <div>
                         <div className="flex items-center gap-2">
                           <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                            مدخلات التشغيل المثبتة للدورة (BR §39.2)
+                            مدخلات التشغيل المثبتة للدورة
                           </h4>
                           <span
                             className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
@@ -4141,7 +4141,7 @@ function PayrollPageInner() {
                       )}
                     </div>
                     <p className="text-xs sm:text-sm text-[var(--muted)] mt-1">
-                      مراحل احتساب الرواتب والمسيرات وفق نموذج العمل المالي المعتمد في BR §24.7
+                      مراحل احتساب الرواتب والمسيرات وفق نموذج العمل المالي المعتمد
                     </p>
                   </div>
                 </div>
@@ -4245,7 +4245,7 @@ function PayrollPageInner() {
                 <div className="flex items-center justify-between border-b border-[var(--line)] pb-2">
                   <div>
                     <h4 className="font-bold text-xs sm:text-sm text-[var(--ink)]">
-                      مراحل احتساب الاستقطاعات الإجمالية للدورة (BR §29)
+                      مراحل احتساب الاستقطاعات الإجمالية للدورة
                     </h4>
                     <p className="text-[11px] text-[var(--muted)] mt-0.5">
                       التدرج المالي لاحتساب المسير: الإجمالي → بعد العمولة → المرحلة 1 → المستحق الأولي → المرحلة 2 → المرحلة 3 → الصافي.
@@ -4329,7 +4329,7 @@ function PayrollPageInner() {
               <div className="flex items-center justify-between">
                 <div>
                   <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                    مراجعة واعتماد المسير (BR §32)
+                    مراجعة واعتماد المسير
                   </h4>
                   <p className="text-xs text-[var(--muted)] mt-0.5">
                     جدول مراجعة استحقاقات المناديب وتعديل الأقساط وتسويات الراتب قبل الترحيل والصرف.
@@ -4844,7 +4844,7 @@ function PayrollPageInner() {
                 سياسات الاحتساب السابقة
               </h3>
               <p className="text-xs text-[var(--muted)] mt-0.5">
-                سجل السياسات التاريخية السابقة قبل الانتقال لمنظومة المنصات الموحدة R4.
+                سجل السياسات التاريخية السابقة قبل الانتقال لمنظومة المنصات الموحدة.
               </p>
             </div>
           </div>
@@ -4857,7 +4857,7 @@ function PayrollPageInner() {
           ) : policies.length === 0 ? (
             <EmptyState
               title="لا توجد سياسات سابقة مسجلة"
-              description="كافة السياسات يتم إدارتها حالياً عبر محرر الأنظمة وقواعد المنصات R4."
+              description="كافة السياسات يتم إدارتها حالياً عبر محرر الأنظمة وقواعد المنصات."
             />
           ) : (
             <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
@@ -4922,7 +4922,7 @@ function PayrollPageInner() {
       <Dialog
         open={assignmentsImportModalOpen}
         onClose={() => setAssignmentsImportModalOpen(false)}
-        title="استيراد وتوزيع خيارات المناديب (R4.3 Scheme Choices)"
+        title="استيراد وتوزيع خيارات المناديب"
         description="ربط خيارات المناديب المسجلة بالنماذج أو الاستبيانات بأنظمة التطبيق المعتمدة دون تعديل الردود الأصلية."
       >
         <div className="space-y-4 pt-2">
@@ -5226,7 +5226,7 @@ function PayrollPageInner() {
             <div>
               <span className="font-bold block">ملاحظة التدقيق والرقابة المالية:</span>
               <p className="mt-0.5 text-[11px] opacity-90 leading-relaxed">
-                يتطلب رفض المسودة إبداء سبب مالي أو تشغيلي واضح لتوثيقه في سجل العمليات (Audit Trail) وإشعار منشئ المسودة.
+                يتطلب رفض المسودة إبداء سبب مالي أو تشغيلي واضح لتوثيقه في سجل العمليات وإشعار منشئ المسودة.
               </p>
             </div>
           </div>
@@ -5733,9 +5733,9 @@ function PayrollPageInner() {
               <span className="text-[var(--muted)]">النوع:</span>
               <span className="font-mono">
                 {rejectSettingKind === 'terms'
-                  ? 'عقد منصة (Parent Terms)'
+                  ? 'عقد منصة'
                   : rejectSettingKind === 'scheme'
-                  ? 'نظام داخلي (Pay Scheme)'
+                  ? 'نظام داخلي'
                   : 'ضوابط أهلية'}
               </span>
             </div>

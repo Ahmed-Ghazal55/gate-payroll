@@ -64,7 +64,7 @@ export function ChefzReviewPanel() {
         </label>
       </div>
       <label className="block text-xs font-semibold space-y-1">
-        <span>مشغّلو الحسابات (JSON)</span>
+        <span>مشغّلو الحسابات</span>
         <textarea value={operatorsJson} onChange={(e) => setOperatorsJson(e.target.value)} rows={4} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] font-mono text-[11px]" placeholder='[{"accountId":"...","rider":"1...","category":"FT","orders":10}]' />
       </label>
       <button type="button" disabled={busy} onClick={run} className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50">
