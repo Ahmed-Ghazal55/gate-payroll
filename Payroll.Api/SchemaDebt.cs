@@ -142,8 +142,16 @@ public static class SchemaDebt
         {
             SchemaSql.Exec(c,tx,$"""
                 IF COL_LENGTH(N'debt.debt',N'platform') IS NULL ALTER TABLE {SchemaSql.Q(c,"debt","debt")} ADD platform {SchemaSql.Varchar(c,20)} NULL;
-                IF EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'debt.debt') AND name=N'CK_debt_debt_status')
-                  ALTER TABLE {SchemaSql.Q(c,"debt","debt")} DROP CONSTRAINT CK_debt_debt_status;
+                """);
+            // Drop named AND unnamed status CHECKs that omit absorbed (legacy upgrades).
+            SchemaSql.Exec(c,tx,$"""
+                DECLARE @sql nvarchar(max)=N'';
+                SELECT @sql=@sql+N'ALTER TABLE {SchemaSql.Q(c,"debt","debt")} DROP CONSTRAINT '+QUOTENAME(cc.name)+N';'
+                FROM sys.check_constraints cc
+                INNER JOIN sys.columns col ON col.object_id=cc.parent_object_id AND col.column_id=cc.parent_column_id
+                WHERE cc.parent_object_id=OBJECT_ID(N'debt.debt') AND col.name=N'status'
+                  AND (cc.name=N'CK_debt_debt_status' OR cc.definition NOT LIKE N'%absorbed%');
+                IF LEN(@sql)>0 EXEC sp_executesql @sql;
                 IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'debt.debt') AND name=N'CK_debt_debt_status')
                   ALTER TABLE {SchemaSql.Q(c,"debt","debt")} ADD CONSTRAINT CK_debt_debt_status CHECK (status IN ('open','settled','waived','absorbed','cancelled','transferred'));
                 """);
@@ -161,30 +169,43 @@ public static class SchemaDebt
 
     static void RebuildSqliteDebtStatus(DbConnection c,DbTransaction? tx)
     {
-        SchemaSql.Exec(c,tx,"""
-            CREATE TABLE debt_debt__absorbed(
-              id TEXT NOT NULL, erp_rider_id TEXT NOT NULL, company_id TEXT NOT NULL,
-              category TEXT NOT NULL, principal REAL NOT NULL CHECK(principal>=0),
-              balance REAL NOT NULL DEFAULT 0 CHECK(balance>=0), instalment REAL NULL CHECK(instalment>=0),
-              status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','waived','absorbed','cancelled','transferred')),
-              platform TEXT NULL,
-              promissory_flag INTEGER NOT NULL DEFAULT 0 CHECK(promissory_flag IN (0,1)),
-              created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT '',
-              row_version BLOB, CONSTRAINT PK_debt_debt_abs PRIMARY KEY(id),
-              CONSTRAINT UQ_debt_company_abs UNIQUE(id,company_id)
-            );
-            """);
-        // Copy known columns; tolerate older shapes missing platform/row_version.
-        var names=new List<string>();
-        using(var cmd=Store.Command(c,tx,"SELECT name FROM pragma_table_info('debt_debt')"))
-        using(var reader=cmd.ExecuteReader())
-            while(reader.Read())names.Add(reader.GetString(0));
-        string[] want=["id","erp_rider_id","company_id","category","principal","balance","instalment","status","platform","promissory_flag","created_by","created_at","row_version"];
-        var present=want.Where(names.Contains).ToArray();
-        string cols=string.Join(",",present);
-        SchemaSql.Exec(c,tx,$"INSERT INTO debt_debt__absorbed({cols}) SELECT {cols} FROM debt_debt");
-        SchemaSql.Exec(c,tx,"DROP TABLE debt_debt");
-        SchemaSql.Exec(c,tx,"ALTER TABLE debt_debt__absorbed RENAME TO debt_debt");
+        // Child FKs and retain DELETE triggers block DROP; disable both for the rebuild.
+        SchemaSql.Exec(c,tx,"PRAGMA foreign_keys=OFF");
+        SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_debt_no_delete");
+        SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_debt_no_replace");
+        SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_balance_INSERT");
+        SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_balance_UPDATE");
+        try
+        {
+            SchemaSql.Exec(c,tx,"""
+                CREATE TABLE debt_debt__absorbed(
+                  id TEXT NOT NULL, erp_rider_id TEXT NOT NULL, company_id TEXT NOT NULL,
+                  category TEXT NOT NULL, principal REAL NOT NULL CHECK(principal>=0),
+                  balance REAL NOT NULL DEFAULT 0 CHECK(balance>=0), instalment REAL NULL CHECK(instalment>=0),
+                  status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','waived','absorbed','cancelled','transferred')),
+                  platform TEXT NULL,
+                  promissory_flag INTEGER NOT NULL DEFAULT 0 CHECK(promissory_flag IN (0,1)),
+                  created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT '',
+                  row_version BLOB, CONSTRAINT PK_debt_debt_abs PRIMARY KEY(id),
+                  CONSTRAINT UQ_debt_company_abs UNIQUE(id,company_id)
+                );
+                """);
+            // Copy known columns; tolerate older shapes missing platform/row_version.
+            var names=new List<string>();
+            using(var cmd=Store.Command(c,tx,"SELECT name FROM pragma_table_info('debt_debt')"))
+            using(var reader=cmd.ExecuteReader())
+                while(reader.Read())names.Add(reader.GetString(0));
+            string[] want=["id","erp_rider_id","company_id","category","principal","balance","instalment","status","platform","promissory_flag","created_by","created_at","row_version"];
+            var present=want.Where(names.Contains).ToArray();
+            string cols=string.Join(",",present);
+            SchemaSql.Exec(c,tx,$"INSERT INTO debt_debt__absorbed({cols}) SELECT {cols} FROM debt_debt");
+            SchemaSql.Exec(c,tx,"DROP TABLE debt_debt");
+            SchemaSql.Exec(c,tx,"ALTER TABLE debt_debt__absorbed RENAME TO debt_debt");
+        }
+        finally
+        {
+            SchemaSql.Exec(c,tx,"PRAGMA foreign_keys=ON");
+        }
     }
 
     static void EnsureBalance(DbConnection c,DbTransaction? tx)
