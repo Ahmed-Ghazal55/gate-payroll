@@ -10,8 +10,8 @@ public static partial class AccessPolicy
     public const string ScopePayApprovals="pay_approvals",ScopeInvoiceApprovals="invoice_approvals";
     public static bool ScopeCovers(string? grantScope,string? needed)
     {
-        if(string.IsNullOrWhiteSpace(needed))return true;
-        if(string.IsNullOrWhiteSpace(grantScope))return false;
+        // WC1H: no wildcard — empty needed never matches; only an explicit matching scope returns true.
+        if(string.IsNullOrWhiteSpace(needed)||string.IsNullOrWhiteSpace(grantScope))return false;
         if(string.Equals(grantScope,needed,StringComparison.OrdinalIgnoreCase))return true;
         // M-0677 / answers: pay approvals (+ invoice on every platform) — not shared-rider or Jahez.
         if(string.Equals(grantScope,ScopePayApprovals,StringComparison.OrdinalIgnoreCase)
