@@ -3,6 +3,10 @@
 import { formatSar } from '../../lib/money';
 import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
 import type { CompanySponsor } from '../../lib/types';
+import {
+  jahezReconciliationStatusLabelAr,
+  jahezTotalsKeyLabelAr,
+} from './jahez-labels';
 
 import React, { useCallback, useEffect, useState } from 'react';
 import { RefreshCw, FilePlus2, Send, CheckCircle2, Scale } from 'lucide-react';
@@ -84,7 +88,7 @@ export function JahezWorkspace() {
   useEffect(() => {
     void loadCompanyOptions().then((list) => {
       setCompanies(list);
-      const first = list[0]?.id || list[0]?.code || '';
+      const first = list[0]?.code || list[0]?.id || '';
       if (first) {
         setCompanyId((prev) => prev || first);
         setSettlement((s) => ({ ...s, sponsorId: s.sponsorId || first }));
@@ -95,7 +99,7 @@ export function JahezWorkspace() {
   }, []);
 
   const companyOptions = companies.map((c) => ({
-    value: c.id || c.code || '',
+    value: c.code || c.id || '',
     label: companyLabel(c),
   }));
 
@@ -299,7 +303,7 @@ export function JahezWorkspace() {
                         {r.period} · {r.companyId}
                       </div>
                       <div className="text-[var(--muted)] mt-0.5">
-                        {r.status} · {r.invoiceReference || r.id}
+                        {jahezReconciliationStatusLabelAr(r.status)} · {r.invoiceReference || r.id}
                       </div>
                     </button>
                   </li>
@@ -314,13 +318,13 @@ export function JahezWorkspace() {
               <>
                 <div className="font-bold font-mono">{selected.id}</div>
                 <div>
-                  الحالة: <b>{selected.status}</b>
+                  الحالة: <b>{jahezReconciliationStatusLabelAr(selected.status)}</b>
                 </div>
                 {selected.totals && (
                   <div className="grid grid-cols-2 gap-2">
                     {Object.entries(selected.totals).map(([k, v]) => (
                       <div key={k} className="p-2 rounded-lg bg-[var(--raised)]/50">
-                        <div className="text-[var(--muted)]">{k}</div>
+                        <div className="text-[var(--muted)]">{jahezTotalsKeyLabelAr(k)}</div>
                         <div className="font-mono font-bold">{formatSar(Number(v))}</div>
                       </div>
                     ))}

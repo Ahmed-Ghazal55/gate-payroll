@@ -53,13 +53,13 @@ export function TreasuryExtrasPanel() {
   useEffect(() => {
     void loadCompanyOptions().then((list) => {
       setCompanies(list);
-      const first = list[0]?.id || list[0]?.code || '';
+      const first = list[0]?.code || list[0]?.id || '';
       if (first) setMadaCompany((prev) => prev || first);
     });
   }, []);
 
   const companyOptions = companies.map((c) => ({
-    value: c.id || c.code || '',
+    value: c.code || c.id || '',
     label: companyLabel(c),
   }));
 
