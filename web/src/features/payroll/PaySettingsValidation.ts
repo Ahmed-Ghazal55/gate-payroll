@@ -7,7 +7,7 @@ import type {
   PaySchemeCreateInput,
   PayTermsCreateInput,
 } from '../../lib/types';
-import { formatReadableValue } from '../../lib/formatRecord';
+import { formatReadableValue } from '../../lib/formatRecord.ts';
 
 function deepEqualValues(a: unknown, b: unknown): boolean {
   if (a === b) return true;
