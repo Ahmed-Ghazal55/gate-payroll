@@ -54,6 +54,12 @@ public static partial class AccessPolicy
         bool Has(string permission)=>AccessPolicy.Has(user,permission);
         if(path is "/api/me" or "/api/roles-catalog")return method=="GET";
         if(path=="/api/me/password")return method=="POST";
+        if(path.StartsWith("/api/auth/2fa",StringComparison.Ordinal))
+        {
+            if(method!="POST")return false;
+            if(path.EndsWith("/reset",StringComparison.Ordinal))return Has("users.manage");
+            return true; // self setup/verify/backup for authenticated users
+        }
         if(path.StartsWith("/api/roles/",StringComparison.Ordinal))return false;
         if(path.StartsWith("/api/config/lists",StringComparison.Ordinal))return method=="GET"||method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return method is "GET" or "POST" or "PUT"&&Has("users.manage"); // Handlers guard escalation and self-edit.

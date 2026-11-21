@@ -126,9 +126,14 @@ app.MapPost("/api/auth/login", async (JsonObject input, HttpContext ctx) =>
             Store.Save(c,"user",current,tx); return true; });
         return Results.Json(ApiErrors.Body(401, "اسم المستخدم أو كلمة المرور غير صحيحة."), statusCode: 401);
     }
+    if (store.Read(c => Auth2faApi.LoginBlocked(c, store.DirectoryPath, user!)))
+        return Results.Json(ApiErrors.Body(403, "يلزم إكمال التحقق الثنائي خلال مهلة الإعداد قبل الدخول."), statusCode: 403);
     var loggedIn = store.Write((c,tx) => {
         var current = Store.Get(c, user!.S("id"), "user", tx)!;
         J.Need(UserAccess.Status(current)=="active", "الحساب غير متاح.");
+        Auth2faApi.StartWindowIfNeeded(c, tx, current);
+        if (Auth2faApi.LoginBlocked(c, store.DirectoryPath, current))
+            throw new ApiError("يلزم إكمال التحقق الثنائي خلال مهلة الإعداد قبل الدخول.", 403);
         current["failedLogins"]=0; current["lockedUntil"]="";
         current["lastLoginAt"]=Now(); Store.Save(c,"user",current,tx); Store.Audit(c,tx,"admin.login",current.S("id"),current.S("username"));return current;
     });
@@ -175,6 +180,7 @@ ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);
 TestSeed.Map(api, store, app.Environment);
 UserAccess.Map(api, store);
+Auth2faApi.Map(api, store);
 AuditApi.Map(api, store);
 AdminSettings.Map(api, store);
 NotifyTasksApi.Map(api, store);
