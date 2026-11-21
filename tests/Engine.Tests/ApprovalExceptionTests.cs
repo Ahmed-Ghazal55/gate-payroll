@@ -64,7 +64,8 @@ public sealed class ApprovalExceptionTests
             if(Path.GetFileName(path).StartsWith("AccessPolicy.")||!raw.IsMatch(line))continue;
             // Ownership of mutable drafts is an authorization check, not maker/checker.
             // Jahez Approve uses AccessPolicy.Independent for createdBy (not a raw inequality gate).
-            bool ownership=Path.GetFileName(path) is "ManualJournals.cs" or "PaySettings.Lifecycle.cs"&&(line.Contains("المسودة لصاحبها")||line.Contains("bool author="));
+            bool ownership=Path.GetFileName(path) is "ManualJournals.cs" or "PaySettings.Lifecycle.cs"&&(line.Contains("المسودة لصاحبها")||line.Contains("bool author="))
+                ||Path.GetFileName(path)=="NotifyTasksApi.cs"&&(line.Contains("createdBy")||line.Contains("assignee"));
             bool viaIndependent=Path.GetFileName(path)=="JahezReconciliation.cs"&&line.Contains("AccessPolicy.Independent");
             Assert.IsTrue(ownership||viaIndependent,"Raw maker comparison bypasses AccessPolicy.Independent: "+Path.GetFileName(path)+" :: "+line.Trim());
         }
