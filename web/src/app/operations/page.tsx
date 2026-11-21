@@ -1,6 +1,7 @@
 'use client';
 
 import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
+import Link from 'next/link';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { Car, Fuel, Home, RefreshCw, Search } from 'lucide-react';
 import {
@@ -406,9 +407,9 @@ function OperationsPageInner() {
                         <bdi className="font-mono">{String(r.iqama || '')}</bdi>
                         <span className="text-[var(--muted)]">{String(r.checkInDate || '')}</span>
                         {r.iqama ? (
-                          <a className="text-[var(--accent)]" href={`/workforce/?tab=360&iqama=${encodeURIComponent(String(r.iqama))}`}>
+                          <Link className="text-[var(--accent)]" href={`/workforce/?tab=360&iqama=${encodeURIComponent(String(r.iqama))}`}>
                             ملف 360
-                          </a>
+                          </Link>
                         ) : null}
                       </li>
                     ))}
