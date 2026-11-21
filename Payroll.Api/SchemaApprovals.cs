@@ -96,6 +96,7 @@ public static class SchemaApprovals
                 """);
         }
         SchemaSql.CreateIndexIfMissing(c,tx,"auth","bypass_grant","IX_auth_bypass_user_id","user_id");
+        SchemaSql.CreateIndexIfMissing(c,tx,"auth","bypass_grant","IX_auth_bypass_granted_by","granted_by");
         SchemaSql.DropIndexIfExists(c,tx,"auth","bypass_grant","UQ_auth_bypass_active_scope");
         EnsureNoBypassOverlap(c,tx);
     }
@@ -171,6 +172,7 @@ public static class SchemaApprovals
         }
         SchemaSql.CreateIndexIfMissing(c,tx,"approvals","request","IX_approvals_request_kind","kind");
         SchemaSql.CreateIndexIfMissing(c,tx,"approvals","request","IX_approvals_request_status","status");
+        SchemaSql.CreateIndexIfMissing(c,tx,"approvals","request","IX_approvals_request_requested_by","requested_by");
     }
 
     static void EnsureDecision(DbConnection c,DbTransaction? tx)
@@ -226,5 +228,7 @@ public static class SchemaApprovals
         }
         SchemaSql.CreateIndexIfMissing(c,tx,"approvals","decision","IX_approvals_decision_request_id","request_id");
         SchemaSql.CreateIndexIfMissing(c,tx,"approvals","decision","IX_approvals_decision_bypass_grant_id","bypass_grant_id");
+        SchemaSql.CreateIndexIfMissing(c,tx,"approvals","decision","IX_approvals_decision_decided_by","decided_by");
+        SchemaSql.CreateIndexIfMissing(c,tx,"approvals","decision","IX_approvals_decision_delegation_id","delegation_id");
     }
 }

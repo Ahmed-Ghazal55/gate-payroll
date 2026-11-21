@@ -16,6 +16,15 @@ public sealed class SchemaApprovalsTests
         Assert.IsTrue(SchemaSql.TableExists(c,null,"auth","approval_limit"));
         Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM auth_bypass_grant"));
         Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM approvals_request"));
+        foreach(string index in new[]{"IX_auth_bypass_granted_by","IX_approvals_request_requested_by","IX_approvals_decision_decided_by","IX_approvals_decision_delegation_id"})
+            Assert.IsTrue(IndexExists(c,index),index);
+    }
+
+    static bool IndexExists(System.Data.Common.DbConnection c,string name)
+    {
+        if(SchemaSql.IsSql(c))
+            return Convert.ToInt32(MoneySchemaFixture.Scalar(c,null,"SELECT CASE WHEN EXISTS(SELECT 1 FROM sys.indexes WHERE name=@n) THEN 1 ELSE 0 END",("@n",name))!)==1;
+        return Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(1) FROM sqlite_master WHERE type='index' AND name=@n",("@n",name))!)>0;
     }
 
     [TestMethod,DataRow(false),DataRow(true)]
