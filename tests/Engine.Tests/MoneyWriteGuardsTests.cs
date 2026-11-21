@@ -91,4 +91,20 @@ public sealed class MoneyWriteGuardsTests
             FinancialCore.CreateJournalLine("3101",company,0,5)),"synthetic",originSponsorId:company,creditorSponsorId:company));
         Assert.IsTrue(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")=="legacy-acct-ok")));
     }
+
+    [TestMethod]
+    public void LegacyPostJournalRejectsStoredDocumentCycleRunModeOne()
+    {
+        using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id;
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,PayCycles.Kind,new(){["id"]="cycle-legacy-sim",["companyId"]=company,["period"]="2026-10",["status"]="approved",["payoutBlocked"]=false,["runMode"]=1},tx);
+            return true;
+        });
+        JsonArray Lines()=>new(
+            FinancialCore.CreateJournalLine("1210",company,10,0),
+            FinancialCore.CreateJournalLine("3101",company,0,10));
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>
+            FinancialCore.PostJournal(c,tx,"opening","Synthetic cycle sim","2026-10","legacy-cycle-sim",Lines(),"synthetic",originSponsorId:company,creditorSponsorId:company))).Status);
+        Assert.IsFalse(f.Store.Read(c=>Store.List(c,"journal").Any(j=>j.S("sourceRef")=="legacy-cycle-sim")));
+    }
 }
