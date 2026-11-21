@@ -129,7 +129,7 @@ export function RiderAssignmentsWorkspace({
           name: r.name || `مندوب (${r.iqama})`,
           sponsor: r.financeSponsorId || r.sponsorId || '—',
           schemeId: '',
-          schemeName: 'بلا تكليف (scheme_assignment_missing)',
+          schemeName: 'بلا تكليف',
           isAssigned: false,
           choiceApprovedAt: '—',
           sourceKind: '—',
@@ -180,8 +180,11 @@ export function RiderAssignmentsWorkspace({
       {
         key: 'rider',
         header: 'إقامة المندوب',
+        type: 'text',
         sortable: true,
         filterable: true,
+        filterType: 'text',
+        getValue: (row) => row.rider || '',
         render: (row) => (
           <span className="font-mono font-bold text-[var(--ink)]">{row.rider}</span>
         ),
@@ -189,15 +192,21 @@ export function RiderAssignmentsWorkspace({
       {
         key: 'name',
         header: 'اسم المندوب',
+        type: 'text',
         sortable: true,
         filterable: true,
+        filterType: 'text',
+        getValue: (row) => row.name || '',
         render: (row) => <span className="font-semibold text-xs">{row.name}</span>,
       },
       {
         key: 'sponsor',
         header: 'الشركة / الكفيل',
+        type: 'list',
         sortable: true,
         filterable: true,
+        filterType: 'list',
+        getValue: (row) => row.sponsor || '',
         render: (row) => (
           <span className="px-2 py-0.5 rounded-md bg-[var(--raised)] text-xs font-mono">
             {row.sponsor}
@@ -207,8 +216,13 @@ export function RiderAssignmentsWorkspace({
       {
         key: 'schemeName',
         header: 'النظام الداخلي المكلف به',
+        type: 'list',
         sortable: true,
         filterable: true,
+        filterType: 'list',
+        getValue: (row) => (row.isAssigned ? row.schemeName : 'unassigned'),
+        labelOf: (v) => (v === 'unassigned' ? 'بلا تكليف (غياب نظام)' : String(v ?? '—')),
+        toneOf: (v) => (v === 'unassigned' ? 'danger' : 'accent'),
         render: (row) => {
           const isAssigned = row.isAssigned;
           return isAssigned ? (
@@ -226,19 +240,28 @@ export function RiderAssignmentsWorkspace({
       {
         key: 'choiceApprovedAt',
         header: 'تاريخ اعتماد الاختيار',
+        type: 'date',
         sortable: true,
+        filterType: 'date',
+        getValue: (row) => row.choiceApprovedAt || '',
         render: (row) => <span className="font-mono text-xs text-[var(--muted)]">{row.choiceApprovedAt}</span>,
       },
       {
         key: 'sourceKind',
         header: 'مصدر الاختيار',
+        type: 'list',
+        filterType: 'list',
+        getValue: (row) => row.sourceKind || '',
         render: (row) => <span className="text-xs text-[var(--muted)]">{row.sourceKind}</span>,
       },
       {
         key: 'status',
         header: 'الحالة',
+        type: 'list',
         sortable: true,
         filterable: true,
+        getValue: (row) => row.status || '',
+        toneOf: (v) => (String(v).includes('مكلف') ? 'success' : 'danger'),
         render: (row) => (
           <span
             className={`px-2 py-0.5 rounded-full text-xs font-bold ${
@@ -298,7 +321,7 @@ export function RiderAssignmentsWorkspace({
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <ArrowRightLeft size={14} />
-            <span>استيراد وتوزيع خيارات المناديب (R4.3)</span>
+            <span>استيراد وتوزيع خيارات المناديب</span>
           </button>
         </div>
       </div>

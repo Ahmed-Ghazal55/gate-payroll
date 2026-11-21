@@ -1,3 +1,4 @@
+import {seedWorkRows} from './work-seed.mjs';
 import {spawn} from 'node:child_process';
 import {mkdtempSync,rmSync,mkdirSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -54,8 +55,8 @@ try {
   // 1. Initial setup
   const password = randomBytes(24).toString('hex');
   assert.equal((await page.request.post(base + '/api/auth/setup', {data: {username: 'finance-views-tester', password}})).status(), 200);
-  await page.goto(base + '/legacy/');
-  await page.getByRole('heading', {name: 'كل مستحق في مكانه'}).waitFor();
+  await page.goto(base + '/app/accounting/?tab=coa');
+  await page.getByRole('heading', {name: /المحاسبة|دليل الحسابات|لوحة القيادة/}).waitFor({timeout: 15000});
 
   // Helper for API setup
   async function apiPost(route, body) {
@@ -108,32 +109,7 @@ try {
     iban
   });
 
-  const csv = `sourceRef,iqama,name,accountId,from,to,orders,platformRevenue,isValid\r\nsynthetic-work,${iqama},Ahmed Test Rider,0000000000000001,2026-10-01,2026-10-31,600,1500,true\r\n`;
-  const upload = await apiPost('/api/imports/inspect', {
-    filename: 'synthetic.csv',
-    dataBase64: Buffer.from(csv).toString('base64')
-  });
-
-  const importSpec = {
-    sheet: 'CSV',
-    period,
-    platform: 'Keeta',
-    headerRow: 1,
-    confirmActualRider: true,
-    mapping: {
-      sourceRef: 0,
-      iqama: 1,
-      name: 2,
-      accountId: 3,
-      from: 4,
-      to: 5,
-      orders: 6,
-      platformRevenue: 7,
-      isValid: 8
-    }
-  };
-  await apiPost(`/api/imports/${upload.id}/preview`, importSpec);
-  await apiPost(`/api/imports/${upload.id}/commit`, importSpec);
+  await seedWorkRows(async (route, body) => apiPost(route, body), [{sourceRef:'synthetic-work',iqama,name:'Ahmed Test Rider',accountId:'0000000000000001',from:'2026-10-01',to:'2026-10-31',orders:600,platformRevenue:1500,isValid:true,platform:'Keeta',period}]);
 
   const previewPay = await (await context.request.get(`${base}/api/payroll/preview?period=${period}`)).json();
   assert.equal(previewPay[0].payable, 1000);
@@ -191,14 +167,14 @@ try {
   await coaTab.click();
   await page.locator('.table-wrap table').waitFor();
 
-  // Verify stats cards: total 418, posting 241, header 177, sources: excel 294 / modified 28 / new 96
+  // Verify stats cards: total 411, posting 235, header 176, sources: excel 294 / modified 28 / new 89
   const statsValues = await page.locator('.stats .stat strong').allInnerTexts();
-  assert.equal(statsValues[0].trim(), '418', 'Total accounts must be 418');
-  assert.equal(statsValues[1].trim(), '241', 'Posting accounts must be 241');
-  assert.equal(statsValues[2].trim(), '177', 'Header accounts must be 177');
+  assert.equal(statsValues[0].trim(), '411', 'Total accounts must be 411');
+  assert.equal(statsValues[1].trim(), '235', 'Posting accounts must be 235');
+  assert.equal(statsValues[2].trim(), '176', 'Header accounts must be 176');
   assert.ok(statsValues[3].includes('294'), 'Excel source count must be 294');
   assert.ok(statsValues[3].includes('28'), 'Modified source count must be 28');
-  assert.ok(statsValues[3].includes('96'), 'New source count must be 96');
+  assert.ok(statsValues[3].includes('89'), 'New source count must be 89');
 
   // Verify source badges: header/posting, nature, type, direction
   const rows = page.locator('tbody tr.coa-row');
@@ -223,7 +199,7 @@ try {
   await searchInput.fill('الصندوق الرئيسي');
   await page.waitForTimeout(100);
   const searchRowCount = await page.locator('tbody tr.coa-row').count();
-  assert.ok(searchRowCount >= 1 && searchRowCount < 418, 'Search filters accounts');
+  assert.ok(searchRowCount >= 1 && searchRowCount < 411, 'Search filters accounts');
   const searchRowTexts = await page.locator('tbody tr.coa-row').allInnerTexts();
   assert.ok(searchRowTexts.some(t => t.includes('الصندوق الرئيسي')), 'Matching account is present');
 

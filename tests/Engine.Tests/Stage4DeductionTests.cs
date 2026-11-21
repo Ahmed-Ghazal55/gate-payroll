@@ -13,13 +13,11 @@ public sealed class Stage4DeductionTests
     }
 
     [TestMethod]
-    public void HsInvoiceCloseUses112513AndCustodyFundingUses112501()
+    public void HsWalletUses112506OpenDecision6()
     {
-        Assert.AreEqual("112513",PipelineSettings.HsWalletAccount());
-        Assert.AreEqual("112513",ConfigLists.DefaultDeductions.Single(d=>d.Category=="HsInvoiceCloseAdvance").Account);
-        Assert.AreEqual("112513",FinanceViews.MapAccount(new(){["accountCode"]="1210"},new(),new(){["category"]="HsInvoiceCloseAdvance"},null,null));
-        Assert.AreEqual("112501",ConfigLists.DefaultDeductions.Single(d=>d.Category=="HsCustodyAdvance").Account);
-        Assert.IsNull(FinanceViews.MapAccount(new(){["accountCode"]="1210"},new(),new(){["category"]="HsWalletTopUp"},null,null));
+        Assert.AreEqual("112506",PipelineSettings.HsWalletAccount());
+        Assert.AreEqual("112506",ConfigLists.DefaultDeductions.Single(d=>d.Category=="HsWalletTopUp").Account);
+        Assert.AreEqual("112506",FinanceViews.MapAccount(new(){["accountCode"]="1210"},new(),new(){["category"]="HsWalletTopUp"},null,null));
     }
 
     [TestMethod]

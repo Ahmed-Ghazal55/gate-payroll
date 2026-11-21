@@ -473,14 +473,14 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/rider-mobile/requests": {
+    "/api/rider-mobile/forms": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Read own advance asks and their stage using the rider bearer session */
+        /** Read unified form schemas and active campaigns for the authenticated rider app */
         get: {
             parameters: {
                 query?: never;
@@ -496,13 +496,89 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": components["schemas"]["JsonObject"];
                     };
                 };
             };
         };
         put?: never;
-        /** Rider asks the current supervisor for a cash or bank advance */
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/forms/{token}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit an open form or campaign from inside the rider app using the authenticated session identity */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read own advance asks and two-way service requests with status timeline and replies */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Rider submits an advance ask or a service request (annual leave, IBAN update, data update, statement, complaint, appointment) */
         post: {
             parameters: {
                 query?: never;
@@ -542,7 +618,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Rider cancels an open advance ask */
+        /** Rider cancels an open advance ask or service request */
         post: {
             parameters: {
                 query?: never;
@@ -553,6 +629,48 @@ export interface paths {
                 cookie?: never;
             };
             requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/requests/{id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Rider sends a reply on an existing request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
             responses: {
                 /** @description OK */
                 200: {
@@ -601,6 +719,46 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["AnonymousTypeOfbooleanAndboolean"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/language": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Switch rider mobile session language (ar, en, ur) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnonymousTypeOfbooleanAndstring"];
                     };
                 };
             };
@@ -666,13 +824,56 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            category?: string;
+                            titleAr: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            bodyAr?: string;
+                            bodyEn?: string;
+                            bodyUr?: string;
+                            targetIqama?: string;
+                            actionUrl?: string;
+                            requiresAck?: boolean;
+                            deliveryChannel?: string;
+                            deliveryStatus?: string;
+                            sentBy?: string;
+                            createdAt: string;
+                            ackCount?: number;
+                            readCount?: number;
+                        }[] | {
+                            items: {
+                                id: string;
+                                kind?: string;
+                                category?: string;
+                                titleAr: string;
+                                titleEn?: string;
+                                titleUr?: string;
+                                bodyAr?: string;
+                                bodyEn?: string;
+                                bodyUr?: string;
+                                targetIqama?: string;
+                                actionUrl?: string;
+                                requiresAck?: boolean;
+                                deliveryChannel?: string;
+                                deliveryStatus?: string;
+                                sentBy?: string;
+                                createdAt: string;
+                                ackCount?: number;
+                                readCount?: number;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -710,13 +911,51 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring"];
+                        "application/json": components["schemas"]["AnonymousTypeOfJsonObjectAndstringAndJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstringAndListOfJsonObjectAndAnonymousTypeOfintAndintAndintAndint"];
                     };
                 };
             };
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/broadcasts/{id}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record rider read receipt for a broadcast or individual notice */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["AnonymousTypeOfbooleanAndstringAndbooleanAndstring"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -754,7 +993,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfbooleanAndstringAndint"];
+                        "application/json": components["schemas"]["AnonymousTypeOfbooleanAndstringAndbooleanAndstringAndstringAndint"];
                     };
                 };
             };
@@ -1326,40 +1565,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/legacy": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Serve legacy administration to a signed-in session */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/notifications": {
         parameters: {
             query?: never;
@@ -1741,42 +1946,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/imports/catalog": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Ordered import steps with template, preview and commit links and the required columns */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["JsonArray"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/imports/templates/{name}": {
         parameters: {
             query?: never;
@@ -1830,13 +1999,80 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            id: string;
+                            sponsorId?: string;
+                            code: string;
+                            nameAr: string;
+                            nameEn?: string;
+                            nameOnCertificateAr?: string;
+                            shortNameAr?: string;
+                            unifiedNumber?: string;
+                            commercialReg?: string;
+                            crNumber?: string;
+                            crType?: string;
+                            entityType?: string;
+                            characteristic?: string;
+                            city?: string;
+                            address?: string;
+                            capitalSar?: number;
+                            crVersion?: number;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            activities?: {
+                                isic: string;
+                                nameAr: string;
+                            }[];
+                            activitiesIncomplete?: boolean;
+                            sponsoredRidersCount?: number;
+                            status: string;
+                            createdAt?: string;
+                            updatedAt?: string;
+                        }[] | {
+                            items: {
+                                id: string;
+                                sponsorId?: string;
+                                code: string;
+                                nameAr: string;
+                                nameEn?: string;
+                                nameOnCertificateAr?: string;
+                                shortNameAr?: string;
+                                unifiedNumber?: string;
+                                commercialReg?: string;
+                                crNumber?: string;
+                                crType?: string;
+                                entityType?: string;
+                                characteristic?: string;
+                                city?: string;
+                                address?: string;
+                                capitalSar?: number;
+                                crVersion?: number;
+                                issueDate?: string;
+                                issueDateHijri?: string;
+                                annualConfirmation?: string;
+                                annualConfirmationHijri?: string;
+                                activities?: {
+                                    isic: string;
+                                    nameAr: string;
+                                }[];
+                                activitiesIncomplete?: boolean;
+                                sponsoredRidersCount?: number;
+                                status: string;
+                                createdAt?: string;
+                                updatedAt?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -1856,17 +2092,137 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            sponsorId?: string;
+                            code: string;
+                            nameAr: string;
+                            nameEn?: string;
+                            nameOnCertificateAr?: string;
+                            shortNameAr?: string;
+                            unifiedNumber?: string;
+                            commercialReg?: string;
+                            crNumber?: string;
+                            crType?: string;
+                            entityType?: string;
+                            characteristic?: string;
+                            city?: string;
+                            address?: string;
+                            capitalSar?: number;
+                            crVersion?: number;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            activities?: {
+                                isic: string;
+                                nameAr: string;
+                            }[];
+                            activitiesIncomplete?: boolean;
+                            sponsoredRidersCount?: number;
+                            status: string;
+                            createdAt?: string;
+                            updatedAt?: string;
+                        };
                     };
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/companies/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live sponsorships and platform-account counts per company within scope */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                companyId: string;
+                                code: string;
+                                nameAr: string;
+                                shortNameAr: string;
+                                unifiedNumber: string;
+                                commercialReg: string;
+                                status: string;
+                                erpLinked: boolean;
+                                sponsorships: {
+                                    total: number;
+                                    riders: number;
+                                    admins: number;
+                                    active: number;
+                                    onLeave: number;
+                                };
+                                platformAccounts: {
+                                    total: number;
+                                    active: number;
+                                    assigned: number;
+                                    byPlatform: {
+                                        code: string;
+                                        nameAr: string;
+                                        total: number;
+                                        active: number;
+                                        assigned: number;
+                                    }[];
+                                };
+                            }[];
+                            totals: {
+                                companiesCount: number;
+                                sponsoredTotal: number;
+                                sponsoredRiders: number;
+                                sponsoredAdmins: number;
+                                sponsoredActive: number;
+                                sponsoredOnLeave: number;
+                                platformAccountsTotal: number;
+                                platformAccountsActive: number;
+                                platformAccountsAssigned: number;
+                                byPlatform: {
+                                    code: string;
+                                    nameAr: string;
+                                    total: number;
+                                    active: number;
+                                    assigned: number;
+                                }[];
+                            };
+                            source: string;
+                            asOf: string;
+                            balancesAvailable: boolean;
+                            balancesNote: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1892,13 +2248,22 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            kind: string;
+                            number?: string;
+                            type?: string;
+                            annualConfirmation?: string;
+                            expiryDate?: string;
+                            status: string;
+                        }[];
                     };
                 };
             };
@@ -1930,13 +2295,44 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            sponsorId?: string;
+                            code: string;
+                            nameAr: string;
+                            nameEn?: string;
+                            nameOnCertificateAr?: string;
+                            shortNameAr?: string;
+                            unifiedNumber?: string;
+                            commercialReg?: string;
+                            crNumber?: string;
+                            crType?: string;
+                            entityType?: string;
+                            characteristic?: string;
+                            city?: string;
+                            address?: string;
+                            capitalSar?: number;
+                            crVersion?: number;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            activities?: {
+                                isic: string;
+                                nameAr: string;
+                            }[];
+                            activitiesIncomplete?: boolean;
+                            sponsoredRidersCount?: number;
+                            status: string;
+                            createdAt?: string;
+                            updatedAt?: string;
+                        };
                     };
                 };
             };
@@ -1957,13 +2353,44 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            sponsorId?: string;
+                            code: string;
+                            nameAr: string;
+                            nameEn?: string;
+                            nameOnCertificateAr?: string;
+                            shortNameAr?: string;
+                            unifiedNumber?: string;
+                            commercialReg?: string;
+                            crNumber?: string;
+                            crType?: string;
+                            entityType?: string;
+                            characteristic?: string;
+                            city?: string;
+                            address?: string;
+                            capitalSar?: number;
+                            crVersion?: number;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            activities?: {
+                                isic: string;
+                                nameAr: string;
+                            }[];
+                            activitiesIncomplete?: boolean;
+                            sponsoredRidersCount?: number;
+                            status: string;
+                            createdAt?: string;
+                            updatedAt?: string;
+                        };
                     };
                 };
             };
@@ -1997,6 +2424,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/companies/{id}/stats": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live sponsorships and platform-account counts for one company within scope */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            item: {
+                                companyId: string;
+                                code: string;
+                                nameAr: string;
+                                shortNameAr: string;
+                                unifiedNumber: string;
+                                commercialReg: string;
+                                status: string;
+                                erpLinked: boolean;
+                                sponsorships: {
+                                    total: number;
+                                    riders: number;
+                                    admins: number;
+                                    active: number;
+                                    onLeave: number;
+                                };
+                                platformAccounts: {
+                                    total: number;
+                                    active: number;
+                                    assigned: number;
+                                    byPlatform: {
+                                        code: string;
+                                        nameAr: string;
+                                        total: number;
+                                        active: number;
+                                        assigned: number;
+                                    }[];
+                                };
+                            };
+                            source: string;
+                            asOf: string;
+                            balancesAvailable: boolean;
+                            balancesNote: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/companies/{id}/registrations": {
         parameters: {
             query?: never;
@@ -2016,13 +2516,27 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            company?: string;
+                            number: string;
+                            city?: string;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            expiryDate?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            crVersion?: number;
+                            status: string;
+                            createdAt?: string;
+                        }[];
                     };
                 };
             };
@@ -2044,13 +2558,27 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            company?: string;
+                            number: string;
+                            city?: string;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            expiryDate?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            crVersion?: number;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -2081,13 +2609,27 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            company?: string;
+                            number: string;
+                            city?: string;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            expiryDate?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            crVersion?: number;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -2109,13 +2651,27 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            company?: string;
+                            number: string;
+                            city?: string;
+                            issueDate?: string;
+                            issueDateHijri?: string;
+                            expiryDate?: string;
+                            annualConfirmation?: string;
+                            annualConfirmationHijri?: string;
+                            crVersion?: number;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -2169,13 +2725,25 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            type: string;
+                            number?: string;
+                            expiryDate?: string;
+                            fileName?: string;
+                            fileRelativePath?: string;
+                            file?: string;
+                            contentType?: string;
+                            status: string;
+                            createdAt?: string;
+                        }[];
                     };
                 };
             };
@@ -2197,13 +2765,25 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            type: string;
+                            number?: string;
+                            expiryDate?: string;
+                            fileName?: string;
+                            fileRelativePath?: string;
+                            file?: string;
+                            contentType?: string;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -2234,13 +2814,25 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            type: string;
+                            number?: string;
+                            expiryDate?: string;
+                            fileName?: string;
+                            fileRelativePath?: string;
+                            file?: string;
+                            contentType?: string;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -2262,13 +2854,25 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            companyId: string;
+                            type: string;
+                            number?: string;
+                            expiryDate?: string;
+                            fileName?: string;
+                            fileRelativePath?: string;
+                            file?: string;
+                            contentType?: string;
+                            status: string;
+                            createdAt?: string;
+                        };
                     };
                 };
             };
@@ -5235,13 +5839,28 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            rows: Record<string, never>[];
+                            fingerprint: string;
+                            counts: {
+                                company: {
+                                    new: number;
+                                    changed: number;
+                                    unchanged: number;
+                                };
+                                commercial_registration: {
+                                    new: number;
+                                    changed: number;
+                                    unchanged: number;
+                                };
+                            };
+                        };
                     };
                 };
             };
@@ -5833,7 +6452,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndboolean"];
+                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray"];
                     };
                 };
             };
@@ -7940,6 +8559,1525 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/operations/cities-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per operating city live summary (O3) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                code?: string;
+                                nameAr?: string;
+                                nameEn?: string;
+                                status?: string;
+                                activeRegistrations?: number;
+                                registrationNames?: string;
+                                vehiclesCars?: number;
+                                vehiclesMotorbikes?: number;
+                                vehiclesTotal?: number;
+                                ridersTotal?: number;
+                                appsWorking?: string;
+                                accountsTotal?: number;
+                                accountsActive?: number;
+                                accountsAssigned?: number;
+                                byRegistration?: Record<string, never>[];
+                                byApp?: Record<string, never>[];
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/cities/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Operating city detail split by registration and app (O3) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            code?: string;
+                            nameAr?: string;
+                            status?: string;
+                            byRegistration?: Record<string, never>[];
+                            byApp?: Record<string, never>[];
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/housing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Housing list with occupancy KPIs (O4) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                code?: string;
+                                nameAr: string;
+                                city?: string;
+                                cityCode?: string;
+                                roomsCount?: number;
+                                capacity?: number;
+                                residentsTotal?: number;
+                                ridersPerRoom?: number;
+                                status?: string;
+                                supervisor?: null | string;
+                                supervisorSource?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/housing/{id}/rooms": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Housing rooms and residents (O4) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            nameAr?: string;
+                            code?: string;
+                            status?: string;
+                            city?: string;
+                            supervisor?: null | string;
+                            supervisorSource?: string;
+                            rooms?: {
+                                id: string;
+                                name?: string;
+                                capacity?: number;
+                                currentOccupancy?: number;
+                                residents?: {
+                                    employeeId?: string;
+                                    nameAr?: string;
+                                    iqama?: string;
+                                    checkInDate?: string;
+                                }[];
+                            }[];
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/period-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Vehicle/rider period report (O5) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                assetNumber?: string;
+                                plateNumberAr?: string;
+                                vehicleType?: string;
+                                city?: string;
+                                riderNameAr?: string;
+                                iqama?: string;
+                                vehicleId?: string;
+                                operatingDays?: number;
+                                sparePartsCost?: number;
+                                amountToCollect?: number;
+                                oilChangesCount?: number;
+                                oilChangesCost?: number;
+                                oilMileage?: number;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/purchase-invoices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Vehicle purchase receipts (O5) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                receiptNumber?: string;
+                                supplierInvoiceNumber?: string;
+                                invoiceDate?: string;
+                                receivedAt?: string;
+                                subtotal?: number;
+                                taxAmount?: number;
+                                totalAmount?: number;
+                                status?: string;
+                                supplierNameAr?: string;
+                                lines?: Record<string, never>[];
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/purchase-invoices/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Purchase receipt lines (O5) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            receiptNumber?: string;
+                            lines?: Record<string, never>[];
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/oil-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Oil changes in period (M9) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                vehicleId?: string;
+                                plateNumberAr?: string;
+                                assetNumber?: string;
+                                vehicleType?: string;
+                                performedAt?: string;
+                                odometer?: number;
+                                oilLiters?: number;
+                                oilCost?: number;
+                                filterCost?: number;
+                                laborCost?: number;
+                                otherCost?: number;
+                                totalCost?: number;
+                                notes?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/{id}/oil-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Oil changes for a vehicle (O5) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                vehicleId?: string;
+                                plateNumberAr?: string;
+                                assetNumber?: string;
+                                vehicleType?: string;
+                                performedAt?: string;
+                                odometer?: number;
+                                oilLiters?: number;
+                                oilCost?: number;
+                                filterCost?: number;
+                                laborCost?: number;
+                                otherCost?: number;
+                                totalCost?: number;
+                                notes?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Vehicle details drawer including VIN (O5) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            assetNumber?: string;
+                            serialNumber?: string;
+                            plateNumberAr?: string;
+                            plateNumberEn?: string;
+                            vin?: string;
+                            chassisNumber?: string;
+                            vehicleType?: string;
+                            modelYear?: string;
+                            currentOdometer?: number;
+                            status?: string;
+                            sponsorNameAr?: string;
+                            city?: string;
+                            assignmentHistory?: Record<string, never>[];
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/fuel-cards": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fuel cards and monthly usage (O6) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                cardNumber?: string;
+                                provider?: string;
+                                providerNameAr?: string;
+                                cardName?: string;
+                                cardNotes?: string;
+                                plateNumber?: string;
+                                riderNameAr?: string;
+                                iqama?: string;
+                                liters?: number;
+                                amountBeforeTax?: number;
+                                vat?: number;
+                                totalInclVat?: number;
+                                transactionCount?: number;
+                                fuelType?: string;
+                                cap?: number;
+                                capSource?: string;
+                                status?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/fuel-cards/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fuel card hand-over log (O6) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                cardNumber?: string;
+                                provider?: string;
+                                providerNameAr?: string;
+                                cardName?: string;
+                                cardNotes?: string;
+                                plateNumber?: string;
+                                riderNameAr?: string;
+                                iqama?: string;
+                                effectiveFrom?: string;
+                                effectiveTo?: string;
+                                assignmentReason?: string;
+                                endReason?: string;
+                            }[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/cities-summary/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export cities summary */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/housing/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export housing list */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/period-report/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export vehicles period report */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/oil-changes/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export vehicle oil changes */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/vehicles/purchase-invoices/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export vehicle purchase invoices */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/fuel-cards/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export fuel cards */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/fuel-log/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export fuel card assignment log */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/operations/distinct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Distinct column values for operations table filters */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            column: string;
+                            values: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/ninja/live/daily-performance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja daily performance per account and day with coverage (L1) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                reportDate: string;
+                                captainId: string;
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                riderProfileId: string;
+                                riderClientAssignmentId?: string;
+                                sourceId?: string;
+                                sourceRowNumber?: number;
+                                orders?: number;
+                                hours?: number;
+                                ownerUnifiedNumber?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                requestedFrom: string;
+                                requestedTo: string;
+                                firstDay: string;
+                                lastDay: string;
+                                total: number;
+                                hasGapAtPeriodEnd: boolean;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/ninja/live/daily-deductions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja daily deductions per actual rider of each day with coverage (L1) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                reportDate: string;
+                                captainId: string;
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                actualRiderProfileId: string;
+                                riderClientAssignmentId?: string;
+                                sourceId?: string;
+                                sourceRowNumber?: number;
+                                collectedAmount?: number;
+                                deductionsAmount?: number;
+                                ownerUnifiedNumber?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                requestedFrom: string;
+                                requestedTo: string;
+                                firstDay: string;
+                                lastDay: string;
+                                total: number;
+                                hasGapAtPeriodEnd: boolean;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/ninja/live/payment-methods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja account payment method / pay scheme from Omar (L1 / U-W2-14) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                accountStatus?: string;
+                                accountPaymentModel?: string;
+                                assignmentPaymentModel?: string;
+                                payScheme: string;
+                                ownerEmployeeId?: string;
+                                ownerUnifiedNumber: string;
+                                openAssignmentId?: string;
+                                openActualRiderProfileId?: string;
+                                ninjaRiderType?: string;
+                                openEffectiveFrom?: string;
+                                openEffectiveTo?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                total: number;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/ninja/live/account-bearers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live Ninja account owner vs actual rider periods with holder dates (L1 / U-W2-12/13) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                assignmentId: string;
+                                platformRiderAccountId: string;
+                                externalAccountId: string;
+                                accountCode?: string;
+                                owningSponsorId?: string;
+                                owningUnifiedNumber: string;
+                                ownerEmployeeId: string;
+                                ownerRiderProfileId?: string;
+                                actualRiderProfileId: string;
+                                holderRiderProfileId?: string;
+                                effectiveFrom: string;
+                                effectiveTo?: string;
+                                assignmentPaymentModel?: string;
+                                assignmentStatus?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            coverage: {
+                                total: number;
+                                requestedFrom: string;
+                                requestedTo: string;
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/sources/fuel-consumption": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** L1 fuel consumption per rider/card/period (Omar live, facts only) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/sources/vehicle-assignment-periods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** L1 vehicle assignment periods per rider (Omar live, facts only) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/sources/housing-periods": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** L1 housing residence periods per rider (Omar live, facts only) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/sources/keeta-eligibility": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Keeta expected eligibility result per user/period (Omar live; not approval) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/sources/hs-stamp-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** HungerStation WalletPending queue and stamped financial events (read side) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            summary?: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                            mode?: string;
+                            from?: string;
+                            to?: string;
+                            month?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/operations/{kind}": {
         parameters: {
             query?: never;
@@ -8526,6 +10664,556 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/workforce": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Paged workforce directory (live ERP when configured) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                iqama: string;
+                                name: string;
+                                phone?: string;
+                                nationality?: string;
+                                iban?: string;
+                                ibanAlert?: string;
+                                ibanSource?: string;
+                                engagementType?: string;
+                                status?: string;
+                                sponsorNameAr?: string;
+                                sponsor?: string;
+                                platform?: string;
+                                platforms?: string;
+                                platformWorkId?: string;
+                                city?: string;
+                                workType?: string;
+                                mudadSalary?: string;
+                                jobTitle?: string;
+                                hasCompanyVehicle?: boolean;
+                                companyVehicleType?: string;
+                                operationalRole?: string;
+                                housing?: string;
+                                allowedActions?: string[];
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            summary?: {
+                                totalCount: number;
+                                sponsoredCount: number;
+                                sponsoredRiders: number;
+                                sponsoredAdmins: number;
+                                sponsoredMissingIban: number;
+                                byCompany?: {
+                                    sponsorUnified: string;
+                                    sponsorNameAr: string;
+                                    totalCount: number;
+                                }[];
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** KPI counts for workforce filter cards */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            summary: {
+                                totalCount: number;
+                                sponsoredCount: number;
+                                sponsoredRiders: number;
+                                sponsoredAdmins: number;
+                                sponsoredMissingIban: number;
+                                byCompany?: {
+                                    sponsorUnified: string;
+                                    sponsorNameAr: string;
+                                    totalCount: number;
+                                }[];
+                            };
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/distinct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Distinct column values for workforce table filters */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            column: string;
+                            values: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Server-side Excel export of workforce rows (H21) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/{id}/360": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reduced workforce 360 (H6) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            person: {
+                                id: string;
+                                iqama: string;
+                                name: string;
+                                phone?: string;
+                                nationality?: string;
+                                iban?: string;
+                                ibanAlert?: string;
+                                ibanSource?: string;
+                                engagementType?: string;
+                                status?: string;
+                                sponsorNameAr?: string;
+                                sponsor?: string;
+                                platform?: string;
+                                platforms?: string;
+                                platformWorkId?: string;
+                                city?: string;
+                                workType?: string;
+                                mudadSalary?: string;
+                                jobTitle?: string;
+                                hasCompanyVehicle?: boolean;
+                                companyVehicleType?: string;
+                                operationalRole?: string;
+                                housing?: string;
+                                allowedActions?: string[];
+                            };
+                            workRecord3Months: Record<string, never>[];
+                            financialEvaluation: Record<string, never>;
+                            iqamaImage: Record<string, never>;
+                            ibanImage?: Record<string, never>;
+                            promissoryNotes: Record<string, never>[];
+                            platformAccounts: Record<string, never>[];
+                            legalCases?: Record<string, never>[];
+                            financialPosition: Record<string, never>;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/saudi-payroll-employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Omar GOSI payroll employees (H10) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/terminated": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Terminated and fleeing people (H11) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/absence-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Absence compliance cases (H11) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/legal-cases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** HR legal cases (H11/H20) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/workforce/data-quality": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Workforce data-quality issues from live or store */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/hr-catalogs/{kind}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live HR catalogs from Omar ERP (H9) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: Record<string, never>[];
+                            total: number;
+                            page?: number;
+                            pageSize?: number;
+                            source: string;
+                            asOf: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/finance/statement/rider/{iqama}/monthly": {
         parameters: {
             query?: never;
@@ -8569,6 +11257,9 @@ export interface paths {
                             closing: number;
                             balanceBasis?: string;
                             approvedOnly?: boolean;
+                            closingMarkerAr?: string;
+                            disclaimerAr?: string;
+                            shortLines?: Record<string, never>[];
                             cards: {
                                 app: string;
                                 platform?: string;
@@ -9136,13 +11827,60 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            id: string;
+                            campaignId: string;
+                            campaignTitle?: string;
+                            name?: string;
+                            iqama: string;
+                            phone?: string;
+                            city?: string;
+                            workSystem?: string;
+                            iban?: string;
+                            bank?: string;
+                            bankCode?: string;
+                            platforms?: string[];
+                            status: string;
+                            isEdited?: boolean;
+                            version?: number;
+                            createdAt: string;
+                            updatedAt?: string;
+                            reviewedAt?: string;
+                            reviewNote?: string;
+                            history?: Record<string, never>[];
+                        }[] | {
+                            items: {
+                                id: string;
+                                campaignId: string;
+                                campaignTitle?: string;
+                                name?: string;
+                                iqama: string;
+                                phone?: string;
+                                city?: string;
+                                workSystem?: string;
+                                iban?: string;
+                                bank?: string;
+                                bankCode?: string;
+                                platforms?: string[];
+                                status: string;
+                                isEdited?: boolean;
+                                version?: number;
+                                createdAt: string;
+                                updatedAt?: string;
+                                reviewedAt?: string;
+                                reviewNote?: string;
+                                history?: Record<string, never>[];
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -9436,7 +12174,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List every dated self-approval exception use for pre-launch review */
+        /** Self-approval audit report (dated exceptions and bypass uses) */
         get: {
             parameters: {
                 query?: never;
@@ -9512,7 +12250,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -9558,7 +12301,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -9620,7 +12368,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -9680,7 +12433,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -9825,7 +12583,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -9887,7 +12650,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -9912,16 +12680,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Data-change audit log (no read events; ?page= wraps items) */
+        /** Read audit (always paged) */
         get: {
             parameters: {
-                query?: {
-                    from?: string;
-                    to?: string;
-                    userId?: string;
-                    entityType?: string;
-                    action?: string;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -9934,7 +12696,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": unknown;
                     };
                 };
             };
@@ -10193,7 +12955,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List operational tasks */
+        /** List operational tasks in company/assignment scope */
         get: {
             parameters: {
                 query?: {
@@ -10388,42 +13150,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/riders/enrich-missing": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit riders enrich missing */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfintAndintAndint"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/riders/data-quality": {
         parameters: {
             query?: never;
@@ -10467,7 +13193,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read riders {iqama} profile 360 */
+        /** Read reduced riders {iqama} profile 360 (H6) */
         get: {
             parameters: {
                 query?: never;
@@ -10485,87 +13211,8 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfJsonObjectAndListOfAnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAndintAndintAndListOfJsonObject"];
+                        "application/json": components["schemas"]["AnonymousTypeOfJsonObjectAndJsonObjectAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndintAndstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndObject[]AndObject[]AndAnonymousTypeOfintAnddecimalAndstringAndstringAndObject[]AndintAndintAnddecimalAndintAndintAndObject[]AndString[]"];
                     };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/riders/{iqama}/documents": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit riders {iqama} documents */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    iqama: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["JsonObject"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["JsonObject"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/riders/{iqama}/documents/{id}/download": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read riders {iqama} documents {id} download */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    iqama: string;
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content?: never;
                 };
             };
         };
@@ -10584,15 +13231,10 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read debts */
+        /** Read debts (array without page; paged envelope when page is set) */
         get: {
             parameters: {
-                query?: {
-                    sponsorId?: string;
-                    category?: string;
-                    status?: string;
-                    iqama?: string;
-                };
+                query?: never;
                 header?: never;
                 path?: never;
                 cookie?: never;
@@ -10686,6 +13328,129 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/debts/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Scoped debt totals for stat cards (SQL aggregates) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            totalCount: number;
+                            activeRemainingTotal: number;
+                            advanceRemainingTotal: number;
+                            pendingOpeningCount: number;
+                            pendingOpeningTotal: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/distinct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Distinct column values for debts table filters */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            column: string;
+                            values: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/settlements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read debts settlements
+         * @deprecated
+         */
+        get: {
+            parameters: {
+                query?: {
+                    debtId?: string;
+                    iqama?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"][];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/debts/{id}": {
         parameters: {
             query?: never;
@@ -10769,48 +13534,6 @@ export interface paths {
                 };
             };
         };
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/debts/settlements": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Read debts settlements
-         * @deprecated
-         */
-        get: {
-            parameters: {
-                query?: {
-                    debtId?: string;
-                    iqama?: string;
-                };
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["JsonObject"][];
-                    };
-                };
-            };
-        };
-        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -11267,13 +13990,40 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": unknown;
+                        "application/json": {
+                            id: string;
+                            iqama: string;
+                            riderName?: string;
+                            language?: string;
+                            status: string;
+                            createdAt?: string;
+                            lastSeenAt?: string;
+                            expiresAtUtc?: string;
+                            deviceFingerprint?: string;
+                            fcmRegistered?: boolean;
+                        }[] | {
+                            items: {
+                                id: string;
+                                iqama: string;
+                                riderName?: string;
+                                language?: string;
+                                status: string;
+                                createdAt?: string;
+                                lastSeenAt?: string;
+                                expiresAtUtc?: string;
+                                deviceFingerprint?: string;
+                                fcmRegistered?: boolean;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -11360,6 +14110,431 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["AnonymousTypeOfint"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/service-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List rider service requests within caller scope, hiding confidential complaints from unauthorized staff */
+        get: {
+            parameters: {
+                query?: {
+                    requestType?: string;
+                    status?: string;
+                    iqama?: string;
+                    group?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            requestType: string;
+                            direction?: string;
+                            riderIqama: string;
+                            riderName?: string;
+                            companyId?: string;
+                            titleAr?: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            reason?: string;
+                            status: string;
+                            approvalStage?: string;
+                            requiresSecondApprover?: boolean;
+                            confidential?: boolean;
+                            payload?: Record<string, never>;
+                            timeline?: {
+                                at: string;
+                                status: string;
+                                labelAr?: string;
+                                note?: string;
+                                byRole?: string;
+                            }[];
+                            replies?: {
+                                id: string;
+                                senderRole: string;
+                                senderName?: string;
+                                message: string;
+                                createdAt?: string;
+                            }[];
+                            note?: string;
+                            createdBy?: string;
+                            decidedBy?: string;
+                            decidedAt?: string;
+                            createdAt: string;
+                            updatedAt?: string;
+                            allowedActions?: string[];
+                        }[] | {
+                            items: {
+                                id: string;
+                                requestType: string;
+                                direction?: string;
+                                riderIqama: string;
+                                riderName?: string;
+                                companyId?: string;
+                                titleAr?: string;
+                                titleEn?: string;
+                                titleUr?: string;
+                                reason?: string;
+                                status: string;
+                                approvalStage?: string;
+                                requiresSecondApprover?: boolean;
+                                confidential?: boolean;
+                                payload?: Record<string, never>;
+                                timeline?: {
+                                    at: string;
+                                    status: string;
+                                    labelAr?: string;
+                                    note?: string;
+                                    byRole?: string;
+                                }[];
+                                replies?: {
+                                    id: string;
+                                    senderRole: string;
+                                    senderName?: string;
+                                    message: string;
+                                    createdAt?: string;
+                                }[];
+                                note?: string;
+                                createdBy?: string;
+                                decidedBy?: string;
+                                decidedAt?: string;
+                                createdAt: string;
+                                updatedAt?: string;
+                                allowedActions?: string[];
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Admin or staff sends a two-way service request to a rider */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            requestType: string;
+                            direction?: string;
+                            riderIqama: string;
+                            riderName?: string;
+                            companyId?: string;
+                            titleAr?: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            reason?: string;
+                            status: string;
+                            approvalStage?: string;
+                            requiresSecondApprover?: boolean;
+                            confidential?: boolean;
+                            payload?: Record<string, never>;
+                            timeline?: {
+                                at: string;
+                                status: string;
+                                labelAr?: string;
+                                note?: string;
+                                byRole?: string;
+                            }[];
+                            replies?: {
+                                id: string;
+                                senderRole: string;
+                                senderName?: string;
+                                message: string;
+                                createdAt?: string;
+                            }[];
+                            note?: string;
+                            createdBy?: string;
+                            decidedBy?: string;
+                            decidedAt?: string;
+                            createdAt: string;
+                            updatedAt?: string;
+                            allowedActions?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/service-requests/distinct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Distinct column values for rider service requests table filters */
+        get: {
+            parameters: {
+                query?: {
+                    requestType?: string;
+                    status?: string;
+                    iqama?: string;
+                    group?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            column: string;
+                            values: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/service-requests/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Counts for the rider-app requests tab within caller scope */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            open: number;
+                            annualLeaveOpen: number;
+                            appointmentsOpen: number;
+                            doneThisMonth: number;
+                            total: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/service-requests/{id}/decide": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve (with second-approver enforcement for IBAN/data), reject, or request info on a rider service request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            requestType: string;
+                            direction?: string;
+                            riderIqama: string;
+                            riderName?: string;
+                            companyId?: string;
+                            titleAr?: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            reason?: string;
+                            status: string;
+                            approvalStage?: string;
+                            requiresSecondApprover?: boolean;
+                            confidential?: boolean;
+                            payload?: Record<string, never>;
+                            timeline?: {
+                                at: string;
+                                status: string;
+                                labelAr?: string;
+                                note?: string;
+                                byRole?: string;
+                            }[];
+                            replies?: {
+                                id: string;
+                                senderRole: string;
+                                senderName?: string;
+                                message: string;
+                                createdAt?: string;
+                            }[];
+                            note?: string;
+                            createdBy?: string;
+                            decidedBy?: string;
+                            decidedAt?: string;
+                            createdAt: string;
+                            updatedAt?: string;
+                            allowedActions?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/service-requests/{id}/reply": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Staff replies to a rider service request and notifies the rider via FCM */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            requestType: string;
+                            direction?: string;
+                            riderIqama: string;
+                            riderName?: string;
+                            companyId?: string;
+                            titleAr?: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            reason?: string;
+                            status: string;
+                            approvalStage?: string;
+                            requiresSecondApprover?: boolean;
+                            confidential?: boolean;
+                            payload?: Record<string, never>;
+                            timeline?: {
+                                at: string;
+                                status: string;
+                                labelAr?: string;
+                                note?: string;
+                                byRole?: string;
+                            }[];
+                            replies?: {
+                                id: string;
+                                senderRole: string;
+                                senderName?: string;
+                                message: string;
+                                createdAt?: string;
+                            }[];
+                            note?: string;
+                            createdBy?: string;
+                            decidedBy?: string;
+                            decidedAt?: string;
+                            createdAt: string;
+                            updatedAt?: string;
+                            allowedActions?: string[];
+                        };
                     };
                 };
             };
@@ -11492,6 +14667,53 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/rider-mobile/statements/notify-period": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Enqueue batched statement-ready notifications for riders with approved statements in a period */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            ok: boolean;
+                            period: string;
+                            notifiedRidersCount: number;
+                            enqueuedPushCount: number;
+                            skippedAlreadyNotifiedCount: number;
+                            batchSize?: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/finance/sponsors": {
         parameters: {
             query?: never;
@@ -11599,7 +14821,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean"];
+                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndbooleanAndJsonArray"];
                     };
                 };
             };
@@ -12019,7 +15241,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit rider mobile broadcast */
+        /** Submit rider mobile broadcast or individual notice */
         post: {
             parameters: {
                 query?: never;
@@ -12033,17 +15255,75 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            category?: string;
+                            titleAr: string;
+                            titleEn?: string;
+                            titleUr?: string;
+                            bodyAr?: string;
+                            bodyEn?: string;
+                            bodyUr?: string;
+                            targetIqama?: string;
+                            actionUrl?: string;
+                            requiresAck?: boolean;
+                            deliveryChannel?: string;
+                            deliveryStatus?: string;
+                            sentBy?: string;
+                            createdAt: string;
+                            ackCount?: number;
+                            readCount?: number;
+                        };
                     };
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/broadcasts/distinct": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Distinct column values for rider mobile broadcasts table filters */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            column: string;
+                            values: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -12067,13 +15347,29 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndbooleanAndstringAndstringAndintAndintAndintAndintAndintAndstring"];
+                        "application/json": {
+                            projectId?: string;
+                            senderId?: string;
+                            androidPackageName?: string;
+                            googlePlayUrl?: string;
+                            hasServiceAccountJson: boolean;
+                            legacyStoredKey?: boolean;
+                            configured: boolean;
+                            webMobilePortalUrl?: string;
+                            inquiryPortalUrl?: string;
+                            activeSessionsCount: number;
+                            fcmRegisteredDevicesCount: number;
+                            outboxSentCount: number;
+                            outboxFailedCount: number;
+                            outboxPendingCount: number;
+                            updatedAt?: string;
+                        };
                     };
                 };
             };
@@ -12243,6 +15539,62 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/system/maintenance/rider-indexes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read rider index maintenance status with allowedActions */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Start rider index maintenance one index at a time */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -14041,13 +17393,34 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            titleAr: string;
+                            status: string;
+                            fields?: Record<string, never>[];
+                            createdAt?: string;
+                            updatedAt?: string;
+                            publicUrl?: string;
+                        }[] | {
+                            items: {
+                                id: string;
+                                titleAr: string;
+                                status: string;
+                                fields?: Record<string, never>[];
+                                createdAt?: string;
+                                updatedAt?: string;
+                                publicUrl?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -14283,13 +17656,34 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            campaignId: string;
+                            campaignTitle?: string;
+                            name?: string;
+                            iqama: string;
+                            phone?: string;
+                            city?: string;
+                            workSystem?: string;
+                            iban?: string;
+                            bank?: string;
+                            bankCode?: string;
+                            platforms?: string[];
+                            status: string;
+                            isEdited?: boolean;
+                            version?: number;
+                            createdAt: string;
+                            updatedAt?: string;
+                            reviewedAt?: string;
+                            reviewNote?: string;
+                            history?: Record<string, never>[];
+                        };
                     };
                 };
             };
@@ -14363,13 +17757,19 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstring"];
+                        "application/json": {
+                            iqama: string;
+                            scope: string;
+                            code: string;
+                            expiresAt: string;
+                            url: string;
+                        };
                     };
                 };
             };
@@ -14417,7 +17817,12 @@ export interface paths {
                             mustChangePassword?: boolean;
                             customPermissions?: string[];
                             deniedPermissions?: string[];
-                            financialScope?: Record<string, never>;
+                            financialScope?: {
+                                sponsorIds: string[];
+                                accountCodes: string[];
+                                platforms: string[];
+                                categoryCodes: string[];
+                            };
                             createdAt?: string;
                             lastLoginAt?: string;
                             approvalExceptionUntil: string;
@@ -14641,171 +18046,6 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["JsonObject"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/imports/inspect": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit imports inspect */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["JsonObject"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndIEnumerableOfAnonymousTypeOfstringAndintAndint"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/imports/{id}/sheet": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read imports {id} sheet */
-        get: {
-            parameters: {
-                query: {
-                    sheet: string;
-                    headerRow?: number | string;
-                };
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfAnonymousTypeOfintAndstringAndIEnumerableOfListOfstringAndint"];
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/imports/{id}/preview": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit imports {id} preview */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["JsonObject"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["Preview"];
-                    };
-                };
-            };
-        };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/imports/{id}/commit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Submit imports {id} commit */
-        post: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody: {
-                content: {
-                    "application/json": components["schemas"]["JsonObject"];
-                };
-            };
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfintAndstring"];
                     };
                 };
             };
@@ -15291,6 +18531,11 @@ export interface paths {
                             expiresAt?: string;
                             path?: string;
                             kind?: string;
+                            publicUrl?: string;
+                            qrCodeUrl?: string;
+                            responseCount?: number;
+                            companyId?: string;
+                            target?: string;
                         }[] | {
                             items: {
                                 id: string;
@@ -15299,6 +18544,11 @@ export interface paths {
                                 expiresAt?: string;
                                 path?: string;
                                 kind?: string;
+                                publicUrl?: string;
+                                qrCodeUrl?: string;
+                                responseCount?: number;
+                                companyId?: string;
+                                target?: string;
                             }[];
                             total: number;
                             page: number;
@@ -15336,6 +18586,11 @@ export interface paths {
                             expiresAt?: string;
                             path?: string;
                             kind?: string;
+                            publicUrl?: string;
+                            qrCodeUrl?: string;
+                            responseCount?: number;
+                            companyId?: string;
+                            target?: string;
                         };
                     };
                 };
@@ -15438,13 +18693,60 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"][];
+                        "application/json": {
+                            id: string;
+                            campaignId: string;
+                            campaignTitle?: string;
+                            name?: string;
+                            iqama: string;
+                            phone?: string;
+                            city?: string;
+                            workSystem?: string;
+                            iban?: string;
+                            bank?: string;
+                            bankCode?: string;
+                            platforms?: string[];
+                            status: string;
+                            isEdited?: boolean;
+                            version?: number;
+                            createdAt: string;
+                            updatedAt?: string;
+                            reviewedAt?: string;
+                            reviewNote?: string;
+                            history?: Record<string, never>[];
+                        }[] | {
+                            items: {
+                                id: string;
+                                campaignId: string;
+                                campaignTitle?: string;
+                                name?: string;
+                                iqama: string;
+                                phone?: string;
+                                city?: string;
+                                workSystem?: string;
+                                iban?: string;
+                                bank?: string;
+                                bankCode?: string;
+                                platforms?: string[];
+                                status: string;
+                                isEdited?: boolean;
+                                version?: number;
+                                createdAt: string;
+                                updatedAt?: string;
+                                reviewedAt?: string;
+                                reviewNote?: string;
+                                history?: Record<string, never>[];
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
                     };
                 };
             };
@@ -15482,13 +18784,34 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            campaignId: string;
+                            campaignTitle?: string;
+                            name?: string;
+                            iqama: string;
+                            phone?: string;
+                            city?: string;
+                            workSystem?: string;
+                            iban?: string;
+                            bank?: string;
+                            bankCode?: string;
+                            platforms?: string[];
+                            status: string;
+                            isEdited?: boolean;
+                            version?: number;
+                            createdAt: string;
+                            updatedAt?: string;
+                            reviewedAt?: string;
+                            reviewNote?: string;
+                            history?: Record<string, never>[];
+                        };
                     };
                 };
             };
@@ -15536,6 +18859,11 @@ export interface paths {
                             expiresAt?: string;
                             path?: string;
                             kind?: string;
+                            publicUrl?: string;
+                            qrCodeUrl?: string;
+                            responseCount?: number;
+                            companyId?: string;
+                            target?: string;
                         };
                     };
                 };
@@ -15571,6 +18899,11 @@ export interface paths {
                             expiresAt?: string;
                             path?: string;
                             kind?: string;
+                            publicUrl?: string;
+                            qrCodeUrl?: string;
+                            responseCount?: number;
+                            companyId?: string;
+                            target?: string;
                         };
                     };
                 };
@@ -15641,13 +18974,34 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfbooleanAndstring"];
+                        "application/json": {
+                            id: string;
+                            campaignId: string;
+                            campaignTitle?: string;
+                            name?: string;
+                            iqama: string;
+                            phone?: string;
+                            city?: string;
+                            workSystem?: string;
+                            iban?: string;
+                            bank?: string;
+                            bankCode?: string;
+                            platforms?: string[];
+                            status: string;
+                            isEdited?: boolean;
+                            version?: number;
+                            createdAt: string;
+                            updatedAt?: string;
+                            reviewedAt?: string;
+                            reviewNote?: string;
+                            history?: Record<string, never>[];
+                        };
                     };
                 };
             };
@@ -15869,9 +19223,18 @@ export interface components {
             needsSetup: boolean;
             environment: null | string;
         };
-        AnonymousTypeOfbooleanAndstringAndint: {
+        AnonymousTypeOfbooleanAndstringAndbooleanAndstring: {
             ok: boolean;
             id: null | string;
+            read: boolean;
+            readAt: null | string;
+        };
+        AnonymousTypeOfbooleanAndstringAndbooleanAndstringAndstringAndint: {
+            ok: boolean;
+            id: null | string;
+            acknowledged: boolean;
+            readAt: null | string;
+            acknowledgedAt: null | string;
             /** Format: int32 */
             acknowledgedCount: number | string;
         };
@@ -15884,7 +19247,7 @@ export interface components {
             /** Format: double */
             balance: number | string;
         };
-        "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndboolean": {
+        "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray": {
             apps: null | components["schemas"]["Accounts"][];
             schemeTypes: null | string[];
             categories: null | string[];
@@ -15892,14 +19255,9 @@ export interface components {
             ninjaMetrics: null | string[];
             defaults: components["schemas"]["JsonObject"];
             defaultsAreDraftOnly: boolean;
+            allowedActions: components["schemas"]["JsonArray"];
         };
-        AnonymousTypeOfIEnumerableOfAnonymousTypeOfintAndstringAndIEnumerableOfListOfstringAndint: {
-            headers: null | components["schemas"]["AnonymousTypeOfintAndstring"][];
-            sample: null | string[][];
-            /** Format: int32 */
-            rowCount: number | string;
-        };
-        "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndboolean": {
+        "AnonymousTypeOfIEnumerableOfSponsorDefAndintAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]AndstringAndIEnumerableOfAccountDefAndJsonArrayAndRoleDef[]AndIEnumerableOfPermissionDefAndbooleanAndJsonArray": {
             sponsors: null | components["schemas"]["SponsorDef"][];
             /** Format: int32 */
             unassignedDebtCount: number | string;
@@ -15909,6 +19267,7 @@ export interface components {
             roles: null | components["schemas"]["RoleDef"][];
             permissions: null | components["schemas"]["PermissionDef"][];
             promissoryNotesArchiveEnabled: boolean;
+            allowedActions: components["schemas"]["JsonArray"];
         };
         AnonymousTypeOfint: {
             /** Format: int32 */
@@ -15933,6 +19292,14 @@ export interface components {
             /** Format: int32 */
             needsReviewCount: number | string;
         };
+        AnonymousTypeOfintAnddecimalAndstringAndstring: {
+            /** Format: int32 */
+            activeDebtsCount: number | string;
+            /** Format: double */
+            totalRemainingDebt: number | string;
+            statementPath: null | string;
+            message: null | string;
+        };
         AnonymousTypeOfintAndintAnddecimalAnddecimal: {
             /** Format: int32 */
             importedCount: number | string;
@@ -15954,13 +19321,15 @@ export interface components {
             totalWaivedBatch: number | string;
             settlements: components["schemas"]["JsonArray"];
         };
-        AnonymousTypeOfintAndintAndint: {
+        AnonymousTypeOfintAndintAndintAndint: {
             /** Format: int32 */
-            enrichedExisting: number | string;
+            maxBroadcasts: number | string;
             /** Format: int32 */
-            addedFromSources: number | string;
+            maxDebts: number | string;
             /** Format: int32 */
-            totalRidersNow: number | string;
+            readRateLimitPerMin: number | string;
+            /** Format: int32 */
+            writeRateLimitPerMin: number | string;
         };
         AnonymousTypeOfintAndintAndintAndintAnddecimalAndIEnumerableOfJsonObject: {
             /** Format: int32 */
@@ -16005,29 +19374,21 @@ export interface components {
             fingerprint: null | string;
             message: null | string;
         };
-        AnonymousTypeOfJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring: {
-            rider: components["schemas"]["JsonObject"];
-            /** Format: double */
-            totalRemainingDebt: number | string;
-            /** Format: double */
-            totalPaidDebt: number | string;
-            /** Format: double */
-            totalWaivedDebt: number | string;
-            debts: null | components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstring"][];
-            broadcasts: null | components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring"][];
-        };
         AnonymousTypeOfJsonObjectAndJsonObject: {
             debt: components["schemas"]["JsonObject"];
             reconciliation: components["schemas"]["JsonObject"];
         };
-        AnonymousTypeOfJsonObjectAndJsonObjectAndJsonObject: {
-            debt: components["schemas"]["JsonObject"];
-            settlement: components["schemas"]["JsonObject"];
-            journal: components["schemas"]["JsonObject"];
-        };
-        AnonymousTypeOfJsonObjectAndListOfAnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAndintAndintAndListOfJsonObject: {
+        "AnonymousTypeOfJsonObjectAndJsonObjectAndIEnumerableOfAnonymousTypeOfstringAndstringAndstringAndintAndstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndAnonymousTypeOfstringAndstringAndObject[]AndObject[]AndAnonymousTypeOfintAnddecimalAndstringAndstringAndObject[]AndintAndintAnddecimalAndintAndintAndObject[]AndString[]": {
+            person: components["schemas"]["JsonObject"];
             rider: components["schemas"]["JsonObject"];
-            documentChecklist: null | components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstring"][];
+            workRecord3Months: null | components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndintAndstringAndstring"][];
+            financialEvaluation: components["schemas"]["AnonymousTypeOfstringAndstring"];
+            iqamaImage: components["schemas"]["AnonymousTypeOfstringAndstring"];
+            ibanImage: components["schemas"]["AnonymousTypeOfstringAndstring"];
+            promissoryNotes: null | unknown[];
+            platformAccounts: null | unknown[];
+            financialPosition: components["schemas"]["AnonymousTypeOfintAnddecimalAndstringAndstring"];
+            documentChecklist: null | unknown[];
             /** Format: int32 */
             documentsCount: number | string;
             /** Format: int32 */
@@ -16038,7 +19399,27 @@ export interface components {
             workRecordsCount: number | string;
             /** Format: int32 */
             totalOrders: number | string;
-            submissions: null | components["schemas"]["JsonObject"][];
+            submissions: null | unknown[];
+            allowedActions: null | string[];
+        };
+        AnonymousTypeOfJsonObjectAndJsonObjectAndJsonObject: {
+            debt: components["schemas"]["JsonObject"];
+            settlement: components["schemas"]["JsonObject"];
+            journal: components["schemas"]["JsonObject"];
+        };
+        AnonymousTypeOfJsonObjectAndstringAndJsonObjectAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstringAndListOfJsonObjectAndAnonymousTypeOfintAndintAndintAndint: {
+            rider: components["schemas"]["JsonObject"];
+            language: null | string;
+            latestApprovedStatement: components["schemas"]["JsonObject"];
+            /** Format: double */
+            totalRemainingDebt: number | string;
+            /** Format: double */
+            totalPaidDebt: number | string;
+            /** Format: double */
+            totalWaivedDebt: number | string;
+            debts: null | components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstring"][];
+            broadcasts: null | components["schemas"]["JsonObject"][];
+            loadLimits: components["schemas"]["AnonymousTypeOfintAndintAndintAndint"];
         };
         AnonymousTypeOfListOfJsonObjectAnddecimal: {
             rows: null | components["schemas"]["JsonObject"][];
@@ -16073,13 +19454,6 @@ export interface components {
             /** Format: int32 */
             level: number | string;
         };
-        AnonymousTypeOfstringAndintAndint: {
-            name: null | string;
-            /** Format: int32 */
-            rows: number | string;
-            /** Format: int32 */
-            columns: number | string;
-        };
         AnonymousTypeOfstringAndintAndintAndJsonArrayAndJsonArrayAndstring: {
             filename: null | string;
             /** Format: int32 */
@@ -16090,10 +19464,9 @@ export interface components {
             errors: components["schemas"]["JsonArray"];
             fingerprint: null | string;
         };
-        AnonymousTypeOfstringAndstringAndIEnumerableOfAnonymousTypeOfstringAndintAndint: {
-            id: null | string;
-            filename: null | string;
-            sheets: null | components["schemas"]["AnonymousTypeOfstringAndintAndint"][];
+        AnonymousTypeOfstringAndstring: {
+            status: null | string;
+            message: null | string;
         };
         AnonymousTypeOfstringAndstringAndintAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndbooleanAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAnddecimalAnddecimalAndJsonArrayAndJsonArray: {
             filename: null | string;
@@ -16134,18 +19507,13 @@ export interface components {
             titleAr: null | string;
             fields: components["schemas"]["JsonNode"];
         };
-        AnonymousTypeOfstringAndstringAndstringAndbooleanAndbooleanAndstringAndstringAndstringAndstringAndstringAndstringAndstring: {
-            documentTypeId: null | string;
-            code: null | string;
-            nameAr: null | string;
-            requiresExpiry: boolean;
-            isUploaded: boolean;
-            documentId: null | string;
-            documentNumber: null | string;
-            issueDate: null | string;
-            expiryDate: null | string;
-            fileName: null | string;
-            storagePath: null | string;
+        AnonymousTypeOfstringAndstringAndstringAndintAndstringAndstring: {
+            month: null | string;
+            platform: null | string;
+            workDays: null | string;
+            /** Format: int32 */
+            orders: number | string;
+            netDue: null | string;
             status: null | string;
         };
         AnonymousTypeOfstringAndstringAndstringAndObjectAndJsonElementAndintAndint: {
@@ -16158,24 +19526,6 @@ export interface components {
             orphanCampaignResponses: number | string;
             /** Format: int32 */
             orphanDebts: number | string;
-        };
-        AnonymousTypeOfstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstring: {
-            id: null | string;
-            category: null | string;
-            categoryAr: null | string;
-            creditorSponsorNameAr: null | string;
-            /** Format: double */
-            totalAmount: number | string;
-            /** Format: double */
-            paidAmount: number | string;
-            /** Format: double */
-            waivedAmount: number | string;
-            /** Format: double */
-            remainingBalance: number | string;
-            /** Format: double */
-            monthlyInstallment: number | string;
-            status: null | string;
-            effectiveFrom: null | string;
         };
         AnonymousTypeOfstringAndstringAndstringAndstringAndstring: {
             iqama: null | string;
@@ -16207,15 +19557,28 @@ export interface components {
             outboxPendingCount: number | string;
             updatedAt: null | string;
         };
-        AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndstring: {
+        AnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndstringAndstringAndstringAndstringAndstringAndstring: {
             id: null | string;
             category: null | string;
-            titleAr: null | string;
-            bodyAr: null | string;
-            actionUrl: null | string;
-            requiresAck: boolean;
-            acknowledged: boolean;
-            createdAt: null | string;
+            categoryAr: null | string;
+            categoryEn: null | string;
+            categoryUr: null | string;
+            /** Format: double */
+            totalAmount: number | string;
+            /** Format: double */
+            paidAmount: number | string;
+            /** Format: double */
+            waivedAmount: number | string;
+            /** Format: double */
+            remainingBalance: number | string;
+            /** Format: double */
+            monthlyInstallment: number | string;
+            direction: null | string;
+            markerAr: null | string;
+            markerEn: null | string;
+            markerUr: null | string;
+            status: null | string;
+            effectiveFrom: null | string;
         };
         "AnonymousTypeOfstringAndstringAndstringAndstringAndstringAnddecimalAndString[]Andstring": {
             code: null | string;
@@ -16383,10 +19746,6 @@ export interface components {
             /** @default false */
             deprecated: boolean;
         };
-        Preview: {
-            rows: components["schemas"]["WorkLine"][];
-            errors: string[];
-        };
         RoleDef: {
             code: string;
             nameAr: string;
@@ -16403,27 +19762,6 @@ export interface components {
             nameAr: string;
             shortNameAr: string;
             commercialReg: string;
-        };
-        WorkLine: {
-            sourceRef: string;
-            iqama: string;
-            name: string;
-            platform: string;
-            accountId: string;
-            period: string;
-            from: string;
-            to: string;
-            /** Format: int32 */
-            orders: number | string;
-            /** Format: double */
-            platformRevenue: null | number | string;
-            /** Format: double */
-            riderPay: null | number | string;
-            isValid: null | boolean;
-            company: string;
-            city: string;
-            /** @default false */
-            datesConfirmed: boolean;
         };
     };
     responses: never;

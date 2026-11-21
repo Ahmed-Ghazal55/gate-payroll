@@ -56,10 +56,15 @@ try{
  await req(`/api/companies/${company.id}/documents/${attachment.id}`,undefined,'DELETE');
  assert.equal((await req(`/api/companies/${company.id}/registrations`)).length,0);assert.equal((await req(`/api/companies/${company.id}/documents`)).length,0);
  await req(`/api/companies/${company.id}`,undefined,'DELETE');assert.equal((await req(`/api/companies/${company.id}`)).status,'archived');
- assert.ok((await req('/api/audit')).some(x=>x.action==='company_document.archived'));
+ assert.ok(((await req('/api/audit')).items).some(x=>x.action==='company_document.archived'));
  await req('/api/auth/login',{username:'synthetic-reader',password});await req('/api/companies',undefined,'GET',403);cookie=admin;
  // Opt-in pagination: untouched legacy bytes, bounded pages, search and sorting.
+ // /api/audit always pages (M-0607 / INT1); other lists stay array until ?page= is set.
  for(const suffix of ['riders','debts','finance/journals','submissions','audit','ledger','approvals','campaigns','forms/builder']){
+  if(suffix==='audit'){
+   const paged=await req('/api/audit?page=1&pageSize=999');assert.ok(Array.isArray(paged.items));assert.equal(paged.pageSize,200);assert.ok(paged.total>=paged.items.length);checks++;
+   continue;
+  }
   const a=await fetch(base+'/api/'+suffix,{headers:{Cookie:admin}});const original=await a.text();assert.equal(a.status,200);
   const b=await fetch(base+'/api/'+suffix+'?q=nonexistent&sort=-name&pageSize=invalid',{headers:{Cookie:admin}});assert.equal(await b.text(),original,'Legacy bytes changed: '+suffix);
   const paged=await req('/api/'+suffix+'?page=1&pageSize=999');assert.ok(Array.isArray(paged.items));assert.equal(paged.pageSize,200);assert.equal(paged.total,JSON.parse(original).length);checks++;
@@ -96,6 +101,7 @@ try{
  const duplicate=await req(`/api/public/forms/${token}`,answer,'POST',409);assert.equal(duplicate.code,'already_submitted');assert.equal(duplicate.alreadySubmitted,true);assert.equal(duplicate.iqama,answer.iqama);
  const responsePage=await req(`/api/responses?source=campaign&status=pending&campaignId=${campaign.id}&page=1`);assert.equal(responsePage.total,1);assert.equal(responsePage.items[0].source,'campaign');assert.ok(responsePage.items[0].reviewUrl.endsWith('/review'));
  await req('/api/responses?source=invalid',undefined,'GET',400);
- let limited=false;for(let i=0;i<35;i++){const r=await fetch(base+'/api/public/forms/missing');if(r.status===429){assert.equal((await r.json()).code,'rate_limited');limited=true;break;}}assert.ok(limited);checks++;
+ // Development raises the public-forms ceiling to 200; loop past it to prove the limiter.
+ let limited=false;for(let i=0;i<220;i++){const r=await fetch(base+'/api/public/forms/missing');if(r.status===429){assert.equal((await r.json()).code,'rate_limited');limited=true;break;}}assert.ok(limited);checks++;
  console.log(`PASS API cleanup: ${checks} checks`);
 }finally{proc.kill();await new Promise(resolve=>{if(proc.exitCode!==null||proc.signalCode!==null)resolve();else proc.once('exit',resolve);});rmSync(data,{recursive:true,force:true});}

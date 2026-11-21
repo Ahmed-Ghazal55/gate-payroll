@@ -1,5 +1,7 @@
 'use client';
 
+import { formatSar } from '../../lib/money';
+
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   CheckCircle2,
@@ -58,11 +60,6 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
     }
   }, [cycleId, fetchReviewData]);
 
-  const maskIqama = (iqama: string) => {
-    if (!iqama || iqama.length < 6) return iqama;
-    return `${iqama.slice(0, 4)}****${iqama.slice(-2)}`;
-  };
-
   const handleBulkApprove = async () => {
     setBulkSubmitting(true);
     try {
@@ -114,21 +111,27 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'name',
         header: 'المندوب',
-        getValue: (r) => `${r.name || ''} ${r.rider || ''}`,
+        type: 'text',
+        filterType: 'text',
+        getValue: (r) => `${r.name || ''} ${r.rider || ''}`.trim(),
         render: (row) => (
           <div
             onClick={() => setSelectedRow(row)}
             className="cursor-pointer hover:underline"
           >
             <div className="font-bold text-[var(--ink)]">{row.name || '—'}</div>
-            <div className="font-mono text-[10px] text-[var(--muted)]">{maskIqama(row.rider)}</div>
+            <div className="font-mono text-[10px] text-[var(--muted)]" dir="ltr">{row.rider}</div>
           </div>
         ),
       },
       {
         key: 'status',
         header: 'الحالة',
-        getValue: (r) => (r.status === 'ready' ? 'جاهز' : 'يحتاج قرار'),
+        type: 'list',
+        filterType: 'list',
+        getValue: (r) => r.status || 'needs_decision',
+        labelOf: (v) => (v === 'ready' ? 'جاهز' : 'يحتاج قرار'),
+        toneOf: (v) => (v === 'ready' ? 'success' : 'danger'),
         render: (row) => (
           <span
             className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${
@@ -144,87 +147,99 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
       {
         key: 'gross',
         header: 'الإجمالي',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.gross,
-        render: (row) => row.gross.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+        render: (row) => formatSar(row.gross),
       },
       {
         key: 'commission',
         header: 'العمولة',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.commission,
         render: (row) => (
           <span className="text-[var(--warning)]">
-            {row.commission.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatSar(row.commission)}
           </span>
         ),
       },
       {
         key: 'afterCommission',
         header: 'بعد العمولة',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.afterCommission,
-        render: (row) => row.afterCommission.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+        render: (row) => formatSar(row.afterCommission),
       },
       {
         key: 'phase1',
         header: 'مرحلة 1',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.phase1,
         render: (row) => (
           <span className="text-[var(--danger)]">
-            {row.phase1.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatSar(row.phase1)}
           </span>
         ),
       },
       {
         key: 'preliminaryDue',
         header: 'المستحق الأولي',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.preliminaryDue,
         render: (row) => (
           <span className="font-bold text-[var(--accent)]">
-            {row.preliminaryDue.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatSar(row.preliminaryDue)}
           </span>
         ),
       },
       {
         key: 'phase2',
         header: 'مرحلة 2',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.phase2,
         render: (row) => (
           <span className="text-[var(--danger)]">
-            {row.phase2.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatSar(row.phase2)}
           </span>
         ),
       },
       {
         key: 'phase3',
         header: 'مرحلة 3',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.phase3,
-        render: (row) => row.phase3.toLocaleString('en-US', { minimumFractionDigits: 2 }),
+        render: (row) => formatSar(row.phase3),
       },
       {
         key: 'net',
         header: 'الصافي',
+        type: 'number',
         numeric: true,
         getValue: (r) => r.net,
+        toneOf: (v) => (Number(v ?? 0) >= 0 ? 'success' : 'danger'),
         render: (row) => (
           <span
             className={`font-black ${
               row.net >= 0 ? 'text-[var(--money-pos)]' : 'text-[var(--danger)]'
             }`}
           >
-            {row.net.toLocaleString('en-US', { minimumFractionDigits: 2 })}
+            {formatSar(row.net)}
           </span>
         ),
       },
       {
         key: 'review',
         header: 'المراجعة',
-        getValue: (r) => (r.review === 'approved' ? 'معتمد' : 'بانتظار المراجعة'),
+        type: 'list',
+        getValue: (r) => r.review || 'pending',
+        labelOf: (v) => (v === 'approved' ? 'معتمد' : 'بانتظار المراجعة'),
+        toneOf: (v) => (v === 'approved' ? 'success' : 'warning'),
         render: (row) =>
           row.review === 'approved' ? (
             <span className="inline-flex items-center gap-1 text-[10px] font-bold text-[var(--money-pos)] bg-[var(--money-pos)]/10 px-2 py-0.5 rounded-full">
@@ -260,7 +275,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
     return (
       <div className="flex flex-col items-center justify-center py-16 text-[var(--muted)] space-y-3">
         <Loader2 size={32} className="animate-spin text-[var(--accent)]" />
-        <p className="text-xs">جاري تحميل جدول مراجعة المسير (BR §32)...</p>
+        <p className="text-xs">جاري تحميل جدول مراجعة المسير...</p>
       </div>
     );
   }
@@ -375,7 +390,7 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
             <div className="flex items-center gap-2 ps-2 text-[var(--muted)]">
               <span>إجمالي الصافي:</span>
               <span className="font-mono font-bold num text-sm text-[var(--ink)]">
-                {totals.net.toLocaleString('en-US', { minimumFractionDigits: 2 })} ر.س
+                {formatSar(totals.net)}
               </span>
             </div>
           </div>

@@ -302,7 +302,7 @@ export function RiderPicker({
                 </div>
                 <div className="pt-1">
                   <Link
-                    href="/app/riders"
+                    href="/workforce/"
                     onClick={() => setIsOpen(false)}
                     className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--accent)]/10 text-[var(--accent)] font-bold text-xs hover:bg-[var(--accent)]/20 transition"
                   >

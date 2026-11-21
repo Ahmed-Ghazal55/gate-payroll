@@ -25,7 +25,9 @@ try{
  await call('admin','/api/users',{username:'syn-r6c-checker',password,role:'FinancialAccountant',customPermissions:['pay.view','pay.manage','pay.approve','imports.view']});await call('checker','/api/auth/login',{username:'syn-r6c-checker',password});
  const company=(await call('admin','/api/companies'))[0].id;
  const db=new DatabaseSync(path.join(data,'payroll.db'));db.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?)').run('syn-keeta-account','platform_account',JSON.stringify({id:'syn-keeta-account',externalAccountId:'SYN-K1',companyId:company,platformCode:'keeta'}));db.close();
- const catalog=await call('admin','/api/imports/catalog');assert.equal(catalog.find(s=>s.key==='keeta_invoice').status,'ready');
+ // Catalog HTTP removed with imports centre; assert platform invoice + ops template still served.
+ assert.equal((await fetch(base+'/api/imports/catalog',{headers:{Cookie:cookies.admin}})).status,404);checks++;
+ assert.equal((await fetch(base+'/api/imports/templates/operations-keeta',{headers:{Cookie:cookies.admin}})).status,200);checks++;
  const response=await fetch(base+'/api/excel/export',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookies.admin},body:JSON.stringify({headers:['المعرف','الطلبات المُسلمة','الإجمالي','الخصم','إجمالي المبلغ المستحق','صافي الراتب'],rows:[['SYN-K1',10,100,0,115,9999]],numericColumns:[1,2,3,4,5]})});assert.equal(response.status,200);checks++;const bytes=await response.arrayBuffer();
  function upload(preview){const form=new FormData();for(const [key,value]of Object.entries({companyId:company,period:'2026-10',reference:'SYNTHETIC-KEETA-HTTP',accountingRole:'principal'}))form.set(key,value);form.set('file',new Blob([bytes]),'synthetic.xlsx');if(preview){form.set('rows',JSON.stringify(preview.rows));form.set('fingerprint',preview.fingerprint);form.set('confirm','true');}return form;}
  const preview=await call('admin','/api/platforms/keeta/invoices',upload());assert.equal(preview.rows[0].amountExclVat,100);
@@ -39,15 +41,24 @@ try{
  // D3: actual routes, native JSON/XLSX transport and source-bound cycle review, all synthetic.
  const setupDb=new DatabaseSync(path.join(data,'payroll.db'));
  function put(kind,doc){setupDb.prepare('INSERT INTO records(id,kind,body) VALUES(?,?,?) ON CONFLICT(id) DO UPDATE SET body=excluded.body').run(doc.id,kind,JSON.stringify(doc));}
+ const coreOps=['period (YYYY-MM)','platformAccountId','iqama','riderName','from (YYYY-MM-DD)','to (YYYY-MM-DD)','days','orders','baseGross','deduction','category'];
+ const opsByApp={
+  ninja:{previewUrl:'/api/pay/apps/ninja/operations/import/preview',commitUrl:'/api/pay/apps/ninja/operations/import/commit',template:'operations-ninja',extra:['captainId','attendanceDays','hours8Days','weekendDays','workingHours','activeWorkingHours','committedWorkingHours','shiftCompliancePercent','onTimeAttendancePercent']},
+  keeta:{previewUrl:'/api/pay/apps/keeta/operations/import/preview',commitUrl:'/api/pay/apps/keeta/operations/import/commit',template:'operations-keeta',extra:['keetaCourierId','city','onlineHours','validOnlineDays','validShifts','peakHours','slab']},
+  hs:{previewUrl:'/api/pay/apps/hs/operations/import/preview',commitUrl:'/api/pay/apps/hs/operations/import/commit',template:'operations-hungerstation',extra:['hsRiderId','hours','distanceKm']},
+ };
  for(const app of ['ninja','keeta','hs']){
   const account='syn-ops-'+app,invoiceId='syn-ops-invoice-'+app,rider='2000000091';
   put('rider',{id:rider,iqama:rider,sponsorId:company,isDeliveryRider:true});
   put('platform_account',{id:account,companyId:company,platformCode:app,assignments:[{riderId:rider,RawEffectiveFrom:'2026-10-01T00:00:00+03:00'}]});
   put('platform_invoice',{id:invoiceId,companyId:company,platform:{ninja:'Ninja',keeta:'Keeta',hs:'HungerStation'}[app],period:'2026-10',approvalStatus:'approved',amountExclVat:100,vat:15,deductionsTotal:0});
   put('platform_invoice_line',{id:'syn-ops-line-'+app,invoiceId,platformAccountId:account,baseGross:100,incentives:0,orders:5,deductionAmount:0});
-  const step=catalog.find(s=>s.key===(app==='hs'?'hungerstation':app)+'_operations');assert.equal(step.status,'ready');
+  const step=opsByApp[app];
+  const templateRes=await fetch(base+'/api/imports/templates/'+step.template,{headers:{Cookie:cookies.admin}});assert.equal(templateRes.status,200);checks++;
+  const headers=[...coreOps,...step.extra];
   const values={'period (YYYY-MM)':'2026-10',platformAccountId:account,iqama:rider,days:1,orders:5,baseGross:100,deduction:0,category:'sponsored_private'};
-  const xlsx=await fetch(base+'/api/excel/export',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookies.admin},body:JSON.stringify({headers:step.columns.map(c=>c.name),rows:[step.columns.map(c=>values[c.name]??'')],numericColumns:step.columns.map((c,i)=>c.type==='number'?i:-1).filter(i=>i>=0)})});assert.equal(xlsx.status,200);checks++;
+  const numericColumns=headers.map((c,i)=>['days','orders','baseGross','deduction','attendanceDays','hours8Days','weekendDays','workingHours','activeWorkingHours','committedWorkingHours','shiftCompliancePercent','onTimeAttendancePercent','onlineHours','validOnlineDays','validShifts','peakHours','hours','distanceKm'].includes(c)?i:-1).filter(i=>i>=0);
+  const xlsx=await fetch(base+'/api/excel/export',{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookies.admin},body:JSON.stringify({headers,rows:[headers.map(c=>values[c]??'')],numericColumns})});assert.equal(xlsx.status,200);checks++;
   const input={invoiceId,dataBase64:Buffer.from(await xlsx.arrayBuffer()).toString('base64')};
   await call('anonymous',step.previewUrl,input,401);
   const view=await call('admin',step.previewUrl,input);assert.equal(view.rows[0].accounts[0].riders[0].rider,rider);
@@ -68,7 +79,8 @@ try{
  assert.equal(read.readOnly,true);assert.equal(read.canUseInCycle,false);assert.equal(read.counts.settlements,1);assert.equal(read.review.accounts[0].riders[0].metrics.acceptedOffers,8);assert.equal(read.review.accounts[0].riders[0].orders,0);
  assert.deepEqual(setupDb.prepare('SELECT id,kind,body FROM records ORDER BY id').all(),beforeRead,'read model must not write');
  await call('viewer','/api/pay/apps/ninja/operations/import/commit',{},403);
- assert.equal(catalog.find(s=>s.key==='chefz_operations').commitUrl,null);
+ // Chefz is review-only (no commit route).
+ await call('viewer','/api/pay/apps/chefz/operations/review',{companyId:company,period:'2026-10'});
  setupDb.close();
  console.log(`PASS R6c invoice/operations HTTP contracts: ${checks} checks`);
 }finally{

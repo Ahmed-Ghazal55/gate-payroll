@@ -72,7 +72,8 @@ public static partial class SchemaAuditNotify
                 if(bag!=null)
                 {
                     row=(JsonObject)bag.DeepClone();
-                    row["id"]=r["id"].ToString();
+                    // Prefer the document id from the dual-written body (may be a legacy non-GUID key).
+                    if(row.S("id")=="")row["id"]=r["id"].ToString();
                     if(row.S("action")=="")row["action"]=action;
                     if(row.S("actor")=="")row["actor"]=actor;
                     if(row.S("at")=="")row["at"]=at;
@@ -169,21 +170,36 @@ public static partial class SchemaAuditNotify
             else break;
             diff=stored.ToJsonString();
         }
-        string sqlId=Guid.TryParse(row.S("id"),out var gid)?SchemaSql.GuidText(gid):SchemaSql.GuidText(SchemaSql.NewId());
-        row["id"]=sqlId;
+        // Preserve caller document ids in records (AuditQuery / HTTP fixtures). change_log PK stays a GUID.
+        string callerId=row.S("id");
+        if(callerId==""||callerId.Length>128){callerId=SchemaSql.GuidText(SchemaSql.NewId());row["id"]=callerId;}
+        string changeLogId=Guid.TryParse(callerId,out var gid)?SchemaSql.GuidText(gid):SchemaSql.GuidText(SchemaSql.NewId());
         // Always keep the caller document whole in records (evidence + export metadata).
         // change_log.diff_short stays a short label/bag; ListChanges prefers the full body when both exist.
         using(var full=Store.Command(c,tx,"UPDATE records SET body=@body WHERE id=@id AND kind=@kind",
-            ("@id",sqlId),("@kind","audit"),("@body",row.ToJsonString())))
+            ("@id",callerId),("@kind","audit"),("@body",row.ToJsonString())))
         {
             if(full.ExecuteNonQuery()==0)
             {
                 using var insert=Store.Command(c,tx,"INSERT INTO records(id,kind,body) VALUES(@id,@kind,@body)",
-                    ("@id",sqlId),("@kind","audit"),("@body",row.ToJsonString()));
+                    ("@id",callerId),("@kind","audit"),("@body",row.ToJsonString()));
                 insert.ExecuteNonQuery();
             }
         }
         if(diff.Length>400)diff=shortLabel;
+        // Embed the document id so ListChanges can match the records dual-write when change_log uses a new GUID.
+        if(!diff.StartsWith('{'))diff=new JsonObject{["id"]=callerId,["action"]=action,["actor"]=row.S("actor"),["at"]=at.ToString("O"),["diff"]=diff}.ToJsonString();
+        else
+        {
+            try
+            {
+                var bag=JsonNode.Parse(diff) as JsonObject??new JsonObject();
+                if(bag.S("id")=="")bag["id"]=callerId;
+                diff=bag.ToJsonString();
+                if(diff.Length>400)diff=new JsonObject{["id"]=callerId,["action"]=action,["actor"]=row.S("actor"),["at"]=at.ToString("O")}.ToJsonString();
+            }
+            catch{diff=new JsonObject{["id"]=callerId,["action"]=action}.ToJsonString();}
+        }
         string source=MapSource(row.S("source"));
         string actor=row.S("actor");
         object userId=DBNull.Value;
@@ -199,7 +215,7 @@ public static partial class SchemaAuditNotify
             (id,occurred_on,occurred_at,user_id,username,display_name_ar,action_code,entity_type,entity_ref,diff_short,source,created_at)
             VALUES(@id,@on,@at,@uid,@user,@disp,@act,@etype,@eref,@diff,@src,{SchemaSql.NowLiteral(c)})
             """,
-            ("@id",sqlId),
+            ("@id",changeLogId),
             ("@on",onText),
             ("@at",atText),
             ("@uid",userId),

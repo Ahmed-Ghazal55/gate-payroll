@@ -18,6 +18,7 @@ import {
   Sparkles,
 } from 'lucide-react';
 import type { PayConfigDoc } from '../../lib/types';
+import { DataTable } from '../../components/ui/DataTable';
 import { diffPaySettings } from './PaySettingsValidation';
 import type { PaySettingDiffItem } from './PaySettingsValidation';
 
@@ -145,7 +146,7 @@ export function PaySettingsCycleReview({
             </span>
           </div>
           <p className="text-xs text-[var(--muted)] mt-1">
-            مراجعة حالة إعدادات الدورة (العقد، الأنظمة، الأهلية). فحص الفروقات عن شهر {previousPeriod} مع قاعدة Maker ≠ Checker.
+            مراجعة حالة إعدادات الدورة (العقد، الأنظمة، الأهلية). فحص الفروقات عن شهر {previousPeriod} مع اشتراط اعتماد شخص آخر غير المنشئ.
           </p>
         </div>
 
@@ -252,7 +253,7 @@ export function PaySettingsCycleReview({
                         <button
                           type="button"
                           disabled={Boolean(isMaker)}
-                          title={isMaker ? 'قاعدة Maker ≠ Checker: لا يمكن لمنشئ المسودة اعتمادها بنفسه' : 'اعتماد الإعداد'}
+                          title={isMaker ? 'لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة' : 'اعتماد الإعداد'}
                           onClick={() => onApproveSetting(item.doc, item.kind)}
                           className="px-3.5 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer inline-flex items-center gap-1 shadow-xs"
                         >
@@ -319,38 +320,58 @@ export function PaySettingsCycleReview({
 
                     {isDiffExpanded && hasDiffs && (
                       <div className="p-3 border-t border-[var(--line)] bg-[var(--surface)] overflow-x-auto">
-                        <table className="w-full text-start text-xs">
-                          <thead className="border-b border-[var(--line)] text-[var(--muted)] font-semibold">
-                            <tr>
-                              <th className="p-2 text-start">البند / المعيار</th>
-                              <th className="p-2 text-start">القيمة في {previousPeriod}</th>
-                              <th className="p-2 text-start">القيمة في {period}</th>
-                              <th className="p-2 text-start">الحالة</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-[var(--line)]">
-                            {item.diffs.map((d, dIdx) => (
-                              <tr key={dIdx}>
-                                <td className="p-2 font-semibold text-[var(--ink)]">{d.labelAr}</td>
-                                <td className="p-2 font-mono text-[var(--muted)]">{d.prevValue}</td>
-                                <td className="p-2 font-mono font-bold text-[var(--accent)]">{d.curValue}</td>
-                                <td className="p-2">
-                                  <span
-                                    className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
-                                      d.kind === 'changed'
-                                        ? 'bg-[var(--warning)]/15 text-[var(--warning)]'
-                                        : d.kind === 'added'
-                                        ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                                        : 'bg-[var(--danger)]/15 text-[var(--danger)]'
-                                    }`}
-                                  >
-                                    {d.kind === 'changed' ? 'تعديل' : d.kind === 'added' ? 'إضافة' : 'حذف'}
-                                  </span>
-                                </td>
-                              </tr>
-                            ))}
-                          </tbody>
-                        </table>
+                        <DataTable
+                          tableId={`pay-setting-diff-${item.id}`}
+                          data={item.diffs}
+                          getRowId={(d) => `${d.labelAr}-${String(d.prevValue ?? '')}-${String(d.curValue ?? '')}`}
+                          pageSize={20}
+                          columns={[
+                            {
+                              key: 'labelAr',
+                              header: 'البند / المعيار',
+                              type: 'text',
+                              getValue: (d) => d.labelAr || '',
+                              render: (d) => <span className="font-semibold text-[var(--ink)]">{d.labelAr}</span>,
+                            },
+                            {
+                              key: 'prevValue',
+                              header: `القيمة في ${previousPeriod}`,
+                              type: 'text',
+                              getValue: (d) => String(d.prevValue ?? ''),
+                              render: (d) => <span className="font-mono text-[var(--muted)]">{d.prevValue}</span>,
+                            },
+                            {
+                              key: 'curValue',
+                              header: `القيمة في ${period}`,
+                              type: 'text',
+                              getValue: (d) => String(d.curValue ?? ''),
+                              render: (d) => <span className="font-mono font-bold text-[var(--accent)]">{d.curValue}</span>,
+                            },
+                            {
+                              key: 'kind',
+                              header: 'الحالة',
+                              type: 'list',
+                              getValue: (d) => d.kind,
+                              labelOf: (v) =>
+                                v === 'changed' ? 'تعديل' : v === 'added' ? 'إضافة' : 'حذف',
+                              toneOf: (v) =>
+                                v === 'changed' ? 'warning' : v === 'added' ? 'success' : 'danger',
+                              render: (d) => (
+                                <span
+                                  className={`px-1.5 py-0.5 rounded text-[10px] font-bold ${
+                                    d.kind === 'changed'
+                                      ? 'bg-[var(--warning)]/15 text-[var(--warning)]'
+                                      : d.kind === 'added'
+                                      ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
+                                      : 'bg-[var(--danger)]/15 text-[var(--danger)]'
+                                  }`}
+                                >
+                                  {d.kind === 'changed' ? 'تعديل' : d.kind === 'added' ? 'إضافة' : 'حذف'}
+                                </span>
+                              ),
+                            },
+                          ]}
+                        />
                       </div>
                     )}
                   </div>

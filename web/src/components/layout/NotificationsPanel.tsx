@@ -298,7 +298,7 @@ export function NotificationsPanel({
                     {item.requiresAction && (
                       item.actionStatus === 'decided' ? (
                         <span className="text-[9px] font-bold px-1.5 py-0.2 rounded-full bg-[var(--money-pos)]/15 text-[var(--money-pos)] inline-flex items-center gap-0.5">
-                          <Check size={10} />
+                          <Check size={10} aria-hidden="true" />
                           <span>تم البت</span>
                         </span>
                       ) : (
@@ -342,7 +342,7 @@ export function NotificationsPanel({
                       title="تحديد كمقروء"
                       className="inline-flex items-center gap-1 text-[10px] font-medium text-[var(--muted)] hover:text-[var(--ink)] p-0.5 rounded"
                     >
-                      <Check size={12} />
+                      <Check size={12} aria-hidden="true" />
                       <span>كمقروء</span>
                     </button>
                   )}

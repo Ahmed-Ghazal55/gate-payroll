@@ -1,12 +1,14 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { RefreshCw, ShieldOff, Smartphone } from 'lucide-react';
 import { api } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../ui/Toast';
 import { Dialog } from '../ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../ui/EmptyState';
+import { SearchableSelect } from '../ui/SearchableSelect';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../ui/ColumnFilterMenu';
 
 // R5-C1 (docs/api/mobile-sessions.md): the row id is the 16-hex prefix the server returns; nothing else identifies a session.
 export interface RiderSession {
@@ -45,6 +47,39 @@ export function RiderSessionsPanel() {
   const [target, setTarget] = useState<Target | null>(null);
   const [reason, setReason] = useState('');
   const [saving, setSaving] = useState(false);
+
+  const sessionFilterCols = useMemo(
+    () => [
+      { key: 'riderName', header: 'المندوب', type: 'text' as const, getValue: (s: RiderSession) => `${s.riderName || ''} ${s.iqama || ''}`.trim() },
+      { key: 'deviceFingerprint', header: 'الجهاز', type: 'text' as const, getValue: (s: RiderSession) => s.deviceFingerprint || '' },
+      {
+        key: 'language',
+        header: 'اللغة',
+        type: 'list' as const,
+        getValue: (s: RiderSession) => s.language || '',
+        labelOf: (v: unknown) => {
+          const s = String(v ?? '').toLowerCase();
+          if (s === 'ar') return 'العربية';
+          if (s === 'en') return 'الإنجليزية';
+          if (s === 'ur') return 'الأردية';
+          return String(v ?? '—');
+        },
+      },
+      { key: 'createdAt', header: 'بداية الجلسة', type: 'date' as const, getValue: (s: RiderSession) => s.createdAt || '' },
+      { key: 'lastSeenAt', header: 'آخر استخدام', type: 'date' as const, getValue: (s: RiderSession) => s.lastSeenAt || '' },
+      { key: 'expiresAtUtc', header: 'تنتهي', type: 'date' as const, getValue: (s: RiderSession) => s.expiresAtUtc || '' },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (s: RiderSession) => s.status,
+        labelOf: (v: unknown) => STATUS_LABEL[String(v) as RiderSession['status']] || String(v ?? ''),
+        toneOf: (v: unknown) => (v === 'active' ? 'success' : v === 'revoked' ? 'danger' : 'neutral'),
+      },
+    ],
+    []
+  );
+  const sessionsFilter = useTableAutoFilter(rows, sessionFilterCols);
 
   const load = async () => {
     setLoading(true);
@@ -91,7 +126,7 @@ export function RiderSessionsPanel() {
   };
 
   if (!allowed) {
-    return <EmptyState title="لا تملك صلاحية جلسات المناديب" description="تحتاج صلاحية mobile.sessions لعرض الجلسات وإلغائها." />;
+    return <EmptyState title="لا تملك صلاحية جلسات المناديب" description="تحتاج صلاحية جلسات التطبيق لعرض الجلسات وإلغائها." />;
   }
 
   const activeForIqama = iqama.trim() ? rows.filter((r) => r.iqama === iqama.trim() && r.status !== 'revoked') : [];
@@ -99,20 +134,24 @@ export function RiderSessionsPanel() {
   return (
     <div className="space-y-4" data-testid="rider-sessions">
       <div className="flex flex-wrap items-end gap-3 p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
-        <label className="text-xs text-[var(--muted)] space-y-1">
+        <div className="text-xs text-[var(--muted)] space-y-1">
           <span className="block">الحالة</span>
-          <select
+          <SearchableSelect
             id="sessions-status"
             value={status}
-            onChange={(e) => setStatus(e.target.value as typeof status)}
-            className="h-9 rounded-lg border border-[var(--line)] bg-[var(--bg)] px-2 text-sm text-[var(--ink)]"
-          >
-            <option value="active">نشطة</option>
-            <option value="expired">منتهية</option>
-            <option value="revoked">ملغاة</option>
-            <option value="">الكل</option>
-          </select>
-        </label>
+            onChange={(v) => setStatus(v as typeof status)}
+            ariaLabel="حالة الجلسة"
+            placeholder="الكل"
+            size="sm"
+            className="w-36"
+            options={[
+              { value: 'active', label: 'نشطة' },
+              { value: 'expired', label: 'منتهية' },
+              { value: 'revoked', label: 'ملغاة' },
+              { value: '', label: 'الكل' },
+            ]}
+          />
+        </div>
         <label className="text-xs text-[var(--muted)] space-y-1">
           <span className="block">رقم الإقامة</span>
           <input
@@ -146,21 +185,22 @@ export function RiderSessionsPanel() {
         <EmptyState title="لا توجد جلسات" description="لا توجد جلسات تطابق الفلتر الحالي." icon={<Smartphone size={20} />} />
       ) : (
         <div className="overflow-x-auto rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
+          <AutoFilterBar controller={sessionsFilter} totalCount={rows.length} />
           <table className="w-full text-sm">
             <thead className="text-xs text-[var(--muted)] bg-[var(--bg)]">
               <tr>
-                <th className="p-3 text-start">المندوب</th>
-                <th className="p-3 text-start">الجهاز</th>
-                <th className="p-3 text-start">اللغة</th>
-                <th className="p-3 text-start">بداية الجلسة</th>
-                <th className="p-3 text-start">آخر استخدام</th>
-                <th className="p-3 text-start">تنتهي</th>
-                <th className="p-3 text-start">الحالة</th>
+                <AutoFilterTh controller={sessionsFilter} colKey="riderName" className="p-3 text-start" />
+                <AutoFilterTh controller={sessionsFilter} colKey="deviceFingerprint" className="p-3 text-start" />
+                <AutoFilterTh controller={sessionsFilter} colKey="language" className="p-3 text-start" />
+                <AutoFilterTh controller={sessionsFilter} colKey="createdAt" className="p-3 text-start" />
+                <AutoFilterTh controller={sessionsFilter} colKey="lastSeenAt" className="p-3 text-start" />
+                <AutoFilterTh controller={sessionsFilter} colKey="expiresAtUtc" className="p-3 text-start" />
+                <AutoFilterTh controller={sessionsFilter} colKey="status" className="p-3 text-start" />
                 <th className="p-3" />
               </tr>
             </thead>
             <tbody>
-              {rows.map((s) => (
+              {sessionsFilter.rows.map((s) => (
                 <tr key={s.id} className="border-t border-[var(--line)]">
                   <td className="p-3">
                     <div className="font-bold text-[var(--ink)]">{s.riderName || '—'}</div>
@@ -168,9 +208,11 @@ export function RiderSessionsPanel() {
                   </td>
                   <td className="p-3 font-mono text-xs">
                     {s.deviceFingerprint || '—'}
-                    {s.fcmRegistered && <span className="ms-1 text-[var(--muted)]">(FCM)</span>}
+                    {s.fcmRegistered && <span className="ms-1 text-[var(--muted)]">(إشعارات الجهاز)</span>}
                   </td>
-                  <td className="p-3 text-xs">{s.language}</td>
+                  <td className="p-3 text-xs">
+                    {s.language === 'ar' ? 'العربية' : s.language === 'en' ? 'الإنجليزية' : s.language === 'ur' ? 'الأردية' : s.language || '—'}
+                  </td>
                   <td className="p-3 num text-xs whitespace-nowrap">{when(s.createdAt)}</td>
                   <td className="p-3 num text-xs whitespace-nowrap">{when(s.lastSeenAt)}</td>
                   <td className="p-3 num text-xs whitespace-nowrap">{when(s.expiresAtUtc)}</td>

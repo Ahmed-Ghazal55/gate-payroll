@@ -1,11 +1,14 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import { formatSar } from '../../lib/money';
+
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw, Plus, CheckCircle2 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 
 type Adj = Record<string, unknown>;
 
@@ -42,6 +45,32 @@ export function AccountingAdjustmentsPanel({ companies }: { companies: Array<{ i
   }, [canCreate, canApprove]);
 
   useEffect(() => { load(); }, [load]);
+
+  const adjTypeLabel = (v: unknown) => {
+    const s = String(v ?? '');
+    if (s === 'mada_topup') return 'شحن مدا';
+    if (s === 'salary_increase') return 'زيادة راتب';
+    if (s === 'salary_decrease') return 'نقص راتب';
+    if (s === 'administrative_charge') return 'رسم إداري';
+    return s || '—';
+  };
+  const adjCols = useMemo(
+    () => [
+      { key: 'type', header: 'النوع', type: 'list' as const, getValue: (r: Adj) => String(r.type || ''), labelOf: adjTypeLabel },
+      { key: 'reference', header: 'المرجع', type: 'text' as const, getValue: (r: Adj) => String(r.reference || '') },
+      { key: 'amount', header: 'المبلغ', type: 'number' as const, getValue: (r: Adj) => Number(r.amount || 0) },
+      {
+        key: 'status',
+        header: 'الحالة',
+        type: 'list' as const,
+        getValue: (r: Adj) => String(r.status || ''),
+        labelOf: (v: unknown) => (v === 'approved' ? 'معتمد' : v === 'draft' ? 'مسودة' : String(v ?? '—')),
+        toneOf: (v: unknown) => (v === 'approved' ? 'success' : v === 'draft' ? 'warning' : 'neutral'),
+      },
+    ],
+    []
+  );
+  const adjFilter = useTableAutoFilter<Adj>(rows, adjCols);
 
   if (!canCreate && !canApprove) {
     return <EmptyState title="صلاحية غير كافية" description="تسويات مدا/الراتب/الرسوم الإدارية تحتاج صلاحية قيود." />;
@@ -125,26 +154,27 @@ export function AccountingAdjustmentsPanel({ companies }: { companies: Array<{ i
         <EmptyState title="لا تسويات" description="أنشئ مسودة أولاً." />
       ) : (
         <div className="rounded-2xl border border-[var(--line)] overflow-hidden bg-[var(--surface)]">
+          <AutoFilterBar controller={adjFilter} totalCount={rows.length} />
           <table className="w-full text-xs sm:text-sm">
             <thead className="bg-[var(--raised)]/50 text-[var(--muted)]">
               <tr>
-                <th className="p-3 text-start">النوع</th>
-                <th className="p-3 text-start">المرجع</th>
-                <th className="p-3 text-start">المبلغ</th>
-                <th className="p-3 text-start">الحالة</th>
+                <AutoFilterTh controller={adjFilter} colKey="type" className="p-3 text-start" />
+                <AutoFilterTh controller={adjFilter} colKey="reference" className="p-3 text-start" />
+                <AutoFilterTh controller={adjFilter} colKey="amount" className="p-3 text-start" />
+                <AutoFilterTh controller={adjFilter} colKey="status" className="p-3 text-start" />
                 <th className="p-3 text-start">إجراء</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {rows.map((r) => {
+              {adjFilter.rows.map((r) => {
                 const id = String(r.id || '');
                 const status = String(r.status || '');
                 return (
                   <tr key={id}>
-                    <td className="p-3">{String(r.type || '')}</td>
+                    <td className="p-3">{adjTypeLabel(r.type)}</td>
                     <td className="p-3 font-mono">{String(r.reference || '')}</td>
-                    <td className="p-3 font-mono">{Number(r.amount || 0).toLocaleString('en-US', { minimumFractionDigits: 2 })}</td>
-                    <td className="p-3">{status}</td>
+                    <td className="p-3 font-mono">{formatSar(Number(r.amount || 0))}</td>
+                    <td className="p-3">{status === 'approved' ? 'معتمد' : status === 'draft' ? 'مسودة' : status}</td>
                     <td className="p-3">
                       {canApprove && status === 'draft' && (
                         <button type="button" disabled={busy} onClick={() => approve(id)} className="inline-flex items-center gap-1 font-semibold text-[var(--accent)] disabled:opacity-50">

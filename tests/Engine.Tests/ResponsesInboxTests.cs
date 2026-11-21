@@ -12,7 +12,7 @@ public sealed class ResponsesInboxTests
         string dir=Path.Combine(Path.GetTempPath(),"gate-responses-"+Guid.NewGuid().ToString("N"));
         try
         {
-            var store=new Store(dir);var user=new ClaimsPrincipal(new ClaimsIdentity([new Claim("permission","forms.view")],"synthetic"));
+            var store=new Store(dir);var user=new ClaimsPrincipal(new ClaimsIdentity([new Claim("permission","forms.view"),new Claim("permission",SubmissionChoices.PermAllCompanies)],"synthetic"));
             store.Write((c,tx)=>
             {
                 Store.Save(c,"campaign",new(){["id"]="synthetic-campaign",["title"]="Synthetic Campaign"},tx);

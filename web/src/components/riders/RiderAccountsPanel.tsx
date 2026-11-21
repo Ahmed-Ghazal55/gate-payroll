@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import {
   Smartphone,
   RefreshCw,
@@ -18,6 +18,8 @@ import {
   ApiError,
 } from '../../lib/api';
 import { SourceBadge } from '../ui/SourceBadge';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../ui/ColumnFilterMenu';
+import { platformLabelAr } from '../../features/companies/company-stats';
 
 export interface RiderAccountsPanelProps {
   iqama: string;
@@ -37,6 +39,34 @@ export function RiderAccountsPanel({ iqama, className = '' }: RiderAccountsPanel
   const [loading, setLoading] = useState<boolean>(true);
   const [is503, setIs503] = useState<boolean>(false);
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
+  const accountFilterCols = useMemo(
+    () => [
+      { key: 'code', header: 'كود الحساب', type: 'text' as const, getValue: (acc: RiderAccountRow) => acc.code || acc.id || '' },
+      { key: 'externalAccountId', header: 'معرف المنصة الخارجي', type: 'text' as const, getValue: (acc: RiderAccountRow) => acc.externalAccountId || '' },
+      { key: 'platformCode', header: 'المنصة', type: 'list' as const, getValue: (acc: RiderAccountRow) => acc.platformCode || '', labelOf: (v: unknown) => platformLabelAr(String(v ?? '')) || String(v ?? '') },
+      { key: 'cityId', header: 'المدينة', type: 'list' as const, getValue: (acc: RiderAccountRow) => acc.cityId || '', labelOf: (v: unknown) => String(v || '—') },
+      {
+        key: 'relationship',
+        header: 'العلاقة',
+        type: 'list' as const,
+        getValue: (acc: RiderAccountRow) => acc.relationship || 'operator',
+        labelOf: (v: unknown) => (v === 'actual_operator' ? 'مشغل فعلي' : String(v || 'مشغل')),
+        toneOf: (v: unknown) => (v === 'actual_operator' ? 'success' : 'info'),
+      },
+      {
+        key: 'assignments',
+        header: 'فترات التكليف الفعلي',
+        type: 'text' as const,
+        getValue: (acc: RiderAccountRow) =>
+          (acc.assignments || [])
+            .map((a) => `${a.RawEffectiveFrom?.slice(0, 10) || a.EffectiveFrom?.slice(0, 10) || 'بداية'} -> ${a.RawEffectiveTo?.slice(0, 10) || a.EffectiveTo?.slice(0, 10) || 'مستمر'}`)
+            .join(' | '),
+      },
+    ],
+    []
+  );
+  const accountsFilter = useTableAutoFilter(items, accountFilterCols);
 
   const fetchAccounts = useCallback(
     async (targetPage = page, targetSize = pageSize) => {
@@ -197,16 +227,17 @@ export function RiderAccountsPanel({ iqama, className = '' }: RiderAccountsPanel
       ) : (
         <>
           {/* Table Container */}
+          <AutoFilterBar controller={accountsFilter} totalCount={items.length} />
           <div className="overflow-x-auto">
             <table className="w-full text-start text-xs sm:text-sm">
               <thead className="border-b border-[var(--line)] bg-[var(--raised)]/60 text-[var(--muted)] font-semibold">
                 <tr>
-                  <th className="p-3 text-start">كود الحساب</th>
-                  <th className="p-3 text-start">معرف المنصة الخارجي</th>
-                  <th className="p-3 text-start">المنصة</th>
-                  <th className="p-3 text-start">المدينة</th>
-                  <th className="p-3 text-start">العلاقة</th>
-                  <th className="p-3 text-start">فترات التكليف الفعلي</th>
+                  <AutoFilterTh controller={accountsFilter} colKey="code" className="p-3 text-start" />
+                  <AutoFilterTh controller={accountsFilter} colKey="externalAccountId" className="p-3 text-start" />
+                  <AutoFilterTh controller={accountsFilter} colKey="platformCode" className="p-3 text-start" />
+                  <AutoFilterTh controller={accountsFilter} colKey="cityId" className="p-3 text-start" />
+                  <AutoFilterTh controller={accountsFilter} colKey="relationship" className="p-3 text-start" />
+                  <AutoFilterTh controller={accountsFilter} colKey="assignments" className="p-3 text-start" />
                 </tr>
               </thead>
               <tbody className="divide-y divide-[var(--line)]">
@@ -221,14 +252,14 @@ export function RiderAccountsPanel({ iqama, className = '' }: RiderAccountsPanel
                       <td className="p-3"><div className="h-4 w-36 bg-[var(--raised)] rounded" /></td>
                     </tr>
                   ))
-                ) : items.length === 0 ? (
+                ) : accountsFilter.rows.length === 0 ? (
                   <tr>
                     <td colSpan={6} className="p-8 text-center text-xs text-[var(--muted)]">
                       لا توجد حسابات منصات مرتبطة بهذا المندوب في نظام التشغيل.
                     </td>
                   </tr>
                 ) : (
-                  items.map((acc: RiderAccountRow, i: number) => (
+                  accountsFilter.rows.map((acc: RiderAccountRow, i: number) => (
                     <tr key={acc.id || acc.code || i} className="hover:bg-[var(--row-hover)] transition">
                       <td className="p-3 font-mono font-bold text-[var(--accent)]">{acc.code || acc.id}</td>
                       <td className="p-3 font-mono font-bold">{acc.externalAccountId || '-'}</td>

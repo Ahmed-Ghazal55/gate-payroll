@@ -181,12 +181,20 @@ public static class AuditApi
         return new(){["items"]=items,["allowedActions"]=new JsonArray()};
     }
 
+    static void DemandAuditView(ClaimsPrincipal actor)
+    {
+        if(AccessPolicy.Has(actor,"audit.view")||AccessPolicy.Has(actor,ViewPerm))return;
+        AccessPolicy.Demand(actor,ViewPerm);
+    }
+
     public static void Map(RouteGroupBuilder api,Store store)
     {
-        // Return a plain array so ApiPagination can opt-in with ?page=; keep legacy action/entityId fields.
-        api.MapGet("/audit",(string? from,string? to,string? userId,string? entityType,string? action,HttpContext ctx)=>
-            store.Read(c=>Query(c,ctx.User,from,to,userId,entityType,action)))
-            .WithTags("Administration").WithSummary("Data-change audit log (no read events; ?page= wraps items)");
+        // Always page in SQL (M-0607 / FU1-d from main); W2 keeps self-approvals + read-summary beside it.
+        api.MapGet("/audit",(HttpContext ctx)=>
+        {
+            DemandAuditView(ctx.User);
+            return store.Read(c=>AuditQuery.ListPaged(c,ctx.Request.Query));
+        }).WithTags("Administration").WithSummary("Read audit (always paged)");
         api.MapGet("/admin/audit/self-approvals",(string? from,string? to,HttpContext ctx)=>
             store.Read(c=>SelfApprovals(c,ctx.User,from,to)))
             .WithTags("Administration").WithSummary("System Administrator self-approval report");
