@@ -592,7 +592,7 @@ function OperationsPageInner() {
         { key: 'city', header: 'المدينة', type: 'list', filterType: 'list', getValue: (r) => String(r.city || ''), render: (r) => String(r.city || '') },
         { key: 'rooms', header: 'عدد الغرف', type: 'number', filterType: 'number', numeric: true, filterColumn: 'roomsCount', getValue: (r) => (r.roomsCount != null ? Number(r.roomsCount) : ''), render: (r) => String(r.roomsCount ?? '') },
         { key: 'res', header: 'إجمالي المناديب', type: 'number', filterType: 'number', numeric: true, filterColumn: 'residentsTotal', getValue: (r) => (r.residentsTotal != null ? Number(r.residentsTotal) : ''), render: (r) => String(r.residentsTotal ?? '') },
-        { key: 'per', header: 'مندوب/غرفة', type: 'number', filterType: 'number', numeric: true, filterColumn: 'ridersPerRoom', getValue: (r) => (r.ridersPerRoom != null ? Number(r.ridersPerRoom) : ''), render: (r) => String(r.ridersPerRoom ?? '') },
+        { key: 'per', header: 'مندوب/غرفة', type: 'number', filterType: 'number', numeric: true, summary: 'none', filterColumn: 'ridersPerRoom', getValue: (r) => (r.ridersPerRoom != null ? Number(r.ridersPerRoom) : ''), render: (r) => String(r.ridersPerRoom ?? '') },
         { key: 'sup', header: 'المشرف', filterable: false, sortable: false, render: () => NO_SOURCE },
         { key: 'status', header: 'الحالة', type: 'list', filterType: 'list', getValue: (r) => String(r.status || ''), toneOf: defaultStatusTone, render: (r) => String(r.status || '') },
         {
@@ -731,7 +731,7 @@ function OperationsPageInner() {
       return [
         { key: 'plate', header: 'اللوحة', type: 'list', filterType: 'list', filterColumn: 'plateNumberAr', getValue: (r) => String(r.plateNumberAr || ''), render: (r) => cell(r.plateNumberAr) },
         { key: 'date', header: 'التاريخ', type: 'date', filterType: 'date', filterColumn: 'performedAt', getValue: (r) => formatDateShort(r.performedAt), render: (r) => cell(r.performedAt) },
-        { key: 'odo', header: 'العداد', type: 'number', filterType: 'number', numeric: true, filterColumn: 'odometer', getValue: (r) => (r.odometer != null ? Number(r.odometer) : ''), render: (r) => cell(r.odometer) },
+        { key: 'odo', header: 'العداد', type: 'number', filterType: 'number', numeric: true, summary: 'none', filterColumn: 'odometer', getValue: (r) => (r.odometer != null ? Number(r.odometer) : ''), render: (r) => cell(r.odometer) },
         { key: 'liters', header: 'لترات', type: 'number', filterType: 'number', numeric: true, filterColumn: 'oilLiters', getValue: (r) => (r.oilLiters != null ? Number(r.oilLiters) : ''), render: (r) => cell(r.oilLiters) },
         { key: 'oil', header: 'تكلفة الزيت', type: 'number', filterType: 'number', numeric: true, filterColumn: 'oilCost', getValue: (r) => (r.oilCost != null ? Number(r.oilCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.oilCost as number | string | null | undefined)}</span> },
         { key: 'filter', header: 'الفلتر', type: 'number', filterType: 'number', numeric: true, filterColumn: 'filterCost', getValue: (r) => (r.filterCost != null ? Number(r.filterCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.filterCost as number | string | null | undefined)}</span> },

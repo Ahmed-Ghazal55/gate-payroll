@@ -1586,7 +1586,7 @@ function DebtsPageContent() {
                   { key: 'description', header: 'البيان / الحركة', type: 'text', getValue: (e: any) => e.description || e.statement || '', render: (e: any) => <span className="font-medium">{e.description || e.statement}</span> },
                   { key: 'debit', header: 'مدين', type: 'number', numeric: true, getValue: (e: any) => Number(e.debit || 0), render: (e: any) => <span className="num font-bold text-[var(--danger)] whitespace-nowrap">{e.debit > 0 ? formatSar(e.debit) : '—'}</span> },
                   { key: 'credit', header: 'دائن', type: 'number', numeric: true, getValue: (e: any) => Number(e.credit || 0), render: (e: any) => <span className="num font-bold text-[var(--money-pos)] whitespace-nowrap">{e.credit > 0 ? formatSar(e.credit) : '—'}</span> },
-                  { key: 'balance', header: 'الرصيد', type: 'number', numeric: true, getValue: (e: any) => Number(e.balance || 0), render: (e: any) => <span className="num font-bold text-[var(--ink)] whitespace-nowrap">{formatSar(e.balance)}</span> },
+                  { key: 'balance', header: 'الرصيد', type: 'number', numeric: true, summary: 'none', getValue: (e: any) => Number(e.balance || 0), render: (e: any) => <span className="num font-bold text-[var(--ink)] whitespace-nowrap">{formatSar(e.balance)}</span> },
                 ]}
               />
             </div>

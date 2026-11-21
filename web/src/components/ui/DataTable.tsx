@@ -129,7 +129,7 @@ export interface ColumnDef<T> {
   /** R1: a stacked screen cell exported as several separate columns (export only; the screen is unchanged). */
   exportColumns?: { header: string; value: (row: T) => any }[];
   className?: string;
-  summary?: 'sum' | 'count' | ((rows: T[]) => React.ReactNode);
+  summary?: 'sum' | 'avg' | 'count' | 'none' | ((rows: T[]) => React.ReactNode);
 }
 
 export interface RowAction<T> {
@@ -767,8 +767,9 @@ export function DataTable<T extends Record<string, any>>({
     return sortedData.slice(start, start + pageSize);
   }, [serverSide, data.length, sortedData, page, pageSize, totalCount]);
 
-  const effectiveTotal =
-    totalCount !== undefined ? totalCount : serverSide ? data.length : filteredData.length;
+  const effectiveTotal = serverSide
+    ? (totalCount ?? filteredData.length)
+    : filteredData.length;
   const totalPages = Math.max(1, Math.ceil(effectiveTotal / pageSize));
 
   // If a narrower filter leaves the current page past the end, go back to the last page
@@ -1013,9 +1014,18 @@ export function DataTable<T extends Record<string, any>>({
     paginatedData.length > 0 &&
     paginatedData.every((r) => selectedIds.includes(getRowId(r)));
 
-  const hasNumericColumns = columns.some(
-    (c) => c.numeric || resolveColumnType(c) === 'number'
-  );
+  const isColumnSummarizable = (c: ColumnDef<T>): boolean => {
+    if (c.summary === 'none') return false;
+    if (typeof c.summary === 'function' || c.summary === 'sum' || c.summary === 'avg' || c.summary === 'count') {
+      return true;
+    }
+    if (!(c.numeric || resolveColumnType(c) === 'number')) return false;
+    return !/^(index|idx|row|odo|odometer|mileage|per|ratio|rate|percent|pct|ridersPerRoom|occupancy|year|modelYear|level|version|threshold)$/i.test(
+      c.key
+    );
+  };
+
+  const hasNumericColumns = columns.some((c, i) => i > 0 && isColumnSummarizable(c));
 
   return (
     <div
@@ -1396,22 +1406,58 @@ export function DataTable<T extends Record<string, any>>({
                     );
                   }
 
-                  if (col.numeric) {
+                  if (col.summary === 'none') {
+                    return <td key={`total-${col.key}`} className="px-3.5 py-2.5" />;
+                  }
+
+                  if (typeof col.summary === 'function') {
+                    return (
+                      <td
+                        key={`total-${col.key}`}
+                        className="px-3.5 py-2.5 text-end num text-[var(--ink)]"
+                      >
+                        {col.summary(filteredData)}
+                      </td>
+                    );
+                  }
+
+                  if (col.summary === 'count') {
+                    return (
+                      <td
+                        key={`total-${col.key}`}
+                        className="px-3.5 py-2.5 text-end num text-[var(--ink)]"
+                      >
+                        {filteredData.length.toLocaleString('en-US')}
+                      </td>
+                    );
+                  }
+
+                  if (isColumnSummarizable(col)) {
+                    let countValid = 0;
                     const sum = filteredData.reduce((acc, row) => {
                       const raw = getCellRawValue(row, col);
+                      if (raw === null || raw === undefined || raw === '') return acc;
                       const n =
                         typeof raw === 'number'
                           ? raw
-                          : parseFloat(String(raw || '').replace(/,/g, '')) || 0;
+                          : parseFloat(String(raw).replace(/,/g, ''));
+                      if (!Number.isFinite(n)) return acc;
+                      countValid += 1;
                       return acc + n;
                     }, 0);
+                    const value =
+                      col.summary === 'avg'
+                        ? countValid > 0
+                          ? sum / countValid
+                          : 0
+                        : sum;
 
                     return (
                       <td
                         key={`total-${col.key}`}
                         className="px-3.5 py-2.5 text-end num text-[var(--ink)]"
                       >
-                        {sum.toLocaleString('en-US', {
+                        {value.toLocaleString('en-US', {
                           minimumFractionDigits: 0,
                           maximumFractionDigits: 2,
                         })}
