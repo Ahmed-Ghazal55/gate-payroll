@@ -6,13 +6,8 @@ import {
   useReactTable,
   getCoreRowModel,
   getFilteredRowModel,
-  getSortedRowModel,
-  getFacetedRowModel,
-  getFacetedUniqueValues,
-  getFacetedMinMaxValues,
   type ColumnDef as TanStackColumnDef,
   type ColumnFiltersState,
-  type SortingState,
 } from '@tanstack/react-table';
 import {
   ChevronDown,
@@ -509,16 +504,24 @@ export function DataTable<T extends Record<string, any>>({
           colFilters[colKey] = val;
           const col = columns.find((c) => c.key === colKey);
           const fType = col ? inferColumnFilterType(col.key, col.type ?? col.filterType) : 'text';
-          initialSpecs[colKey] = {
-            op: fType === 'list' ? 'eq' : 'contains',
-            value: val,
-          };
+          initialSpecs[colKey] =
+            fType === 'list'
+              ? { values: [val] }
+              : { op: 'contains', value: val };
         }
       });
       if (Object.keys(colFilters).length > 0) {
         setInternalColumnSearch((prev) => ({ ...prev, ...colFilters }));
         setColFilterSpecs((prev) => ({ ...prev, ...initialSpecs }));
         if (onColumnFiltersChange) onColumnFiltersChange(colFilters);
+      }
+      if (serverSide && onServerQueryChange && (Object.keys(initialSpecs).length > 0 || urlSort)) {
+        emitServerQuery(
+          initialSpecs,
+          urlSort || sortKey,
+          urlDir === 'asc' || urlDir === 'desc' ? urlDir : sortDir,
+          null
+        );
       }
     } catch {
       // Ignore URL parsing errors
@@ -630,14 +633,14 @@ export function DataTable<T extends Record<string, any>>({
     };
   }, []);
 
-  // Build TanStack Table v8 definitions & state
+  // Build TanStack Table v8 definitions & state (filtering handled by TanStack; sorting uses compareColumnValues directly)
   const tanstackColumns = useMemo<TanStackColumnDef<T, any>[]>(() => {
     return columns.map((col) => {
       const colType = resolveColumnType(col);
       return {
         id: col.key,
         accessorFn: (row: T) => getCellRawValue(row, col),
-        enableSorting: col.sortable !== false && col.key !== 'actions',
+        enableSorting: false,
         enableColumnFilter: col.filterable !== false && col.key !== 'actions',
         filterFn: (row, columnId, filterValue: ColumnFilterValue) => {
           const raw = row.getValue(columnId);
@@ -648,22 +651,9 @@ export function DataTable<T extends Record<string, any>>({
             topNThreshold: topNThresholdByCol[col.key],
           });
         },
-        sortingFn: (rowA, rowB, columnId) => {
-          const rawA = rowA.getValue(columnId);
-          const rawB = rowB.getValue(columnId);
-          // TanStack inverts comparator when desc=true; pass dir='asc' here so TanStack direction controls sign,
-          // EXCEPT when sortTone is set or blanks exist (handled before returning).
-          return compareColumnValues(rawA, rawB, {
-            type: colType,
-            dir: 'asc',
-            sortTone: sortKey === col.key ? sortTone : null,
-            labelOf: col.labelOf ? (v) => col.labelOf!(v) : undefined,
-            toneOf: col.toneOf ? (v) => col.toneOf!(v) : undefined,
-          });
-        },
       };
     });
-  }, [columns, getCellRawValue, topNThresholdByCol, sortKey, sortTone]);
+  }, [columns, getCellRawValue, topNThresholdByCol]);
 
   const tanstackColumnFilters = useMemo<ColumnFiltersState>(() => {
     const list: ColumnFiltersState = [];
@@ -685,11 +675,6 @@ export function DataTable<T extends Record<string, any>>({
     return list;
   }, [columns, colFilterSpecs, columnSearch]);
 
-  const tanstackSorting = useMemo<SortingState>(() => {
-    if (!sortKey) return [];
-    return [{ id: sortKey, desc: sortDir === 'desc' }];
-  }, [sortKey, sortDir]);
-
   const serverOwnsColumnFilters =
     serverSide && (Boolean(onColumnFiltersChange) || Boolean(onServerQueryChange));
 
@@ -698,7 +683,6 @@ export function DataTable<T extends Record<string, any>>({
     columns: tanstackColumns,
     state: {
       columnFilters: serverOwnsColumnFilters ? [] : tanstackColumnFilters,
-      sorting: serverOwnsColumnFilters ? [] : tanstackSorting,
       globalFilter: serverSide ? '' : globalSearch,
     },
     globalFilterFn: (row, _columnId, filterValue: string) => {
@@ -715,13 +699,8 @@ export function DataTable<T extends Record<string, any>>({
       return false;
     },
     manualFiltering: serverOwnsColumnFilters,
-    manualSorting: serverOwnsColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
-    getSortedRowModel: getSortedRowModel(),
-    getFacetedRowModel: getFacetedRowModel(),
-    getFacetedUniqueValues: getFacetedUniqueValues(),
-    getFacetedMinMaxValues: getFacetedMinMaxValues(),
   });
 
   // Filtered dataset (before sorting)
