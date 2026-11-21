@@ -82,7 +82,11 @@ public sealed class MoneyOutDualRuntimeTests
         string reqId="synthetic-adv-dual";
         f.Store.Write((c,tx)=>{
             var riderDoc=Store.Get(c,rider,"rider",tx)!;riderDoc["sponsorId"]=company;Store.Save(c,"rider",riderDoc,tx);
-            Store.Save(c,"user",new(){["id"]="synthetic-custodian",["username"]="synthetic-custodian",["role"]="FinancialAccountant",["customPermissions"]=new JsonArray("advances.payout",ApprovalsArea.DualPaymentOut,"approvals.decide","approvals.view")},tx);
+            foreach(var (id,role,perms) in new (string,string,JsonArray)[]{
+                ("synthetic-pay-maker","Admin",new()),
+                ("synthetic-pay-checker","Admin",new JsonArray(ApprovalsArea.DualPaymentOut,"approvals.decide","approvals.view")),
+                ("synthetic-custodian","FinancialAccountant",new JsonArray("advances.payout",ApprovalsArea.DualPaymentOut,"approvals.decide","approvals.view"))})
+                Store.Save(c,"user",new(){["id"]=id,["username"]=id,["role"]=role,["department"]="FIN",["rankLevel"]=5,["customPermissions"]=perms},tx);
             OrgDirectory.AddMembership(c,tx,PayFixture.Maker,new(){["userId"]="synthetic-custodian",["department"]="FIN",["rank"]="C",["validFrom"]="2026-01-01"});
             OrgDirectory.AddRouting(c,tx,PayFixture.Maker,new(){["operation"]="advance.payout:MAIN.BW.DEBT",["department"]="FIN",["minRank"]="C",["users"]=new JsonArray("synthetic-custodian"),["validFrom"]="2026-01-01"});
             FinancialCore.PostJournal(c,tx,"opening","Synthetic cash","2026-11","synthetic-adv-cash",new JsonArray(

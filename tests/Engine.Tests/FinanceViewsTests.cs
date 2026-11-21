@@ -14,7 +14,21 @@ public sealed class FinanceViewsTests
     private const string Rider="2000000111";
     private static ClaimsPrincipal Admin=>UserAccess.Principal(new(){["username"]="synthetic-admin",["role"]="Admin"});
     private static ClaimsPrincipal Manager(string company="BW")=>UserAccess.Principal(new(){["username"]="synthetic-manager",["role"]="FinancialManager",["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(company),["accountCodes"]=new JsonArray("MAIN."+company+".DEBT"),["categoryCodes"]=new JsonArray("Advance"),["platforms"]=new JsonArray("Jahez")}});
-    private static void InStore(Action<Store> action){string path=Path.Combine(Path.GetTempPath(),"gate-views-"+Guid.NewGuid().ToString("N"));try{action(new Store(path));}finally{SqliteConnection.ClearAllPools();if(Directory.Exists(path))Directory.Delete(path,true);}}
+    private static void InStore(Action<Store> action)
+    {
+        string path=Path.Combine(Path.GetTempPath(),"gate-views-"+Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store=new Store(path);
+            store.Write((c,tx)=>{
+                Store.Save(c,"user",new(){["id"]="synthetic-admin",["username"]="synthetic-admin",["role"]="Admin",["department"]="FIN",["rankLevel"]=5},tx);
+                Store.Save(c,"user",new(){["id"]="synthetic-manager",["username"]="synthetic-manager",["role"]="FinancialManager",["department"]="FIN",["rankLevel"]=4},tx);
+                return true;
+            });
+            action(store);
+        }
+        finally{SqliteConnection.ClearAllPools();if(Directory.Exists(path))Directory.Delete(path,true);}
+    }
     private static void Journal(Store store,string id,string period,params JsonObject[] lines)=>store.Write((c,tx)=>{Store.Save(c,"journal",new(){["id"]=id,["period"]=period,["status"]="posted",["transactionType"]="synthetic",["lines"]=new JsonArray(lines.Select(l=>(JsonNode?)l).ToArray())},tx);return true;});
     private static JsonObject Line(string code,string sponsor,decimal debit,decimal credit,string iqama="")=>FinancialCore.CreateJournalLine(code,sponsor,debit,credit,"Synthetic",iqama);
     private static JsonObject Company(JsonObject report)=>report["companies"]!.AsArray().OfType<JsonObject>().Single(c=>c.S("sponsorId")==Bw);
@@ -167,6 +181,7 @@ public sealed class FinanceViewsTests
             string payoutRef="bank-payout:"+Bw+":2026-10:2026-10";
             var checker=UserAccess.Principal(new(){["username"]="synthetic-bank-checker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5});
             store.Write((c,tx)=>{
+                Store.Save(c,"user",new(){["id"]="synthetic-bank-checker",["username"]="synthetic-bank-checker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5},tx);
                 string hash=BankPayrollFiles.FileContentHash(sent["rows"]!.AsArray().OfType<JsonObject>(),900.25m);
                 var req=FinancialCore.CreateMutualApproval(c,tx,"bank_sent","اعتماد إرسال ملف بنك","مرجع اختبار", "OPS","FIN",1,payoutRef,new(){["amountSar"]=900.25m,["fileContentHash"]=hash,["total"]=900.25m},"synthetic-admin");
                 ApprovalsArea.Decide(c,tx,checker,req.S("id"),new(){["decision"]="approve",["note"]="independent checker"});
