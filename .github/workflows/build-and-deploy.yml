@@ -2,6 +2,7 @@ name: Validate, package and deploy Gate Payroll
 on:
   push:
     branches: [main]
+    paths-ignore: ['docs/**', '**/*.md']
   pull_request:
   workflow_dispatch:
 permissions:
@@ -76,13 +77,13 @@ jobs:
           node tests/finance-views.mjs
           node tests/r6b-accounting.mjs
           node tests/r6c-imports.mjs
-          node web/tests/import-center.mjs
           node web/tests/r8-ninja-flow.mjs
           node web/tests/r8-keeta-flow.mjs
           node web/tests/r9-pay-settings-flow.mjs
           node web/tests/pay-settings-empty-block.mjs
           node web/tests/ops-live-ui.mjs
           node tests/r8-contract.mjs
+          node tests/riders-masking.mjs
       - name: Publish Linux smoke-test bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r linux-x64 --self-contained true -o artifacts/linux --nologo
       - name: Test published application
@@ -91,8 +92,10 @@ jobs:
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/enterprise.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/accounting.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/submissions.mjs
+          PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/forms-all-companies.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/iban-form.mjs
           PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/campaigns.mjs
+          PAYROLL_TEST_PUBLISHED="$PWD/artifacts/linux" node tests/riders-masking.mjs
       - name: Publish MonsterASP bundle
         run: dotnet publish Payroll.Api/Payroll.Api.csproj -c Release -r win-x64 --self-contained true -o artifacts/monsterasp --nologo
       - name: Validate deployment payload

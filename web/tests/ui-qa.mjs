@@ -448,40 +448,13 @@ async function run() {
       'مراجعة السلف',
       'صرف السلف',
       'رفع فاتورة نينجا',
-      'تحديث البيانات من ERP',
     ];
     for (const item of adminShortcutItems) {
       assert.ok(await page.locator(`text=${item}`).first().isVisible(), `Admin must see shortcut: ${item}`);
     }
-    console.log('    ✓ Admin sees all 7 shortcuts');
+    console.log('    ✓ Admin sees payroll/debt shortcuts (ERP sync removed)');
 
-    // Test A2: Click ERP Sync shortcut to open ERP Sync Drawer
-    await page.locator('button:has-text("تحديث البيانات من ERP")').first().click();
-    const erpDrawer = page.locator('[role="dialog"]:has-text("مزامنة بيانات الرواتب من ERP")').first();
-    await erpDrawer.waitFor({ state: 'visible' });
-    console.log('    ✓ ERP Sync Drawer opened from shortcut');
-
-    // Check subtitle
-    assert.ok(
-      await page.locator('text=تحديث بيانات الرواتب من ERP — قراءة فقط من ERP').first().isVisible(),
-      'ERP Drawer must display correct subtitle'
-    );
-
-    // Click Preview (Dry run)
-    const dryRunBtn = erpDrawer.locator('button:has-text("معاينة (قراءة فقط)")').first();
-    await dryRunBtn.click();
-    await page.waitForTimeout(500);
-
-    // Verify active job status and counts table
-    assert.ok(await erpDrawer.locator('text=مهمة رقم: 123456').first().isVisible(), 'Active job ID displayed');
-    assert.ok(await erpDrawer.locator('text=اكتملت بنجاح').first().isVisible(), 'Job completed badge displayed');
-    assert.ok(await erpDrawer.locator('text=إحصائيات السجلات المتأثرة').first().isVisible(), 'Counts table displayed');
-    console.log('    ✓ ERP Sync dry-run triggered, completed status and counts verified');
-
-    // Close ERP drawer
-    await erpDrawer.locator('button[aria-label="إغلاق اللوحة"]').first().click();
-    await page.waitForTimeout(200);
-    console.log('    ✓ ERP Drawer closed cleanly');
+    // ERP Sync drawer was removed (S1); skip the old shortcut checks.
 
     // Test Supervisor Role shortcuts (must see ONLY advance request & internet advance)
     console.log('  Testing Supervisor Role shortcuts...');

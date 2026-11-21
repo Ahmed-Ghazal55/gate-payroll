@@ -1,5 +1,6 @@
 using System.Data.Common;
 using System.Globalization;
+using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
@@ -53,7 +54,9 @@ public static class FormSchemas
         }
         J.Need(DateTimeOffset.TryParse(input.S("expiresAt"),CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var expires)&&expires>DateTimeOffset.UtcNow&&expires<DateTimeOffset.UtcNow.AddYears(2),"تاريخ انتهاء النموذج غير صالح.");
         decimal limit=input.N("maxSubmissions",10000);J.Need(limit is >=1 and <=100000&&decimal.Truncate(limit)==limit,"حد الردود غير صالح.");
-        return new(){["titleAr"]=title,["titleEn"]=Text(input,"titleEn",200) is {Length:>0} titleEn?titleEn:title,["titleUr"]=Text(input,"titleUr",200) is {Length:>0} titleUr?titleUr:title,["descriptionAr"]=Text(input,"descriptionAr",3000),["descriptionEn"]=Text(input,"descriptionEn",3000),["descriptionUr"]=Text(input,"descriptionUr",3000),["expiresAt"]=expires.ToString("O"),["maxSubmissions"]=(int)limit,["fields"]=result,["schemaVersion"]=1};
+        var doc=new JsonObject{["titleAr"]=title,["titleEn"]=Text(input,"titleEn",200) is {Length:>0} titleEn?titleEn:title,["titleUr"]=Text(input,"titleUr",200) is {Length:>0} titleUr?titleUr:title,["descriptionAr"]=Text(input,"descriptionAr",3000),["descriptionEn"]=Text(input,"descriptionEn",3000),["descriptionUr"]=Text(input,"descriptionUr",3000),["expiresAt"]=expires.ToString("O"),["maxSubmissions"]=(int)limit,["fields"]=result,["schemaVersion"]=1};
+        FormTargeting.ApplyAndValidate(input, doc);
+        return doc;
     }
     public static JsonObject Answers(JsonObject form,JsonObject input)
     {
@@ -94,8 +97,21 @@ public static class FormBuilderApi
         })).WithTags("Forms and responses").WithSummary("Submit forms builder {id} publish");
         api.MapPost("/forms/builder/{id}/close",(string id,HttpContext ctx)=>store.Write((c,tx)=>{var f=Store.Get(c,id,"custom_form",tx)??throw new ApiError("النموذج غير موجود.",404);f["status"]="closed";Store.Save(c,"custom_form",f,tx);Store.Audit(c,tx,"builder.closed",id,ctx.User.Identity!.Name!);return View(f,ctx);})).WithTags("Forms and responses").WithSummary("Submit forms builder {id} close");
         api.MapGet("/forms/builder/{id}/qr.svg",(string id,HttpContext ctx)=>store.Read(c=>{var f=Store.Get(c,id,"custom_form")??throw new ApiError("النموذج غير موجود.",404);J.Need(f.S("sharingToken")!="","انشر النموذج أولًا.");return Results.Text(CampaignLinks.Svg(View(f,ctx).S("publicUrl")),"image/svg+xml");})).WithTags("Forms and responses").WithSummary("Read forms builder {id} qr.svg");
-        api.MapGet("/forms/responses/{id}",(string id)=>store.Read(c=>Store.List(c,"custom_response").Where(x=>x.S("formId")==id).ToList())).WithTags("Forms and responses").WithSummary("Read forms responses {id}");
-        api.MapGet("/forms/analytics/{id}",(string id)=>store.Read(c=>Analytics(c,id))).WithTags("Forms and responses").WithSummary("Read forms analytics {id}");
+        api.MapGet("/forms/responses/{id}",(string id,HttpContext ctx)=>store.Read(c=>{
+            var form=Store.Get(c,id,"custom_form")??throw new ApiError("النموذج غير موجود.",404);
+            var fields=(form["fields"] as JsonArray)?.OfType<JsonObject>().ToList()??[];
+            string iqamaField=fields.FirstOrDefault(x=>x.S("type")=="iqama")?.S("id")??"";
+            return Store.List(c,"custom_response").Where(x=>x.S("formId")==id).Select(item=>{
+                var row=item.Clone();var answers=(row["answers"] as JsonObject)?.Clone()??new JsonObject();
+                string iqama=answers.S(iqamaField);
+                if(!SubmissionChoices.InRiderScope(c,ctx.User,iqama))return null;
+                if(!AccessPolicy.Has(ctx.User,WorkforceApi.PermIban))
+                    foreach(var f in fields.Where(x=>x.S("type")=="iban"||x.S("id").Contains("iban",StringComparison.OrdinalIgnoreCase)))
+                    { string v=answers.S(f.S("id")); if(v.Length>=4) answers[f.S("id")]="••••"+v[^4..]; else if(v!="") answers[f.S("id")]="••••"; }
+                row["answers"]=answers;return row;
+            }).Where(x=>x!=null).Cast<JsonObject>().ToList();
+        })).WithTags("Forms and responses").WithSummary("Read forms responses {id}");
+        api.MapGet("/forms/analytics/{id}",(string id,HttpContext ctx)=>store.Read(c=>Analytics(c,id,ctx.User))).WithTags("Forms and responses").WithSummary("Read forms analytics {id}");
         JsonObject Load(string token,DbConnection c,DbTransaction? tx=null)
         { J.Need(token.Length==64&&token.All(Uri.IsHexDigit),"رابط غير صالح.");var f=Store.List(c,"custom_form",tx).FirstOrDefault(x=>x.S("sharingToken")==token)??throw new ApiError("النموذج غير متاح.",404);J.Need(f.S("status")=="open"&&DateTimeOffset.Parse(f.S("expiresAt"),CultureInfo.InvariantCulture)>DateTimeOffset.UtcNow,"النموذج مغلق.");return f; }
         app.MapGet("/api/public/questionnaires/{token}",(string token)=>store.Read(c=>{
@@ -109,10 +125,13 @@ public static class FormBuilderApi
         })).WithTags("Forms and responses").WithSummary("Submit public questionnaires {token}").RequireRateLimiting("sensitive");
         app.MapGet("/questionnaires/{token}",(string token)=>{store.Read(c=>Load(token,c));return Results.File(Path.Combine(AppContext.BaseDirectory,"wwwroot","rider-form.html"),"text/html; charset=utf-8");}).WithTags("Forms and responses").WithSummary("Read  questionnaires {token}");
     }
-    private static object Analytics(DbConnection c,string id)
+    private static object Analytics(DbConnection c,string id,ClaimsPrincipal user)
     {
-        var f=Store.Get(c,id,"custom_form")??throw new ApiError("النموذج غير موجود.",404);var rows=Store.List(c,"custom_response").Where(x=>x.S("formId")==id).ToList();
+        var f=Store.Get(c,id,"custom_form")??throw new ApiError("النموذج غير موجود.",404);
+        var fields=(f["fields"] as JsonArray)?.OfType<JsonObject>().ToList()??[];
+        string iqamaField=fields.FirstOrDefault(x=>x.S("type")=="iqama")?.S("id")??"";
+        var rows=Store.List(c,"custom_response").Where(x=>x.S("formId")==id&&SubmissionChoices.InRiderScope(c,user,(x["answers"] as JsonObject)?.S(iqamaField)??"")).ToList();
         double hours=rows.Count==0?1:Math.Max(1d/60,(DateTimeOffset.UtcNow-rows.Select(x=>DateTimeOffset.Parse(x.S("createdAt"),CultureInfo.InvariantCulture)).Min()).TotalHours);
-        return new{formId=id,totalResponses=rows.Count,responsesPerHour=Math.Round(rows.Count/hours,2),fields=((JsonArray)f["fields"]!).OfType<JsonObject>().Where(q=>q.S("type") is "select" or "radio").Select(q=>new{id=q.S("id"),label=q.S("labelAr"),options=((JsonArray)q["options"]!).OfType<JsonObject>().Select(o=>{int count=rows.Count(r=>r["answers"].S(q.S("id"))==o.S("value"));return new{value=o.S("value"),label=o.S("labelAr"),count,percentage=rows.Count==0?0:Math.Round(100m*count/rows.Count,2)};})})};
+        return new{formId=id,totalResponses=rows.Count,responsesPerHour=Math.Round(rows.Count/hours,2),fields=fields.Where(q=>q.S("type") is "select" or "radio").Select(q=>new{id=q.S("id"),label=q.S("labelAr"),options=((JsonArray)q["options"]!).OfType<JsonObject>().Select(o=>{int count=rows.Count(r=>r["answers"].S(q.S("id"))==o.S("value"));return new{value=o.S("value"),label=o.S("labelAr"),count,percentage=rows.Count==0?0:Math.Round(100m*count/rows.Count,2)};})})};
     }
 }

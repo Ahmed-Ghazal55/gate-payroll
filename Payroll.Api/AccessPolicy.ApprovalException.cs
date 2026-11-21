@@ -27,16 +27,23 @@ public static partial class AccessPolicy
                    ||(a.S("action")=="approval.self_exception"&&string.Equals(actor.Identity.Name,"ghazal",StringComparison.OrdinalIgnoreCase)
                       &&string.CompareOrdinal(a.S("approvalExceptionUntil"),used.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"))>=0)));
         }
-        // BR §35 / WC1H: self-approvals need a dated bypass grant whose scope explicitly matches.
-        // Omitting scope is never a wildcard — Jahez and other callers must pass the dual/operation scope.
-        if(string.IsNullOrWhiteSpace(scope)||c==null)return false;
-        var grant=ActiveBypassGrant(c,tx,actor.Identity!.Name!,scope);
-        if(grant==null)return false;
+        // BR §35 / WC1H: dated bypass grant must match scope (no wildcard). M-0667: SystemAdmin is the default exception and is audited.
+        bool systemAdmin=actor.IsInRole("SystemAdmin");
+        JsonObject? grant=null;
+        if(!systemAdmin)
+        {
+            if(string.IsNullOrWhiteSpace(scope)||c==null)return false;
+            grant=ActiveBypassGrant(c,tx,actor.Identity!.Name!,scope);
+            if(grant==null)return false;
+        }
         if(tx!=null)
         {
             J.Need(c!=null&&record!=null&&record.S("id")!="","استثناء الاعتماد يحتاج مستندًا وسجل مراجعة.",409);
             record!["selfApprovedException"]=true;
-            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant.S("id"),["scope"]=grant.S("scope",scope),["reason"]=grant.S("reason"),["approvalBypassUntil"]=grant.S("to"),["selfApprovedException"]=true,["badge"]="bypass_maker_checker"},tx);
+            if(!systemAdmin)grant??=ActiveBypassGrant(c!,tx,actor.Identity!.Name!,scope);
+            string reason=systemAdmin?"system-admin-default":(grant?.S("reason")??actor.FindFirstValue("approvalBypassReason")??"");
+            string badge=systemAdmin?"system_admin":"bypass_maker_checker";
+            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant?.S("id")??"",["scope"]=grant?.S("scope",scope??"")??(scope??""),["reason"]=reason,["approvalBypassUntil"]=grant?.S("to")??actor.FindFirstValue("approvalBypassUntil")??"",["selfApprovedException"]=true,["badge"]=badge},tx);
         }
         return true;
     }

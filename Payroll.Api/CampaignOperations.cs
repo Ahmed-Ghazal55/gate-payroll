@@ -28,8 +28,9 @@ public static class CampaignOperations
         J.Need(new[]{"city","phone"}.All(f=>!input.ContainsKey(f)||Fields(campaign).Contains(f)),"يوجد حقل غير مفعّل في النموذج.");
         return result;
     }
-    public static void Review(DbConnection c,DbTransaction tx,JsonObject d,JsonObject input,string actor)
+    public static void Review(DbConnection c,DbTransaction tx,JsonObject d,JsonObject input,string actor,ClaimsPrincipal? scopeUser=null)
     {
+        if(scopeUser!=null)SubmissionChoices.DemandInScope(c,scopeUser,d,tx);
         J.Need(d.S("status")=="pending","تمت مراجعة الرد بالفعل.");SubmissionChoices.CheckVersion(d,input);
         string status=input.Required("status");J.Need(status is "approved" or "rejected","حالة مراجعة غير صحيحة.");
         if(status=="approved")
@@ -67,11 +68,12 @@ public static class CampaignOperations
             rider["workPreference"]=next?.S("workSystem")??"";rider["workPreferenceSubmissionId"]=next?.S("id")??"";Store.Save(c,"rider",rider,tx);
         }
     }
-    static List<JsonObject> Scope(DbConnection c,DbTransaction tx,JsonObject input,bool requireCampaign)
+    static List<JsonObject> Scope(DbConnection c,DbTransaction tx,JsonObject input,bool requireCampaign,ClaimsPrincipal? user=null)
     {
         string campaignId=input.S("campaignId");J.Need(!requireCampaign||campaignId!="","حدد الحملة قبل الحذف الجماعي.");
         if(campaignId!="")_ = Store.Get(c,campaignId,"campaign",tx)??throw new ApiError("الحملة غير موجودة.",404);
         var rows=Store.List(c,"submission",tx).Where(d=>campaignId==""||d.S("campaignId")==campaignId).ToList();
+        if(user!=null)rows=rows.Where(d=>SubmissionChoices.InRiderScope(c,user,d.S("iqama"),tx)).ToList();
         if(input.ContainsKey("ids"))
         {
             J.Need(input["ids"] is JsonArray,"قائمة الردود غير صحيحة.");var ids=((JsonArray)input["ids"]!).Select(x=>x?.ToString()??"").ToHashSet();
@@ -84,10 +86,10 @@ public static class CampaignOperations
         }
         return rows;
     }
-    public static object Analytics(DbConnection c,string id)
+    public static object Analytics(DbConnection c,string id,ClaimsPrincipal user)
     {
         var campaign=Store.Get(c,id,"campaign")??throw new ApiError("الحملة غير موجودة.",404);
-        var rows=Store.List(c,"submission").Where(d=>d.S("campaignId")==id).ToList();
+        var rows=Store.List(c,"submission").Where(d=>d.S("campaignId")==id&&SubmissionChoices.InRiderScope(c,user,d.S("iqama"))).ToList();
         var riders=Store.List(c,"rider").ToDictionary(d=>d.S("iqama"));
         object[] Distribution(Func<JsonObject,string> key)=>rows.GroupBy(key).Select(g=>(object)new{value=g.Key,count=g.Count(),percentage=rows.Count==0?0:Math.Round(100m*g.Count()/rows.Count,2)}).ToArray();
         return new{campaignId=id,totalResponses=rows.Count,approved=rows.Count(d=>d.S("status")=="approved"),pending=rows.Count(d=>d.S("status")=="pending"),rejected=rows.Count(d=>d.S("status")=="rejected"),edited=rows.Count(d=>d.B("isEdited")),
@@ -104,13 +106,13 @@ public static class CampaignOperations
             if(input.ContainsKey("expiresAt")){J.Need(DateTimeOffset.TryParse(input.S("expiresAt"),CultureInfo.InvariantCulture,DateTimeStyles.None,out var expiry),"تاريخ الانتهاء غير صالح.");d["expiresAt"]=expiry.ToUniversalTime().ToString("O");}
             if(input.ContainsKey("status")){J.Need(input.S("status") is "open" or "closed","حالة النموذج غير صحيحة.");d["status"]=input.S("status");}
             if(input.ContainsKey("fields")){J.Need(!IbanChoices.Is(d),"حقول نموذج الآيبان ثابتة.");d["fields"]=ValidateFields(input["fields"]);}if(input.ContainsKey("cities")){J.Need(IbanChoices.Is(d),"قائمة المدن لنموذج الآيبان فقط.");d["cities"]=IbanChoices.ValidateCities(input["cities"]);}d["updatedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,"campaign",d,tx);Store.Audit(c,tx,"campaign.updated",id,Actor(ctx));return new{ok=true};});}).WithTags("Forms and responses").WithSummary("Update campaigns {id}");
-        api.MapGet("/campaigns/{id}/analytics",(string id)=>store.Read(c=>Analytics(c,id))).WithTags("Forms and responses").WithSummary("Read campaigns {id} analytics");
+        api.MapGet("/campaigns/{id}/analytics",(string id,HttpContext ctx)=>store.Read(c=>Analytics(c,id,ctx.User))).WithTags("Forms and responses").WithSummary("Read campaigns {id} analytics");
         api.MapDelete("/submissions/{id}",(string id,HttpContext ctx)=>{Admin(ctx);return store.Write((c,tx)=>{var d=Store.Get(c,id,"submission",tx)??throw new ApiError("الرد غير موجود.",404);DeleteSubmissions(c,tx,[d],Actor(ctx));return new{ok=true,message="تم حذف الرد نهائيًا ويمكن للمندوب التسجيل مجددًا."};});}).WithTags("Forms and responses").WithSummary("Delete submissions {id}");
         api.MapPost("/submissions/bulk-delete",(JsonObject input,HttpContext ctx)=>{Admin(ctx);J.Need(input.B("confirm"),"أكد الحذف النهائي أولًا.");return store.Write((c,tx)=>{var rows=Scope(c,tx,input,true);DeleteSubmissions(c,tx,rows,Actor(ctx));Store.Audit(c,tx,"submission.bulk_deleted",input.S("campaignId"),Actor(ctx));return new{ok=true,count=rows.Count};});}).WithTags("Forms and responses").WithSummary("Submit submissions bulk delete");
         api.MapPost("/submissions/bulk-approve",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>{
-            var rows=Scope(c,tx,input,false).Where(d=>d.S("status")=="pending").ToList();
+            var rows=Scope(c,tx,input,false,ctx.User).Where(d=>d.S("status")=="pending").ToList();
             // Bulk approval cannot attest ownership of legacy banking details.
             J.Need(rows.All(d=>d.S("iban")==""),"تتضمن الدفعة آيبانًا قديمًا؛ راجع ملكيته فرديًا قبل الاعتماد الجماعي.");
-            foreach(var d in rows)Review(c,tx,d,new(){["status"]="approved",["identityReviewed"]=true},Actor(ctx));Store.Audit(c,tx,"submission.bulk_approved",input.S("campaignId"),Actor(ctx));return new{ok=true,count=rows.Count};})).WithTags("Forms and responses").WithSummary("Submit submissions bulk approve");
+            foreach(var d in rows)Review(c,tx,d,new(){["status"]="approved",["identityReviewed"]=true},Actor(ctx),ctx.User);Store.Audit(c,tx,"submission.bulk_approved",input.S("campaignId"),Actor(ctx));return new{ok=true,count=rows.Count};})).WithTags("Forms and responses").WithSummary("Submit submissions bulk approve");
     }
 }

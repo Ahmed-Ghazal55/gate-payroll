@@ -1,670 +1,948 @@
 'use client';
 
-import React, { useState, useEffect, useMemo, useCallback, useRef, Suspense } from 'react';
+import React, { Suspense, useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useSearchParams, useRouter, usePathname } from 'next/navigation';
+import { usePathname, useRouter, useSearchParams } from 'next/navigation';
+import { Car, Fuel, Home, RefreshCw, Search } from 'lucide-react';
 import {
-  MapPin,
-  Home,
-  Car,
-  PackageCheck,
-  ShieldAlert,
-  Scale,
-  Smartphone,
-  RefreshCw,
-  Search,
-  X,
-  AlertTriangle,
-  Clock,
-  Layers,
-  CheckCircle2,
-} from 'lucide-react';
-import { api, ApiError, OperationsResponse, OperationRow } from '../../lib/api';
-import { useToast } from '../../components/ui/Toast';
+  api,
+  ApiError,
+  OperationsFleetListResponse,
+  OperationsFuelResponse,
+  OperationsHousingResponse,
+  OperationsOilChangesResponse,
+  OperationsPeriodResponse,
+  OperationsPurchasesResponse,
+} from '../../lib/api';
+/** Shared DataTable row; filled from ApiResp operations items[number]. */
+type OpsRow = Record<string, unknown>;
 import { PageHeader } from '../../components/ui/PageHeader';
 import { StatCard } from '../../components/ui/StatCard';
 import { SectionTabs, SectionTabItem } from '../../components/ui/SectionTabs';
 import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState';
-import { DataTable, ColumnDef } from '../../components/ui/DataTable';
-import { SourceBadge, formatRiyadhDateTime } from '../../components/ui/SourceBadge';
+import { DataTable, ColumnDef, defaultStatusTone } from '../../components/ui/DataTable';
+import { SourceBadge } from '../../components/ui/SourceBadge';
+import { Drawer } from '../../components/ui/Drawer';
+import { useToast } from '../../components/ui/Toast';
+import { formatSar } from '../../lib/money';
+import { appendPeriodToHref, periodDateRange } from '../../lib/period';
+import { usePeriod } from '../../lib/use-period';
 
-const KIND_MAP: Record<string, string> = {
-  cities: 'city',
-  housing: 'housing',
-  vehicles: 'vehicle',
-  custody: 'custody_handover',
-  guarantees: 'sponsorship_period',
-  cases: 'legal_case',
-  accounts: 'platform_account',
-};
+const MAIN_TABS = new Set(['cities', 'housing', 'vehicles', 'fuel']);
+const NO_SOURCE = 'لا يوجد مصدر بعد';
+const cell = (v: unknown) => (v === null || v === undefined || v === '' ? NO_SOURCE : String(v));
 
-const PAGE_SIZES = [25, 50, 100, 200];
+function formatDateShort(v: unknown): string {
+  if (v === null || v === undefined || v === '') return '—';
+  const s = String(v).trim();
+  if (!s) return '—';
+  const m = s.match(/^(\d{4}-\d{2}-\d{2})/);
+  return m ? m[1] : s;
+}
+
+function formatPurchaseStatus(v: unknown): string {
+  const s = String(v ?? '').trim();
+  if (s === '1' || s.toLowerCase() === 'posted') return 'مرحّل';
+  if (s === '2' || s.toLowerCase() === 'reversed') return 'معكوس';
+  return s || '—';
+}
+
+function formatFuelProviderAr(v: unknown): string {
+  const s = String(v ?? '').trim();
+  const low = s.toLowerCase();
+  if (s === '1' || low === 'petroapp') return 'شركة بترو اب';
+  if (s === '2' || low === 'sayaraapp') return 'شركة سيارة اب';
+  return s || '—';
+}
+
+function formatFuelStatusAr(v: unknown): string {
+  const s = String(v ?? '').trim();
+  const low = s.toLowerCase();
+  if (low === 'active' || s === '1' || s === 'نشطة') return 'نشطة';
+  if (low === 'inactive' || s === '0' || s === 'غير نشطة') return 'غير نشطة';
+  return s || '—';
+}
+
+function monthBounds(d = new Date()) {
+  const y = d.getFullYear();
+  const m = String(d.getMonth() + 1).padStart(2, '0');
+  const last = new Date(y, d.getMonth() + 1, 0).getDate();
+  return { from: `${y}-${m}-01`, to: `${y}-${m}-${String(last).padStart(2, '0')}`, month: `${y}-${m}` };
+}
+
+function downloadBlob(res: Response, fallback: string) {
+  return res.blob().then((blob) => {
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = fallback;
+    a.click();
+    URL.revokeObjectURL(url);
+  });
+}
 
 function OperationsPageInner() {
   const router = useRouter();
   const pathname = usePathname();
   const searchParams = useSearchParams();
+  const { toast } = useToast();
 
-  const tabFromUrl = searchParams?.get('tab') || 'cities';
-  const pageFromUrl = parseInt(searchParams?.get('page') || '1', 10);
-  const sizeFromUrl = parseInt(searchParams?.get('size') || '25', 10);
-  const qFromUrl = searchParams?.get('q') || '';
-
-  const [activeTab, setActiveTab] = useState<string>(tabFromUrl);
-  const [page, setPage] = useState<number>(pageFromUrl > 0 ? pageFromUrl : 1);
-  const [pageSize, setPageSize] = useState<number>(PAGE_SIZES.includes(sizeFromUrl) ? sizeFromUrl : 25);
-  const [searchQuery, setSearchQuery] = useState<string>(qFromUrl);
-  const [debouncedQuery, setDebouncedQuery] = useState<string>(qFromUrl);
-
-  const [items, setItems] = useState<OperationRow[]>([]);
-  const [total, setTotal] = useState<number>(0);
-  const [source, setSource] = useState<string>('');
-  const [asOf, setAsOf] = useState<string>('');
-  const [allowedActions, setAllowedActions] = useState<string[]>([]);
-  const [loading, setLoading] = useState<boolean>(true);
-  const [is503, setIs503] = useState<boolean>(false);
-  const [errorMsg, setErrorMsg] = useState<string | null>(null);
-
-  // Sync tab change from URL
+  const { period: urlActivePeriod, urlPeriod, setPeriod } = usePeriod();
+  const rawTab = searchParams?.get('tab') || 'cities';
   useEffect(() => {
-    if (tabFromUrl && tabFromUrl !== activeTab) {
-      setActiveTab(tabFromUrl);
-      setPage(1);
-    }
-  }, [tabFromUrl]);
-
-  // Debounce typing (300 ms)
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      setDebouncedQuery(searchQuery);
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [searchQuery]);
-
-  // Sync URL search params
-  const updateUrl = useCallback(
-    (newTab: string, newPage: number, newSize: number, newQ: string) => {
-      if (typeof window === 'undefined') return;
-      const sp = new URLSearchParams();
-      if (newTab && newTab !== 'cities') sp.set('tab', newTab);
-      if (newPage > 1) sp.set('page', String(newPage));
-      if (newSize !== 25) sp.set('size', String(newSize));
-      if (newQ.trim()) sp.set('q', newQ.trim());
-      const qs = sp.toString() ? `?${sp.toString()}` : '';
-      router.replace(`${pathname}${qs}`, { scroll: false });
-    },
-    [router, pathname]
-  );
-
-  // Fetch operations data from server
-  const loadTabData = useCallback(
-    async (
-      targetTab: string,
-      targetPage: number,
-      targetPageSize: number,
-      targetQuery: string
-    ) => {
-      const kind = KIND_MAP[targetTab] || targetTab;
-      setLoading(true);
-      setErrorMsg(null);
-      setIs503(false);
-
-      try {
-        const res: OperationsResponse = await api.getOperations(kind, {
-          page: targetPage,
-          pageSize: targetPageSize,
-          q: targetQuery.trim() || undefined,
-        });
-
-        const rows = res?.items || (Array.isArray(res) ? res : []);
-        setItems(rows);
-        setTotal(res?.total ?? rows.length);
-        setSource(res?.source || '');
-        setAsOf(res?.asOf || '');
-        setAllowedActions(res?.allowedActions || []);
-        setPage(res?.page ?? targetPage);
-        setPageSize(res?.pageSize ?? targetPageSize);
-      } catch (err: unknown) {
-        const status =
-          err instanceof ApiError
-            ? err.status
-            : typeof err === 'object' && err !== null && 'status' in err && typeof err.status === 'number'
-            ? err.status
-            : undefined;
-        const msg = err instanceof Error && err.message ? err.message : 'تعذر استرجاع بيانات التشغيل';
-
-        if (status === 503 || msg.includes('503') || msg.includes('مصدر التشغيل')) {
-          setIs503(true);
-          setErrorMsg(msg);
-          // 4. Errors: 503 -> keeping the last page shown!
-          // Do NOT clear items if we already have data
-        } else {
-          setErrorMsg(msg);
-          setItems([]);
-          setTotal(0);
-        }
-      } finally {
-        setLoading(false);
-      }
-    },
-    []
-  );
-
-  // Track initial mount
-  const isFirstMount = useRef(true);
-
-  // Primary data-fetching trigger on tab or debounced query change
-  useEffect(() => {
-    if (isFirstMount.current) {
-      isFirstMount.current = false;
-      loadTabData(activeTab, page, pageSize, debouncedQuery);
+    if (rawTab === 'cases') {
+      if (urlPeriod) router.replace(appendPeriodToHref('/workforce/?tab=cases', urlPeriod));
+      else router.replace('/workforce/?tab=cases');
       return;
     }
-    // Reset to page 1 on search or tab change
-    setPage(1);
-    updateUrl(activeTab, 1, pageSize, debouncedQuery);
-    loadTabData(activeTab, 1, pageSize, debouncedQuery);
-  }, [activeTab, debouncedQuery]);
-
-  const handlePageChange = (newPage: number) => {
-    setPage(newPage);
-    updateUrl(activeTab, newPage, pageSize, debouncedQuery);
-    loadTabData(activeTab, newPage, pageSize, debouncedQuery);
-  };
-
-  const handlePageSizeChange = (newSize: number) => {
-    setPageSize(newSize);
-    setPage(1);
-    updateUrl(activeTab, 1, newSize, debouncedQuery);
-    loadTabData(activeTab, 1, newSize, debouncedQuery);
-  };
-
-  const handleTabChange = (tabId: string) => {
-    setActiveTab(tabId);
-    setSearchQuery('');
-    setDebouncedQuery('');
-    setPage(1);
-    updateUrl(tabId, 1, pageSize, '');
-  };
-
-  const sectionTabs: SectionTabItem[] = [
-    { id: 'cities', label: 'المدن والمناطق', icon: <MapPin size={16} /> },
-    { id: 'housing', label: 'السكن والإيواء', icon: <Home size={16} /> },
-    { id: 'vehicles', label: 'المركبات والتسليمات', icon: <Car size={16} /> },
-    { id: 'custody', label: 'العهد الشهرية والأجهزة', icon: <PackageCheck size={16} /> },
-    { id: 'guarantees', label: 'الكفالات والضمانات', icon: <ShieldAlert size={16} /> },
-    { id: 'cases', label: 'القضايا والمنازعات', icon: <Scale size={16} /> },
-    { id: 'accounts', label: 'حسابات المنصات والمعرفات', icon: <Smartphone size={16} /> },
-  ];
-
-  const currentTabInfo = useMemo(() => {
-    switch (activeTab) {
-      case 'cities':
-        return {
-          title: 'المدن التشغيلية والمناطق',
-          shortLabel: 'المدن والمناطق',
-          desc: 'مواقع ومراكز التشغيل، نطاقات التوصيل، والمشرفين الميدانيين المسؤولين.',
-          icon: MapPin,
-        };
-      case 'housing':
-        return {
-          title: 'السكن والإيواء الميداني',
-          shortLabel: 'وحدات السكن',
-          desc: 'إدارة وحدات الإيواء وسكن المناديب، العقود، وتوزيع التكاليف التشغيلية.',
-          icon: Home,
-        };
-      case 'vehicles':
-        return {
-          title: 'أسطول المركبات والتسليمات',
-          shortLabel: 'أسطول المركبات',
-          desc: 'السيارات والدراجات النارية، تسليمات العهد، رخص السير والتأمين، ومتابعة الصيانة.',
-          icon: Car,
-        };
-      case 'custody':
-        return {
-          title: 'العهد الشهرية والأجهزة',
-          shortLabel: 'العهد والأجهزة',
-          desc: 'الأجهزة الذكية، الحقائب الحرارية، والزي الرسمي الموزع على الكوادر.',
-          icon: PackageCheck,
-        };
-      case 'guarantees':
-        return {
-          title: 'الكفالات والضمانات المالية',
-          shortLabel: 'الكفالات والضمانات',
-          desc: 'الكفالات الغارمة وسندات الضمان ضد المخاطر المالية والعهد.',
-          icon: ShieldAlert,
-        };
-      case 'cases':
-        return {
-          title: 'القضايا والمنازعات التشغيلية',
-          shortLabel: 'القضايا والمنازعات',
-          desc: 'متابعة البلاغات المرورية، المطالبات القانونية، والنزاعات مع المنصات أو الأطراف الخارجية.',
-          icon: Scale,
-        };
-      case 'accounts':
-      default:
-        return {
-          title: 'حسابات المنصات ومعرفات العمل',
-          shortLabel: 'حسابات المنصات',
-          desc: 'معرفات المناديب على تطبيقات التوصيل، التبديل والتسليم بين المناديب، ومطابقة الهويات.',
-          icon: Smartphone,
-        };
+    if (rawTab === 'accounts') {
+      if (urlPeriod) router.replace(appendPeriodToHref('/workforce/', urlPeriod));
+      else router.replace('/workforce/');
+      return;
     }
-  }, [activeTab]);
-
-  const totalPages = Math.max(1, Math.ceil(total / pageSize));
-
-  const tabColumns: ColumnDef<OperationRow>[] = useMemo(() => {
-    switch (activeTab) {
-      case 'cities':
-        return [
-          {
-            key: 'code',
-            header: 'رمز المدينة',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
-          },
-          {
-            key: 'nameAr',
-            header: 'الاسم بالعربية',
-            render: (it: OperationRow) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
-          },
-          {
-            key: 'nameEn',
-            header: 'الاسم بالإنجليزية',
-            render: (it: OperationRow) => <span className="text-xs text-[var(--muted)] font-mono">{it.nameEn || '-'}</span>,
-          },
-          {
-            key: 'globalCityId',
-            header: 'المعرف الموحد',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.globalCityId || '-'}</span>,
-          },
-        ];
-      case 'housing':
-        return [
-          {
-            key: 'code',
-            header: 'كود السكن',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
-          },
-          {
-            key: 'nameAr',
-            header: 'اسم الوحدة',
-            render: (it: OperationRow) => <span className="font-semibold">{it.nameAr || it.name || '-'}</span>,
-          },
-          {
-            key: 'cityId',
-            header: 'المدينة',
-            render: (it: OperationRow) => <span className="text-xs">{it.cityId || '-'}</span>,
-          },
-          {
-            key: 'rooms',
-            header: 'عدد الغرف',
-            numeric: true,
-            render: (it: OperationRow) => <span className="num">{it.rooms?.length ?? '-'}</span>,
-          },
-          {
-            key: 'openedDate',
-            header: 'تاريخ الافتتاح',
-            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.openedDate || '-'}</span>,
-          },
-        ];
-      case 'vehicles':
-        return [
-          {
-            key: 'plateNumber',
-            header: 'رقم اللوحة',
-            render: (it: OperationRow) => (
-              <span className="font-mono font-bold text-[var(--ink)]">
-                {it.plateNumberAr || it.plateNumberEn || it.assetNumber || it.id}
-              </span>
-            ),
-          },
-          {
-            key: 'vehicleType',
-            header: 'نوع المركبة',
-            render: (it: OperationRow) => (
-              <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">
-                {String(it.vehicleType ?? '').toLowerCase() === 'car' || it.vehicleType === 1 ? 'سيارة' : 'دباب'}
-              </span>
-            ),
-          },
-          {
-            key: 'modelYear',
-            header: 'سنة الموديل',
-            numeric: true,
-            render: (it: OperationRow) => <span className="num">{it.modelYear || '-'}</span>,
-          },
-          {
-            key: 'vin',
-            header: 'رقم الهيكل / VIN',
-            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.vin || it.chassisNumber || '-'}</span>,
-          },
-          {
-            key: 'currentOdometer',
-            header: 'العداد الحالي',
-            numeric: true,
-            render: (it: OperationRow) => <span className="num font-medium">{it.currentOdometer ? `${it.currentOdometer} كم` : '-'}</span>,
-          },
-          {
-            key: 'currentOperationalStatus',
-            header: 'الحالة التشغيلية',
-            render: (it: OperationRow) => (
-              <span
-                className={`px-2 py-0.5 rounded-full text-xs font-bold ${
-                  it.currentOperationalStatus === 'Active' || it.currentOperationalStatus === 'active'
-                    ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                    : 'bg-[var(--warning)]/15 text-[var(--warning)]'
-                }`}
-              >
-                {it.currentOperationalStatus || 'نشط'}
-              </span>
-            ),
-          },
-        ];
-      case 'custody':
-        return [
-          {
-            key: 'assignmentId',
-            header: 'معرف التكليف',
-            render: (it: OperationRow) => <span className="font-mono font-bold">{it.assignmentId || it.id}</span>,
-          },
-          {
-            key: 'eventTypeCode',
-            header: 'نوع الحدث',
-            render: (it: OperationRow) => <span>{it.eventTypeCode || '-'}</span>,
-          },
-          {
-            key: 'direction',
-            header: 'الاتجاه',
-            render: (it: OperationRow) => <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)]">{it.direction || '-'}</span>,
-          },
-          {
-            key: 'occurredAt',
-            header: 'تاريخ التوثيق',
-            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.occurredAt || '-'}</span>,
-          },
-        ];
-      case 'guarantees':
-        return [
-          {
-            key: 'riderId',
-            header: 'إقامة المندوب',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--ink)]">{it.riderId}</span>,
-          },
-          {
-            key: 'sponsorId',
-            header: 'السجل / الكفيل',
-            render: (it: OperationRow) => <span className="text-xs font-mono">{it.sponsorId || it.companyId || '-'}</span>,
-          },
-          {
-            key: 'effectiveFrom',
-            header: 'سريان من',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.effectiveFrom || '-'}</span>,
-          },
-          {
-            key: 'effectiveTo',
-            header: 'سريان إلى',
-            render: (it: OperationRow) => <span className="font-mono text-xs text-[var(--muted)]">{it.effectiveTo || 'مستمر'}</span>,
-          },
-        ];
-      case 'cases':
-        return [
-          {
-            key: 'number',
-            header: 'رقم القضية',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--danger)]">{it.number || it.id}</span>,
-          },
-          {
-            key: 'personName',
-            header: 'اسم الطرف',
-            render: (it: OperationRow) => <span className="font-semibold">{it.personName || it.riderId || '-'}</span>,
-          },
-          {
-            key: 'personTypeCode',
-            header: 'الصفة',
-            render: (it: OperationRow) => <span>{it.personTypeCode || '-'}</span>,
-          },
-          {
-            key: 'caseDate',
-            header: 'التاريخ',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.caseDate || '-'}</span>,
-          },
-          {
-            key: 'details',
-            header: 'التفاصيل',
-            render: (it: OperationRow) => <span className="text-xs text-[var(--muted)] truncate max-w-xs block">{it.details || '-'}</span>,
-          },
-        ];
-      case 'accounts':
-      default:
-        return [
-          {
-            key: 'code',
-            header: 'كود الحساب',
-            render: (it: OperationRow) => <span className="font-mono font-bold text-[var(--accent)]">{it.code || it.id}</span>,
-          },
-          {
-            key: 'externalAccountId',
-            header: 'معرف المنصة الخارجي',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.externalAccountId || '-'}</span>,
-          },
-          {
-            key: 'platformCode',
-            header: 'المنصة',
-            render: (it: OperationRow) => <span className="text-xs font-bold">{it.platformCode || '-'}</span>,
-          },
-          {
-            key: 'registeredRiderId',
-            header: 'المندوب المسجل',
-            render: (it: OperationRow) => <span className="font-mono text-xs">{it.registeredRiderId || '-'}</span>,
-          },
-          {
-            key: 'assignments',
-            header: 'المشغلون الفعليون',
-            render: (it: OperationRow) => <span className="num font-bold">{it.assignments ? `${it.assignments.length} مشغل` : '-'}</span>,
-          },
-        ];
+    if (rawTab === 'custody' || rawTab === 'guarantees') {
+      if (urlPeriod) router.replace(appendPeriodToHref('/operations/?tab=vehicles', urlPeriod));
+      else router.replace('/operations/?tab=vehicles');
+      return;
     }
-  }, [activeTab]);
+    if (!MAIN_TABS.has(rawTab)) {
+      if (urlPeriod) router.replace(appendPeriodToHref('/operations/?tab=cities', urlPeriod));
+      else router.replace('/operations/?tab=cities');
+    }
+  }, [rawTab, router, urlPeriod]);
 
-  return (
-    <div className="space-y-6">
-      {/* Page Header with Source Badge and Import Center Link */}
-      <PageHeader
-        title="التشغيل والأصول الميدانية"
-        eyebrow="العمليات واللوجستيات"
-        description="إدارة أسطول المركبات، السكن والإيواء، تسليم واستلام العهد والأجهزة، حسابات المنصات، والقضايا والضمانات التشغيلية."
-        primaryAction={{
-          label: 'تحديث البيانات',
-          icon: <RefreshCw size={15} className={loading ? 'animate-spin' : ''} />,
-          onClick: () => loadTabData(activeTab, page, pageSize, debouncedQuery),
-        }}
-      >
-        <div className="flex flex-wrap items-center gap-2 mt-3 pt-3 border-t border-[var(--line)]">
-          {source && <SourceBadge source={source} asOf={asOf} />}
+  const tab = MAIN_TABS.has(rawTab) ? rawTab : 'cities';
+  const view = searchParams?.get('view') || (tab === 'vehicles' ? 'period' : tab === 'fuel' ? 'usage' : '');
+  const page = Math.max(1, parseInt(searchParams?.get('page') || '1', 10) || 1);
+  const pageSize = [25, 50, 100, 200].includes(parseInt(searchParams?.get('size') || '25', 10))
+    ? parseInt(searchParams?.get('size') || '25', 10)
+    : 25;
+  const q = searchParams?.get('q') || '';
+  const mode = (searchParams?.get('mode') === 'rider' ? 'rider' : 'vehicle') as 'vehicle' | 'rider';
+  const defaults = periodDateRange(urlActivePeriod);
+  const from = searchParams?.get('from') || defaults.from;
+  const to = searchParams?.get('to') || defaults.to;
+  const month = urlActivePeriod;
 
-        </div>
-      </PageHeader>
+  const [query, setQuery] = useState(q);
+  const [debouncedQ, setDebouncedQ] = useState(q);
+  const [loading, setLoading] = useState(true);
+  const [is503, setIs503] = useState(false);
+  const [errorMsg, setErrorMsg] = useState<string | null>(null);
+  const [source, setSource] = useState('');
+  const [asOf, setAsOf] = useState('');
+  const [allowedActions, setAllowedActions] = useState<string[]>([]);
+  const [items, setItems] = useState<OpsRow[]>([]);
+  const [total, setTotal] = useState(0);
+  const [summary, setSummary] = useState<Record<string, unknown>>({});
+  const [drawer, setDrawer] = useState<{ title: string; body: React.ReactNode } | null>(null);
+  const [serverQuery, setServerQuery] = useState<{ filtersParam?: string; sortParam?: string }>({});
 
-      {/* 6. Stat Cards: Using total of the active tab only (no fake counts for other tabs) */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
-        <StatCard
-          label={`إجمالي سجلات ${currentTabInfo.shortLabel}`}
-          value={loading ? '...' : total}
-          hint="إجمالي السجلات المطابقة في مصدر التشغيل"
-          icon={currentTabInfo.icon}
-          active={true}
-          loading={loading}
-        />
-        <StatCard
-          label="السجلات المعروضة"
-          value={loading ? '...' : items.length}
-          hint={`الصفحة ${page} من أصل ${totalPages} (بحجم ${pageSize})`}
-          icon={Layers}
-          loading={loading}
-        />
-        <StatCard
-          label="مصدر البيانات"
-          value={source === 'erp_live' ? 'نظام الموارد المباشر' : source === 'store' ? 'بيانات تجريبية محلية' : 'بانتظار المصدر'}
-          hint={source === 'erp_live' ? 'قراءة مباشرة حية للقراءة فقط' : 'مخزن التطوير التجريبي'}
-          icon={CheckCircle2}
-          loading={loading && !source}
-        />
-        <StatCard
-          label="توقيت آخر قراءة"
-          value={asOf ? (formatRiyadhDateTime(asOf).split('،')[1]?.trim() || 'محدث') : '-'}
-          hint={asOf ? `بتاريخ ${formatRiyadhDateTime(asOf).split('،')[0]?.trim()} بتوقيت الرياض` : 'بانتظار القراءة'}
-          icon={Clock}
-          loading={loading && !asOf}
-        />
-      </div>
+  useEffect(() => {
+    setServerQuery({});
+  }, [tab, view]);
 
-      {/* Section Tabs */}
-      <SectionTabs
-        tabs={sectionTabs}
-        activeTab={activeTab}
-        onChange={handleTabChange}
-      />
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedQ(query), 300);
+    return () => clearTimeout(t);
+  }, [query]);
 
-      {/* Content Area */}
-      <div className="space-y-4">
-        {/* Tab Toolbar: Title, Source Badge, and Server Search with 300ms Debounce */}
-        <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] flex flex-wrap items-center justify-between gap-3 shadow-2xs">
-          <div>
-            <div className="flex items-center gap-2">
-              <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                {currentTabInfo.title}
-              </h3>
+  const replaceParams = useCallback(
+    (patch: Record<string, string | null>) => {
+      const sp = new URLSearchParams(searchParams?.toString() || '');
+      Object.entries(patch).forEach(([k, v]) => {
+        if (v === null || v === '') sp.delete(k);
+        else sp.set(k, v);
+      });
+      if (sp.get('tab') === 'cities') sp.delete('tab');
+      const qs = sp.toString();
+      router.replace(`${pathname}${qs ? `?${qs}` : ''}`, { scroll: false });
+    },
+    [router, pathname, searchParams]
+  );
+
+  useEffect(() => {
+    if (debouncedQ !== q) replaceParams({ q: debouncedQ || null, page: '1' });
+  }, [debouncedQ]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const load = useCallback(async () => {
+    setLoading(true);
+    setErrorMsg(null);
+    setIs503(false);
+    const filters = serverQuery.filtersParam;
+    const sort = serverQuery.sortParam;
+    try {
+      if (tab === 'cities') {
+        const res = (await api.getOperationsCities({ q: debouncedQ || undefined, filters, sort })) as OperationsFleetListResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else if (tab === 'housing') {
+        const res = (await api.getOperationsHousing({
+          page,
+          pageSize,
+          q: debouncedQ || undefined,
+          filters,
+          sort,
+        })) as OperationsHousingResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else if (tab === 'vehicles' && view === 'invoices') {
+        const res = (await api.getOperationsPurchaseInvoices({
+          from,
+          to,
+          page,
+          pageSize,
+          q: debouncedQ || undefined,
+          filters,
+          sort,
+        })) as OperationsPurchasesResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else if (tab === 'vehicles' && view === 'oil') {
+        const res = (await api.getOperationsOilChangesPeriod({
+          from,
+          to,
+          page,
+          pageSize,
+          q: debouncedQ || undefined,
+          filters,
+          sort,
+        })) as OperationsOilChangesResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else if (tab === 'vehicles') {
+        const res = (await api.getOperationsPeriodReport({
+          from,
+          to,
+          mode,
+          page,
+          pageSize,
+          q: debouncedQ || undefined,
+          filters,
+          sort,
+        })) as OperationsPeriodResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else if (tab === 'fuel' && view === 'log') {
+        const res = await api.getOperationsFuelAssignments({
+          from,
+          to,
+          page,
+          pageSize,
+          filters,
+          sort,
+        });
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      } else {
+        const res = (await api.getOperationsFuelCards({
+          month,
+          page,
+          pageSize,
+          q: debouncedQ || undefined,
+          filters,
+          sort,
+        })) as OperationsFuelResponse;
+        setItems((res.items || []) as OpsRow[]);
+        setTotal(Number(res.total || 0));
+        setSummary((res.summary || {}) as Record<string, unknown>);
+        setSource(String(res.source || ''));
+        setAsOf(String(res.asOf || ''));
+        setAllowedActions((res.allowedActions || []) as string[]);
+      }
+    } catch (e) {
+      const err = e as ApiError;
+      if (err?.status === 503) setIs503(true);
+      setErrorMsg(err?.message || 'تعذر تحميل بيانات التشغيل.');
+    } finally {
+      setLoading(false);
+    }
+  }, [tab, view, page, pageSize, debouncedQ, from, to, mode, month, serverQuery]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const canExport = allowedActions.includes('export');
+  const canRefresh = allowedActions.includes('refresh');
+
+  const openCity = async (id: string) => {
+    try {
+      const detail = await api.getOperationsCity(id);
+      const raw = detail as Record<string, unknown>;
+      const byReg = Array.isArray(detail.byRegistration)
+        ? (detail.byRegistration as Array<Record<string, unknown>>)
+        : [];
+      const byApp = Array.isArray(detail.byApp)
+        ? (detail.byApp as Array<Record<string, unknown>>)
+        : [];
+      const vehiclesTotal =
+        raw.vehiclesTotal ?? byReg.reduce((sum, r) => sum + Number(r.vehicles ?? 0), 0);
+      const ridersTotal =
+        raw.ridersTotal ?? byReg.reduce((sum, r) => sum + Number(r.riders ?? 0), 0);
+      const accountsActive =
+        raw.accountsActive ?? byApp.reduce((sum, r) => sum + Number(r.accountsActive ?? 0), 0);
+      const accountsAssigned =
+        raw.accountsAssigned ?? byApp.reduce((sum, r) => sum + Number(r.accountsAssigned ?? 0), 0);
+      setDrawer({
+        title: String(detail.nameAr || 'تفاصيل المدينة'),
+        body: (
+          <div className="space-y-4 text-sm">
+            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">الحالة</div>
+                <div className="font-semibold mt-1">{formatFuelStatusAr(detail.status)}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">المركبات</div>
+                <div className="font-semibold mt-1">{String(vehiclesTotal)}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">المناديب</div>
+                <div className="font-semibold mt-1">{String(ridersTotal)}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-3">
+                <div className="text-xs text-[var(--muted)]">الحسابات (نشط/مسند)</div>
+                <div className="font-semibold mt-1">
+                  {String(accountsActive)} / {String(accountsAssigned)}
+                </div>
+              </div>
             </div>
-            <p className="text-xs text-[var(--muted)] mt-0.5">
-              {currentTabInfo.desc}
-            </p>
-          </div>
 
-          {/* 1. Server Search Input (Debounced 300 ms) */}
-          <div className="flex items-center gap-2">
-            <div className="relative">
-              <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none" />
-              <input
-                type="text"
-                placeholder="بحث في سجلات التشغيل..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="ps-9 pe-8 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--ink)] placeholder:text-[var(--muted)] focus:border-[var(--accent)] focus:outline-hidden w-52 sm:w-72 transition"
-              />
-              {searchQuery && (
-                <button
-                  type="button"
-                  onClick={() => setSearchQuery('')}
-                  aria-label="مسح البحث"
-                  className="absolute end-2.5 top-1/2 -translate-y-1/2 text-[var(--muted)] hover:text-[var(--ink)] cursor-pointer"
-                >
-                  <X size={13} />
-                </button>
+            <div>
+              <h4 className="font-semibold mb-2">التوزيع حسب السجل التجاري</h4>
+              {byReg.length === 0 ? (
+                <EmptyState title="لا سجلات" description="لا توجد سجلات مرتبطة بهذه المدينة." />
+              ) : (
+                <DataTable
+                  tableId="city-registrations"
+                  data={byReg}
+                  getRowId={(r) => String(r.id || r.unifiedNumber || Math.random())}
+                  searchable={false}
+                  exportable={false}
+                  syncUrl={false}
+                  showTotals={false}
+                  showFilterRow={false}
+                  columns={[
+                    { key: 'nameAr', header: 'السجل', type: 'list', getValue: (r) => String(r.nameAr || ''), render: (r) => String(r.nameAr || '—') },
+                    { key: 'unifiedNumber', header: 'الرقم الموحد', type: 'text', getValue: (r) => String(r.unifiedNumber || ''), render: (r) => <bdi className="font-mono">{String(r.unifiedNumber || '—')}</bdi> },
+                    { key: 'vehicles', header: 'المركبات', type: 'number', numeric: true, getValue: (r) => Number(r.vehicles ?? 0), render: (r) => String(r.vehicles ?? 0) },
+                    { key: 'riders', header: 'المناديب', type: 'number', numeric: true, getValue: (r) => Number(r.riders ?? 0), render: (r) => String(r.riders ?? 0) },
+                    { key: 'accounts', header: 'الحسابات', type: 'number', numeric: true, getValue: (r) => Number(r.accounts ?? 0), render: (r) => String(r.accounts ?? 0) },
+                  ]}
+                />
+              )}
+            </div>
+
+            <div>
+              <h4 className="font-semibold mb-2">التوزيع حسب التطبيق</h4>
+              {byApp.length === 0 ? (
+                <EmptyState title="لا تطبيقات" description="لا توجد حسابات تطبيقات مسجلة بهذه المدينة." />
+              ) : (
+                <DataTable
+                  tableId="city-apps"
+                  data={byApp}
+                  getRowId={(r) => String(r.platformCode || r.nameAr || Math.random())}
+                  searchable={false}
+                  exportable={false}
+                  syncUrl={false}
+                  showTotals={false}
+                  showFilterRow={false}
+                  columns={[
+                    { key: 'nameAr', header: 'التطبيق', type: 'list', getValue: (r) => String(r.nameAr || r.platformCode || ''), render: (r) => String(r.nameAr || r.platformCode || '—') },
+                    { key: 'accountsTotal', header: 'الإجمالي', type: 'number', numeric: true, getValue: (r) => Number(r.accountsTotal ?? 0), render: (r) => String(r.accountsTotal ?? 0) },
+                    { key: 'accountsActive', header: 'النشط', type: 'number', numeric: true, getValue: (r) => Number(r.accountsActive ?? 0), render: (r) => String(r.accountsActive ?? 0) },
+                    { key: 'accountsAssigned', header: 'المسند', type: 'number', numeric: true, getValue: (r) => Number(r.accountsAssigned ?? 0), render: (r) => String(r.accountsAssigned ?? 0) },
+                  ]}
+                />
               )}
             </div>
           </div>
-        </div>
+        ),
+      });
+    } catch (e) {
+      toast((e as ApiError).message || 'تعذر فتح التفاصيل', 'danger');
+    }
+  };
 
-        {/* 4. Errors: 503 Warning Banner when keeping last page shown */}
-        {is503 && items.length > 0 && (
-          <div
-            role="alert"
-            className="p-4 rounded-2xl border border-[var(--warning)]/30 bg-[var(--warning)]/10 flex flex-wrap items-center justify-between gap-3 shadow-xs"
-          >
-            <div className="flex items-center gap-2.5 text-xs text-[var(--warning)] font-bold">
-              <AlertTriangle size={18} className="shrink-0" />
-              <div>
-                <span className="font-extrabold block text-sm">مصدر التشغيل غير متاح الآن</span>
-                <span className="font-normal text-[var(--muted)]">
-                  تم الإبقاء على آخر صفحة قراءة معروضة أدناه ({errorMsg || 'تعذر الاتصال بقاعدة بيانات التشغيل'})
-                </span>
+  const openHousing = async (id: string) => {
+    try {
+      const detail = await api.getOperationsHousingRooms(id);
+      const rooms = detail.rooms || [];
+      setDrawer({
+        title: String(detail.nameAr || 'الغرف والمقيمون'),
+        body: (
+          <div className="space-y-3">
+            <p className="text-sm text-[var(--muted)]">المشرف: {NO_SOURCE}</p>
+            {rooms.length === 0 ? (
+              <EmptyState title="لا غرف" description="لا توجد غرف لهذا السكن." />
+            ) : (
+              rooms.map((room) => (
+                <div key={String(room.id)} className="border border-[var(--border)] rounded-lg p-3">
+                  <div className="font-medium">{String(room.name || '')}</div>
+                  <div className="text-xs text-[var(--muted)] mb-2">
+                    سعة {String(room.capacity ?? '')} · إشغال {String(room.currentOccupancy ?? '')}
+                  </div>
+                  <ul className="space-y-1 text-sm">
+                    {(room.residents || []).map((r, i) => (
+                      <li key={i} className="flex flex-col sm:flex-row sm:gap-3">
+                        <span>{String(r.nameAr || '')}</span>
+                        <bdi className="font-mono">{String(r.iqama || '')}</bdi>
+                        <span className="text-[var(--muted)]">{String(r.checkInDate || '')}</span>
+                        {r.iqama ? (
+                          <Link className="text-[var(--accent)]" href={`/workforce/?tab=360&iqama=${encodeURIComponent(String(r.iqama))}`}>
+                            ملف 360
+                          </Link>
+                        ) : null}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              ))
+            )}
+          </div>
+        ),
+      });
+    } catch (e) {
+      toast((e as ApiError).message || 'تعذر فتح الغرف', 'danger');
+    }
+  };
+
+  const openVehicle = async (id: string) => {
+    try {
+      const detail = await api.getOperationsVehicle(id);
+      const rawHistory = Array.isArray(detail.assignmentHistory)
+        ? (detail.assignmentHistory as Array<Record<string, unknown>>)
+        : [];
+      const history = [...rawHistory].sort((a, b) =>
+        String(b.startedAt || '').localeCompare(String(a.startedAt || ''))
+      );
+      setDrawer({
+        title: String(detail.plateNumberAr || detail.assetNumber || 'تفاصيل المركبة'),
+        body: (
+          <div className="space-y-4 text-sm">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">رقم الهيكل</div>
+                <div className="font-mono font-medium mt-0.5"><bdi>{String(detail.vin || '—')}</bdi></div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">الهيكل</div>
+                <div className="font-mono mt-0.5"><bdi>{String(detail.chassisNumber || '—')}</bdi></div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">العداد</div>
+                <div className="font-medium mt-0.5">{String(detail.currentOdometer ?? '—')}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">الكفيل</div>
+                <div className="font-medium mt-0.5">{String(detail.sponsorNameAr || '—')}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">المدينة</div>
+                <div className="font-medium mt-0.5">{String(detail.city || '—')}</div>
+              </div>
+              <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] p-2.5">
+                <div className="text-xs text-[var(--muted)]">النوع</div>
+                <div className="font-medium mt-0.5">{String(detail.vehicleType || '—')}</div>
               </div>
             </div>
-            <button
-              type="button"
-              onClick={() => loadTabData(activeTab, page, pageSize, debouncedQuery)}
-              className="px-3.5 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xs hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
-            >
-              <RefreshCw size={13} />
-              <span>إعادة المحاولة</span>
+
+            <div>
+              <h4 className="font-semibold mb-2">سجل تعيينات المناديب (الأحدث أولًا)</h4>
+              {history.length === 0 ? (
+                <EmptyState title="لا سجل تعيينات" description="لا توجد تعيينات مسجلة لهذه المركبة." />
+              ) : (
+                <DataTable
+                  tableId="vehicle-assignment-history"
+                  data={history}
+                  getRowId={(r) => String(r.id || `${r.iqama || ''}-${r.startedAt || ''}`)}
+                  searchable={false}
+                  exportable={false}
+                  syncUrl={false}
+                  showTotals={false}
+                  showFilterRow={false}
+                  columns={[
+                    { key: 'riderNameAr', header: 'اسم المندوب', type: 'text', getValue: (r) => String(r.riderNameAr || ''), render: (r) => <span className="font-medium">{String(r.riderNameAr || '—')}</span> },
+                    { key: 'iqama', header: 'رقم الإقامة', type: 'text', getValue: (r) => String(r.iqama || ''), render: (r) => <bdi className="font-mono">{String(r.iqama || '—')}</bdi> },
+                    { key: 'startedAt', header: 'من', type: 'date', getValue: (r) => String(r.startedAt || ''), labelOf: (v) => formatDateShort(v), render: (r) => <bdi className="font-mono">{formatDateShort(r.startedAt)}</bdi> },
+                    { key: 'endedAt', header: 'إلى', type: 'date', getValue: (r) => String(r.endedAt || ''), labelOf: (v) => (v ? formatDateShort(v) : 'حتى الآن'), render: (r) => <bdi className="font-mono">{r.endedAt ? formatDateShort(r.endedAt) : 'حتى الآن'}</bdi> },
+                    { key: 'isRealRider', header: 'مندوب فعلي', type: 'list', getValue: (r) => (r.isRealRider ? 'نعم' : 'لا'), toneOf: (v) => (v === 'نعم' ? 'success' : 'neutral'), render: (r) => (r.isRealRider ? 'نعم' : 'لا') },
+                  ]}
+                />
+              )}
+            </div>
+          </div>
+        ),
+      });
+    } catch (e) {
+      toast((e as ApiError).message || 'تعذر فتح المركبة', 'danger');
+    }
+  };
+
+  const vehicleInnerTabs: SectionTabItem[] = [
+    { id: 'period', label: 'تقرير فترة العهد والتعيينات' },
+    { id: 'oil', label: 'تغيير الزيت والاستهلاك' },
+    { id: 'invoices', label: 'فواتير مشتريات المركبات' },
+  ];
+  const fuelInnerTabs: SectionTabItem[] = [
+    { id: 'usage', label: 'الاستهلاك الشهري' },
+    { id: 'cards', label: 'بطاقات الوقود والتسليمات' },
+    { id: 'log', label: 'سجل البطاقات' },
+  ];
+
+  const title =
+    tab === 'cities' ? 'المدن والمناطق' : tab === 'housing' ? 'السكن والإسكان' : tab === 'vehicles' ? 'المركبات والتسليمات' : 'الوقود';
+
+  const kpi = useMemo(() => {
+    if (tab === 'cities') {
+      return [
+        { label: 'عدد المدن النشطة', value: summary.activeCities },
+        { label: 'إجمالي المركبات', value: summary.totalVehicles },
+        { label: 'إجمالي المناديب', value: summary.totalRiders },
+        { label: 'حسابات (نشط / مسند)', value: `${summary.platformAccountsActive ?? 0} / ${summary.platformAccountsAssigned ?? 0}` },
+      ];
+    }
+    if (tab === 'housing') {
+      return [
+        { label: 'إجمالي السكنات', value: summary.housingsTotal },
+        { label: 'إجمالي الغرف', value: summary.roomsTotal },
+        { label: 'إجمالي المقيمين', value: summary.residentsTotal },
+        { label: 'نسبة الإشغال %', value: summary.occupancyPercent },
+      ];
+    }
+    if (tab === 'vehicles') {
+      if (view === 'invoices') {
+        return [
+          { label: 'عدد الفواتير', value: summary.invoicesTotal },
+          { label: 'إجمالي المبالغ', value: formatSar(summary.totalAmount as number | string | null | undefined) },
+        ];
+      }
+      if (view === 'oil') {
+        return [
+          { label: 'عدد التغييرات', value: summary.oilChangesCount },
+          { label: 'إجمالي اللترات', value: summary.totalLiters },
+          { label: 'تكلفة تغييرات الزيت', value: formatSar(summary.oilChangesCost as number | string | null | undefined) },
+        ];
+      }
+      return [
+        { label: 'المركبات العاملة', value: summary.vehiclesOperating ?? summary.invoicesTotal },
+        { label: 'إجمالي أيام التشغيل', value: summary.totalOperatingDays },
+        { label: 'تكلفة قطع الغيار', value: formatSar((summary.sparePartsCost ?? summary.totalAmount) as number | string | null | undefined) },
+        { label: 'الاستقطاع المطلوب', value: formatSar(summary.amountToCollect as number | string | null | undefined) },
+        { label: 'تكلفة تغييرات الزيت', value: formatSar(summary.oilChangesCost as number | string | null | undefined) },
+      ];
+    }
+    if (view === 'log') {
+      return [
+        { label: 'سجلات التسليم', value: summary.assignmentsTotal },
+      ];
+    }
+    return [
+      { label: 'البطاقات النشطة', value: summary.activeCards },
+      { label: 'المناديب المستهلكون', value: summary.consumingRiders },
+      { label: 'إجمالي اللترات', value: summary.totalLiters },
+      { label: 'الإجمالي شامل الضريبة', value: formatSar(summary.totalInclVat as number | string | null | undefined) },
+      { label: 'تجاوز السقف', value: summary.capExceeded ?? NO_SOURCE },
+    ];
+  }, [tab, view, summary]);
+
+  const columns: ColumnDef<OpsRow>[] = useMemo(() => {
+    if (tab === 'cities') {
+      return [
+        { key: 'nameAr', header: 'المدينة', type: 'list', filterType: 'list', getValue: (r) => String(r.nameAr || ''), render: (r) => String(r.nameAr || '') },
+        { key: 'regs', header: 'السجلات النشطة', type: 'text', filterType: 'text', filterColumn: 'registrationNames', getValue: (r) => String(r.registrationNames || r.activeRegistrations || ''), render: (r) => String(r.registrationNames || r.activeRegistrations || '') },
+        { key: 'veh', header: 'المركبات (سيارة/دراجة)', type: 'number', filterType: 'number', filterColumn: 'vehiclesTotal', getValue: (r) => Number(r.vehiclesTotal ?? (Number(r.vehiclesCars ?? 0) + Number(r.vehiclesMotorbikes ?? 0))), render: (r) => `${r.vehiclesCars ?? 0} / ${r.vehiclesMotorbikes ?? 0}` },
+        { key: 'riders', header: 'المناديب', type: 'number', filterType: 'number', numeric: true, filterColumn: 'ridersTotal', getValue: (r) => (r.ridersTotal != null ? Number(r.ridersTotal) : ''), render: (r) => String(r.ridersTotal ?? '') },
+        { key: 'apps', header: 'التطبيقات العاملة', type: 'list', filterType: 'list', filterColumn: 'appsWorking', getValue: (r) => String(r.appsWorking || ''), render: (r) => String(r.appsWorking || '') },
+        { key: 'acc', header: 'الحسابات', type: 'number', filterType: 'number', filterColumn: 'accountsTotal', getValue: (r) => Number(r.accountsTotal ?? 0), render: (r) => `${r.accountsTotal ?? 0} / ${r.accountsActive ?? 0} / ${r.accountsAssigned ?? 0}` },
+        {
+          key: 'actions',
+          header: 'إجراءات',
+          filterable: false,
+          sortable: false,
+          render: (r) => (
+            <button type="button" className="text-[var(--accent)]" onClick={() => void openCity(String(r.id))}>
+              تفاصيل المدينة
+            </button>
+          ),
+        },
+      ];
+    }
+    if (tab === 'housing') {
+      return [
+        { key: 'nameAr', header: 'اسم السكن', type: 'text', filterType: 'text', getValue: (r) => String(r.nameAr || ''), render: (r) => String(r.nameAr || '') },
+        { key: 'city', header: 'المدينة', type: 'list', filterType: 'list', getValue: (r) => String(r.city || ''), render: (r) => String(r.city || '') },
+        { key: 'rooms', header: 'عدد الغرف', type: 'number', filterType: 'number', numeric: true, filterColumn: 'roomsCount', getValue: (r) => (r.roomsCount != null ? Number(r.roomsCount) : ''), render: (r) => String(r.roomsCount ?? '') },
+        { key: 'res', header: 'إجمالي المناديب', type: 'number', filterType: 'number', numeric: true, filterColumn: 'residentsTotal', getValue: (r) => (r.residentsTotal != null ? Number(r.residentsTotal) : ''), render: (r) => String(r.residentsTotal ?? '') },
+        { key: 'per', header: 'مندوب/غرفة', type: 'number', filterType: 'number', numeric: true, summary: 'none', filterColumn: 'ridersPerRoom', getValue: (r) => (r.ridersPerRoom != null ? Number(r.ridersPerRoom) : ''), render: (r) => String(r.ridersPerRoom ?? '') },
+        { key: 'sup', header: 'المشرف', filterable: false, sortable: false, render: () => NO_SOURCE },
+        { key: 'status', header: 'الحالة', type: 'list', filterType: 'list', getValue: (r) => String(r.status || ''), toneOf: defaultStatusTone, render: (r) => String(r.status || '') },
+        {
+          key: 'actions',
+          header: 'إجراءات',
+          filterable: false,
+          sortable: false,
+          render: (r) => (
+            <button type="button" className="text-[var(--accent)]" onClick={() => void openHousing(String(r.id))}>
+              عرض الغرف والمقيمين
+            </button>
+          ),
+        },
+      ];
+    }
+    if (tab === 'fuel') {
+      if (view === 'log') {
+        return [
+          {
+            key: 'cardName',
+            header: 'اسم البطاقة',
+            type: 'list',
+            filterType: 'list',
+            filterColumn: 'cardName',
+            getValue: (r) => String(r.cardName || r.providerNameAr || formatFuelProviderAr(r.provider) || ''),
+            labelOf: (v) => formatFuelProviderAr(v),
+            render: (r) => {
+              const providerAr = String(r.providerNameAr || formatFuelProviderAr(r.provider));
+              const notes = String(r.cardNotes || '').trim();
+              return (
+                <div className="flex flex-col">
+                  <span className="font-medium">{providerAr}</span>
+                  {notes ? <span className="text-xs text-[var(--muted)]">{notes}</span> : null}
+                </div>
+              );
+            },
+          },
+          { key: 'card', header: 'رقم البطاقة', type: 'list', filterType: 'list', filterColumn: 'cardNumber', getValue: (r) => String(r.cardNumber || ''), render: (r) => <bdi className="font-mono font-medium">{String(r.cardNumber || '—')}</bdi> },
+          {
+            key: 'rider',
+            header: 'المندوب',
+            type: 'text',
+            filterType: 'text',
+            filterColumn: 'riderNameAr',
+            getValue: (r) => `${r.riderNameAr || ''} ${r.iqama || ''}`.trim(),
+            render: (r) => (
+              <div className="flex flex-col">
+                <span className="font-medium">{String(r.riderNameAr || '—')}</span>
+                {r.iqama ? <bdi className="text-xs text-[var(--muted)] font-mono">{String(r.iqama)}</bdi> : null}
+              </div>
+            ),
+          },
+          { key: 'from', header: 'من', type: 'date', filterType: 'date', filterColumn: 'effectiveFrom', getValue: (r) => String(r.effectiveFrom || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.effectiveFrom) },
+          { key: 'to', header: 'إلى', type: 'date', filterType: 'date', filterColumn: 'effectiveTo', getValue: (r) => String(r.effectiveTo || ''), labelOf: (v) => (v ? formatDateShort(v) : 'حتى الآن'), render: (r) => (r.effectiveTo ? formatDateShort(r.effectiveTo) : 'حتى الآن') },
+        ];
+      }
+      return [
+        {
+          key: 'cardName',
+          header: 'اسم البطاقة',
+          type: 'list',
+          filterType: 'list',
+          filterColumn: 'cardName',
+          getValue: (r) => String(r.cardName || r.providerNameAr || formatFuelProviderAr(r.provider) || ''),
+          labelOf: (v) => formatFuelProviderAr(v),
+          render: (r) => {
+            const providerAr = String(r.providerNameAr || formatFuelProviderAr(r.provider));
+            const notes = String(r.cardNotes || '').trim();
+            return (
+              <div className="flex flex-col">
+                <span className="font-medium">{providerAr}</span>
+                {notes ? <span className="text-xs text-[var(--muted)]">{notes}</span> : null}
+              </div>
+            );
+          },
+        },
+        { key: 'cardNumber', header: 'رقم البطاقة', type: 'list', filterType: 'list', getValue: (r) => String(r.cardNumber || ''), render: (r) => <bdi className="font-mono font-medium">{String(r.cardNumber || '—')}</bdi> },
+        {
+          key: 'rider',
+          header: 'المندوب الفعلي',
+          type: 'text',
+          filterType: 'text',
+          filterColumn: 'riderNameAr',
+          getValue: (r) => `${r.riderNameAr || ''} ${r.iqama || ''}`.trim(),
+          render: (r) => (
+            <div className="flex flex-col">
+              <span className="font-medium">{String(r.riderNameAr || '—')}</span>
+              {r.iqama ? <bdi className="text-xs text-[var(--muted)] font-mono">{String(r.iqama)}</bdi> : null}
+            </div>
+          ),
+        },
+        { key: 'plate', header: 'المركبة', type: 'list', filterType: 'list', filterColumn: 'plateNumber', getValue: (r) => String(r.plateNumber || ''), render: (r) => String(r.plateNumber || '—') },
+        { key: 'liters', header: 'اللترات', type: 'number', filterType: 'number', numeric: true, getValue: (r) => (r.liters != null ? Number(r.liters) : ''), render: (r) => String(r.liters ?? '') },
+        { key: 'before', header: 'قبل الضريبة', type: 'number', filterType: 'number', numeric: true, filterColumn: 'amountBeforeTax', getValue: (r) => (r.amountBeforeTax != null ? Number(r.amountBeforeTax) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.amountBeforeTax as number | string | null | undefined)}</span> },
+        { key: 'vat', header: 'الضريبة', type: 'number', filterType: 'number', numeric: true, getValue: (r) => (r.vat != null ? Number(r.vat) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.vat as number | string | null | undefined)}</span> },
+        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalInclVat', getValue: (r) => (r.totalInclVat != null ? Number(r.totalInclVat) : ''), render: (r) => <span className="num font-medium whitespace-nowrap">{formatSar(r.totalInclVat as number | string | null | undefined)}</span> },
+        { key: 'cap', header: 'السقف', filterable: false, sortable: false, render: () => NO_SOURCE },
+        {
+          key: 'status',
+          header: 'الحالة',
+          type: 'list',
+          filterType: 'list',
+          getValue: (r) => formatFuelStatusAr(r.status),
+          labelOf: (v) => formatFuelStatusAr(v),
+          toneOf: (v) => (formatFuelStatusAr(v) === 'نشطة' ? 'success' : 'danger'),
+          render: (r) => {
+            const label = formatFuelStatusAr(r.status);
+            const active = label === 'نشطة';
+            return (
+              <span
+                className={`inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium ${
+                  active
+                    ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300'
+                    : 'bg-slate-500/15 text-slate-700 dark:text-slate-300'
+                }`}
+              >
+                {label}
+              </span>
+            );
+          },
+        },
+      ];
+    }
+    if (view === 'invoices') {
+      return [
+        { key: 'num', header: 'رقم الاستلام', type: 'text', filterType: 'text', filterColumn: 'receiptNumber', getValue: (r) => String(r.receiptNumber || ''), render: (r) => String(r.receiptNumber || '') },
+        { key: 'supInv', header: 'فاتورة المورد', type: 'text', filterType: 'text', filterColumn: 'supplierInvoiceNumber', getValue: (r) => String(r.supplierInvoiceNumber || ''), render: (r) => String(r.supplierInvoiceNumber || '—') },
+        { key: 'sup', header: 'المورد', type: 'list', filterType: 'list', filterColumn: 'supplierNameAr', getValue: (r) => String(r.supplierNameAr || ''), render: (r) => String(r.supplierNameAr || '—') },
+        { key: 'date', header: 'تاريخ الفاتورة', type: 'date', filterType: 'date', filterColumn: 'invoiceDate', getValue: (r) => String(r.invoiceDate || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.invoiceDate) },
+        { key: 'receivedAt', header: 'تاريخ الاستلام', type: 'date', filterType: 'date', getValue: (r) => String(r.receivedAt || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.receivedAt) },
+        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalAmount', getValue: (r) => (r.totalAmount != null ? Number(r.totalAmount) : ''), render: (r) => <span className="num font-medium whitespace-nowrap">{formatSar(r.totalAmount as number | string | null | undefined)}</span> },
+        { key: 'status', header: 'الحالة', type: 'list', filterType: 'list', getValue: (r) => formatPurchaseStatus(r.status), labelOf: (v) => formatPurchaseStatus(v), toneOf: (v) => (formatPurchaseStatus(v) === 'مرحّل' ? 'success' : 'danger'), render: (r) => formatPurchaseStatus(r.status) },
+      ];
+    }
+    if (view === 'oil') {
+      return [
+        { key: 'plate', header: 'اللوحة', type: 'list', filterType: 'list', filterColumn: 'plateNumberAr', getValue: (r) => String(r.plateNumberAr || ''), render: (r) => cell(r.plateNumberAr) },
+        { key: 'date', header: 'التاريخ', type: 'date', filterType: 'date', filterColumn: 'performedAt', getValue: (r) => String(r.performedAt || ''), labelOf: (v) => formatDateShort(v), render: (r) => formatDateShort(r.performedAt) },
+        { key: 'odo', header: 'العداد', type: 'number', filterType: 'number', numeric: true, summary: 'none', filterColumn: 'odometer', getValue: (r) => (r.odometer != null ? Number(r.odometer) : ''), render: (r) => cell(r.odometer) },
+        { key: 'liters', header: 'لترات', type: 'number', filterType: 'number', numeric: true, filterColumn: 'oilLiters', getValue: (r) => (r.oilLiters != null ? Number(r.oilLiters) : ''), render: (r) => cell(r.oilLiters) },
+        { key: 'oil', header: 'تكلفة الزيت', type: 'number', filterType: 'number', numeric: true, filterColumn: 'oilCost', getValue: (r) => (r.oilCost != null ? Number(r.oilCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.oilCost as number | string | null | undefined)}</span> },
+        { key: 'filter', header: 'الفلتر', type: 'number', filterType: 'number', numeric: true, filterColumn: 'filterCost', getValue: (r) => (r.filterCost != null ? Number(r.filterCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.filterCost as number | string | null | undefined)}</span> },
+        { key: 'labor', header: 'أجور', type: 'number', filterType: 'number', numeric: true, filterColumn: 'laborCost', getValue: (r) => (r.laborCost != null ? Number(r.laborCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.laborCost as number | string | null | undefined)}</span> },
+        { key: 'other', header: 'أخرى', type: 'number', filterType: 'number', numeric: true, filterColumn: 'otherCost', getValue: (r) => (r.otherCost != null ? Number(r.otherCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.otherCost as number | string | null | undefined)}</span> },
+        { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalCost', getValue: (r) => (r.totalCost != null ? Number(r.totalCost) : ''), render: (r) => <span className="num font-medium whitespace-nowrap">{formatSar(r.totalCost as number | string | null | undefined)}</span> },
+      ];
+    }
+    return [
+      { key: 'plate', header: 'اللوحة والنوع', type: 'list', filterType: 'list', filterColumn: 'plateNumberAr', getValue: (r) => String(r.plateNumberAr || ''), render: (r) => `${r.plateNumberAr || ''} · ${r.vehicleType || ''}` },
+      { key: 'rider', header: mode === 'rider' ? 'المندوب الفعلي' : 'المندوب / الفترة', type: 'text', filterType: 'text', filterColumn: 'riderNameAr', getValue: (r) => `${r.riderNameAr || ''} ${r.iqama || ''}`.trim(), render: (r) => String(r.riderNameAr || '') },
+      { key: 'city', header: 'المدينة', type: 'list', filterType: 'list', getValue: (r) => String(r.city || ''), render: (r) => String(r.city || '') },
+      { key: 'days', header: 'أيام التشغيل', type: 'number', filterType: 'number', numeric: true, filterColumn: 'operatingDays', getValue: (r) => (r.operatingDays != null ? Number(r.operatingDays) : ''), render: (r) => String(r.operatingDays ?? '') },
+      { key: 'parts', header: 'تكلفة قطع الغيار', type: 'number', filterType: 'number', numeric: true, filterColumn: 'sparePartsCost', getValue: (r) => (r.sparePartsCost != null ? Number(r.sparePartsCost) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.sparePartsCost as number | string | null | undefined)}</span> },
+      { key: 'collect', header: 'الاستقطاع المطلوب', type: 'number', filterType: 'number', numeric: true, filterColumn: 'amountToCollect', getValue: (r) => (r.amountToCollect != null ? Number(r.amountToCollect) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.amountToCollect as number | string | null | undefined)}</span> },
+      { key: 'oil', header: 'زيت (عدد/تكلفة/كم)', type: 'number', filterType: 'number', filterColumn: 'oilChangesCost', getValue: (r) => Number(r.oilChangesCost ?? 0), render: (r) => <span className="num whitespace-nowrap">{`${r.oilChangesCount ?? 0} / ${formatSar(r.oilChangesCost as number | string | null | undefined)} / ${r.oilMileage ?? '—'}`}</span> },
+      {
+        key: 'actions',
+        header: 'إجراءات',
+        filterable: false,
+        sortable: false,
+        render: (r) => (
+          <button type="button" className="text-[var(--accent)]" onClick={() => void openVehicle(String(r.vehicleId || r.id))}>
+            تفاصيل المركبة
+          </button>
+        ),
+      },
+    ];
+  }, [tab, view, mode]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  return (
+    <div className="space-y-4 max-w-full overflow-x-hidden">
+      <PageHeader
+        title={title}
+        description="عرض مباشر من نظام الموارد — بدون ترحيل أو مدفوعات من هذه الشاشة."
+      >
+        {source ? <SourceBadge source={source === 'erp_live' ? 'erp_live' : 'store'} asOf={asOf || undefined} /> : null}
+      </PageHeader>
+
+      {tab === 'fuel' ? (
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm">
+          عرض مباشر فقط من نظام الموارد — الاستهلاك يُدخل في نظام عمر.
+        </div>
+      ) : null}
+
+      {tab === 'vehicles' ? (
+        <SectionTabs
+          tabs={vehicleInnerTabs}
+          activeTab={view || 'period'}
+          paramName="view"
+          onChange={(id) => replaceParams({ view: id, page: '1' })}
+        />
+      ) : null}
+      {tab === 'fuel' ? (
+        <SectionTabs
+          tabs={fuelInnerTabs}
+          activeTab={view || 'usage'}
+          paramName="view"
+          onChange={(id) => replaceParams({ view: id, page: '1' })}
+        />
+      ) : null}
+
+      <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-5 gap-3">
+        {kpi.map((k) => (
+          <StatCard key={k.label} label={k.label} value={k.value == null ? '—' : String(k.value)} />
+        ))}
+      </div>
+
+      <div className="flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-end">
+        <label className="flex-1 min-w-[12rem]">
+          <span className="sr-only">بحث</span>
+          <div className="relative">
+            <Search size={16} className="absolute right-3 top-1/2 -translate-y-1/2 text-[var(--muted)]" />
+            <input
+              className="w-full rounded-lg border border-[var(--border)] bg-[var(--surface)] pr-9 pl-3 py-2"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="بحث…"
+            />
+          </div>
+        </label>
+        {(tab === 'vehicles' || tab === 'fuel') && (
+          <>
+            <label className="text-sm">
+              من
+              <input type="date" className="block mt-1 rounded-lg border border-[var(--border)] px-2 py-2" value={from} onChange={(e) => replaceParams({ from: e.target.value, page: '1' })} />
+            </label>
+            <label className="text-sm">
+              إلى
+              <input type="date" className="block mt-1 rounded-lg border border-[var(--border)] px-2 py-2" value={to} onChange={(e) => replaceParams({ to: e.target.value, page: '1' })} />
+            </label>
+          </>
+        )}
+        {tab === 'fuel' && view !== 'log' ? (
+          <label className="text-sm">
+            الشهر
+            <input type="month" className="block mt-1 rounded-lg border border-[var(--border)] px-2 py-2" value={month} onChange={(e) => setPeriod(e.target.value, { page: '1' })} />
+          </label>
+        ) : null}
+        {tab === 'vehicles' && view === 'period' ? (
+          <div className="flex w-full sm:w-auto rounded-lg overflow-hidden border border-[var(--border)]">
+            <button type="button" className={`flex-1 sm:flex-none px-3 py-2 text-sm ${mode === 'vehicle' ? 'bg-[var(--accent)] text-white' : ''}`} onClick={() => replaceParams({ mode: 'vehicle', page: '1' })}>
+              عرض بالمركبة
+            </button>
+            <button type="button" className={`flex-1 sm:flex-none px-3 py-2 text-sm ${mode === 'rider' ? 'bg-[var(--accent)] text-white' : ''}`} onClick={() => replaceParams({ mode: 'rider', page: '1' })}>
+              عرض بالمندوب الفعلي
             </button>
           </div>
-        )}
-
-        {/* 4. Errors: 503 Full Card when no data was loaded yet */}
-        {is503 && items.length === 0 ? (
-          <div
-            role="alert"
-            className="p-8 rounded-2xl border border-[var(--warning)]/30 bg-[var(--surface)] text-center space-y-4 shadow-xs"
-          >
-            <div className="inline-flex items-center gap-2 px-3.5 py-1.5 rounded-full bg-[var(--warning)]/15 text-[var(--warning)] text-xs font-bold">
-              <AlertTriangle size={16} />
-              <span>مصدر التشغيل غير متاح الآن</span>
-            </div>
-            <h4 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-              تعذر الاتصال بمصدر التشغيل اللوجستي
-            </h4>
-            <p className="text-xs sm:text-sm text-[var(--muted)] max-w-md mx-auto">
-              {errorMsg || 'نظام الموارد الميداني أو اتصال قاعدة بيانات التشغيل غير متاح حالياً. يرجى إعادة المحاولة.'}
-            </p>
-            <div className="pt-2">
-              <button
-                type="button"
-                onClick={() => loadTabData(activeTab, page, pageSize, debouncedQuery)}
-                className="px-5 py-2.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] hover:opacity-90 text-xs sm:text-sm font-bold transition inline-flex items-center gap-2 cursor-pointer shadow-xs"
-              >
-                <RefreshCw size={14} />
-                <span>إعادة المحاولة</span>
+        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {canRefresh ? (
+            <button type="button" className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void load()}>
+              <RefreshCw size={16} /> تحديث
+            </button>
+          ) : null}
+          {canExport && tab === 'cities' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsCities({ filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-cities.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'housing' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsHousing({ q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-housing.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'vehicles' && view === 'period' ? (
+            <>
+              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'summary', q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-vehicles-summary.xlsx'))}>
+                تصدير ملخص
               </button>
-            </div>
-          </div>
-        ) : errorMsg && !is503 ? (
-          <ErrorState
-            title="تعذر تحميل بيانات التشغيل"
-            message={errorMsg}
-            onRetry={() => loadTabData(activeTab, page, pageSize, debouncedQuery)}
-          />
-        ) : (
-          /* 1. Server Paging and Search: DataTable in serverSide mode */
-          <DataTable
-            tableId={`operations-${activeTab}`}
-            columns={tabColumns}
-            data={items}
-            totalCount={total}
-            loading={loading}
-            page={page}
-            pageSize={pageSize}
-            pageSizes={PAGE_SIZES}
-            onPageChange={handlePageChange}
-            onPageSizeChange={handlePageSizeChange}
-            serverSide={true}
-            searchable={false}
-            emptyTitle={`لا توجد سجلات حالية في ${currentTabInfo.title}`}
-            emptyDescription={
-              debouncedQuery
-                ? 'لم يتم العثور على نتائج تطابق معايير البحث في مصدر التشغيل.'
-                : 'تظهر السجلات هنا فور توفرها من مصدر التشغيل اللوجستي.'
-            }
-            exportFilename={`operations_${activeTab}`}
-            showTotals={true}
-          />
-        )}
+              <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPeriod({ from, to, mode, detail: 'detailed', q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-vehicles-detailed.xlsx'))}>
+                تصدير تفصيلي
+              </button>
+            </>
+          ) : null}
+          {canExport && tab === 'vehicles' && view === 'oil' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsOilChanges({ from, to, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-oil-changes.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'vehicles' && view === 'invoices' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsPurchases({ from, to, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-purchases.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'fuel' && view !== 'log' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsFuel({ month, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-fuel.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+          {canExport && tab === 'fuel' && view === 'log' ? (
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsFuelLog({ from, to, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-fuel-log.xlsx'))}>
+              تصدير
+            </button>
+          ) : null}
+        </div>
       </div>
+
+      {is503 ? (
+        <div className="rounded-lg border border-amber-500/40 bg-amber-500/10 px-4 py-3 text-sm">
+          مصدر التشغيل غير متاح حاليًا (503). آخر بيانات معروضة إن وُجدت.
+        </div>
+      ) : null}
+
+      {errorMsg && !is503 ? (
+        <ErrorState title="تعذر التحميل" message={errorMsg} onRetry={() => void load()} />
+      ) : (
+        <DataTable
+          key={`ops-${tab}-${view}`}
+          tableId={`ops-${tab}-${view}`}
+          columns={columns}
+          data={items}
+          loading={loading}
+          getRowId={(r) => String(r.id || Math.random())}
+          serverSide
+          distinctEndpoint="/operations/distinct"
+          distinctParams={{ tab, view, from, to, month, mode, q: debouncedQ || undefined, filters: serverQuery.filtersParam }}
+          onServerQueryChange={(sq) => {
+            setServerQuery({ filtersParam: sq.filtersParam, sortParam: sq.sortParam });
+            replaceParams({ page: '1' });
+          }}
+          emptyTitle="لا بيانات"
+          emptyDescription={view === 'oil' ? 'لا تغييرات زيت في هذه الفترة.' : 'لا صفوف مطابقة للمرشحات.'}
+          searchable={false}
+          exportable={false}
+          syncUrl={false}
+          page={page}
+          pageSize={pageSize}
+          totalCount={total}
+          onPageChange={(p) => replaceParams({ page: String(p) })}
+          onPageSizeChange={(s) => replaceParams({ size: String(s), page: '1' })}
+        />
+      )}
+
+      <Drawer open={!!drawer} onClose={() => setDrawer(null)} title={drawer?.title || ''}>
+        {drawer?.body}
+      </Drawer>
     </div>
   );
 }
 
 export default function OperationsPage() {
   return (
-    <Suspense
-      fallback={
-        <div className="space-y-4 p-6">
-          <Skeleton className="h-12 w-48 rounded-xl" />
-          <Skeleton className="h-28 w-full rounded-2xl" />
-        </div>
-      }
-    >
+    <Suspense fallback={<Skeleton className="h-64 w-full" />}>
       <OperationsPageInner />
     </Suspense>
   );

@@ -5,14 +5,14 @@
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.14" />
     <PackageReference Include="System.Security.Cryptography.Pkcs" Version="10.0.13" /><PackageReference Include="Microsoft.Data.SqlClient" Version="6.1.5" /><PackageReference Include="QRCoder" Version="1.7.0" /><PackageReference Include="Microsoft.Data.Sqlite" Version="10.0.13" />
     <PackageReference Include="SQLitePCLRaw.bundle_e_sqlite3" Version="3.0.5" />
-    <!-- Include generated assets explicitly, including on the first clean build. -->
-    <Content Remove="wwwroot/app.js;wwwroot/table-tools.js;wwwroot/bootstrap.js;wwwroot/enterprise.js;wwwroot/rider-form.js;wwwroot/rider-form.html" />
-    <Content Include="wwwroot/app.js;wwwroot/table-tools.js;wwwroot/bootstrap.js;wwwroot/enterprise.js;wwwroot/rider-form.js;wwwroot/rider-form.html" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
+    <!-- Include generated rider-form assets explicitly, including on the first clean build. -->
+    <Content Remove="wwwroot/rider-form.js;wwwroot/rider-form.html" />
+    <Content Include="wwwroot/rider-form.js;wwwroot/rider-form.html" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="App_Data/**;appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
   </ItemGroup>
   <ItemGroup><EmbeddedResource Include="Resources/target-coa.v1.json" LogicalName="Payroll.TargetCoa.v1.json" /><EmbeddedResource Include="Resources/ninja-terms.v1.json" LogicalName="Payroll.NinjaTerms.v1.json" /><EmbeddedResource Include="Resources/pay-defaults.v1.json" LogicalName="Payroll.PayDefaults.v1.json" /></ItemGroup>
   <Target Name="BuildChoiceFrontend" BeforeTargets="PrepareForBuild" Condition="'$(SkipFrontendBuild)' != 'true'">
-    <Exec WorkingDirectory="../RiderForm" Command="npm run build:all" />
+    <Exec WorkingDirectory="../RiderForm" Command="npm run build" />
     <Copy SourceFiles="../RiderForm/web/rider-form.html" DestinationFiles="wwwroot/rider-form.html" />
   </Target>
 </Project>

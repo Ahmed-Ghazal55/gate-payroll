@@ -5,7 +5,7 @@ namespace Payroll;
 // One route policy is used by the API, UI capability list and offline review tests.
 public static partial class AccessPolicy
 {
-    public static bool Administrator(ClaimsPrincipal user)=>user.IsInRole("Admin")||user.IsInRole("SuperAdmin");
+    public static bool Administrator(ClaimsPrincipal user)=>user.IsInRole("Admin")||user.IsInRole("SuperAdmin")||user.IsInRole("SystemAdmin");
     public static string[] CompatibilityDefaults(string role)=>role switch {
         "Accountant"=>["payments.record","adjustments.create","imports.view","policies.view","inquiry.issue","treasury.disburse","treasury.jahez.receive","treasury.journals","treasury.liability.settle","debts.create.housing","debts.create.administrative","debts.create.equipment"],
         "FinancialAccountant"=>["payments.record","adjustments.create","imports.view","policies.view","inquiry.issue","treasury.disburse","treasury.jahez.receive","treasury.journals","treasury.opening","treasury.liability.settle","debts.create.housing","debts.create.administrative","debts.create.equipment"],
@@ -17,10 +17,26 @@ public static partial class AccessPolicy
         _=>[]
     };
     public static bool Has(ClaimsPrincipal user,string permission)=>user.Identity?.IsAuthenticated==true&&(Administrator(user)||user.HasClaim("permission",permission));
-    public static void Demand(ClaimsPrincipal user,string permission){if(!Has(user,permission))throw new ApiError("ليست لديك صلاحية لهذه العملية: "+permission,403);}
+    public static void Demand(ClaimsPrincipal user,string permission)
+    {
+        if(Has(user,permission))return;
+        string nameAr=UserAccess.PermissionsCatalog.FirstOrDefault(p=>p.Code==permission)?.NameAr??permission;
+        throw new ApiError("ليست لديك صلاحية لهذه العملية: "+nameAr,403);
+    }
+    // One mapping for the statements tab / preview: sidebar, AccessPolicy.Allowed, and PayStatements.Build.
+    public static bool CanAccessRiderMonthlyStatement(ClaimsPrincipal user)=>
+        Administrator(user)||Has(user,"mobile.broadcast")||(Has(user,"pay.view")&&Has(user,"payroll.view")&&Has(user,"debts.view"));
+    // Broadcast-only users may read approved-only previews; full finance viewers may also read drafts.
+    public static void DemandRiderMonthlyStatement(ClaimsPrincipal user,bool approvedOnly)
+    {
+        if(Administrator(user))return;
+        if(Has(user,"pay.view")&&Has(user,"payroll.view")&&Has(user,"debts.view"))return;
+        if(approvedOnly&&Has(user,"mobile.broadcast"))return;
+        throw new ApiError("ليست لديك صلاحية لهذه العملية: pay.view",403);
+    }
     public static string CategoryPermission(string category)=>category switch {
         "WorkPermit" or "IqamaRenewal" or "SponsorshipTransfer" or "ExitReEntryVisa" or "MedicalInsurance" or "ProfessionChange" or "DriverLicense" or "DriverCard" or "OtherHrService"=>"debts.create.hr",
-        "Advance" or "CashAdvance" or "BankAdvance" or "InternetAdvance" or "HsCustodyAdvance" or "HsInvoiceCloseAdvance" or "CashCustody"=>"debts.create.advance",
+        "Advance" or "CashAdvance" or "BankAdvance" or "InternetAdvance" or "HsWalletTopUp" or "CashCustody"=>"debts.create.advance",
         "HousingDeduction"=>"debts.create.housing",
         "PlatformTransferredDebt" or "NegativeSalaryCarryover"=>"debts.create.platform",
         "EquipmentLoan"=>"debts.create.equipment",
@@ -63,7 +79,8 @@ public static partial class AccessPolicy
         }
         if(path.StartsWith("/api/companies/import/",StringComparison.Ordinal))return false; // administrators returned above
         if(path=="/api/companies"||path.StartsWith("/api/companies/",StringComparison.Ordinal))return method=="GET"?Has("companies.view"):method is "POST" or "PUT" or "DELETE"&&Has("companies.manage");
-        if(path=="/api/excel/export")return method=="POST"&&Has("riders.view");
+        // Section-9 exports (forms/broadcasts) need the same view perms as the sidebar tabs that call them.
+        if(path=="/api/excel/export")return method=="POST"&&(Has("riders.view")||Has("companies.view")||Has("forms.view")||Has("mobile.broadcast"));
         if(path.StartsWith("/api/excel/",StringComparison.Ordinal))
         {
             var parts=path.Split('/');if(parts.Length!=5)return false;
@@ -74,10 +91,17 @@ public static partial class AccessPolicy
         }
         if(path=="/api/dashboard")return method=="GET"&&Has("payroll.view");
         if(path.StartsWith("/api/system/",StringComparison.Ordinal))return false;
-        if(path=="/api/riders/enrich-missing")return false;
         if(path=="/api/riders/lookup")return method=="GET"; // RiderLookup.Allowed re-checks the picker permissions in the handler.
         if(path=="/api/riders/data-quality"||path=="/api/riders")return method=="GET"?Has("riders.view"):method=="POST"&&Has("riders.edit");
-        if(path.StartsWith("/api/riders/",StringComparison.Ordinal))return path.EndsWith("/profile-360",StringComparison.Ordinal)?method=="GET"&&Has("riders.view_360")&&Has("debts.view"):method=="GET"?Has("riders.view_360"):method=="POST"&&path.EndsWith("/documents",StringComparison.Ordinal)&&Has("riders.edit");
+        if(path=="/api/workforce"||path=="/api/workforce/summary"||path=="/api/workforce/distinct"||path=="/api/workforce/export"||path=="/api/workforce/data-quality"||path=="/api/workforce/saudi-payroll-employees"||path=="/api/workforce/terminated"||path=="/api/workforce/absence-cases")return method=="GET"&&Has("riders.view");
+        if(path=="/api/workforce/legal-cases")return method=="GET"&&Has("riders.legal_cases.view");
+        if(path.StartsWith("/api/workforce/",StringComparison.Ordinal)&&path.EndsWith("/360",StringComparison.Ordinal))return method=="GET"&&Has("riders.view_360")&&Has("debts.view");
+        if(path.StartsWith("/api/hr-catalogs/",StringComparison.Ordinal))return method=="GET"&&Has("riders.view");
+        if(path.StartsWith("/api/riders/",StringComparison.Ordinal))
+        {
+            if(path.EndsWith("/profile-360",StringComparison.Ordinal))return method=="GET"&&Has("riders.view_360")&&Has("debts.view");
+            return method=="GET"&&Has("riders.view_360");
+        }
         if(path.StartsWith("/api/debts",StringComparison.Ordinal))
         {
             if(path.Contains("/reconcile-opening/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
@@ -102,7 +126,8 @@ public static partial class AccessPolicy
         if(path=="/api/finance/accounting-adjustments"||path.StartsWith("/api/finance/accounting-adjustments/",StringComparison.Ordinal))return method=="GET"?Has("finance.journal.create"):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
         if(path=="/api/finance/journals/manual"||path.StartsWith("/api/finance/journals/manual/",StringComparison.Ordinal))
             return method=="GET"?(Has("finance.journal.create")||Has("finance.journal.approve")):method=="DELETE"?Has("finance.journal.create")&&path.Count(ch=>ch=='/')==5:method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
-        if(path.StartsWith("/api/finance/statement/rider/",StringComparison.Ordinal)&&path.EndsWith("/monthly",StringComparison.Ordinal))return method=="GET"&&Has("pay.view")&&Has("payroll.view")&&Has("debts.view");
+        // Preview for «إرسال كشوف الحساب» (mobile.broadcast) or full finance viewers.
+        if(path.StartsWith("/api/finance/statement/rider/",StringComparison.Ordinal)&&path.EndsWith("/monthly",StringComparison.Ordinal))return method=="GET"&&CanAccessRiderMonthlyStatement(user);
         if(path.StartsWith("/api/finance/statement/",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
         if(path is "/api/finance/bank-file/preview" or "/api/finance/bank-file/export")return method=="POST"&&Has("finance.bankfile.export")&&Has("payroll.view");
         if(path is "/api/finance/trial-balance" or "/api/finance/income-statement")return method=="GET"&&Has("treasury.journals");
@@ -142,6 +167,8 @@ public static partial class AccessPolicy
         // U-W2-12/13 money capture + distribution/bearer/settlement writes.
         if(path.StartsWith("/api/sal/",StringComparison.Ordinal))
             return method=="POST"&&Has("pay.manage");
+        if(path=="/api/audit")return method=="GET"&&Has("audit.view");
+        // DELETE / campaign PUT stay admin-only (blanket deny). forms.delete is deprecated and unused.
         if(method=="DELETE"||path.EndsWith("/delete-preview",StringComparison.Ordinal)||path=="/api/submissions/bulk-delete"||method=="PUT"&&path.StartsWith("/api/campaigns/",StringComparison.Ordinal))return false;
         if(method=="POST"&&path.StartsWith("/api/notifications/center/",StringComparison.Ordinal)&&path.EndsWith("/toggle-todo",StringComparison.Ordinal))return true; // Handler checks view permission or ownership and visibility.
         if(path=="/api/notifications"||path=="/api/notifications/summary")return method=="GET";
@@ -151,6 +178,11 @@ public static partial class AccessPolicy
         if(path=="/api/rider-mobile/sessions"||path.StartsWith("/api/rider-mobile/sessions/",StringComparison.Ordinal))
             return Has("mobile.sessions")&&(method=="GET"&&path=="/api/rider-mobile/sessions"||method=="POST"&&(path=="/api/rider-mobile/sessions/revoke-all"||path.EndsWith("/revoke",StringComparison.Ordinal)));
         if(path.StartsWith("/api/rider-mobile/firebase-config",StringComparison.Ordinal))return false;
+        if(path=="/api/rider-mobile/service-requests"||path.StartsWith("/api/rider-mobile/service-requests/",StringComparison.Ordinal))
+            return method=="GET"
+                ?(Has("mobile.broadcast")||Has("forms.view")||Has("forms.review")||Has("mobile.complaints.confidential")||Has("riders.iban_data.approve_first")||Has("riders.iban_data.approve_second"))
+                :method=="POST"&&(Has("mobile.broadcast")||Has("forms.review")||Has("mobile.complaints.confidential")||Has("riders.iban_data.approve_first")||Has("riders.iban_data.approve_second"));
+        if(path=="/api/rider-mobile/statements/notify-period")return method=="POST"&&Has("mobile.broadcast");
         if(path.StartsWith("/api/rider-mobile/",StringComparison.Ordinal))return method=="GET"?Has("mobile.broadcast"):method=="POST"&&path=="/api/rider-mobile/broadcast"&&Has("mobile.broadcast");
         if(path.StartsWith("/api/promissory-notes",StringComparison.Ordinal))
             return (method=="GET"&&Has("debts.view"))||(method=="POST"&&(Has("debts.create.administrative")||Has("debts.create.advance")||Has("debts.create.hr")));
@@ -159,14 +191,15 @@ public static partial class AccessPolicy
         if(path=="/api/payments")return method=="POST"&&Has("payments.record");
         if(path=="/api/adjustments")return method=="POST"&&Has("adjustments.create");
         if(path.StartsWith("/api/policies",StringComparison.Ordinal))return method=="GET"?Has("policies.view"):Has("policies.manage");
-        if(Get("/api/imports")||path=="/api/template.csv")return Has("imports.view");
-        // K6 Import Center: the catalog and empty templates are read-only for anyone who may import.
-        if(method=="GET"&&(path=="/api/imports/catalog"||path.StartsWith("/api/imports/templates/",StringComparison.Ordinal)))return Has("imports.view");
-        if(path.StartsWith("/api/imports/",StringComparison.Ordinal))return method=="POST"&&(path.EndsWith("/commit",StringComparison.Ordinal)?Has("imports.commit"):Has("imports.view"));
+        if((method=="GET"&&path=="/api/imports")||path=="/api/template.csv")return Has("imports.view");
+        // Per-page empty templates (imports centre catalog list and free-upload endpoints removed).
+        if(path.StartsWith("/api/imports/templates/",StringComparison.Ordinal))return method=="GET"&&Has("imports.view");
         if(path.StartsWith("/api/campaigns",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="DELETE"?Has("forms.delete"):Has("forms.manage");
         if(path.StartsWith("/api/submissions",StringComparison.Ordinal))return method=="GET"?Has("forms.view"):method=="POST"&&(path.EndsWith("/review",StringComparison.Ordinal)||path=="/api/submissions/bulk-approve")&&Has("forms.review");
         if(Get("/api/forms/catalog")||Get("/api/forms/analytics")||Get("/api/forms/responses"))return Has("forms.view");
-        if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))return Has("forms.manage");
+        // GET builder list is forms.view; create/publish/close stay forms.manage.
+        if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))
+            return method=="GET"?Has("forms.view"):Has("forms.manage");
         return false;
     }
     /// <summary>BR §35 / M-0672: permission-only in general; two-person only when the server-derived dual code
@@ -178,7 +211,8 @@ public static partial class AccessPolicy
         if(ApprovalsArea.RequiresDual(dual))Demand(actor,dual!);
         string name=actor.Identity?.Name??"";
         // BR §35 / M-0672: maker≠checker only for dedicated dual money-out / shared-rider codes.
-        if(ApprovalsArea.RequiresDual(dual))
+        // M-0667: SystemAdmin self-approval still goes through Independent so the monthly audit report records it.
+        if(ApprovalsArea.RequiresDual(dual)||actor.IsInRole("SystemAdmin"))
             J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request,scope:dual),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
         // Bypass lifts maker≠checker only — never department, rank, approval limit, or company/platform scope.
         if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))

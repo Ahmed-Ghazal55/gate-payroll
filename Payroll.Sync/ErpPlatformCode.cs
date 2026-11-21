@@ -28,6 +28,14 @@ public static class ErpPlatformCode
         return codes;
     }
 
+    public static IReadOnlyList<string> AcceptOrSelf(string raw)
+    {
+        string trimmed=(raw??"").Trim();
+        if(trimmed.Length==0)return Array.Empty<string>();
+        string code=Normalize(trimmed);
+        return Map.TryGetValue(code,out var codes)?codes:[trimmed];
+    }
+
     public static string? AppFromErp(string erpCode)
     {
         string c=(erpCode??"").Trim();

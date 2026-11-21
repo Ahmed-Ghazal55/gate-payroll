@@ -31,13 +31,6 @@ class PayloadVerificationTests(unittest.TestCase):
                 self.assertEqual(ftp.reads,[])
 
 class HttpsAssetTests(unittest.TestCase):
-    def test_legacy_index_is_ftp_verified_and_not_requested_without_a_session(self):
-        with tempfile.TemporaryDirectory() as directory:
-            root=Path(directory);(root/'wwwroot').mkdir();(root/'wwwroot/index.html').write_bytes(b'synthetic protected legacy')
-            ftp=ReadOnlyFtp({'wwwroot/index.html':b'synthetic protected legacy'})
-            self.assertEqual(verify_bundle(ftp,root)['files'],1)
-            with patch('verify_deployed_payload.urllib.request.urlopen') as opened:
-                self.assertEqual(verify_http_assets(root),[]);opened.assert_not_called()
     def test_both_favicons_are_required_and_must_have_identical_bytes(self):
         with tempfile.TemporaryDirectory() as directory:
             root=Path(directory);(root/'wwwroot').mkdir()

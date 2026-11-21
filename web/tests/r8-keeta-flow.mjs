@@ -242,6 +242,17 @@ try {
       waitUntil: 'networkidle',
     });
 
+    // Company is required (no default); pick BW explicitly before upload.
+    const companyInput = pageA.locator('#select-invoice-company');
+    await companyInput.waitFor({ state: 'visible', timeout: 10000 });
+    await companyInput.click();
+    await companyInput.fill('BW');
+    await pageA.locator('[role="listbox"] [role="option"]', { hasText: 'BW' }).first().click();
+    await pageA.waitForFunction(() => {
+      const el = document.querySelector('#select-invoice-company');
+      return el && typeof el.value === 'string' && el.value.includes('BW');
+    }, null, { timeout: 5000 });
+
     await pageA.locator('input[type="file"]').first().setInputFiles({
       name: 'keeta-synthetic-2026-10.xlsx',
       mimeType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
@@ -306,6 +317,17 @@ try {
     await pageB.goto(`${baseUrl}/app/payroll?tab=platforms&app=keeta&sub=settlements&period=2026-10`, {
       waitUntil: 'networkidle',
     });
+
+    // Pending invoice is company-scoped; checker must pick BW too.
+    const companyInputB = pageB.locator('#select-invoice-company');
+    await companyInputB.waitFor({ state: 'visible', timeout: 10000 });
+    await companyInputB.click();
+    await companyInputB.fill('BW');
+    await pageB.locator('[role="listbox"] [role="option"]', { hasText: 'BW' }).first().click();
+    await pageB.waitForFunction(() => {
+      const el = document.querySelector('#select-invoice-company');
+      return el && typeof el.value === 'string' && el.value.includes('BW');
+    }, null, { timeout: 5000 });
 
     const approveBtn = pageB.locator('#btn-approve-ninja-invoice');
     await approveBtn.waitFor({ state: 'visible', timeout: 8000 });

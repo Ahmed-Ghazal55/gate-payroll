@@ -62,8 +62,6 @@ def verify_http_assets(root,base='https://payroll.marketingalbawaba.com'):
     for path in selected_files(root):
         relative=path.relative_to(root)
         if not relative.parts or relative.parts[0]!='wwwroot':continue
-        # Legacy HTML is session-protected; verify its exact bytes by FTPS above.
-        if relative.as_posix()=='wwwroot/index.html':continue
         # Publish emits compression sidecars. UseStaticFiles serves the original URL;
         # a .br download URL is not promised. All sidecars remain fully hashed by FTPS.
         if path.suffix in {'.br','.gz'} and path.with_suffix('').is_file():continue

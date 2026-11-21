@@ -425,12 +425,12 @@ try {
     assert.ok(cardText.includes(userA), `Creator must be @${userA}`);
 
     // Test Maker ≠ Checker: User A cannot approve their own scheme
-    const approveBtn = schemeCard.locator('button', { hasText: 'اعتماد النظام (Maker-Checker)' });
+    const approveBtn = schemeCard.locator('button', { hasText: 'اعتماد النظام' });
     assert.equal(await approveBtn.isDisabled(), true, 'Approve button must be disabled for User A (maker)');
     const buttonTitle = await approveBtn.getAttribute('title');
     assert.ok(
-      buttonTitle && buttonTitle.includes('Maker ≠ Checker'),
-      `Tooltip must explain Maker ≠ Checker: ${buttonTitle}`,
+      buttonTitle && buttonTitle.includes('لا يجوز أن يعتمد نفس الشخص'),
+      `Tooltip must explain independent approval in Arabic: ${buttonTitle}`,
     );
     console.log('✓ Maker ≠ Checker enforced: User A cannot approve their own scheme');
 
@@ -454,7 +454,7 @@ try {
       waitUntil: 'networkidle',
     });
 
-    const approveBtn = pageB.locator('button', { hasText: 'اعتماد النظام (Maker-Checker)' }).first();
+    const approveBtn = pageB.locator('button', { hasText: 'اعتماد النظام' }).first();
     await approveBtn.waitFor({ state: 'visible', timeout: 8000 });
     assert.equal(await approveBtn.isDisabled(), false, 'Approve button must be enabled for User B (checker)');
 
@@ -513,6 +513,17 @@ try {
       ]);
       const pageUp = await contextUpload.newPage();
       await pageUp.goto(`${baseUrl}/app/payroll?tab=ninja_upload&period=2026-10`, { waitUntil: 'networkidle' });
+
+      // Company is required (no default); pick BW explicitly before upload.
+      const companyInput = pageUp.locator('#select-invoice-company');
+      await companyInput.waitFor({ state: 'visible', timeout: 10000 });
+      await companyInput.click();
+      await companyInput.fill('BW');
+      await pageUp.locator('[role="listbox"] [role="option"]', { hasText: 'BW' }).first().click();
+      await pageUp.waitForFunction(() => {
+        const el = document.querySelector('#select-invoice-company');
+        return el && typeof el.value === 'string' && el.value.includes('BW');
+      }, null, { timeout: 5000 });
 
       await pageUp.locator('input[type="file"]').first().setInputFiles({
         name: 'ninja-synthetic-2026-10.xlsx',

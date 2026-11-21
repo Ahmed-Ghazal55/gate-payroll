@@ -18,6 +18,7 @@ export interface PageHeaderProps {
     onClick: () => void;
     icon?: React.ReactNode;
     disabled?: boolean;
+    testId?: string;
   };
   moreActions?: Array<{
     label: string;
@@ -82,6 +83,7 @@ export function PageHeader({
         {primaryAction && (
           <button
             type="button"
+            data-testid={primaryAction.testId}
             disabled={primaryAction.disabled}
             onClick={primaryAction.onClick}
             className="inline-flex items-center justify-center gap-2 px-4 py-2 text-sm font-semibold text-[var(--accent-ink)] bg-[var(--accent)] rounded-lg hover:opacity-90 active:scale-[0.98] transition disabled:opacity-50 disabled:pointer-events-none shadow-xs"
