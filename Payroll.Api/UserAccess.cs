@@ -58,6 +58,10 @@ public static class UserAccess
 
         // الصناديق والخزائن وشجرة الحسابات وصندوق جاهز
         new("treasury.view", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "استعراض أرصدة السجلات وشجرة الحسابات والقيود", "الاطلاع على أرصدة الصندوق الداخلي الرئيسي وفروعه والبنوك ودفتر القيود المحاسبية."),
+        new("accounting.chart.view", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "عرض دليل الحسابات", "استعراض شجرة الحسابات النشطة والموقوفة دون تعديل."),
+        new("accounting.chart.create", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "إنشاء حساب في الدليل", "إضافة حساب جديد تحت أب؛ الطبيعة مقفولة على الأب."),
+        new("accounting.chart.edit", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "تعديل حساب في الدليل", "تعديل الاسم وأعلام الترحيل؛ لا حذف ولا تغيير رمز عليه ترحيل."),
+        new("accounting.chart.deactivate", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "إيقاف أو تفعيل حساب", "إيقاف حساب مستخدم يحتاج شخصاً ثانياً؛ لا حذف نهائي."),
         new("treasury.transfer", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "التحويل المالي بين الصناديق والبنوك", "إنشاء قيود التحويل والتمويل بين الصندوق الداخلي الرئيسي وحسابات البنوك."),
         new("treasury.jahez.manage", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "إدارة صندوق كاش جاهز ورسوم فتح الحسابات", "تحصيل كاش تطبيق جاهز وقبض رسوم فتح حسابات جاهز (200 ر.س) في عهدة المشرف."),
         new("treasury.jahez.handover", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "تسليم وتصفير عهدة صندوق جاهز للصندوق الداخلي", "ترحيل وتصفير رصيد خزنة جاهز الميدانية (SUP.*) في نهاية اليوم إلى الصندوق الداخلي الرئيسي (MAIN.*)."),
@@ -110,7 +114,7 @@ public static class UserAccess
 
         new("FinancialManager", "المدير المالي", "FIN", 4,
             "قراءة التقارير المالية ومعاينة وتصدير ملف البنك ضمن النطاق.",
-            ["treasury.view","treasury.journals","payroll.view","riders.view","debts.view","finance.bankfile.export","platforms.hs.view","pay.view","operations.view"]),
+            ["treasury.view","treasury.journals","payroll.view","riders.view","debts.view","finance.bankfile.export","platforms.hs.view","pay.view","operations.view","accounting.chart.view","accounting.chart.create","accounting.chart.edit","accounting.chart.deactivate"]),
 
         new("Accountant", "محاسب مالي ومسؤول خزينة", "FIN", 3,
             "إدارة الصندوق الداخلي والبنوك، تسجيل وتحصيل المديونيات والسلف وطلبات HR، التحويل بين الصناديق، واستيراد أرصدة أول المدة.",
@@ -120,6 +124,7 @@ public static class UserAccess
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
                 "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
                 "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
+                "accounting.chart.view", "accounting.chart.create", "accounting.chart.edit",
                 "approvals.view", "mobile.broadcast", "payroll.view"
             ]),
 
@@ -131,6 +136,7 @@ public static class UserAccess
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
                 "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
                 "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
+                "accounting.chart.view", "accounting.chart.create", "accounting.chart.edit", "accounting.chart.deactivate",
                 "approvals.view", "approvals.decide", "mobile.broadcast", "payroll.view"
             ]),
 

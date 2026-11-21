@@ -99,6 +99,15 @@ public static partial class AccessPolicy
         if(path is "/api/finance/bank-file/preview" or "/api/finance/bank-file/export")return method=="POST"&&Has("finance.bankfile.export")&&Has("payroll.view");
         if(path is "/api/finance/trial-balance" or "/api/finance/income-statement")return method=="GET"&&Has("treasury.journals");
         if(path=="/api/finance/catalog")return method=="GET"&&(Has("debts.view")||Has("treasury.view"));
+        if(path=="/api/finance/coa"||path.StartsWith("/api/finance/coa/",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("accounting.chart.view")||Has("treasury.view");
+            if(method=="DELETE")return false;
+            if(method=="PUT")return Has("accounting.chart.edit");
+            if(method!="POST")return false;
+            if(path.EndsWith("/deactivate",StringComparison.Ordinal)||path.EndsWith("/reactivate",StringComparison.Ordinal))return Has("accounting.chart.deactivate");
+            return path=="/api/finance/coa"&&Has("accounting.chart.create");
+        }
         if(path.StartsWith("/api/finance/opening/",StringComparison.Ordinal))return Has("treasury.opening");
         if(path.StartsWith("/api/finance/legacy-cash-allocation/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
         if(path.StartsWith("/api/finance/jahez-handovers/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.jahez.receive")&&(path.EndsWith("/confirm",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal));
