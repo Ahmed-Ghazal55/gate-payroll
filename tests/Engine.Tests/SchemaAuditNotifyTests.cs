@@ -21,7 +21,7 @@ public sealed class SchemaAuditNotifyTests
         foreach(string index in new[]{
             "IX_notify_reply_author_user_id","IX_task_item_assignee_user_id","IX_task_comment_author_user_id",
             "IX_chat_message_author_user_id","IX_chat_receipt_user_id","IX_chat_moderation_message_id",
-            "IX_chat_moderation_moderator_user_id","IX_chat_block_blocked_user_id"})
+            "IX_chat_moderation_moderator_user_id","IX_chat_block_blocked_user_id","IX_notify_notification_post_into_channel_id"})
             Assert.IsTrue(IndexExists(c,index),index);
     }
 
@@ -53,8 +53,11 @@ public sealed class SchemaAuditNotifyTests
         string role=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM auth_role WHERE code='Admin'")!;
         string user=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,null,"INSERT INTO auth_user(id,username,role_id,security_version,status,created_at) VALUES(@id,'syn-notify',@role,1,1,datetime('now'))",("@id",user),("@role",role));
+        string channel=MoneySchemaFixture.Id();
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO chat_channel(id,code,name_ar,created_at) VALUES(@id,'admin','Admin',datetime('now'))",("@id",channel));
         string note=MoneySchemaFixture.Id();
-        MoneySchemaFixture.Exec(c,null,"INSERT INTO notify_notification(id,user_id,kind,title_ar,status,created_at) VALUES(@id,@u,'general','t','unread',datetime('now'))",("@id",note),("@u",user));
+        MoneySchemaFixture.Exec(c,null,"INSERT INTO notify_notification(id,user_id,kind,title_ar,status,post_into_channel_id,created_at) VALUES(@id,@u,'general','t','unread',@ch,datetime('now'))",("@id",note),("@u",user),("@ch",channel));
+        MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO notify_notification(id,user_id,kind,title_ar,status,post_into_channel_id,created_at) VALUES(@id,@u,'general','bad','unread',@ch,datetime('now'))",("@id",MoneySchemaFixture.Id()),("@u",user),("@ch",MoneySchemaFixture.Id())),"FK_notify_notification_channel",sqliteToken:"FOREIGN KEY");
         MoneySchemaFixture.Exec(c,null,"INSERT INTO notify_reply(id,notification_id,author_user_id,body_ar,created_at) VALUES(@id,@n,@u,'ok',datetime('now'))",("@id",MoneySchemaFixture.Id()),("@n",note),("@u",user));
         MoneySchemaFixture.Exec(c,null,"INSERT INTO notify_subscription(id,event_type,audience_key,channel,enabled,created_at) VALUES(@id,'approval.pending','role:Admin','in_app',1,datetime('now'))",("@id",MoneySchemaFixture.Id()));
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"INSERT INTO notify_subscription(id,event_type,audience_key,channel,enabled,created_at) VALUES(@id,'approval.pending','role:Admin','in_app',0,datetime('now'))",("@id",MoneySchemaFixture.Id())),"UQ",sqliteToken:"UNIQUE");
@@ -62,8 +65,6 @@ public sealed class SchemaAuditNotifyTests
         MoneySchemaFixture.Exec(c,null,"INSERT INTO task_item(id,due_on,status,title_ar,created_at) VALUES(@id,'2026-11-21','open','t',datetime('now'))",("@id",task));
         MoneySchemaFixture.Exec(c,null,"INSERT INTO task_comment(id,task_id,author_user_id,body_ar,created_at) VALUES(@id,@t,@u,'c',datetime('now'))",("@id",MoneySchemaFixture.Id()),("@t",task),("@u",user));
         MoneySchemaFixture.Exec(c,null,"INSERT INTO task_attachment(id,task_id,file_hash,file_name,created_at) VALUES(@id,@t,randomblob(32),'a.bin',datetime('now'))",("@id",MoneySchemaFixture.Id()),("@t",task));
-        string channel=MoneySchemaFixture.Id();
-        MoneySchemaFixture.Exec(c,null,"INSERT INTO chat_channel(id,code,name_ar,created_at) VALUES(@id,'admin','Admin',datetime('now'))",("@id",channel));
         string msg=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,null,"INSERT INTO chat_message(id,channel_id,author_user_id,body_ar,created_at) VALUES(@id,@c,@u,'hi',datetime('now'))",("@id",msg),("@c",channel),("@u",user));
         MoneySchemaFixture.Exec(c,null,"INSERT INTO chat_receipt(id,message_id,user_id,read_at,created_at) VALUES(@id,@m,@u,datetime('now'),datetime('now'))",("@id",MoneySchemaFixture.Id()),("@m",msg),("@u",user));

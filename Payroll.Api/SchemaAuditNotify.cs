@@ -17,6 +17,7 @@ public static class SchemaAuditNotify
         EnsureActionLabel(c,tx);
         EnsureChangeLog(c,tx);
         EnsureReadSummaryDaily(c,tx);
+        EnsureChatChannel(c,tx);
         EnsureNotify(c,tx);
         EnsureTask(c,tx);
         EnsureChat(c,tx);
@@ -166,6 +167,7 @@ public static class SchemaAuditNotify
     {
         string g=SchemaSql.GuidType(c);string user=SchemaSql.Q(c,"auth","user");
         string notification=SchemaSql.Q(c,"notify","notification");
+        string channel=SchemaSql.Q(c,"chat","channel");
         if(SchemaSql.IsSql(c))
         {
             SchemaSql.Exec(c,tx,$"""
@@ -184,8 +186,14 @@ public static class SchemaAuditNotify
                   CONSTRAINT CK_notify_kind CHECK (kind IN ('general','custom','system','rider_app')),
                   CONSTRAINT CK_notify_status CHECK (status IN ('unread','read','closed')),
                   CONSTRAINT CK_notify_priority CHECK (priority IN ('low','normal','high','urgent')),
-                  CONSTRAINT FK_notify_notification_user FOREIGN KEY (user_id) REFERENCES {user}(id)
+                  CONSTRAINT FK_notify_notification_user FOREIGN KEY (user_id) REFERENCES {user}(id),
+                  CONSTRAINT FK_notify_notification_channel FOREIGN KEY (post_into_channel_id) REFERENCES {channel}(id)
                 );
+                """);
+            SchemaSql.Exec(c,tx,$"""
+                IF OBJECT_ID(N'notify.notification',N'U') IS NOT NULL
+                  AND NOT EXISTS(SELECT 1 FROM sys.foreign_keys WHERE name=N'FK_notify_notification_channel' AND parent_object_id=OBJECT_ID(N'notify.notification'))
+                ALTER TABLE {notification} ADD CONSTRAINT FK_notify_notification_channel FOREIGN KEY (post_into_channel_id) REFERENCES {channel}(id);
                 """);
             SchemaSql.Exec(c,tx,$"""
                 IF OBJECT_ID(N'notify.subscription',N'U') IS NULL
@@ -231,7 +239,8 @@ public static class SchemaAuditNotify
                   CONSTRAINT CK_notify_kind CHECK (kind IN ('general','custom','system','rider_app')),
                   CONSTRAINT CK_notify_status CHECK (status IN ('unread','read','closed')),
                   CONSTRAINT CK_notify_priority CHECK (priority IN ('low','normal','high','urgent')),
-                  CONSTRAINT FK_notify_notification_user FOREIGN KEY (user_id) REFERENCES {user}(id)
+                  CONSTRAINT FK_notify_notification_user FOREIGN KEY (user_id) REFERENCES {user}(id),
+                  CONSTRAINT FK_notify_notification_channel FOREIGN KEY (post_into_channel_id) REFERENCES {channel}(id)
                 );
                 """);
             SchemaSql.Exec(c,tx,$"""
@@ -259,8 +268,36 @@ public static class SchemaAuditNotify
                 """);
         }
         SchemaSql.CreateIndexIfMissing(c,tx,"notify","notification","IX_notify_notification_user_created","user_id, created_at");
+        SchemaSql.CreateIndexIfMissing(c,tx,"notify","notification","IX_notify_notification_post_into_channel_id","post_into_channel_id");
         SchemaSql.CreateIndexIfMissing(c,tx,"notify","reply","IX_notify_reply_notification_id","notification_id");
         SchemaSql.CreateIndexIfMissing(c,tx,"notify","reply","IX_notify_reply_author_user_id","author_user_id");
+    }
+
+    static void EnsureChatChannel(DbConnection c,DbTransaction? tx)
+    {
+        string g=SchemaSql.GuidType(c);string channel=SchemaSql.Q(c,"chat","channel");
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"""
+                IF OBJECT_ID(N'chat.channel',N'U') IS NULL
+                CREATE TABLE {channel}(
+                  id {g} NOT NULL,
+                  code varchar(40) NOT NULL,
+                  name_ar nvarchar(200) NOT NULL,
+                  {SchemaSql.AuditCols(c)},
+                  CONSTRAINT PK_chat_channel PRIMARY KEY NONCLUSTERED (id),
+                  CONSTRAINT UQ_chat_channel_code UNIQUE (code)
+                );
+                """);
+        else
+            SchemaSql.Exec(c,tx,$"""
+                CREATE TABLE IF NOT EXISTS {channel}(
+                  id {g} NOT NULL PRIMARY KEY,
+                  code TEXT NOT NULL,
+                  name_ar TEXT NOT NULL,
+                  created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
+                  CONSTRAINT UQ_chat_channel_code UNIQUE (code)
+                );
+                """);
     }
 
     static void EnsureTask(DbConnection c,DbTransaction? tx)
@@ -365,19 +402,9 @@ public static class SchemaAuditNotify
     {
         string g=SchemaSql.GuidType(c);string user=SchemaSql.Q(c,"auth","user");
         string channel=SchemaSql.Q(c,"chat","channel");string message=SchemaSql.Q(c,"chat","message");
+        EnsureChatChannel(c,tx);
         if(SchemaSql.IsSql(c))
         {
-            SchemaSql.Exec(c,tx,$"""
-                IF OBJECT_ID(N'chat.channel',N'U') IS NULL
-                CREATE TABLE {channel}(
-                  id {g} NOT NULL,
-                  code varchar(40) NOT NULL,
-                  name_ar nvarchar(200) NOT NULL,
-                  {SchemaSql.AuditCols(c)},
-                  CONSTRAINT PK_chat_channel PRIMARY KEY NONCLUSTERED (id),
-                  CONSTRAINT UQ_chat_channel_code UNIQUE (code)
-                );
-                """);
             SchemaSql.Exec(c,tx,$"""
                 IF OBJECT_ID(N'chat.message',N'U') IS NULL
                 CREATE TABLE {message}(
@@ -401,15 +428,6 @@ public static class SchemaAuditNotify
         }
         else
         {
-            SchemaSql.Exec(c,tx,$"""
-                CREATE TABLE IF NOT EXISTS {channel}(
-                  id {g} NOT NULL PRIMARY KEY,
-                  code TEXT NOT NULL,
-                  name_ar TEXT NOT NULL,
-                  created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
-                  CONSTRAINT UQ_chat_channel_code UNIQUE (code)
-                );
-                """);
             SchemaSql.Exec(c,tx,$"""
                 CREATE TABLE IF NOT EXISTS {message}(
                   id {g} NOT NULL PRIMARY KEY,
