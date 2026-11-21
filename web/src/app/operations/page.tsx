@@ -867,18 +867,15 @@ function OperationsPageInner() {
         </div>
       ) : null}
 
-      {loading ? (
-        <Skeleton className="h-64 w-full" />
-      ) : errorMsg && !is503 ? (
+      {errorMsg && !is503 ? (
         <ErrorState title="تعذر التحميل" message={errorMsg} onRetry={() => void load()} />
-      ) : items.length === 0 && !serverQuery.filtersParam && !serverQuery.sortParam ? (
-        <EmptyState title="لا بيانات" description={view === 'oil' ? 'لا تغييرات زيت في هذه الفترة.' :'لا صفوف مطابقة للمرشحات.'} />
       ) : (
         <DataTable
           key={`ops-${tab}-${view}`}
           tableId={`ops-${tab}-${view}`}
           columns={columns}
           data={items}
+          loading={loading}
           getRowId={(r) => String(r.id || Math.random())}
           serverSide
           distinctEndpoint="/operations/distinct"
