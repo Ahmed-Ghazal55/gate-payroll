@@ -25,8 +25,8 @@ public sealed class OpsSnapshotCaptureTests
         facts.Rows["platform_account"]=[new(){["id"]=account,["externalAccountId"]="CAP-1",["code"]="A1"}];
         facts.Rows["assignment"]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["actualRiderProfileId"]=rider,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-31"}];
         facts.Rows["housing"]=[];
-        facts.Rows["fuel"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["liters"]=10m,["totalInclVat"]=40m,["month"]="2026-10-01"}];
-        facts.Rows["vehicle"]=[new(){["id"]=MoneySchemaFixture.Id(),["assetNumber"]="V1",["plateNumberAr"]="أ ب ج 1"}];
+        facts.Rows["fuel"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["liters"]=10m,["totalInclVat"]=40m,["month"]="2026-10-01",["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-31"}];
+        facts.Rows["vehicle"]=[new(){["id"]=MoneySchemaFixture.Id(),["assetNumber"]="V1",["plateNumberAr"]="أ ب ج 1",["actualRiderProfileId"]=rider,["erpRiderId"]=rider,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-15"}];
         facts.Rows["scheme"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["schemeCode"]="commission"}];
         facts.Rows["eligibility"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["eligible"]=true}];
         return (c,company,run,facts);
@@ -53,7 +53,6 @@ public sealed class OpsSnapshotCaptureTests
             Assert.IsTrue(payload.Contains("orders",StringComparison.Ordinal));
             Assert.IsFalse(payload.Contains("Vin",StringComparison.OrdinalIgnoreCase));
             Assert.IsFalse(payload.Contains("password",StringComparison.OrdinalIgnoreCase));
-            // Incomplete freeze still blocked when a required kind row is missing (manifest status 3).
             MoneySchemaFixture.Exec(c,null,"UPDATE fin_operation_capture_manifest SET status=3,empty_reason=NULL,snapshot_link_id=NULL WHERE operation_id=@run AND required_kind='scheme'",("@run",run));
             MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET capture_state=1,stage=2,calc_started_at=datetime('now') WHERE id=@id",("@id",run)),"Capture incomplete or snapshot scope mismatch");
             MoneySchemaFixture.Exec(c,null,"UPDATE fin_operation_capture_manifest SET status=1,snapshot_link_id=(SELECT id FROM fin_operation_snapshot_link WHERE operation_id=@run AND snapshot_kind='scheme' LIMIT 1),empty_reason=NULL WHERE operation_id=@run AND required_kind='scheme'",("@run",run));
@@ -91,6 +90,82 @@ public sealed class OpsSnapshotCaptureTests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
+    public void EmptyFallbackReader_EvenWithReason_BlocksCapture(bool sqlServer)
+    {
+        var (c,_,run,_)=Seed(sqlServer);
+        using(c)
+        {
+            var fallback=new StoreOpsLiveFactsReader();
+            Assert.IsFalse(fallback.ConfirmsLiveRead);
+            var actor=Actor();
+            using var tx=c.BeginTransaction();
+            var reasons=new Dictionary<string,string>(StringComparer.Ordinal)
+            {
+                ["ninja_daily"]="x",["ninja_daily_deduction"]="x",["platform_account"]="x",["assignment"]="x",
+                ["housing"]="x",["fuel"]="x",["vehicle"]="x",["scheme"]="x",["eligibility"]="x"
+            };
+            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>OpsSnapshotCapture.Capture(c,tx,actor,run,fallback,reasons)).Status);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void VehicleHousingFuel_CarryActualRiderAndAssignmentDates(bool sqlServer)
+    {
+        var (c,company,run,facts)=Seed(sqlServer);
+        using(c)
+        {
+            var actor=Actor();
+            using(var tx=c.BeginTransaction())
+            {
+                OpsSnapshotCapture.Capture(c,tx,actor,run,facts,zeroKindReasons:new Dictionary<string,string>{["housing"]="none"});
+                tx.Commit();
+            }
+            string vehicle=(string)MoneySchemaFixture.Scalar(c,null,"SELECT payload FROM sal_ops_snapshot WHERE scope_company_id=@c AND kind='vehicle' LIMIT 1",("@c",company))!;
+            Assert.IsTrue(vehicle.Contains("actualRiderProfileId",StringComparison.Ordinal)||vehicle.Contains("erpRiderId",StringComparison.Ordinal));
+            Assert.IsTrue(vehicle.Contains("effectiveFrom",StringComparison.Ordinal));
+            Assert.IsTrue(vehicle.Contains("effectiveTo",StringComparison.Ordinal));
+            string fuel=(string)MoneySchemaFixture.Scalar(c,null,"SELECT payload FROM sal_ops_snapshot WHERE scope_company_id=@c AND kind='fuel' LIMIT 1",("@c",company))!;
+            Assert.IsTrue(fuel.Contains("erpRiderId",StringComparison.Ordinal));
+            Assert.IsTrue(fuel.Contains("effectiveFrom",StringComparison.Ordinal));
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void Recapture_ReplacesPriorLinks_NoDuplicateContent(bool sqlServer)
+    {
+        var (c,_,run,facts)=Seed(sqlServer);
+        using(c)
+        {
+            var actor=Actor();
+            var reasons=new Dictionary<string,string>{["housing"]="none"};
+            using(var tx=c.BeginTransaction())
+            {
+                OpsSnapshotCapture.Capture(c,tx,actor,run,facts,reasons);
+                tx.Commit();
+            }
+            long firstLinks=Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(1) FROM fin_operation_snapshot_link WHERE operation_id=@run",("@run",run))!);
+            Assert.IsTrue(firstLinks>0);
+            // Change daily row id so fingerprint differs; recapture must replace links, not append duplicates.
+            facts.Rows["ninja_daily"]=[new(){["id"]=MoneySchemaFixture.Id(),["reportDate"]="2026-10-02",["platformRiderAccountId"]=MoneySchemaFixture.Id(),["riderProfileId"]=MoneySchemaFixture.Id(),["orders"]=3,["hours"]=2}];
+            using(var tx=c.BeginTransaction())
+            {
+                OpsSnapshotCapture.Capture(c,tx,actor,run,facts,reasons);
+                tx.Commit();
+            }
+            long links=Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(1) FROM fin_operation_snapshot_link WHERE operation_id=@run",("@run",run))!);
+            Assert.AreEqual(firstLinks,links);
+            long dailyLinks=Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(1) FROM fin_operation_snapshot_link WHERE operation_id=@run AND snapshot_kind='ninja_daily'",("@run",run))!);
+            Assert.AreEqual(1L,dailyLinks);
+        }
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
     public void NinjaDailyDeductionsAreCapturedAsSeparateKind(bool sqlServer)
     {
         var (c,company,run,facts)=Seed(sqlServer);
@@ -105,5 +180,13 @@ public sealed class OpsSnapshotCaptureTests
             Assert.AreEqual(1L,Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(1) FROM sal_ops_snapshot WHERE scope_company_id=@c AND kind='ninja_daily_deduction'",("@c",company))!));
             Assert.AreEqual(1L,Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(1) FROM fin_operation_capture_manifest WHERE operation_id=@run AND required_kind='ninja_daily_deduction' AND status=1",("@run",run))!));
         }
+    }
+
+    [TestMethod]
+    public void LiveReader_IsWiredAsDefaultImplementation()
+    {
+        IOpsLiveFactsReader reader=new LiveOpsLiveFactsReader((Func<Microsoft.Data.SqlClient.SqlConnection?>)(()=>null));
+        Assert.IsInstanceOfType<LiveOpsLiveFactsReader>(reader);
+        Assert.IsTrue(reader.ConfirmsLiveRead);
     }
 }

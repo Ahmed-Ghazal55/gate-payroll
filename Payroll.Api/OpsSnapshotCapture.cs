@@ -23,8 +23,8 @@ public static class OpsSnapshotCapture
         ["platform_account"]=["id","externalAccountId","code","sponsorId","registeredEmployeeId","platformCode"],
         ["assignment"]=["id","platformRiderAccountId","actualRiderProfileId","effectiveFrom","effectiveTo","assignmentPaymentModel","assignmentStatus"],
         ["housing"]=["id","erpRiderId","housingId","effectiveFrom","effectiveTo","roomId"],
-        ["fuel"]=["id","erpRiderId","liters","totalInclVat","amount","month","fuelCardId","plateNumber"],
-        ["vehicle"]=["id","assetNumber","plateNumberAr","vehicleType","sponsorId"],
+        ["fuel"]=["id","erpRiderId","liters","totalInclVat","amount","month","fuelCardId","plateNumber","effectiveFrom","effectiveTo"],
+        ["vehicle"]=["id","assetNumber","plateNumberAr","vehicleType","sponsorId","actualRiderProfileId","erpRiderId","effectiveFrom","effectiveTo"],
         ["scheme"]=["id","erpRiderId","schemeCode","source"],
         ["eligibility"]=["id","erpRiderId","eligible","source"],
         ["keeta_invoice_row"]=["id","erpPlatformAccountId","gross","deductions","orders"],
@@ -44,12 +44,16 @@ public static class OpsSnapshotCapture
         var required=RequiredKinds(c,tx,app);
         J.Need(required.Count>0,"لا كتالوج أنواع مطلوب لهذا التطبيق.",409);
         zeroKindReasons??=new Dictionary<string,string>(StringComparer.Ordinal);
+        // Recapture on an open run replaces prior links/manifest (snapshots stay append-only evidence).
+        ClearOpenCaptureLinks(c,tx,payRunId);
         int snapshots=0;
         foreach(string kind in required)
         {
             var rows=facts.RowsFor(kind,company,app,month).ToList();
             if(rows.Count==0)
             {
+                // Empty only freezes with a written reason AND a confirmed live read (never StoreOps fallback).
+                J.Need(facts.ConfirmsLiveRead,"مصدر التقاط غير حي لنوع مطلوب: "+kind+"؛ سجّل قارئاً حياً أو حقن اختبار.",409);
                 string reason=zeroKindReasons.TryGetValue(kind,out var r)?r.Trim():"";
                 J.Need(reason!="","لا صفوف لنوع مطلوب قبل التقاط المدخلات: "+kind+"؛ سجّل السبب أو صحّح المصدر.",409);
                 UpsertManifest(c,tx,payRunId,kind,month,ManifestEmpty,null,reason);
@@ -103,9 +107,7 @@ public static class OpsSnapshotCapture
             var reasons=new Dictionary<string,string>(StringComparer.Ordinal);
             if(input?["zeroKindReasons"] is JsonObject z)
                 foreach(var kv in z)if(kv.Value!=null)reasons[kv.Key]=kv.Value.ToString()??"";
-            // Live ERP wiring uses LiveOpsLiveFactsReader when configured; tests inject Fake via Capture overload.
-            IOpsLiveFactsReader facts=ctx.RequestServices.GetService(typeof(IOpsLiveFactsReader)) as IOpsLiveFactsReader
-                ??new StoreOpsLiveFactsReader();
+            var facts=ctx.RequestServices.GetRequiredService<IOpsLiveFactsReader>();
             return Capture(c,tx,ctx.User,id,facts,reasons);
         })).WithTags("Payroll").WithSummary("Capture used ERP fields into sal.ops_snapshot for a pay run");
         api.MapPost("/sal/pay-runs/{id}/freeze-capture",(string id,HttpContext ctx)=>store.Write((c,tx)=>
@@ -164,6 +166,13 @@ public static class OpsSnapshotCapture
         using var reader=cmd.ExecuteReader();
         while(reader.Read())kinds.Add(reader.GetString(0));
         return kinds;
+    }
+
+    static void ClearOpenCaptureLinks(DbConnection c,DbTransaction tx,string payRunId)
+    {
+        // Manifest first (FK to link), then links. Snapshots remain; new capture appends fresh rows.
+        SchemaSql.Exec(c,tx,$"DELETE FROM {SchemaSql.Q(c,"fin","operation_capture_manifest")} WHERE operation_type='pay_run' AND operation_id=@run",("@run",payRunId));
+        SchemaSql.Exec(c,tx,$"DELETE FROM {SchemaSql.Q(c,"fin","operation_snapshot_link")} WHERE operation_type='pay_run' AND operation_id=@run",("@run",payRunId));
     }
 
     static string AppendSnapshot(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string payRunId,string company,string app,string month,string kind,JsonObject row)
@@ -246,31 +255,26 @@ public static class OpsSnapshotCapture
 /// <summary>Live/fake facts for ops snapshot capture. Tests inject FakeOpsLiveFactsReader.</summary>
 public interface IOpsLiveFactsReader
 {
+    /// <summary>True when RowsFor queried a real/fake live source (0 rows still count). False for empty Store fallback.</summary>
+    bool ConfirmsLiveRead{get;}
     IEnumerable<JsonObject> RowsFor(string kind,string companyId,string app,string periodMonth);
 }
 
 public sealed class FakeOpsLiveFactsReader:IOpsLiveFactsReader
 {
+    public bool ConfirmsLiveRead=>true;
     public Dictionary<string,List<JsonObject>> Rows{get;}=new(StringComparer.Ordinal);
     public IEnumerable<JsonObject> RowsFor(string kind,string companyId,string app,string periodMonth)
         =>Rows.TryGetValue(kind,out var list)?list:Enumerable.Empty<JsonObject>();
 }
 
-/// <summary>Store-mode fallback: reads projected Operations kinds already staged in records. No Omar write.</summary>
+/// <summary>Unavailable empty fallback — never confirms a live read. Capture refuses empty kinds from this reader.</summary>
 public sealed class StoreOpsLiveFactsReader:IOpsLiveFactsReader
 {
-    static readonly Dictionary<string,string> StoreKind=new(StringComparer.Ordinal)
-    {
-        ["ninja_daily"]="ninja_daily",["ninja_daily_deduction"]="ninja_daily_deduction",
-        ["platform_account"]="platform_account",["assignment"]="rider_work_timeline",
-        ["housing"]="housing_residence",["fuel"]="fuel_usage",["vehicle"]="vehicle",
-        ["scheme"]="pay_scheme",["eligibility"]="pay_eligibility"
-    };
-
+    public bool ConfirmsLiveRead=>false;
     public IEnumerable<JsonObject> RowsFor(string kind,string companyId,string app,string periodMonth)
     {
-        // Store fallback is empty by default — live capture or FakeOpsLiveFactsReader supply facts in tests.
-        _=companyId;_=app;_=periodMonth;_=StoreKind;
+        _=kind;_=companyId;_=app;_=periodMonth;
         return [];
     }
 }
