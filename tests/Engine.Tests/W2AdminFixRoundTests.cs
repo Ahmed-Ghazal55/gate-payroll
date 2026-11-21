@@ -102,4 +102,33 @@ public sealed class W2AdminFixRoundTests
             Assert.AreEqual("b.pdf",again["attachments"]![0]!.AsObject().S("fileName"));
         });
     }
+
+    [TestMethod]
+    public void TaskBodyEdit_PersistsEvenWhenCommentsAlreadyExist()
+    {
+        WithStore(store=>
+        {
+            var admin=UserAccess.Principal(new(){["username"]="admin",["role"]="Admin"});
+            store.Write((c,tx)=>
+            {
+                Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]="admin",["role"]="Admin",["status"]="active"},tx);
+                return true;
+            });
+            string company=FinancialCore.Sponsors[0].Id;
+            var created=store.Write((c,tx)=>NotifyTasksApi.CreateTask(c,tx,admin,new()
+            {
+                ["titleAr"]="نص وتعليق",
+                ["bodyAr"]="النص الأصلي",
+                ["companyId"]=company,
+                ["comments"]=new JsonArray(new JsonObject{["bodyAr"]="تعليق قائم",["by"]="admin"})
+            }));
+            store.Write((c,tx)=>NotifyTasksApi.UpdateTask(c,tx,admin,created.S("id"),new()
+            {
+                ["bodyAr"]="النص بعد التعديل"
+            }));
+            var again=store.Read(c=>Store.Get(c,created.S("id"),NotifyTasksApi.TaskKind)!);
+            Assert.AreEqual("النص بعد التعديل",again.S("bodyAr"));
+            Assert.IsTrue(again["comments"]!.AsArray().OfType<JsonObject>().Any(c=>c.S("bodyAr")=="تعليق قائم"));
+        });
+    }
 }

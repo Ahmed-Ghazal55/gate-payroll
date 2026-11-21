@@ -373,19 +373,22 @@ public static partial class SchemaAuditNotify
         foreach(var h in heads)
         {
             var comments=ListComments(c,tx,h.Id);
-            string companyId="";
+            string companyId="",bodyAr="";
             var visible=new JsonArray();
             foreach(var node in comments.OfType<JsonObject>())
             {
                 string body=node.S("bodyAr");
                 if(body.StartsWith("__company__:",StringComparison.Ordinal)){companyId=body["__company__:".Length..];continue;}
+                if(body.StartsWith("__body__:",StringComparison.Ordinal)){bodyAr=body["__body__:".Length..];continue;}
                 visible.Add(node.DeepClone());
             }
+            // Pre-marker rows stored the body as the first plain comment.
+            if(bodyAr==""&&visible.Count>0)bodyAr=visible[0]!.AsObject().S("bodyAr");
             rows.Add(new()
             {
                 ["id"]=h.Id,
                 ["titleAr"]=h.Title,
-                ["bodyAr"]=visible.Count>0?visible[0]!.AsObject().S("bodyAr"):"",
+                ["bodyAr"]=bodyAr,
                 ["assignee"]=h.Assignee,
                 ["rank"]=h.Rank,
                 ["status"]=h.Status,
@@ -477,8 +480,6 @@ public static partial class SchemaAuditNotify
         if(SchemaSql.TableExists(c,tx,"task","comment"))
         {
             var comments=row["comments"] as JsonArray??new JsonArray();
-            if(comments.Count==0&&row.S("bodyAr")!="")
-                comments=new JsonArray(new JsonObject{["bodyAr"]=row.S("bodyAr"),["by"]=row.S("updatedBy",row.S("createdBy","system"))});
             SchemaSql.Exec(c,tx,$"DELETE FROM {SchemaSql.Q(c,"task","comment")} WHERE task_id=@t",("@t",rawId));
             void InsertComment(string body,string author)
             {
@@ -493,13 +494,17 @@ public static partial class SchemaAuditNotify
                     ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@t",rawId),("@a",authorId),("@b",body.Length<=400?body:body[..400]),
                     ("@by",author));
             }
-            // Persist company scope without a schema column (FINAL task.item has none).
-            if(row.S("companyId")!="")InsertComment("__company__:"+row.S("companyId"),row.S("createdBy",row.S("updatedBy","system")));
+            string author=row.S("updatedBy",row.S("createdBy","system"));
+            // Persist company scope and body without schema columns (FINAL task.item has none).
+            if(row.S("companyId")!="")InsertComment("__company__:"+row.S("companyId"),row.S("createdBy",author));
+            // Body must save even when comments already exist (marker keeps it off the visible list).
+            if(row.S("bodyAr")!="")InsertComment("__body__:"+row.S("bodyAr"),author);
+            else if(comments.Count==0){/* no body, no comments */}
             foreach(var node in comments.OfType<JsonObject>())
             {
                 string body=node.S("bodyAr",node.S("body"));
-                if(body.StartsWith("__company__:",StringComparison.Ordinal))continue;
-                InsertComment(body,node.S("by",row.S("updatedBy",row.S("createdBy","system"))));
+                if(body.StartsWith("__company__:",StringComparison.Ordinal)||body.StartsWith("__body__:",StringComparison.Ordinal))continue;
+                InsertComment(body,node.S("by",author));
             }
         }
         if(SchemaSql.TableExists(c,tx,"task","attachment"))
