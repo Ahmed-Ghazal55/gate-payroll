@@ -35,9 +35,9 @@ test('promissory status ActiveNafez maps to Arabic', () => {
   assert.match(debts, /promissoryStatusLabel/);
 });
 
-test('DataTable numeric footer uses formatSar', () => {
-  assert.match(table, /col\.money \|\| col\.numeric/);
-  assert.match(table, /formatSar\(value\)/);
+test('DataTable footer formats money via formatDataTableFooterTotal', () => {
+  assert.match(table, /formatDataTableFooterTotal\(/);
+  assert.doesNotMatch(table, /col\.money \|\| col\.numeric/);
 });
 
 test('Vouchers secret missing message is clean Arabic without config key', () => {

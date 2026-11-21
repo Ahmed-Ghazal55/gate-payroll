@@ -854,6 +854,7 @@ function DebtsPageContent() {
         header: 'المبلغ الأصلي',
         type: 'number',
         numeric: true,
+        money: true,
         filterType: 'number',
         getValue: (d) => d.originalAmount ?? 0,
         render: (d) => (
@@ -867,6 +868,7 @@ function DebtsPageContent() {
         header: 'المبلغ المتبقي',
         type: 'number',
         numeric: true,
+        money: true,
         filterType: 'number',
         filterColumn: 'remainingBalance',
         getValue: (d) => d.remainingAmount ?? 0,
@@ -881,6 +883,7 @@ function DebtsPageContent() {
         header: 'القسط الشهري',
         type: 'number',
         numeric: true,
+        money: true,
         filterType: 'number',
         getValue: (d) => d.monthlyInstallment || d.monthlyDeduction || 0,
         render: (d) => {
@@ -1739,7 +1742,7 @@ function DebtsPageContent() {
               columns={[
                 { key: 'noteNumber', header: 'رقم السند', type: 'text', getValue: (pn) => pn.noteNumber || pn.id, render: (pn) => <span className="font-mono text-xs">{pn.noteNumber || pn.id}</span> },
                 { key: 'iqama', header: 'رقم الإقامة', type: 'text', getValue: (pn) => pn.iqama, render: (pn) => <span className="font-mono">{pn.iqama}</span> },
-                { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, getValue: (pn) => pn.amount, render: (pn) => <span className="num font-bold whitespace-nowrap">{formatSar(pn.amount)}</span> },
+                { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, money: true, getValue: (pn) => pn.amount, render: (pn) => <span className="num font-bold whitespace-nowrap">{formatSar(pn.amount)}</span> },
                 { key: 'dueDate', header: 'تاريخ الاستحقاق', type: 'date', getValue: (pn) => pn.dueDate, render: (pn) => <span className="num text-xs">{pn.dueDate}</span> },
                 {
                   key: 'status',

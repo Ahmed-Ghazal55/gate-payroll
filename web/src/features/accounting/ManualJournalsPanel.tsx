@@ -500,6 +500,7 @@ export function ManualJournalsPanel({
         header: 'المبلغ (ر.س)',
         type: 'number',
         numeric: true,
+        money: true,
         filterType: 'number',
         getValue: (j) => j.totalDebit ?? (j.lines || []).reduce((sum, l) => sum + (l.debit || 0), 0),
         render: (j) => {
