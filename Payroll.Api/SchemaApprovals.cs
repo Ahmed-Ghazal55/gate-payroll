@@ -3,7 +3,7 @@ namespace Payroll;
 
 /// <summary>U-W1-18c: approvals.request/decision + auth.bypass_grant + auth.approval_limit.
 /// Design §9.1 / BR §35 / M-0672 / M-0677. Dated bypass only; decision-time membership/delegation/bypass evidence.
-/// Does not seed a live bypass row (auth.user catalog stays empty until cutover).</summary>
+/// Dated overlap guard replaces the revoked_at IS NULL unique so a later non-overlapping grant is allowed.</summary>
 public static class SchemaApprovals
 {
     public static void Ensure(DbConnection c,DbTransaction? tx=null)
@@ -96,7 +96,28 @@ public static class SchemaApprovals
                 """);
         }
         SchemaSql.CreateIndexIfMissing(c,tx,"auth","bypass_grant","IX_auth_bypass_user_id","user_id");
-        SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"auth","bypass_grant","UQ_auth_bypass_active_scope","user_id, scope","revoked_at IS NULL");
+        SchemaSql.DropIndexIfExists(c,tx,"auth","bypass_grant","UQ_auth_bypass_active_scope");
+        EnsureNoBypassOverlap(c,tx);
+    }
+
+    /// <summary>Unrevoked bypass grants for one user and scope may not cover overlapping windows; expired unrevoked rows may be followed by a later grant.</summary>
+    static void EnsureNoBypassOverlap(DbConnection c,DbTransaction? tx)
+    {
+        string grant=SchemaSql.Q(c,"auth","bypass_grant");
+        const string message="Bypass grant date ranges for one user and scope cannot overlap";
+        string Overlap(string n)=>$"EXISTS(SELECT 1 FROM {grant} x WHERE x.id<>{n}.id AND x.user_id={n}.user_id AND x.scope={n}.scope AND x.revoked_at IS NULL AND {n}.revoked_at IS NULL AND x.valid_from<={n}.valid_to AND {n}.valid_from<=x.valid_to)";
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"""
+                CREATE OR ALTER TRIGGER auth.TR_bypass_grant_overlap ON {grant} AFTER INSERT, UPDATE AS
+                BEGIN
+                  SET NOCOUNT ON;
+                  IF EXISTS(SELECT 1 FROM inserted n WHERE n.revoked_at IS NULL AND {Overlap("n")})
+                    THROW 51041,'{message}',1;
+                END;
+                """);
+        else
+            foreach(bool insert in new[]{true,false})
+                SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_auth_bypass_grant_overlap_{(insert?"insert":"update")} AFTER {(insert?"INSERT":"UPDATE OF user_id,scope,valid_from,valid_to,revoked_at")} ON {grant} WHEN NEW.revoked_at IS NULL AND {Overlap("NEW")} BEGIN SELECT RAISE(ABORT,'{message}'); END;");
     }
 
     static void EnsureRequest(DbConnection c,DbTransaction? tx)
