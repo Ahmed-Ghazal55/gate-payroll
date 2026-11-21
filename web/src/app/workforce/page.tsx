@@ -30,7 +30,7 @@ import { SourceBadge } from '../../components/ui/SourceBadge';
 import { IbanDisplay } from '../../components/ui/IbanDisplay';
 import { platformLabelAr } from '../../features/companies/company-stats';
 import { inApp } from '../../lib/paths';
-import { formatSar } from '../../lib/money';
+import { formatMudadSalary, formatSar } from '../../lib/money';
 import type {
   WorkforceListResponse,
   Workforce360Response,
@@ -743,7 +743,7 @@ function WorkforcePageInner() {
         },
         render: (r) => (
           <StackedCell
-            primary={<span className="whitespace-nowrap">{r.mudadSalary || '—'}</span>}
+            primary={<span className="whitespace-nowrap">{formatMudadSalary(r.mudadSalary as number | string | null | undefined)}</span>}
             secondary={
               <span className="inline-flex items-center gap-1">
                 {r.hasCompanyVehicle || r.operationalRole === 'Car' ? (
