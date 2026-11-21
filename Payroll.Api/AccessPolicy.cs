@@ -131,9 +131,24 @@ public static partial class AccessPolicy
             return path.EndsWith("/journal-preview",StringComparison.Ordinal)||path.EndsWith("/discard",StringComparison.Ordinal)
                 ?(method=="GET"||method=="POST")&&Has("salaries.simulation.run")
                 :(method=="GET"||method=="POST")&&Has("pay.manage");
-        // U-W2-12/13 money capture + distribution/bearer/settlement writes.
+        // U-W2-04 Mudad upload/match/list + line CRUD.
+        if(path.StartsWith("/api/mudad",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("people.mudad.manage")||Has("pay.view");
+            if(method=="DELETE"||(method=="PUT"&&path.Contains("/lines/",StringComparison.Ordinal)))
+                return Has("salaries.mudad.edit");
+            if(method=="POST"&&path.Contains("/lines",StringComparison.Ordinal))return Has("salaries.mudad.edit");
+            return method=="POST"&&Has("people.mudad.manage");
+        }
+        // U-W2-12/13/15 money capture + distribution + pay-run calc/approve.
         if(path.StartsWith("/api/sal/",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("pay.view");
+            if(method=="POST"&&(path.EndsWith("/approve-salary",StringComparison.Ordinal)||path.EndsWith("/approve",StringComparison.Ordinal)
+                ||path.Contains("/debt-confirm",StringComparison.Ordinal)))
+                return Has("pay.approve")||Has("pay.manage");
             return method=="POST"&&Has("pay.manage");
+        }
         if(method=="DELETE"||path.EndsWith("/delete-preview",StringComparison.Ordinal)||path=="/api/submissions/bulk-delete"||method=="PUT"&&path.StartsWith("/api/campaigns/",StringComparison.Ordinal))return false;
         if(method=="POST"&&path.StartsWith("/api/notifications/center/",StringComparison.Ordinal)&&path.EndsWith("/toggle-todo",StringComparison.Ordinal))return true; // Handler checks view permission or ownership and visibility.
         if(path=="/api/notifications"||path=="/api/notifications/summary")return method=="GET";

@@ -69,6 +69,8 @@ public sealed partial class Store
             SchemaSalInvoice.Ensure(conn,tx);
             SchemaSalDistribution.Ensure(conn,tx);
             SchemaSalPayRun.Ensure(conn,tx);
+            SchemaHrMudad.Ensure(conn,tx);
+            SchemaSalMudad.Ensure(conn,tx);
             SchemaOperationCapture.Ensure(conn,tx);
             SchemaDebt.Ensure(conn,tx);
             SchemaTreasury.Ensure(conn,tx);
