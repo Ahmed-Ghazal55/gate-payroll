@@ -18,6 +18,11 @@ import {
 import { api } from '../lib/api';
 import type { DashboardMetrics } from '../lib/types';
 import { inApp } from '../lib/paths';
+import {
+  auditActionLabelAr,
+  auditActorLabelAr,
+  formatAuditAt,
+} from '../lib/audit-labels';
 import { useAuth } from '../lib/auth-context';
 import { PageHeader } from '../components/ui/PageHeader';
 import { StatCard } from '../components/ui/StatCard';
@@ -73,8 +78,9 @@ export default function DashboardPage() {
       type: 'list',
       filterType: 'list',
       getValue: (row) => row.action || '',
+      labelOf: (v) => auditActionLabelAr(String(v ?? '')),
       render: (row) => (
-        <span className="font-semibold text-[var(--ink)]">{row.action}</span>
+        <span className="font-semibold text-[var(--ink)]">{auditActionLabelAr(row.action)}</span>
       ),
     },
     {
@@ -83,10 +89,11 @@ export default function DashboardPage() {
       type: 'list',
       filterType: 'list',
       getValue: (row) => row.actor || '',
+      labelOf: (v) => auditActorLabelAr(String(v ?? '')),
       toneOf: () => 'neutral',
       render: (row) => (
         <span className="px-2 py-0.5 rounded-md bg-[var(--raised)] text-xs text-[var(--muted)]">
-          {row.actor}
+          <bdi dir="ltr">@{auditActorLabelAr(row.actor)}</bdi>
         </span>
       ),
     },
@@ -96,10 +103,10 @@ export default function DashboardPage() {
       type: 'date',
       filterType: 'date',
       getValue: (row) => row.at || '',
-      labelOf: (v) => (v ? new Date(String(v)).toLocaleString('ar-SA') : '—'),
+      labelOf: (v) => formatAuditAt(String(v ?? '')),
       render: (row) => (
         <span className="num text-xs text-[var(--muted)]">
-          {new Date(row.at).toLocaleString('ar-SA')}
+          {formatAuditAt(row.at)}
         </span>
       ),
     },

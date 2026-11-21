@@ -102,6 +102,17 @@ const DEBT_STATUS_AR: Record<string, string> = {
 function debtStatusLabel(status: string): string {
   return DEBT_STATUS_AR[status] || 'غير معروف';
 }
+
+const PROMISSORY_STATUS_AR: Record<string, string> = {
+  Draft: 'مسودة',
+  ActiveNafez: 'نشط في نافذ',
+  Cleared: 'مُسدَّد',
+  NajizCourt: 'محال لناجز',
+};
+function promissoryStatusLabel(status: string | null | undefined): string {
+  const key = (status || '').trim();
+  return PROMISSORY_STATUS_AR[key] || (key ? key : 'غير معروف');
+}
 const isPendingOpening = (d: DebtRecord) =>
   d.entryMode === 'OpeningBalance' && d.status === 'pending_approval' && !d.approvalRequestId;
 
@@ -1730,7 +1741,19 @@ function DebtsPageContent() {
                 { key: 'iqama', header: 'رقم الإقامة', type: 'text', getValue: (pn) => pn.iqama, render: (pn) => <span className="font-mono">{pn.iqama}</span> },
                 { key: 'amount', header: 'المبلغ', type: 'number', numeric: true, getValue: (pn) => pn.amount, render: (pn) => <span className="num font-bold whitespace-nowrap">{formatSar(pn.amount)}</span> },
                 { key: 'dueDate', header: 'تاريخ الاستحقاق', type: 'date', getValue: (pn) => pn.dueDate, render: (pn) => <span className="num text-xs">{pn.dueDate}</span> },
-                { key: 'status', header: 'الحالة', type: 'list', getValue: (pn) => pn.status, toneOf: defaultStatusTone, render: (pn) => <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">{pn.status}</span> },
+                {
+                  key: 'status',
+                  header: 'الحالة',
+                  type: 'list',
+                  getValue: (pn) => pn.status,
+                  labelOf: (v) => promissoryStatusLabel(String(v ?? '')),
+                  toneOf: defaultStatusTone,
+                  render: (pn) => (
+                    <span className="px-2 py-0.5 rounded-full text-xs font-semibold bg-[var(--raised)] text-[var(--ink)]">
+                      {promissoryStatusLabel(pn.status)}
+                    </span>
+                  ),
+                },
               ]}
             />
           )}

@@ -1440,10 +1440,12 @@ export function DataTable<T extends Record<string, any>>({
                         key={`total-${col.key}`}
                         className="px-3.5 py-2.5 text-end num text-[var(--ink)]"
                       >
-                        {col.money ? formatSar(value) : value.toLocaleString('en-US', {
-                          minimumFractionDigits: 0,
-                          maximumFractionDigits: 2,
-                        })}
+                        {col.money || col.numeric
+                          ? formatSar(value)
+                          : value.toLocaleString('en-US', {
+                              minimumFractionDigits: 0,
+                              maximumFractionDigits: 2,
+                            })}
                       </td>
                     );
                   }
