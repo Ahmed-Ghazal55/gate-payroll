@@ -102,14 +102,25 @@ public static partial class PayCycles
         string account=PayPosting.DebtAccount(debt),company=FinancialCore.RequireDebtSponsor(debt).Id;
         return Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>Rows(j["lines"]).OfType<JsonObject>().Select(l=>(J:j,L:l))).Where(x=>x.L.S("debtId")==debt.S("id")&&x.L.S("sponsorId")==company&&FinanceViews.MapAccount(x.L,x.J,debt,null,null)==account).Sum(x=>x.L.N("debit")-x.L.N("credit"));
     }
-    static decimal DebtSelectionLimit(JsonObject row,JsonObject debt)=>J.Money(Math.Min(debt.N("remainingBalance"),Math.Max(0,row.N("salaryNet",row.N("net")))));
+    /// <summary>Edit/confirm cap: remaining and net, and ledger instalment when it is positive (RWD1d H7).</summary>
+    static decimal DebtSelectionLimit(DbConnection c,DbTransaction? tx,JsonObject row,JsonObject debt)
+    {
+        decimal rem=debt.N("remainingBalance"),net=Math.Max(0,row.N("salaryNet",row.N("net")));
+        decimal inst=DebtLedger.InstalmentForPayCycle(c,tx,debt);
+        decimal capped=inst>0?Math.Min(rem,inst):rem;
+        return J.Money(Math.Min(capped,net));
+    }
     static JsonArray ProposedDebtItems(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject cycle,JsonObject row)
     {
         decimal available=Math.Max(0,row.N("salaryNet",row.N("net")));var items=new JsonArray();
         foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==row.S("rider")&&d.S("type")=="debt").OrderBy(d=>d.N("phase")).ThenBy(d=>d.N("order")).ThenBy(d=>d.S("source"),StringComparer.Ordinal))
         {
             var debt=Store.Get(c,d.S("source"),"debt",tx)??throw new ApiError("مصدر الدين غير موجود.");FinancialScopes.DemandDebt(actor,debt);
-            decimal due=Math.Max(0,-d.N("computed")),max=J.Money(Math.Min(available,debt.N("remainingBalance"))),amount=row.S("debtDeductionStatus")=="confirmed"?-d.N("amount"):J.Money(Math.Min(max,d.N("requestedAmount",due)));
+            decimal due=Math.Max(0,-d.N("computed"));
+            decimal inst=DebtLedger.InstalmentForPayCycle(c,tx,debt);
+            decimal remCap=inst>0?Math.Min(debt.N("remainingBalance"),inst):debt.N("remainingBalance");
+            decimal max=J.Money(Math.Min(available,remCap));
+            decimal amount=row.S("debtDeductionStatus")=="confirmed"?-d.N("amount"):J.Money(Math.Min(max,d.N("requestedAmount",due)));
             items.Add(new JsonObject{["key"]=DeductionKey(d),["source"]=d.S("source"),["category"]=d.S("debtCategory"),["labelAr"]=d.S("labelAr"),["due"]=due,["max"]=max,["amount"]=amount,["remainingBalance"]=debt.N("remainingBalance"),["accountCode"]=d.S("accountCode")});available-=amount;
         }
         return items;
@@ -147,7 +158,7 @@ public static partial class PayCycles
             J.Need(row.S("debtDeductionStatus") is not ("confirmed" or "deferred"),"القسط مؤكد أو مؤجّل.",409);
             // Prefer edit before salary approval; allow legacy edit after salaryApprovedAt until confirm.
             var debt=Rows(cycle["deductions"]).OfType<JsonObject>().SingleOrDefault(d=>d.S("rider")==row.S("rider")&&d.S("type")=="debt"&&DeductionKey(d)==input.Required("key"))??throw new ApiError("القسط غير موجود.",404);
-            var source=Store.Get(c,debt.S("source"),"debt",tx)!;FinancialScopes.DemandDebt(actor,source);decimal amount=Money(input,"amount");J.Need(amount>=0&&amount<=DebtSelectionLimit(row,source),"الخصم من صفر إلى الأقل من الرصيد والصافي المتاح.");
+            var source=Store.Get(c,debt.S("source"),"debt",tx)!;FinancialScopes.DemandDebt(actor,source);decimal amount=Money(input,"amount");J.Need(amount>=0&&amount<=DebtSelectionLimit(c,tx,row,source),"الخصم من صفر إلى الأقل من الرصيد والصافي المتاح.",409);
             string reason=amount!=-debt.N("computed")?Reason(input):input.S("reason");if(row["debtSelectionHistory"] is not JsonArray)row["debtSelectionHistory"]=new JsonArray();row["debtSelectionHistory"]!.AsArray().Add(new JsonObject{["source"]=debt.S("source"),["from"]=debt.N("requestedAmount"),["to"]=amount,["reason"]=reason,["by"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O")});debt["requestedAmount"]=amount;debt["selectionReason"]=reason;row["debtSelectedBy"]=actor.Identity!.Name;row["debtSelectedAt"]=DateTimeOffset.UtcNow.ToString("O");
         }
         else
