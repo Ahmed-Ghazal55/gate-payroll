@@ -2362,6 +2362,48 @@ export const api = {
   issueMadaCard: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/payments/mada/cards/issue', { method: 'POST', body: JSON.stringify(input) }),
 
+  listRecurringPayees: (companyId?: string) => {
+    const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+    return handleRequest<{ items?: Record<string, unknown>[]; allowedActions?: string[] }>(`/payments/recurring-payees${qs}`);
+  },
+  getRecurringPayee: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/payments/recurring-payees/${encodeURIComponent(id)}`),
+  createRecurringPayee: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/payments/recurring-payees', { method: 'POST', body: JSON.stringify(input) }),
+  updateRecurringPayee: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/payments/recurring-payees/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  getRecurringPayeeHistory: (id: string) =>
+    handleRequest<{ payeeId?: string; items?: Record<string, unknown>[]; allowedActions?: string[] }>(
+      `/payments/recurring-payees/${encodeURIComponent(id)}/history`
+    ),
+  listRecurringRuns: (companyId?: string) => {
+    const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+    return handleRequest<{ items?: Record<string, unknown>[]; allowedActions?: string[] }>(`/payments/recurring-runs${qs}`);
+  },
+  getRecurringRun: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/payments/recurring-runs/${encodeURIComponent(id)}`),
+  proposeRecurringRun: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/payments/recurring-runs', { method: 'POST', body: JSON.stringify(input) }),
+  updateRecurringRunLines: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/payments/recurring-runs/${encodeURIComponent(id)}/lines`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  submitRecurringRun: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/payments/recurring-runs/${encodeURIComponent(id)}/submit`, { method: 'POST', body: '{}' }),
+  approveRecurringRun: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/payments/recurring-runs/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
+  executeRecurringRun: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/payments/recurring-runs/${encodeURIComponent(id)}/execute`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  createRecurringOneOff: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/payments/recurring-one-off', { method: 'POST', body: JSON.stringify(input) }),
+
   getDebtSettlements: (params?: { debtId?: string; iqama?: string }) => {
     const q = new URLSearchParams();
     if (params?.debtId) q.set('debtId', params.debtId);

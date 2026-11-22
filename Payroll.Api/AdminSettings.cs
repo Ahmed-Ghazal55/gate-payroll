@@ -7,7 +7,8 @@ namespace Payroll;
 public static class AdminSettings
 {
     public const string Permission="admin.settings.manage";
-    static readonly string[] KnownKeys=["current_period","totp_enforced","reply_working_days","company_defaults","feature_flags"];
+    static readonly string[] KnownKeys=["current_period","totp_enforced","reply_working_days","company_defaults","feature_flags",
+        "recurring_payees.expense_account","recurring_payees.fee_account","recurring_payees.fx_difference_account"];
 
     static string T(DbConnection c)=>SchemaSql.Q(c,"ref","setting");
 

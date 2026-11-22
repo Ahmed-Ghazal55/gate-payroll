@@ -119,9 +119,11 @@ public static class ApiContracts
         bool get=method=="GET";
         if(path.StartsWith("/api/payments/",StringComparison.Ordinal))
         {
-            if(path.Contains("/vouchers/",StringComparison.Ordinal)||path.EndsWith("/payment-requests",StringComparison.Ordinal)||path.EndsWith("/cards/issue",StringComparison.Ordinal))return PaymentVoucher();
+            if(path.Contains("/vouchers/",StringComparison.Ordinal)||path.EndsWith("/payment-requests",StringComparison.Ordinal)||path.EndsWith("/cards/issue",StringComparison.Ordinal)||path=="/api/payments/recurring-one-off")return PaymentVoucher();
             if(path=="/api/payments/documents"&&get||path=="/api/payments/hr-fees"&&get||path=="/api/payments/traffic-violations"&&get||path=="/api/payments/government"&&get)return O(new(){["items"]=A(PaymentDocument()),["allowedActions"]=A(S())},"items","allowedActions");
             if(path.Contains("/documents/",StringComparison.Ordinal)||!get&&path is "/api/payments/documents" or "/api/payments/quick" or "/api/payments/hr-fees" or "/api/payments/traffic-violations" or "/api/payments/government" or "/api/payments/advances")return PaymentDocument();
+            if(path.StartsWith("/api/payments/recurring-",StringComparison.Ordinal))
+                return O(new(){["id"]=S(),["items"]=A(Free()),["lines"]=A(Free()),["vouchers"]=A(PaymentVoucher()),["payeeId"]=S(),["allowedActions"]=A(S()),["companyId"]=S(),["periodMonth"]=S(),["status"]=N(),["nameAr"]=S(),["amount"]=N(),["currencyCode"]=S(),["sarAmount"]=N()},"allowedActions");
             return O(new(){["id"]=S(),["items"]=A(Free()),["amountDue"]=N(),["bookBalance"]=N(),["statementBalance"]=N(),["difference"]=N(),["result"]=S(),["allowedActions"]=A(S())},"allowedActions");
         }
 

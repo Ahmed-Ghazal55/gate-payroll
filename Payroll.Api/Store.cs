@@ -80,6 +80,7 @@ public sealed partial class Store
             SchemaPayAllocation.Ensure(conn,tx);
             SchemaPaymentDocuments.Ensure(conn,tx);
             SchemaPaymentSources.Ensure(conn,tx);
+            SchemaRecurringPayees.Ensure(conn,tx);
             SchemaSalInvoice.Ensure(conn,tx);
             SchemaSalDistribution.Ensure(conn,tx);
             SchemaSalPayRun.Ensure(conn,tx);

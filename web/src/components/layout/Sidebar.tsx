@@ -114,6 +114,8 @@ function SidebarInner({
         { id: 'pay-fuel', href: '/payments/fuel', label: 'الوقود والمحطات', permission: 'payments.fuel.manage' },
         { id: 'pay-mada', href: '/payments/mada', label: 'جهاز مدا والشحن', permission: ['payments.fuel.manage', 'advances.payout'] },
         { id: 'pay-prepaid', href: '/payments/prepaid-wallets', label: 'المحافظ المدفوعة مقدمًا', permission: 'payments.fuel.manage' },
+        { id: 'pay-recurring', href: '/payments/recurring', label: 'مدفوعات دورية', permission: ['payments.view', 'payments.disburse'] },
+        { id: 'pay-recurring-runs', href: '/payments/recurring/runs', label: 'تشغيل المدفوعات الدورية', permission: ['payments.view', 'payments.disburse'] },
       ],
     },
     {

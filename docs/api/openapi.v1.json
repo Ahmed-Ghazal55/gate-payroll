@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:41599/"
+      "url": "http://127.0.0.1:36437/"
     }
   ],
   "paths": {
@@ -27723,6 +27723,873 @@
                         "null",
                         "string"
                       ]
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/recurring-payees": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "List recurring payees (مدفوعات دورية)",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Create a recurring payee profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/recurring-payees/{id}": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Read a recurring payee",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Update a recurring payee",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/recurring-payees/{id}/history": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "History of recurring payee runs",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/recurring-runs": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "List monthly recurring payment runs",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Propose this month's recurring payee lines",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/recurring-runs/{id}": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Read a recurring payment run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/recurring-runs/{id}/lines": {
+      "put": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Edit, skip or add one-off lines on a draft run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/recurring-runs/{id}/submit": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Submit a recurring run for approval",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/recurring-runs/{id}/approve": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Approve a recurring run (maker ≠ checker)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/recurring-runs/{id}/execute": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Create payment vouchers via the payment engine",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/payments/recurring-one-off": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "One-off payment without a payee profile",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "amountDue": {
+                      "type": "number"
+                    },
+                    "bookBalance": {
+                      "type": "number"
+                    },
+                    "statementBalance": {
+                      "type": "number"
+                    },
+                    "difference": {
+                      "type": "number"
+                    },
+                    "result": {
+                      "type": "string"
                     },
                     "allowedActions": {
                       "type": "array",
