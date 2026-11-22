@@ -159,6 +159,10 @@ public static class ApiContracts
         if(path=="/api/sal/distributions/propose")return O(new(){["invoiceId"]=S(),["app"]=S(),["method"]=S(),["distributedTotal"]=N(),["rows"]=A(Free()),["allowedActions"]=A(S())},"invoiceId","app","method","distributedTotal","rows","allowedActions");
         if(path=="/api/sal/item-bearers/assign-shared")return O(new(){["itemId"]=S(),["status"]=S(),["noteAr"]=S(),["actualRiderId"]=S(),["itemDate"]=S(),["allocations"]=A(Free()),["allowedActions"]=A(S())},"itemId","status","allowedActions");
         if(path=="/api/sal/keeta/rejection-split")return O(new(){["erpPlatformAccountId"]=S(),["chargeTotal"]=N(),["freeQuotaPerDay"]=N(),["rateSar"]=N(),["bearers"]=A(Free())},"erpPlatformAccountId","chargeTotal","bearers");
+        if(path=="/api/sal/platform-invoices")return O(new(){["id"]=S(),["app"]=S(),["companyId"]=S(),["cityCode"]=S(),["periodFrom"]=S(),["periodTo"]=S(),["periodMonth"]=S(),["gross"]=N(),["deductions"]=N(),["net"]=N(),["status"]=N(),["lines"]=A(Free()),["partnerTotals"]=Free(),["ownerSnapshot"]=A(Free()),["allowedActions"]=A(S())},"id","app","companyId","gross","deductions","net","status","allowedActions");
+        if(path=="/api/sal/platform-invoices/{id}/approve")return O(new(){["id"]=S(),["status"]=N(),["approvedBy"]=S(),["approvedAt"]=S(),["distribution"]=A(Free()),["allowedActions"]=A(S())},"id","status","allowedActions");
+        if(path=="/api/sal/keeta/hwm"&&get)return O(new(){["views"]=A(O(new(){["viewName"]=S(),["lastRevision"]=N(),["lastSnapshotId"]=S(),["lastCreatedAt"]=S(),["advancedAt"]=S()},"viewName","lastRevision")),["allowedActions"]=A(S())},"views","allowedActions");
+        if(path=="/api/sal/keeta/hwm/advance")return O(new(){["viewName"]=S(),["lastRevision"]=N(),["lastSnapshotId"]=S(),["lastCreatedAt"]=S(),["advancedAt"]=S(),["allowedActions"]=A(S())},"viewName","lastRevision","allowedActions");
         if(path=="/api/operations/{kind}"&&get)return OperationsPage();
         if(get&&path=="/api/operations/cities-summary")return OpsFleetPage(OpsCityRow());
         if(get&&path=="/api/operations/housing")return OpsFleetPage(OpsHousingRow());

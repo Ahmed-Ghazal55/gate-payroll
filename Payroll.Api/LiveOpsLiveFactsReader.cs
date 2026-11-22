@@ -38,7 +38,8 @@ public sealed class LiveOpsLiveFactsReader:IOpsLiveFactsReader
             // WC4D H11: the timeline of EVERY app (no platform filter) so a shared rider is detected before approval; rows carry appCode.
             "assignment"=>LiveKindPages(erp,scope,"",from,to,"rider_work_timeline").Select(NormalizeAssignment).ToList(),
             "platform_account"=>LiveKindPages(erp,scope,app,from,to,"platform_account").ToList(),
-            "keeta_invoice_row"=>LiveKindPages(erp,scope,app,from,to,"platform_account").ToList(),
+            // U-W2-11: approved money-schema Keeta invoice lines (not platform_account stubs).
+            "keeta_invoice_row"=>ApprovedKeetaInvoiceRows(companyId,periodMonth),
             "hs_ops" or "platform_ops"=>LiveKindPages(erp,scope,app,from,to,"platform_day_usage").ToList(),
             "jahez_day"=>LiveKindPages(erp,scope,app,from,to,liveKind).Select(NormalizeJahezDay).ToList(),
             "chefz_settlement"=>LiveKindPages(erp,scope,app,from,to,"chefz_settlement").ToList(),
@@ -150,15 +151,16 @@ public sealed class LiveOpsLiveFactsReader:IOpsLiveFactsReader
         SourceReader.VerifyReadOnly(erp);
         var scope=ScopeFor(companyId);
         var month=From(periodMonth);
+        // U-W2-11b / D19 / M-0694: NotValid is expected-only → needs review; invoice decides.
         return CollectAllPages((p,s)=>PaySourcesLiveQuery.KeetaEligibility(erp,month,p,s,"",scope))
-            .Select(r=>new JsonObject
-            {
-                ["id"]=r.S("id"),
-                ["erpRiderId"]=r.S("riderProfileId"),
-                ["eligible"]=string.Equals(r.S("expectedStatus"),"Valid",StringComparison.OrdinalIgnoreCase),
-                ["source"]="keeta_eligibility_view"
-            })
+            .Select(KeetaViewsCapture.EligibilityCaptureRow)
             .ToList();
+    }
+
+    List<JsonObject> ApprovedKeetaInvoiceRows(string companyId,string periodMonth)
+    {
+        if(_store==null)return [];
+        return _store.Read(c=>SalPlatformInvoice.ApprovedKeetaRows(c,null,companyId,periodMonth).ToList());
     }
 
     static IEnumerable<JsonObject> LiveKindPages(SqlConnection erp,LiveOperationsQuery.Scope scope,string app,DateOnly from,DateOnly to,string kind)
