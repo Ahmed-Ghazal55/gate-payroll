@@ -2403,6 +2403,10 @@ export const api = {
     }),
   createRecurringOneOff: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/payments/recurring-one-off', { method: 'POST', body: JSON.stringify(input) }),
+  getPaymentVoucher: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/payments/vouchers/${encodeURIComponent(id)}`),
+  payPaymentVoucher: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/payments/vouchers/${encodeURIComponent(id)}/pay`, { method: 'POST', body: '{}' }),
 
   getDebtSettlements: (params?: { debtId?: string; iqama?: string }) => {
     const q = new URLSearchParams();

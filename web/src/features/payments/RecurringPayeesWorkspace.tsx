@@ -44,7 +44,20 @@ type RunLine = Record<string, unknown> & {
   fxDifference?: number;
   sarAmount?: number;
   skipped?: boolean;
+  paymentId?: string;
 };
+
+type VoucherRow = Record<string, unknown> & {
+  id?: string;
+  amount?: number;
+  status?: number;
+  approvalRequestId?: string;
+  allowedActions?: string[];
+  documentId?: string;
+};
+
+/** org.cost_centre sentinel «بدون مركز تكلفة» (SchemaOrgCostCentre.NoneId). */
+const NONE_COST_CENTRE_ID = '019c18d5-62e1-7000-8000-00000000cc00';
 
 const inputClass = 'w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs';
 
@@ -106,6 +119,9 @@ export function RecurringPayeesWorkspace({
     currencyCode: 'SAR',
     paymentMethod: 'bank_transfer',
     bankDetails: '',
+    bankDetailsTouched: false,
+    clearBankDetails: false,
+    costCentreId: NONE_COST_CENTRE_ID,
     activeFrom: `${period}-01`,
     activeTo: '',
     notes: '',
@@ -117,13 +133,26 @@ export function RecurringPayeesWorkspace({
     currencyCode: 'SAR',
     exchangeRate: '1',
     transferFee: '0',
+    fxDifference: '0',
     bankAccountCode: '111101',
     paidOn: new Date().toISOString().slice(0, 10),
     bankDetails: '',
+    costCentreId: NONE_COST_CENTRE_ID,
+    idempotencyKey: '',
   });
   const [executeForm, setExecuteForm] = useState({
     paidOn: new Date().toISOString().slice(0, 10),
     bankAccountCode: '111101',
+  });
+  const [vouchers, setVouchers] = useState<VoucherRow[]>([]);
+  const [oneOffLine, setOneOffLine] = useState({
+    nameAr: '',
+    amount: '',
+    currencyCode: 'SAR',
+    exchangeRate: '1',
+    transferFee: '0',
+    fxDifference: '0',
+    costCentreId: NONE_COST_CENTRE_ID,
   });
 
   const load = useCallback(async () => {
@@ -155,8 +184,13 @@ export function RecurringPayeesWorkspace({
   const openRun = async (id: string) => {
     setBusy(true);
     try {
-      const detail = await api.getRecurringRun(id) as RunRow & { lines?: RunLine[]; allowedActions?: string[] };
+      const detail = (await api.getRecurringRun(id)) as RunRow & { lines?: RunLine[]; allowedActions?: string[] };
       setRun(detail);
+      const fromLines = (detail.lines || [])
+        .map((l) => (l.paymentId ? ({ id: String(l.paymentId) } as VoucherRow) : null))
+        .filter(Boolean) as VoucherRow[];
+      if (fromLines.length) await refreshVouchers(fromLines);
+      else setVouchers([]);
       setTab('runs');
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'تعذر فتح التشغيل', 'danger');
@@ -168,22 +202,38 @@ export function RecurringPayeesWorkspace({
   const savePayee = async () => {
     setBusy(true);
     try {
-      const body = {
+      const body: Record<string, unknown> = {
         companyId: form.companyId,
         nameAr: form.nameAr,
         payeeType: form.payeeType,
         amount: Number(form.amount),
         currencyCode: form.currencyCode,
         paymentMethod: form.paymentMethod,
-        bankDetails: form.bankDetails,
+        costCentreId: form.costCentreId || NONE_COST_CENTRE_ID,
         activeFrom: form.activeFrom,
         activeTo: form.activeTo || null,
         notes: form.notes,
       };
+      if (form.id) {
+        if (form.clearBankDetails) body.clearBankDetails = true;
+        else if (form.bankDetailsTouched) body.bankDetails = form.bankDetails;
+      } else {
+        body.bankDetails = form.bankDetails;
+      }
       if (form.id) await api.updateRecurringPayee(form.id, body);
       else await api.createRecurringPayee(body);
       toast('تم الحفظ');
-      setForm((f) => ({ ...f, id: '', nameAr: '', amount: '', bankDetails: '', notes: '' }));
+      setForm((f) => ({
+        ...f,
+        id: '',
+        nameAr: '',
+        amount: '',
+        bankDetails: '',
+        bankDetailsTouched: false,
+        clearBankDetails: false,
+        costCentreId: NONE_COST_CENTRE_ID,
+        notes: '',
+      }));
       setTab('list');
       await load();
     } catch (e) {
@@ -191,6 +241,19 @@ export function RecurringPayeesWorkspace({
     } finally {
       setBusy(false);
     }
+  };
+
+  const refreshVouchers = async (rows: VoucherRow[]) => {
+    const next: VoucherRow[] = [];
+    for (const v of rows) {
+      if (!v.id) continue;
+      try {
+        next.push((await api.getPaymentVoucher(v.id)) as VoucherRow);
+      } catch {
+        next.push(v);
+      }
+    }
+    setVouchers(next);
   };
 
   const propose = async () => {
@@ -227,8 +290,12 @@ export function RecurringPayeesWorkspace({
     setBusy(true);
     try {
       if (action === 'execute') {
-        const result = await api.executeRecurringRun(run.id, executeForm) as { vouchers?: { id?: string }[] };
-        toast(`تم إنشاء ${(result.vouchers || []).length} سند — أكمل الاعتماد الثنائي ثم الصرف`);
+        const result = (await api.executeRecurringRun(run.id, executeForm)) as {
+          vouchers?: VoucherRow[];
+        };
+        const list = result.vouchers || [];
+        await refreshVouchers(list);
+        toast(`تم إنشاء ${list.length} سند — أكمل الاعتماد الثنائي ثم الصرف`);
       } else {
         if (action === 'submit') await api.submitRecurringRun(run.id);
         else await api.approveRecurringRun(run.id);
@@ -243,25 +310,97 @@ export function RecurringPayeesWorkspace({
     }
   };
 
+  const approveVoucherDual = async (v: VoucherRow) => {
+    if (!v.approvalRequestId) return;
+    setBusy(true);
+    try {
+      await api.decideApproval(String(v.approvalRequestId), { decision: 'approved' });
+      toast('تم اعتماد الصرف الثنائي');
+      await refreshVouchers(vouchers);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'تعذر الاعتماد', 'danger');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const payVoucher = async (v: VoucherRow) => {
+    if (!v.id) return;
+    setBusy(true);
+    try {
+      await api.payPaymentVoucher(String(v.id));
+      toast('تم الصرف والترحيل');
+      await refreshVouchers(vouchers);
+      if (run?.id) await openRun(run.id);
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'تعذر الصرف', 'danger');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  const addOneOffLine = async () => {
+    if (!run?.id) return;
+    setBusy(true);
+    try {
+      const updated = (await api.updateRecurringRunLines(run.id, {
+        lines: [
+          {
+            nameAr: oneOffLine.nameAr,
+            amount: Number(oneOffLine.amount),
+            currencyCode: oneOffLine.currencyCode,
+            exchangeRate: Number(oneOffLine.exchangeRate || 1),
+            transferFee: Number(oneOffLine.transferFee || 0),
+            fxDifference: Number(oneOffLine.fxDifference || 0),
+            paymentMethod: 'bank_transfer',
+            bankDetails: '',
+            costCentreId: oneOffLine.costCentreId || NONE_COST_CENTRE_ID,
+            skipped: false,
+          },
+        ],
+      })) as typeof run;
+      setRun(updated);
+      setOneOffLine({
+        nameAr: '',
+        amount: '',
+        currencyCode: 'SAR',
+        exchangeRate: '1',
+        transferFee: '0',
+        fxDifference: '0',
+        costCentreId: NONE_COST_CENTRE_ID,
+      });
+      toast('تمت إضافة البند');
+    } catch (e) {
+      toast(e instanceof ApiError ? e.message : 'تعذر الإضافة', 'danger');
+    } finally {
+      setBusy(false);
+    }
+  };
+
   const submitOneOff = async () => {
     setBusy(true);
     try {
-      await api.createRecurringOneOff({
+      const idempotencyKey = oneOff.idempotencyKey || crypto.randomUUID().replace(/-/g, '');
+      const created = (await api.createRecurringOneOff({
         companyId: oneOff.companyId,
         nameAr: oneOff.nameAr,
         amount: Number(oneOff.amount),
         currencyCode: oneOff.currencyCode,
         exchangeRate: Number(oneOff.exchangeRate || 1),
         transferFee: Number(oneOff.transferFee || 0),
-        fxDifference: 0,
+        fxDifference: Number(oneOff.fxDifference || 0),
         paymentMethod: 'bank_transfer',
         bankDetails: oneOff.bankDetails,
+        costCentreId: oneOff.costCentreId || NONE_COST_CENTRE_ID,
         paidOn: oneOff.paidOn,
         bankAccountCode: oneOff.bankAccountCode,
         period,
-      });
+        idempotencyKey,
+      })) as VoucherRow;
+      setOneOff((f) => ({ ...f, idempotencyKey }));
+      if (created?.id) await refreshVouchers([created]);
       toast('تم إنشاء السند — أكمل الاعتماد الثنائي ثم الصرف');
-      setOneOff((f) => ({ ...f, nameAr: '', amount: '', bankDetails: '' }));
+      setOneOff((f) => ({ ...f, nameAr: '', amount: '', bankDetails: '', idempotencyKey: '' }));
     } catch (e) {
       toast(e instanceof ApiError ? e.message : 'تعذر الإنشاء', 'danger');
     } finally {
@@ -321,8 +460,11 @@ export function RecurringPayeesWorkspace({
                 currencyCode: String(r.currencyCode || 'SAR'),
                 paymentMethod: String(r.paymentMethod || 'bank_transfer'),
                 bankDetails: '',
-                activeFrom: String(r.activeFrom || `${period}-01`),
-                activeTo: String(r.activeTo || ''),
+                bankDetailsTouched: false,
+                clearBankDetails: false,
+                costCentreId: String(r.costCentreId || NONE_COST_CENTRE_ID),
+                activeFrom: String(r.activeFrom || `${period}-01`).slice(0, 10),
+                activeTo: String(r.activeTo || '').slice(0, 10),
                 notes: String(r.notes || ''),
               });
               setTab('form');
@@ -482,14 +624,38 @@ export function RecurringPayeesWorkspace({
             </select>
           </label>
           <label className="text-xs space-y-1">
+            مركز التكلفة
+            <select
+              className={inputClass}
+              value={form.costCentreId}
+              onChange={(e) => setForm({ ...form, costCentreId: e.target.value })}
+            >
+              <option value={NONE_COST_CENTRE_ID}>بدون مركز تكلفة</option>
+            </select>
+          </label>
+          <label className="text-xs space-y-1">
             تفاصيل التحويل (لا تُسجَّل في سجل التدقيق)
             <textarea
               className={inputClass}
               rows={2}
               value={form.bankDetails}
-              onChange={(e) => setForm({ ...form, bankDetails: e.target.value })}
+              placeholder={form.id && !form.bankDetailsTouched ? 'اتركه فارغاً للإبقاء على التفاصيل الحالية' : ''}
+              onChange={(e) =>
+                setForm({ ...form, bankDetails: e.target.value, bankDetailsTouched: true, clearBankDetails: false })
+              }
             />
           </label>
+          {form.id && (
+            <button
+              type="button"
+              className="underline text-xs w-fit"
+              disabled={busy}
+              onClick={() => setForm({ ...form, clearBankDetails: true, bankDetails: '', bankDetailsTouched: false })}
+            >
+              مسح تفاصيل التحويل
+            </button>
+          )}
+          {form.clearBankDetails && <p className="text-xs text-[var(--muted)]">سيتم مسح تفاصيل التحويل عند الحفظ.</p>}
           <div className="grid grid-cols-2 gap-2">
             <label className="text-xs space-y-1">
               نشط من
@@ -570,6 +736,24 @@ export function RecurringPayeesWorkspace({
               value={oneOff.transferFee}
               onChange={(e) => setOneOff({ ...oneOff, transferFee: e.target.value })}
             />
+          </label>
+          <label className="text-xs space-y-1">
+            فرق العملة (ر.س، سالب = ربح)
+            <input
+              className={inputClass}
+              value={oneOff.fxDifference}
+              onChange={(e) => setOneOff({ ...oneOff, fxDifference: e.target.value })}
+            />
+          </label>
+          <label className="text-xs space-y-1">
+            مركز التكلفة
+            <select
+              className={inputClass}
+              value={oneOff.costCentreId}
+              onChange={(e) => setOneOff({ ...oneOff, costCentreId: e.target.value })}
+            >
+              <option value={NONE_COST_CENTRE_ID}>بدون مركز تكلفة</option>
+            </select>
           </label>
           <label className="text-xs space-y-1">
             حساب البنك
@@ -654,9 +838,25 @@ export function RecurringPayeesWorkspace({
                     key: 'amount',
                     header: 'المبلغ',
                     getValue: (r) => Number(r.amount || 0),
-                    render: (r) => (
-                      <span className="num">{formatCurrency(r.amount, r.currencyCode)}</span>
-                    ),
+                    render: (r) =>
+                      Number(run.status) === 1 ? (
+                        <input
+                          className={inputClass + ' w-24'}
+                          defaultValue={String(r.amount ?? '')}
+                          onBlur={(e) =>
+                            void patchLine(r, {
+                              amount: Number(e.target.value),
+                              currencyCode: String(r.currencyCode),
+                              exchangeRate: Number(r.exchangeRate || 0),
+                              transferFee: Number(r.transferFee || 0),
+                              fxDifference: Number(r.fxDifference || 0),
+                              skipped: Boolean(r.skipped),
+                            })
+                          }
+                        />
+                      ) : (
+                        <span className="num">{formatCurrency(r.amount, r.currencyCode)}</span>
+                      ),
                   },
                   {
                     key: 'exchangeRate',
@@ -687,7 +887,50 @@ export function RecurringPayeesWorkspace({
                     header: 'رسوم',
                     money: true,
                     getValue: (r) => Number(r.transferFee || 0),
-                    render: (r) => <span className="num">{formatSar(r.transferFee)}</span>,
+                    render: (r) =>
+                      Number(run.status) === 1 ? (
+                        <input
+                          className={inputClass + ' w-20'}
+                          defaultValue={String(r.transferFee ?? 0)}
+                          onBlur={(e) =>
+                            void patchLine(r, {
+                              transferFee: Number(e.target.value),
+                              amount: Number(r.amount),
+                              currencyCode: String(r.currencyCode),
+                              exchangeRate: Number(r.exchangeRate || 0),
+                              fxDifference: Number(r.fxDifference || 0),
+                              skipped: Boolean(r.skipped),
+                            })
+                          }
+                        />
+                      ) : (
+                        <span className="num">{formatSar(r.transferFee)}</span>
+                      ),
+                  },
+                  {
+                    key: 'fxDifference',
+                    header: 'فرق عملة',
+                    money: true,
+                    getValue: (r) => Number(r.fxDifference || 0),
+                    render: (r) =>
+                      Number(run.status) === 1 ? (
+                        <input
+                          className={inputClass + ' w-20'}
+                          defaultValue={String(r.fxDifference ?? 0)}
+                          onBlur={(e) =>
+                            void patchLine(r, {
+                              fxDifference: Number(e.target.value),
+                              amount: Number(r.amount),
+                              currencyCode: String(r.currencyCode),
+                              exchangeRate: Number(r.exchangeRate || 0),
+                              transferFee: Number(r.transferFee || 0),
+                              skipped: Boolean(r.skipped),
+                            })
+                          }
+                        />
+                      ) : (
+                        <span className="num">{formatSar(r.fxDifference)}</span>
+                      ),
                   },
                   {
                     key: 'sarAmount',
@@ -717,6 +960,89 @@ export function RecurringPayeesWorkspace({
                 emptyTitle="لا بنود"
                 emptyDescription="لا بنود في هذا التشغيل."
               />
+              {canDisburse && Number(run.status) === 1 && (
+                <div className="grid gap-2 max-w-xl border border-dashed border-[var(--line)] rounded-xl p-3">
+                  <p className="text-xs font-medium">إضافة بند لمرة (oneOffLine)</p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <input
+                      className={inputClass}
+                      placeholder="الاسم"
+                      value={oneOffLine.nameAr}
+                      onChange={(e) => setOneOffLine({ ...oneOffLine, nameAr: e.target.value })}
+                    />
+                    <input
+                      className={inputClass}
+                      placeholder="المبلغ"
+                      value={oneOffLine.amount}
+                      onChange={(e) => setOneOffLine({ ...oneOffLine, amount: e.target.value })}
+                    />
+                    <input
+                      className={inputClass}
+                      placeholder="رسوم"
+                      value={oneOffLine.transferFee}
+                      onChange={(e) => setOneOffLine({ ...oneOffLine, transferFee: e.target.value })}
+                    />
+                    <input
+                      className={inputClass}
+                      placeholder="فرق عملة"
+                      value={oneOffLine.fxDifference}
+                      onChange={(e) => setOneOffLine({ ...oneOffLine, fxDifference: e.target.value })}
+                    />
+                  </div>
+                  <button type="button" className="btn-secondary text-xs w-fit" disabled={busy} onClick={() => void addOneOffLine()}>
+                    إضافة بند
+                  </button>
+                </div>
+              )}
+              {vouchers.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">سندات الصرف (vouchers)</h3>
+                  <DataTable
+                    data={vouchers}
+                    columns={[
+                      { key: 'id', header: 'المعرّف', getValue: (r) => String(r.id || '').slice(0, 8) },
+                      {
+                        key: 'amount',
+                        header: 'المبلغ',
+                        money: true,
+                        getValue: (r) => Number(r.amount || 0),
+                        render: (r) => <span className="num">{formatSar(r.amount)}</span>,
+                      },
+                      {
+                        key: 'status',
+                        header: 'الحالة',
+                        getValue: (r) => (Number(r.status) === 2 ? 'مصروف' : 'محجوز'),
+                      },
+                      {
+                        key: 'actions',
+                        header: 'إجراءات',
+                        getValue: () => '',
+                        render: (r) => (
+                          <div className="flex gap-2 text-xs">
+                            {canApprove && r.approvalRequestId && Number(r.status) === 1 && (
+                              <button
+                                type="button"
+                                className="underline"
+                                disabled={busy}
+                                onClick={() => void approveVoucherDual(r)}
+                              >
+                                اعتماد ثنائي
+                              </button>
+                            )}
+                            {canDisburse && Number(r.status) === 1 && (
+                              <button type="button" className="underline" disabled={busy} onClick={() => void payVoucher(r)}>
+                                صرف وترحيل
+                              </button>
+                            )}
+                          </div>
+                        ),
+                      },
+                    ]}
+                    emptyTitle="لا سندات"
+                    emptyDescription="نفّذ التشغيل لإنشاء السندات."
+                  />
+                </div>
+              )}
             </div>
           )}
         </div>
