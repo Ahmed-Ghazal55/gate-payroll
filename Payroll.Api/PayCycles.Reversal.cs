@@ -44,118 +44,90 @@ public static partial class PayCycles
         cycle["status"]="reversed";cycle["reversedBy"]=actor.Identity!.Name;cycle["reversalPeriod"]=request.S("period");Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_reversed",cycle.S("id"),actor.Identity!.Name!);return cycle;
     }
 
-    static void ReverseLedgerDebtEffects(DbConnection c,DbTransaction tx,JsonObject cycle,string actor,string period)
+    static void ReverseLedgerDebtEffects(DbConnection c,DbTransaction tx,JsonObject cycle,string actor,string destinationPeriod)
     {
         SchemaDebt.Ensure(c,tx);SchemaFinJournal.Ensure(c,tx);
-        var periodMonth=DateOnly.Parse(J.Period(period)+"-01");
+        // Destination period = where reversing journals/movements are dated; original movements stay on the cycle period.
+        var destMonth=DateOnly.Parse(J.Period(destinationPeriod)+"-01");
+        var cycleMonth=DateOnly.Parse(J.Period(cycle.S("period"))+"-01");
         string cycleId=cycle.S("id");
-        // Movements posted for this cycle's instalments (ledger document journalEntryId) and carryovers.
+
+        // Exact cycle journals from document-store ledger rows (sourceRef = cycle id).
         var journalIds=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         foreach(var ledger in Store.List(c,"ledger",tx).Where(l=>l.S("sourceRef")==cycleId&&l.S("kind")=="debt_installment"&&l.S("journalEntryId")!=""))
             journalIds.Add(ledger.S("journalEntryId"));
+
+        // Carryover movements for debts opened by this cycle.
         foreach(var row in Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("carryDebtId")!=""))
         {
             if(!Guid.TryParse(row.S("carryDebtId"),out var carryId))continue;
-            using var cmd=Store.Command(c,tx,$"""
-                SELECT id,journal_id,amount,debt_id,company_id,source_type,source_id FROM {SchemaSql.Q(c,"debt","debt_movement")}
-                WHERE debt_id=@d AND source_type IN ('carryover_doc','carryover_112507','payroll_instalment')
-                """,("@d",SchemaSql.GuidText(carryId)));
-            using var reader=cmd.ExecuteReader();
-            while(reader.Read())
-            {
-                if(reader["journal_id"] is not DBNull)journalIds.Add(reader["journal_id"].ToString()!);
-            }
+            ReverseMovements(c,tx,carryId,actor,destMonth,sourceTypes:["carryover_doc","carryover_112507","payroll_instalment"],journalFilter:null);
         }
-        // Also pick payroll_instalment movements whose journal is linked from ledger rows above, or by period + debt in debtBefore/After.
-        foreach(var debtDoc in Rows(cycle["debtBefore"]).OfType<JsonObject>().Concat(Rows(cycle["debtAfter"]).OfType<JsonObject>()))
+
+        // Payroll instalments: only movements whose journal_id is this cycle's, falling back to cycle-period + debt list when journal link exists in ledger.
+        var debtIds=Rows(cycle["debtBefore"]).OfType<JsonObject>().Concat(Rows(cycle["debtAfter"]).OfType<JsonObject>())
+            .Select(d=>d.S("id")).Where(id=>Guid.TryParse(id,out _)).Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+        foreach(string debtText in debtIds)
         {
-            if(!Guid.TryParse(debtDoc.S("id"),out var debtId))continue;
-            using var cmd=Store.Command(c,tx,$"""
-                SELECT id,journal_id,amount,debt_id,company_id,source_id FROM {SchemaSql.Q(c,"debt","debt_movement")}
-                WHERE debt_id=@d AND source_type='payroll_instalment' AND period_month=@pm
-                """,("@d",SchemaSql.GuidText(debtId)),("@pm",periodMonth.ToString("yyyy-MM-01")));
-            using var reader=cmd.ExecuteReader();
-            var pending=new List<(Guid MovId,Guid? JournalId,decimal Amount,Guid DebtId,Guid CompanyId,Guid SourceId)>();
-            while(reader.Read())
-            {
-                Guid movId=reader["id"] is Guid g?g:Guid.Parse(reader["id"].ToString()!);
-                Guid? jid=reader["journal_id"] is DBNull?null:reader["journal_id"] is Guid jg?jg:Guid.Parse(reader["journal_id"].ToString()!);
-                decimal amt=Convert.ToDecimal(reader["amount"]);
-                Guid companyId=reader["company_id"] is Guid cg?cg:Guid.Parse(reader["company_id"].ToString()!);
-                Guid sourceId=reader["source_id"] is Guid sg?sg:Guid.Parse(reader["source_id"].ToString()!);
-                pending.Add((movId,jid,amt,debtId,companyId,sourceId));
-                if(jid is Guid jj)journalIds.Add(SchemaSql.GuidText(jj));
-            }
-            reader.Close();
-            foreach(var (movId,jid,amt,dId,companyId,sourceId) in pending)
-            {
-                // Already reversed?
-                object? prior=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"debt","debt_movement")} WHERE source_type='payroll_reversal' AND source_id=@s",
-                    ("@s",SchemaSql.GuidText(movId)));
-                if(prior!=null)continue;
-                Guid revSource=SchemaSql.NewId();
-                Guid? revJournal=null;
-                if(jid is Guid originalJournal)
-                {
-                    var reversed=JournalPosting.Reverse(c,tx,originalJournal,actor,revSource,"عكس استقطاع مديونية من المسير");
-                    revJournal=reversed.JournalId;
-                }
-                string now=DateTimeOffset.UtcNow.ToString("O");
-                SchemaSql.Exec(c,tx,$"""
-                    INSERT INTO {SchemaSql.Q(c,"debt","debt_movement")}
-                    (id,period_month,debt_id,company_id,occurred_on,amount,source_type,source_id,journal_id,run_mode,payout_blocked,created_by,created_at)
-                    VALUES(@id,@pm,@d,@c,@on,@amt,'payroll_reversal',@sid,@j,0,0,@by,@at)
-                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pm",periodMonth.ToString("yyyy-MM-01")),
-                    ("@d",SchemaSql.GuidText(dId)),("@c",SchemaSql.GuidText(companyId)),
-                    ("@on",periodMonth.ToString("yyyy-MM-dd")),("@amt",-amt),
-                    ("@sid",SchemaSql.GuidText(movId)),
-                    ("@j",(object?)(revJournal is Guid rj?SchemaSql.GuidText(rj):null)??DBNull.Value),
-                    ("@by",actor),("@at",now));
-            }
+            Guid debtId=Guid.Parse(debtText);
+            if(journalIds.Count>0)
+                ReverseMovements(c,tx,debtId,actor,destMonth,sourceTypes:["payroll_instalment"],journalFilter:journalIds,originalPeriod:cycleMonth);
+            else
+                ReverseMovements(c,tx,debtId,actor,destMonth,sourceTypes:["payroll_instalment"],journalFilter:null,originalPeriod:cycleMonth);
         }
-        // Reverse carryover openings for debts created by this cycle.
-        foreach(var row in Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>r.S("carryDebtId")!=""))
+    }
+
+    static void ReverseMovements(DbConnection c,DbTransaction tx,Guid debtId,string actor,DateOnly destMonth,string[] sourceTypes,HashSet<string>? journalFilter,DateOnly? originalPeriod=null)
+    {
+        string types=string.Join(",",sourceTypes.Select(t=>"'"+t.Replace("'","''")+"'"));
+        string sql=$"""
+            SELECT id,journal_id,amount,debt_id,company_id,source_id,period_month FROM {SchemaSql.Q(c,"debt","debt_movement")}
+            WHERE debt_id=@d AND source_type IN ({types})
+            """;
+        if(originalPeriod is DateOnly op)sql+=" AND period_month=@pm";
+        using var cmd=Store.Command(c,tx,sql,originalPeriod is DateOnly period
+            ?[("@d",SchemaSql.GuidText(debtId)),("@pm",period.ToString("yyyy-MM-01"))]
+            :[("@d",SchemaSql.GuidText(debtId))]);
+        using var reader=cmd.ExecuteReader();
+        var pending=new List<(Guid MovId,Guid? JournalId,decimal Amount,Guid DebtId,Guid CompanyId)>();
+        while(reader.Read())
         {
-            if(!Guid.TryParse(row.S("carryDebtId"),out var carryId))continue;
-            using var cmd=Store.Command(c,tx,$"""
-                SELECT id,journal_id,amount,company_id FROM {SchemaSql.Q(c,"debt","debt_movement")}
-                WHERE debt_id=@d AND source_type IN ('carryover_doc','carryover_112507')
-                """,("@d",SchemaSql.GuidText(carryId)));
-            using var reader=cmd.ExecuteReader();
-            var rows=new List<(Guid MovId,Guid? JournalId,decimal Amount,Guid CompanyId)>();
-            while(reader.Read())
+            Guid movId=reader["id"] is Guid g?g:Guid.Parse(reader["id"].ToString()!);
+            Guid? jid=reader["journal_id"] is DBNull?null:reader["journal_id"] is Guid jg?jg:Guid.Parse(reader["journal_id"].ToString()!);
+            if(journalFilter!=null)
             {
-                rows.Add((
-                    reader["id"] is Guid g?g:Guid.Parse(reader["id"].ToString()!),
-                    reader["journal_id"] is DBNull?null:reader["journal_id"] is Guid jg?jg:Guid.Parse(reader["journal_id"].ToString()!),
-                    Convert.ToDecimal(reader["amount"]),
-                    reader["company_id"] is Guid cg?cg:Guid.Parse(reader["company_id"].ToString()!)));
+                if(jid is not Guid jj||!journalFilter.Contains(SchemaSql.GuidText(jj)))continue;
             }
-            reader.Close();
-            foreach(var (movId,jid,amt,companyId) in rows)
+            decimal amt=Convert.ToDecimal(reader["amount"]);
+            Guid companyId=reader["company_id"] is Guid cg?cg:Guid.Parse(reader["company_id"].ToString()!);
+            pending.Add((movId,jid,amt,debtId,companyId));
+        }
+        reader.Close();
+        foreach(var (movId,jid,amt,dId,companyId) in pending)
+        {
+            object? prior=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"debt","debt_movement")} WHERE source_type='payroll_reversal' AND source_id=@s",
+                ("@s",SchemaSql.GuidText(movId)));
+            if(prior!=null)continue;
+            Guid revSource=SchemaSql.NewId();
+            Guid? revJournal=null;
+            if(jid is Guid originalJournal)
             {
-                object? prior=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"debt","debt_movement")} WHERE source_type='payroll_reversal' AND source_id=@s",
-                    ("@s",SchemaSql.GuidText(movId)));
-                if(prior!=null)continue;
-                Guid revSource=SchemaSql.NewId();
-                Guid? revJournal=null;
-                if(jid is Guid originalJournal)
-                {
-                    var reversed=JournalPosting.Reverse(c,tx,originalJournal,actor,revSource,"عكس ترحيل عجز الراتب");
-                    revJournal=reversed.JournalId;
-                }
-                string now=DateTimeOffset.UtcNow.ToString("O");
-                SchemaSql.Exec(c,tx,$"""
-                    INSERT INTO {SchemaSql.Q(c,"debt","debt_movement")}
-                    (id,period_month,debt_id,company_id,occurred_on,amount,source_type,source_id,journal_id,run_mode,payout_blocked,created_by,created_at)
-                    VALUES(@id,@pm,@d,@c,@on,@amt,'payroll_reversal',@sid,@j,0,0,@by,@at)
-                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pm",periodMonth.ToString("yyyy-MM-01")),
-                    ("@d",SchemaSql.GuidText(carryId)),("@c",SchemaSql.GuidText(companyId)),
-                    ("@on",periodMonth.ToString("yyyy-MM-dd")),("@amt",-amt),
-                    ("@sid",SchemaSql.GuidText(movId)),
-                    ("@j",(object?)(revJournal is Guid rj?SchemaSql.GuidText(rj):null)??DBNull.Value),
-                    ("@by",actor),("@at",now));
+                // Destination period must match the reversing movement month (later-month reversal).
+                Guid destPeriodId=DebtLedger.RequireOpenPeriod(c,tx,companyId,destMonth);
+                var reversed=JournalPosting.Reverse(c,tx,originalJournal,actor,revSource,"عكس استقطاع مديونية من المسير",destPeriodId,destMonth);
+                revJournal=reversed.JournalId;
             }
+            string now=DateTimeOffset.UtcNow.ToString("O");
+            SchemaSql.Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"debt","debt_movement")}
+                (id,period_month,debt_id,company_id,occurred_on,amount,source_type,source_id,journal_id,run_mode,payout_blocked,created_by,created_at)
+                VALUES(@id,@pm,@d,@c,@on,@amt,'payroll_reversal',@sid,@j,0,0,@by,@at)
+                """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pm",destMonth.ToString("yyyy-MM-01")),
+                ("@d",SchemaSql.GuidText(dId)),("@c",SchemaSql.GuidText(companyId)),
+                ("@on",destMonth.ToString("yyyy-MM-dd")),("@amt",-amt),
+                ("@sid",SchemaSql.GuidText(movId)),
+                ("@j",(object?)(revJournal is Guid rj?SchemaSql.GuidText(rj):null)??DBNull.Value),
+                ("@by",actor),("@at",now));
         }
     }
 
