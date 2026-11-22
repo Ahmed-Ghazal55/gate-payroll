@@ -40,6 +40,8 @@ public static partial class ApiContracts
             return get && path.EndsWith("/rounds", StringComparison.Ordinal) ? A(EvaluationRound()) : EvaluationRound();
         }
         if (path == "/api/rider-mobile/evaluations") return A(O(new() { ["id"] = S(), ["title"] = S(), ["token"] = S(), ["schema"] = S() }, "id", "title", "token", "schema"));
+        if (path == "/api/rider-mobile/evaluations/{token}/launch") return O(new() { ["url"] = S() }, "url");
+        if (path == "/api/public/evaluations/{token}/session") return O(new() { ["accessToken"] = S(), ["iqama"] = S(), ["expiresAt"] = S() }, "accessToken", "iqama", "expiresAt");
         if (path is "/api/public/evaluations/{token}" or "/api/rider-mobile/evaluations/{token}")
             return get ? EvaluationSchema() : O(new() { ["receipt"] = S(), ["allowedActions"] = A(S()), ["editPolicyPending"] = B() }, "receipt", "allowedActions", "editPolicyPending");
         return null;

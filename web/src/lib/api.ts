@@ -2484,6 +2484,20 @@ export const api = {
     handleRequest<RiderMobileEvaluationsList>('/rider-mobile/evaluations', {
       headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
     }),
+  launchRiderMobileEvaluation: (token: string, accessToken?: string) =>
+    handleRequest<{ url: string }>(
+      `/rider-mobile/evaluations/${encodeURIComponent(token)}/launch`,
+      {
+        method: 'POST',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: '{}',
+      }
+    ),
+  exchangeEvaluationLaunch: (token: string, code: string) =>
+    handleRequest<{ accessToken: string; iqama: string; expiresAt: string }>(
+      `/public/evaluations/${encodeURIComponent(token)}/session`,
+      { method: 'POST', body: JSON.stringify({ code }) }
+    ),
   getRiderMobileEvaluationSchema: (token: string, city?: string, accessToken?: string) => {
     const qs = city ? `?city=${encodeURIComponent(city)}` : '';
     return handleRequest<RiderMobileEvaluationSchema>(

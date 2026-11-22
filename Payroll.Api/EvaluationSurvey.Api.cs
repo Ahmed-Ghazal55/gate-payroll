@@ -124,12 +124,20 @@ public static partial class EvaluationSurvey
                 return new { id = r.S("id"), title = r.S("title"), token, schema = "evaluation-v1", hostedUrl = hosted };
             }).ToList());
         }).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Open evaluation rounds for signed-in rider");
+        app.MapPost("/api/rider-mobile/evaluations/{token}/launch", (string token, HttpContext ctx) =>
+        {
+            var session = MobileSessions.Authenticate(store, ctx);
+            string baseUrl = CampaignLinks.Base(app.Configuration, ctx);
+            return store.Write((c, tx) => IssueLaunch(c, tx, session.S("iqama"), token, baseUrl));
+        }).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Issue one-time hosted evaluation launch URL");
+        app.MapPost("/api/public/evaluations/{token}/session", (string token, JsonObject input) => store.Write((c, tx) =>
+            ExchangeLaunch(c, tx, token, input.Required("code")))).RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Exchange one-time launch code for survey-scoped session");
         app.MapGet("/api/rider-mobile/evaluations/{token}", (string token, string? city, HttpContext ctx) =>
-        { MobileSessions.Authenticate(store, ctx); return store.Read(c => Schema(ByToken(c, token), city)); }).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Evaluation schema for signed-in rider");
+        { AuthenticateEvaluation(store, ctx, token); return store.Read(c => Schema(ByToken(c, token), city)); }).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Evaluation schema for signed-in rider");
         app.MapPost("/api/rider-mobile/evaluations/{token}", (string token, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-        { var session = MobileSessions.Validate(c, ctx, null, tx); return Submit(c, tx, token, input, session.S("iqama"), store); })).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Submit evaluation reply as signed-in rider");
+        { var session = ValidateEvaluation(c, ctx, token, tx); return Submit(c, tx, token, input, session.S("iqama"), store); })).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Submit evaluation reply as signed-in rider");
         app.MapPut("/api/rider-mobile/evaluations/{token}", (string token, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-        { var session = MobileSessions.Validate(c, ctx, null, tx); return Edit(c, tx, token, input, session.S("iqama"), store); })).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Edit evaluation reply as signed-in rider");
+        { var session = ValidateEvaluation(c, ctx, token, tx); return Edit(c, tx, token, input, session.S("iqama"), store); })).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Edit evaluation reply as signed-in rider");
         app.MapPut("/api/public/evaluations/{token}", (string token, JsonObject input) => store.Write((c, tx) =>
         {
             string iqama = J.Iqama(input.Required("iqama"));

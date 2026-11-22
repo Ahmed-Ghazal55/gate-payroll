@@ -242,15 +242,39 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
         setLang(savedLang);
       }
       const params = new URLSearchParams(window.location.search);
-      const riderSession = params.get('riderSession');
-      if (riderSession) {
-        setSessionToken(riderSession);
-        try {
-          sessionStorage.setItem(
-            'gate_rider_mob',
-            JSON.stringify({ accessToken: riderSession })
-          );
-        } catch {}
+      const launchCode = params.get('launch');
+      if (launchCode && token) {
+        void fetch(`/api/public/evaluations/${encodeURIComponent(token)}/session`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ code: launchCode }),
+        })
+          .then(async (r) => {
+            const d = (await r.json().catch(() => ({}))) as {
+              accessToken?: string;
+              iqama?: string;
+              error?: string;
+            };
+            if (!r.ok || !d.accessToken) throw new Error(d.error || 'launch_invalid');
+            try {
+              sessionStorage.setItem(
+                'gate_rider_mob',
+                JSON.stringify({ accessToken: d.accessToken, iqama: d.iqama })
+              );
+            } catch {}
+            setSessionToken(d.accessToken);
+            if (d.iqama && /^[0-9]{10}$/.test(d.iqama)) {
+              setIqama(d.iqama);
+              setSessionLockedIqama(true);
+            }
+            params.delete('launch');
+            const clean =
+              window.location.pathname +
+              (params.toString() ? `?${params.toString()}` : '') +
+              window.location.hash;
+            window.history.replaceState(null, '', clean);
+          })
+          .catch(() => {});
       }
       const rawSess =
         sessionStorage.getItem('gate_rider_mob') || localStorage.getItem('gate_rider_mob');
@@ -269,7 +293,7 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
         if (parsed.accessToken || parsed.token) setSessionToken(parsed.accessToken || parsed.token);
       }
     } catch {}
-  }, []);
+  }, [token]);
 
   useEffect(() => {
     if (!token) {

@@ -24,7 +24,7 @@ public sealed class EvaluationRouteTests
         await using var app = builder.Build();
         EvaluationSurvey.Map(app, app.MapGroup("/api"), f.Store);
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(s => s.Endpoints).OfType<RouteEndpoint>().ToArray();
-        Assert.HasCount(18, endpoints);
+        Assert.HasCount(20, endpoints);
         async Task<DefaultHttpContext> Invoke(string pattern, ClaimsPrincipal user)
         {
             var endpoint = endpoints.Single(e => e.RoutePattern.RawText == pattern && e.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("GET"));

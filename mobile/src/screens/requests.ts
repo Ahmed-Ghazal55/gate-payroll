@@ -1,7 +1,5 @@
 import { api, esc, money } from '../api';
-import { API_BASE } from '../config';
 import { t, pickLang, getLanguage, SALARY_BANKS } from '../i18n';
-import { getSession } from '../state';
 
 export type RequestTypeKey =
   | 'advance'
@@ -254,22 +252,14 @@ function renderActiveCampaignsCard(formsCatalog: any): string {
                 </div>
               `;
             }
-            // Open the server-hosted survey so installed apps get schema updates without an APK rebuild.
-            const hosted =
-              (typeof c.hostedUrl === 'string' && c.hostedUrl) ||
-              `${API_BASE}/rider-form.html?evaluation=${encodeURIComponent(c.token)}`;
-            const session = getSession();
-            const openUrl =
-              session?.accessToken
-                ? `${hosted}${hosted.includes('?') ? '&' : '?'}riderSession=${encodeURIComponent(session.accessToken)}`
-                : hosted;
+            // Open via one-time launch URL from the API — never put the app session token in a URL.
             return `
               <div style="border-bottom:1px solid var(--line);padding:10px 0" data-eval-campaign="${esc(c.token)}">
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
                   <strong>📋 ${esc(title)}</strong>
                   <span class="tag warn">${esc(t('evalTitle'))}</span>
                 </div>
-                <a class="small good" href="${esc(openUrl)}" target="_blank" rel="noopener" data-eval-hosted="${esc(c.token)}">${esc(t('evalOpenHosted') || 'فتح نموذج التقييم')}</a>
+                <button type="button" class="small good" data-eval-launch="${esc(c.token)}">${esc(t('evalOpenHosted') || 'فتح نموذج التقييم')}</button>
               </div>
             `;
           }
