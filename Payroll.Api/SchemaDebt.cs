@@ -75,6 +75,7 @@ public static class SchemaDebt
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"debt","debt_movement","UQ_debt_carryover_rider","pay_run_rider_id","source_type='carryover_112507' AND pay_run_rider_id IS NOT NULL");
         EnsureMovementRules(c,tx);
         EnsureBalance(c,tx);
+        RestoreSqliteDebtChildStashes(c,tx);
     }
 
     internal static string DateInMonth(DbConnection c,string column)=>SchemaSql.IsSql(c)?$"{column}>=period_month AND {column}<DATEADD(month,1,period_month)":$"date({column}) IS NOT NULL AND {column}=date({column}) AND {column}>=period_month AND {column}<date(period_month,'+1 month')";
@@ -143,14 +144,18 @@ public static class SchemaDebt
             SchemaSql.Exec(c,tx,$"""
                 IF COL_LENGTH(N'debt.debt',N'platform') IS NULL ALTER TABLE {SchemaSql.Q(c,"debt","debt")} ADD platform {SchemaSql.Varchar(c,20)} NULL;
                 """);
-            // Drop named AND unnamed status CHECKs that omit absorbed (legacy upgrades).
+            // Drop named, column-bound, AND table-level (parent_column_id=0) status CHECKs that omit absorbed.
             SchemaSql.Exec(c,tx,$"""
                 DECLARE @sql nvarchar(max)=N'';
                 SELECT @sql=@sql+N'ALTER TABLE {SchemaSql.Q(c,"debt","debt")} DROP CONSTRAINT '+QUOTENAME(cc.name)+N';'
                 FROM sys.check_constraints cc
-                INNER JOIN sys.columns col ON col.object_id=cc.parent_object_id AND col.column_id=cc.parent_column_id
-                WHERE cc.parent_object_id=OBJECT_ID(N'debt.debt') AND col.name=N'status'
-                  AND (cc.name=N'CK_debt_debt_status' OR cc.definition NOT LIKE N'%absorbed%');
+                LEFT JOIN sys.columns col ON col.object_id=cc.parent_object_id AND col.column_id=cc.parent_column_id AND col.name=N'status'
+                WHERE cc.parent_object_id=OBJECT_ID(N'debt.debt')
+                  AND (
+                    cc.name=N'CK_debt_debt_status'
+                    OR (col.name=N'status' AND cc.definition NOT LIKE N'%absorbed%')
+                    OR (cc.parent_column_id=0 AND cc.definition LIKE N'%status%' AND cc.definition NOT LIKE N'%absorbed%')
+                  );
                 IF LEN(@sql)>0 EXEC sp_executesql @sql;
                 IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'debt.debt') AND name=N'CK_debt_debt_status')
                   ALTER TABLE {SchemaSql.Q(c,"debt","debt")} ADD CONSTRAINT CK_debt_debt_status CHECK (status IN ('open','settled','waived','absorbed','cancelled','transferred'));
@@ -169,42 +174,72 @@ public static class SchemaDebt
 
     static void RebuildSqliteDebtStatus(DbConnection c,DbTransaction? tx)
     {
-        // Child FKs and retain DELETE triggers block DROP; disable both for the rebuild.
-        SchemaSql.Exec(c,tx,"PRAGMA foreign_keys=OFF");
+        // Child FKs block DROP; foreign_keys=OFF is ignored mid-transaction.
+        // Stash+drop children, rebuild debt, leave *__stash for RestoreSqliteDebtChildStashes after Ensure recreates tables.
+        if(tx==null)SchemaSql.Exec(c,tx,"PRAGMA foreign_keys=OFF");
         SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_debt_no_delete");
         SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_debt_no_replace");
         SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_balance_INSERT");
         SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_balance_UPDATE");
-        try
+        string[] children=["debt_debt_movement","debt_import_line","debt_collection","debt_waiver","debt_disbursement"];
+        foreach(string child in children)
         {
-            SchemaSql.Exec(c,tx,"""
-                CREATE TABLE debt_debt__absorbed(
-                  id TEXT NOT NULL, erp_rider_id TEXT NOT NULL, company_id TEXT NOT NULL,
-                  category TEXT NOT NULL, principal REAL NOT NULL CHECK(principal>=0),
-                  balance REAL NOT NULL DEFAULT 0 CHECK(balance>=0), instalment REAL NULL CHECK(instalment>=0),
-                  status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','waived','absorbed','cancelled','transferred')),
-                  platform TEXT NULL,
-                  promissory_flag INTEGER NOT NULL DEFAULT 0 CHECK(promissory_flag IN (0,1)),
-                  created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT '',
-                  row_version BLOB, CONSTRAINT PK_debt_debt_abs PRIMARY KEY(id),
-                  CONSTRAINT UQ_debt_company_abs UNIQUE(id,company_id)
-                );
-                """);
-            // Copy known columns; tolerate older shapes missing platform/row_version.
-            var names=new List<string>();
-            using(var cmd=Store.Command(c,tx,"SELECT name FROM pragma_table_info('debt_debt')"))
-            using(var reader=cmd.ExecuteReader())
-                while(reader.Read())names.Add(reader.GetString(0));
-            string[] want=["id","erp_rider_id","company_id","category","principal","balance","instalment","status","platform","promissory_flag","created_by","created_at","row_version"];
-            var present=want.Where(names.Contains).ToArray();
-            string cols=string.Join(",",present);
-            SchemaSql.Exec(c,tx,$"INSERT INTO debt_debt__absorbed({cols}) SELECT {cols} FROM debt_debt");
-            SchemaSql.Exec(c,tx,"DROP TABLE debt_debt");
-            SchemaSql.Exec(c,tx,"ALTER TABLE debt_debt__absorbed RENAME TO debt_debt");
+            object? exists=SchemaSql.Scalar(c,tx,"SELECT 1 FROM sqlite_master WHERE type='table' AND name=@n",("@n",child));
+            if(exists==null)continue;
+            string stash=child+"__stash";
+            SchemaSql.Exec(c,tx,"DROP TABLE IF EXISTS "+stash);
+            SchemaSql.Exec(c,tx,"CREATE TABLE "+stash+" AS SELECT * FROM "+child);
+            SchemaSql.Exec(c,tx,"DROP TABLE "+child);
         }
-        finally
+        SchemaSql.Exec(c,tx,"""
+            CREATE TABLE debt_debt__absorbed(
+              id TEXT NOT NULL, erp_rider_id TEXT NOT NULL, company_id TEXT NOT NULL,
+              category TEXT NOT NULL, principal REAL NOT NULL CHECK(principal>=0),
+              balance REAL NOT NULL DEFAULT 0 CHECK(balance>=0), instalment REAL NULL CHECK(instalment>=0),
+              status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','waived','absorbed','cancelled','transferred')),
+              platform TEXT NULL,
+              promissory_flag INTEGER NOT NULL DEFAULT 0 CHECK(promissory_flag IN (0,1)),
+              created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT '',
+              row_version BLOB, CONSTRAINT PK_debt_debt_abs PRIMARY KEY(id),
+              CONSTRAINT UQ_debt_company_abs UNIQUE(id,company_id)
+            );
+            """);
+        var names=new List<string>();
+        using(var cmd=Store.Command(c,tx,"SELECT name FROM pragma_table_info('debt_debt')"))
+        using(var reader=cmd.ExecuteReader())
+            while(reader.Read())names.Add(reader.GetString(0));
+        string[] want=["id","erp_rider_id","company_id","category","principal","balance","instalment","status","platform","promissory_flag","created_by","created_at","row_version"];
+        var present=want.Where(names.Contains).ToArray();
+        string debtCols=string.Join(",",present);
+        SchemaSql.Exec(c,tx,$"INSERT INTO debt_debt__absorbed({debtCols}) SELECT {debtCols} FROM debt_debt");
+        SchemaSql.Exec(c,tx,"DROP TABLE debt_debt");
+        SchemaSql.Exec(c,tx,"ALTER TABLE debt_debt__absorbed RENAME TO debt_debt");
+        if(tx==null)SchemaSql.Exec(c,tx,"PRAGMA foreign_keys=ON");
+    }
+
+    static void RestoreSqliteDebtChildStashes(DbConnection c,DbTransaction? tx)
+    {
+        if(SchemaSql.IsSql(c))return;
+        string[] children=["debt_debt_movement","debt_import_line","debt_collection","debt_waiver","debt_disbursement"];
+        foreach(string child in children)
         {
-            SchemaSql.Exec(c,tx,"PRAGMA foreign_keys=ON");
+            string stash=child+"__stash";
+            object? stashExists=SchemaSql.Scalar(c,tx,"SELECT 1 FROM sqlite_master WHERE type='table' AND name=@n",("@n",stash));
+            if(stashExists==null)continue;
+            object? tableExists=SchemaSql.Scalar(c,tx,"SELECT 1 FROM sqlite_master WHERE type='table' AND name=@n",("@n",child));
+            if(tableExists==null){SchemaSql.Exec(c,tx,"DROP TABLE IF EXISTS "+stash);continue;}
+            var stashCols=new List<string>();
+            using(var cmd=Store.Command(c,tx,"SELECT name FROM pragma_table_info('"+stash.Replace("'","''")+"')"))
+            using(var reader=cmd.ExecuteReader())
+                while(reader.Read())stashCols.Add(reader.GetString(0));
+            var tableCols=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using(var cmd=Store.Command(c,tx,"SELECT name FROM pragma_table_info('"+child.Replace("'","''")+"')"))
+            using(var reader=cmd.ExecuteReader())
+                while(reader.Read())tableCols.Add(reader.GetString(0));
+            var cols=stashCols.Where(tableCols.Contains).ToArray();
+            if(cols.Length>0)
+                SchemaSql.Exec(c,tx,$"INSERT OR IGNORE INTO {child}({string.Join(",",cols)}) SELECT {string.Join(",",cols)} FROM {stash}");
+            SchemaSql.Exec(c,tx,"DROP TABLE IF EXISTS "+stash);
         }
     }
 
