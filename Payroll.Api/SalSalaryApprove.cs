@@ -135,11 +135,15 @@ public static class SalSalaryApprove
         }
     }
 
-    /// <summary>Payable only when final net &gt; 0. Accrual and recoveries are posted separately.</summary>
+    /// <summary>Payable only when final net &gt; 0. Accrual and recoveries are posted separately.
+    /// RWC4a2 H11 / §40.5: multi-app cleared hold — payables across apps consume combined_net (shared L1 once).</summary>
     static string? CreatePayable(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
     {
-        decimal netPay=J.Money(Math.Max(0,rider.N("salaryNet")));
+        decimal appNet=J.Money(Math.Max(0,rider.N("salaryNet")));
+        decimal netPay=CombinedPayableAmount(c,tx,run,rider,appNet);
         if(netPay<=0)return null;
+        decimal boost=J.Money(netPay-appNet);
+        if(boost>0)PostSharedDeductionOnce(c,tx,actor,run,rider,boost);
         string payableId=SchemaSql.GuidText(SchemaSql.NewId());
         Exec(c,tx,$"""
             INSERT INTO {SchemaSql.Q(c,"pay","payable")}
@@ -154,6 +158,54 @@ public static class SalSalaryApprove
             WHERE id=@id
             """,("@p",payableId),("@pb",run.B("payoutBlocked")?1:0),("@by",actor.Identity!.Name!),("@at",now),("@id",rider.S("id")));
         return payableId;
+    }
+
+    /// <summary>§40.5: last approved app takes the remaining combined_net; earlier apps take their own net capped by remaining.</summary>
+    static decimal CombinedPayableAmount(DbConnection c,DbTransaction tx,JsonObject run,JsonObject rider,decimal appNet)
+    {
+        object? combinedObj=SchemaSql.Scalar(c,tx,$"SELECT combined_net FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'",
+            ("@erp",rider.S("erpRiderId")),("@pm",run.S("periodMonth")));
+        if(combinedObj is null or DBNull)return appNet;
+        decimal combined=J.Money(Convert.ToDecimal(combinedObj));
+        if(combined<=0)return appNet; // exception release without consolidated nets
+        decimal already=Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"""
+            SELECT COALESCE(SUM(p.amount_due),0) FROM {SchemaSql.Q(c,"pay","payable")} p
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run_rider")} r ON r.id=p.source_id
+            WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND r.salary_approved_at IS NOT NULL AND r.id<>@id
+            """,("@erp",rider.S("erpRiderId")),("@pm",run.S("periodMonth")),("@id",rider.S("id")))??0m);
+        decimal remaining=J.Money(combined-already);
+        long pendingOthers=Convert.ToInt64(SchemaSql.Scalar(c,tx,$"""
+            SELECT COUNT(*) FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+            WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND pr.status<>4 AND r.salary_approved_at IS NULL AND r.id<>@id
+            """,("@erp",rider.S("erpRiderId")),("@pm",run.S("periodMonth")),("@id",rider.S("id")))??0L);
+        if(pendingOthers==0)return J.Money(Math.Max(0,remaining));
+        return J.Money(Math.Min(appNet,Math.Max(0,remaining)));
+    }
+
+    /// <summary>Credit 212103 for the shared-L1 add-back so liability matches the boosted payable (§40.5 once).</summary>
+    static void PostSharedDeductionOnce(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,decimal boost)
+    {
+        string sharedAcc="112511";
+        object? acc=SchemaSql.Scalar(c,tx,$"""
+            SELECT account_code FROM {SchemaSql.Q(c,"sal","pay_run_item")}
+            WHERE pay_run_rider_id=@r AND amount>0 AND stage_code='level1' AND item_code IN ('fuel','vehicle','housing')
+            ORDER BY line_no
+            """,("@r",rider.S("id")));
+        if(acc is not null and not DBNull&&acc.ToString() is {Length:>0} code)sharedAcc=code;
+        Guid company=Guid.Parse(run.S("companyId"));
+        Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
+        Guid payableAcc=AccountId(c,tx,"212103");
+        Guid recoveryAcc=AccountId(c,tx,sharedAcc);
+        JournalPosting.Post(c,tx,new JournalPosting.Draft(
+            company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+            DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+            "sal_pay_run_rider",SchemaSql.NewId(),"salary_shared_once",(byte)run.N("runMode"),run.B("payoutBlocked"),
+            actor.Identity!.Name!,
+            [
+                new(recoveryAcc,SchemaOrgCostCentre.NoneId,run.S("app"),boost,0m,"خصم مشترك مرة واحدة"),
+                new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,boost,"خصم مشترك مرة واحدة")
+            ]));
     }
 
     /// <summary>RWC4b H12: settle each pay_run_item.debt_id for the actual deducted amount at approval. Returns the settled total.</summary>
