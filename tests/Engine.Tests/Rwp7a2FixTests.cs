@@ -45,4 +45,49 @@ public sealed class Rwp7a2FixTests
         Assert.AreEqual(1000m,expense);
         Assert.AreEqual(960m,bank);
     }
+
+    [TestMethod][DataRow(false)][DataRow(true)]
+    public void Row9_SameKeyReplayChangingAmountFxRejects409_AndKeepsApprovedGain40(bool sql)
+    {
+        using var f=new PaymentsEngineTests.Fixture(sql);
+        SetAccount(f,RecurringPayees.ExpenseAccountKey,"526101");
+        SetAccount(f,RecurringPayees.FxAccountKey,"542101");
+        const string key="rwp7a2-replay-fx-bound-960";
+        var first=f.Store.Write((c,tx)=>RecurringPayees.CreateOneOff(c,tx,f.Maker,new()
+        {
+            ["companyId"]=f.Company,["nameAr"]="ربح معتمد",["amount"]=1000m,["currencyCode"]="SAR",["exchangeRate"]=1m,
+            ["transferFee"]=0m,["fxDifference"]=-40m,["paymentMethod"]="bank_transfer",["bankDetails"]="",
+            ["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),["paidOn"]="2026-11-21",["bankAccountCode"]="111101",
+            ["period"]="2026-11",["idempotencyKey"]=key
+        }));
+        Assert.AreEqual(960m,first.N("amount"));
+        string docId=first.S("documentId");
+        decimal GainAmount()
+        {
+            string meta=f.Store.Read(c=>MoneySchemaFixture.Scalar(c,null,"SELECT metadata FROM pay_document WHERE id=@id",("@id",docId))!.ToString()!);
+            return JsonNode.Parse(meta)!.AsObject()["fxGainReclass"]!.AsObject().N("amount");
+        }
+        Assert.AreEqual(40m,GainAmount());
+
+        var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>RecurringPayees.CreateOneOff(c,tx,f.Maker,new()
+        {
+            ["companyId"]=f.Company,["nameAr"]="ربح معتمد",["amount"]=1960m,["currencyCode"]="SAR",["exchangeRate"]=1m,
+            ["transferFee"]=0m,["fxDifference"]=-1000m,["paymentMethod"]="bank_transfer",["bankDetails"]="",
+            ["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),["paidOn"]="2026-11-21",["bankAccountCode"]="111101",
+            ["period"]="2026-11",["idempotencyKey"]=key
+        })));
+        Assert.AreEqual(409,err.Status);
+        Assert.AreEqual(40m,GainAmount(),"replay must not overwrite approved FX gain 40 with 1000");
+
+        // Identical replay still returns the same voucher.
+        var same=f.Store.Write((c,tx)=>RecurringPayees.CreateOneOff(c,tx,f.Maker,new()
+        {
+            ["companyId"]=f.Company,["nameAr"]="ربح معتمد",["amount"]=1000m,["currencyCode"]="SAR",["exchangeRate"]=1m,
+            ["transferFee"]=0m,["fxDifference"]=-40m,["paymentMethod"]="bank_transfer",["bankDetails"]="",
+            ["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),["paidOn"]="2026-11-21",["bankAccountCode"]="111101",
+            ["period"]="2026-11",["idempotencyKey"]=key
+        }));
+        Assert.AreEqual(first.S("id"),same.S("id"));
+        Assert.AreEqual(960m,same.N("amount"));
+    }
 }

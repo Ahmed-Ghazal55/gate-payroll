@@ -164,13 +164,16 @@ public static class RecurringPayees
         };
     }
 
-    /// <summary>Server-only: attach trusted FX gain reclass after Create (callers cannot supply fxGainReclass).</summary>
-    static void AttachFxGainReclass(DbConnection c,DbTransaction tx,string documentId,JsonObject gain)
+    /// <summary>Server-only: attach trusted FX gain reclass after Create (callers cannot supply fxGainReclass).
+    /// Draft-only; never mutate on idempotent replay of an approved document.</summary>
+    static void AttachFxGainReclass(DbConnection c,DbTransaction tx,JsonObject doc,JsonObject gain)
     {
-        var doc=PaymentsEngine.Rows(c,tx,$"SELECT metadata FROM {Q(c,"document")} WHERE id=@id",("@id",PaymentsEngine.Id(documentId))).Single();
-        var meta=JsonNode.Parse(doc.S("metadata"))!.AsObject();
+        // RWP7a2: skip when Create returned an existing document (status left draft) — prevents replay mutation.
+        if((int)doc.N("status")!=1)return;
+        var meta=doc["metadata"] as JsonObject??JsonNode.Parse(doc.S("metadata")??"{}")!.AsObject();
+        if(meta["fxGainReclass"]!=null)return;
         meta["fxGainReclass"]=gain.DeepClone();
-        SchemaSql.Exec(c,tx,$"UPDATE {Q(c,"document")} SET metadata=@meta WHERE id=@id",("@meta",meta.ToJsonString()),("@id",PaymentsEngine.Id(documentId)));
+        SchemaSql.Exec(c,tx,$"UPDATE {Q(c,"document")} SET metadata=@meta WHERE id=@id AND status=1",("@meta",meta.ToJsonString()),("@id",PaymentsEngine.Id(doc.S("id"))));
     }
 
     public static JsonObject PayeeHistory(DbConnection c,ClaimsPrincipal actor,string payeeId)
@@ -401,8 +404,10 @@ public static class RecurringPayees
             if(line.S("documentId")!="")doc=PaymentsEngine.Get(c,tx,actor,line.S("documentId"));
             else
             {
+                // RWP7a2: bind signed FX into content hash so same-key replay cannot change gain.
+                docInput["fxDifference"]=fx;
                 doc=PaymentsEngine.Create(c,tx,actor,docInput);
-                if(built.fxGain!=null)AttachFxGainReclass(c,tx,doc.S("id"),built.fxGain);
+                if(built.fxGain!=null)AttachFxGainReclass(c,tx,doc,built.fxGain);
                 SchemaSql.Exec(c,tx,$"UPDATE {Q(c,"recurring_run_line")} SET document_id=@d,updated_by=@by,updated_at={SchemaSql.NowLiteral(c)} WHERE id=@id",
                     ("@d",doc.S("id")),("@by",Me(actor)),("@id",line.S("id")));
             }
@@ -445,10 +450,12 @@ public static class RecurringPayees
         {
             ["type"]="expense",["companyId"]=company,["period"]=period,["occurredOn"]=paidOn,["dueOn"]=paidOn,
             ["idempotencyKey"]=key,["reference"]=input.S("reference","ONEOFF-"+key[..Math.Min(8,key.Length)]),["lines"]=built.lines,
+            // RWP7a2: bind signed FX into content hash (lines alone collapse 1000/−40 and 1960/−1000 to the same 960 expense).
+            ["fxDifference"]=fx,
             ["payeeName"]=PaymentsEngine.Text(input,"nameAr",200),["oneOff"]=true
         };
         var doc=PaymentsEngine.Create(c,tx,actor,docBody);
-        if(built.fxGain!=null)AttachFxGainReclass(c,tx,doc.S("id"),built.fxGain);
+        if(built.fxGain!=null)AttachFxGainReclass(c,tx,doc,built.fxGain);
         // Idempotent retry: if a voucher already exists for this key, return it.
         object? existingPay=SchemaSql.Scalar(c,tx,$"SELECT id FROM {Q(c,"payment_detail")} WHERE document_id=@d AND idempotency_key=@k",("@d",doc.S("id")),("@k","oneoff:"+key));
         if(existingPay!=null)return PaymentsEngine.Payment(c,tx,actor,existingPay.ToString()!);
