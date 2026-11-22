@@ -52,6 +52,8 @@ public static partial class AccessPolicy
         if(Administrator(user))return true;
         bool Get(string prefix)=>method=="GET"&&path.StartsWith(prefix,StringComparison.Ordinal);
         bool Has(string permission)=>AccessPolicy.Has(user,permission);
+        if(path.StartsWith("/api/forms/evaluations/",StringComparison.Ordinal))
+            return EvaluationSurvey.CanView(user) && (method=="GET" ? !path.EndsWith("/export",StringComparison.Ordinal) || Has(EvaluationSurvey.ExportPermission) : method=="POST" && Has("forms.manage"));
         if(path is "/api/me" or "/api/roles-catalog")return method=="GET";
         if(path=="/api/me/password")return method=="POST";
         if(path.StartsWith("/api/roles/",StringComparison.Ordinal))return false;
