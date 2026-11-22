@@ -38,7 +38,10 @@ public static partial class Debts
             // When a preview hash is bound, replacement bytes must equal it.
             if(previewBound&&boundHex.Length==64)
                 J.Need(string.Equals(boundHex,fromHex,StringComparison.OrdinalIgnoreCase),"بصمة الملف المرفوع لا تطابق معاينة الملف؛ أعد المعاينة.",409);
-            if(!verifyPreview||!previewBound)return fromFile;
+            // Bytes alone are unsigned; commit writers must always bind a verified preview fingerprint.
+            if(!verifyPreview)return fromFile;
+            J.Need(previewBound&&c!=null&&actor is {Length:>0},
+                "بصمة المعاينة مطلوبة؛ أعد المعاينة مع الملف.",400);
             string kind=(previewKind is {Length:>0}?previewKind:"opening")+":"+fromHex;
             using var own=tx==null?c!.BeginTransaction():null;
             try

@@ -196,8 +196,10 @@ public sealed class DebtRwd1cFixTests
         byte[] file=Encoding.UTF8.GetBytes("opening-bytes-rwd1c");
         string hash=Convert.ToHexString(SHA256.HashData(file));
         var withFile=new JsonObject{["dataBase64"]=Convert.ToBase64String(file),["fileHash"]="00"+hash[2..]};
-        // When file bytes present, hash comes from the file (exact), not the forged client hex.
-        Assert.AreEqual(hash,Convert.ToHexString(Debts.ResolveImportFileHashForTests(withFile)),ignoreCase:true);
+        // Unsigned bytes without preview fingerprint are refused on the commit verify path.
+        Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>Debts.ResolveImportFileHashForTests(withFile)).Status);
+        // After preview verification, hash still comes from the file bytes (exact), not a forged client hex.
+        Assert.AreEqual(hash,Convert.ToHexString(Debts.ResolveImportFileHashForTests(withFile,verifyPreview:false)),ignoreCase:true);
 
         // Preview-bound path: fingerprint + matching fileHash from preview is accepted without re-upload.
         var (c,_,_,_,_)=DebtLedgerFixture.Open(sqlServer);
