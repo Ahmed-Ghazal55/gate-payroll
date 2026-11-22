@@ -75,6 +75,10 @@ def permission(method,p):
  if p.startswith('/api/ledger') or p=='/api/dashboard':return 'payroll.view'
  if p=='/api/adjustments':return 'adjustments.create'
  if p=='/api/payments':return 'payments.record'
+ if p.startswith('/api/forms/evaluations'):
+  if p.endswith('/export'):return 'forms.evaluations.view + forms.evaluations.export; supervisors denied; company/platform scope'
+  if method=='GET':return 'forms.evaluations.view; supervisors denied; company/platform scope'
+  return 'forms.evaluations.view + forms.manage; supervisors denied'
  if p.startswith(('/api/campaigns','/api/forms','/api/submissions','/api/responses')):return 'forms.manage' if '/builder' in p or method!='GET' and p.startswith('/api/campaigns') else 'forms.review' if method!='GET' else 'forms.view'
  if p=='/api/audit':return 'Admin / SuperAdmin'
  return 'see AccessPolicy + handler'

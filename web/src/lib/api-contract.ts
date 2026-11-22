@@ -1168,6 +1168,315 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/public/evaluations/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public evaluation schema */
+        get: {
+            parameters: {
+                query?: {
+                    city?: string;
+                };
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            schema: string;
+                            roundId: string;
+                            title: string;
+                            noticeAr?: string;
+                            noticeEn?: string;
+                            noticeUr?: string;
+                            cities: string[];
+                            apps: string[];
+                            staff: {
+                                id: string;
+                                name: string;
+                                cities: string[];
+                                departments: string[];
+                                roles: string[];
+                                apps: string[];
+                                active?: boolean;
+                                excluded?: boolean;
+                                pendingRoleApproval?: boolean;
+                            }[];
+                            identityFields?: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            staffRatingMin?: number;
+                            staffRatingMax?: number;
+                            appRatingMin?: number;
+                            appRatingMax?: number;
+                            staffDimensions: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            staffReasons: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            appReasons: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            factors: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            factorMode?: string;
+                            editPolicyPending?: boolean;
+                            uploadsPolicyPending?: boolean;
+                            allowedActions: string[];
+                            attachmentLimits?: {
+                                imagesPerCard?: number;
+                                voicePerCard?: number;
+                                voiceSeconds?: number;
+                                replyBytes?: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Submit public evaluation reply */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            receipt: string;
+                            allowedActions: string[];
+                            editPolicyPending: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/evaluations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Open evaluation rounds for signed-in rider */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            title: string;
+                            token: string;
+                            schema: string;
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/evaluations/{token}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluation schema for signed-in rider */
+        get: {
+            parameters: {
+                query?: {
+                    city?: string;
+                };
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            schema: string;
+                            roundId: string;
+                            title: string;
+                            noticeAr?: string;
+                            noticeEn?: string;
+                            noticeUr?: string;
+                            cities: string[];
+                            apps: string[];
+                            staff: {
+                                id: string;
+                                name: string;
+                                cities: string[];
+                                departments: string[];
+                                roles: string[];
+                                apps: string[];
+                                active?: boolean;
+                                excluded?: boolean;
+                                pendingRoleApproval?: boolean;
+                            }[];
+                            identityFields?: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            staffRatingMin?: number;
+                            staffRatingMax?: number;
+                            appRatingMin?: number;
+                            appRatingMax?: number;
+                            staffDimensions: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            staffReasons: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            appReasons: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            factors: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            factorMode?: string;
+                            editPolicyPending?: boolean;
+                            uploadsPolicyPending?: boolean;
+                            allowedActions: string[];
+                            attachmentLimits?: {
+                                imagesPerCard?: number;
+                                voicePerCard?: number;
+                                voiceSeconds?: number;
+                                replyBytes?: number;
+                            };
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Submit evaluation reply as signed-in rider */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            receipt: string;
+                            allowedActions: string[];
+                            editPolicyPending: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/public/inquiry/payslip": {
         parameters: {
             query?: never;
@@ -17152,6 +17461,728 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forms/evaluations/staff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List evaluation staff cards */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            cities: string[];
+                            departments: string[];
+                            roles: string[];
+                            apps: string[];
+                            active?: boolean;
+                            excluded?: boolean;
+                            pendingRoleApproval?: boolean;
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/staff/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import evaluation staff cards */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            imported: number;
+                            excluded: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List evaluation rounds */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            title: string;
+                            status: string;
+                            kind?: string;
+                            schema?: string;
+                            sharingToken: string;
+                            staff: {
+                                id: string;
+                                name: string;
+                                cities: string[];
+                                departments: string[];
+                                roles: string[];
+                                apps: string[];
+                                active?: boolean;
+                                excluded?: boolean;
+                                pendingRoleApproval?: boolean;
+                            }[];
+                            cities: string[];
+                            apps: string[];
+                            createdAt?: string;
+                            updatedAt?: string;
+                            schemaVersion?: number;
+                            allowedActions: string[];
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create evaluation round */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            title: string;
+                            status: string;
+                            kind?: string;
+                            schema?: string;
+                            sharingToken: string;
+                            staff: {
+                                id: string;
+                                name: string;
+                                cities: string[];
+                                departments: string[];
+                                roles: string[];
+                                apps: string[];
+                                active?: boolean;
+                                excluded?: boolean;
+                                pendingRoleApproval?: boolean;
+                            }[];
+                            cities: string[];
+                            apps: string[];
+                            createdAt?: string;
+                            updatedAt?: string;
+                            schemaVersion?: number;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read evaluation round */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            title: string;
+                            status: string;
+                            kind?: string;
+                            schema?: string;
+                            sharingToken: string;
+                            staff: {
+                                id: string;
+                                name: string;
+                                cities: string[];
+                                departments: string[];
+                                roles: string[];
+                                apps: string[];
+                                active?: boolean;
+                                excluded?: boolean;
+                                pendingRoleApproval?: boolean;
+                            }[];
+                            cities: string[];
+                            apps: string[];
+                            createdAt?: string;
+                            updatedAt?: string;
+                            schemaVersion?: number;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds/{id}/{action}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open, pause or close evaluation round */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    action: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            title: string;
+                            status: string;
+                            kind?: string;
+                            schema?: string;
+                            sharingToken: string;
+                            staff: {
+                                id: string;
+                                name: string;
+                                cities: string[];
+                                departments: string[];
+                                roles: string[];
+                                apps: string[];
+                                active?: boolean;
+                                excluded?: boolean;
+                                pendingRoleApproval?: boolean;
+                            }[];
+                            cities: string[];
+                            apps: string[];
+                            createdAt?: string;
+                            updatedAt?: string;
+                            schemaVersion?: number;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds/{id}/responses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Page evaluation replies */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                roundId: string;
+                                schemaVersion?: number;
+                                iqama: string;
+                                name: string;
+                                city: string;
+                                nationality: string;
+                                phone?: string;
+                                workApps: string[];
+                                companyId?: string;
+                                identityVerified?: boolean;
+                                staffAnswers: {
+                                    staffId?: string;
+                                    app?: string;
+                                    reason?: string;
+                                    ratings?: {
+                                        professional?: number;
+                                        treatment?: number;
+                                        support?: number;
+                                        responseSpeed?: number;
+                                        problemSolving?: number;
+                                    };
+                                    overall?: number;
+                                    factors?: string[];
+                                    notes?: string;
+                                    complaint?: boolean;
+                                    complaintDetails?: string;
+                                    attachments?: Record<string, never>[];
+                                }[];
+                                appAnswers: {
+                                    staffId?: string;
+                                    app?: string;
+                                    reason?: string;
+                                    ratings?: {
+                                        professional?: number;
+                                        treatment?: number;
+                                        support?: number;
+                                        responseSpeed?: number;
+                                        problemSolving?: number;
+                                    };
+                                    overall?: number;
+                                    factors?: string[];
+                                    notes?: string;
+                                    complaint?: boolean;
+                                    complaintDetails?: string;
+                                    attachments?: Record<string, never>[];
+                                }[];
+                                createdAt: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds/{id}/statistics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluation statistics for charts */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            roundId: string;
+                            totalResponses: number;
+                            byCity: {
+                                key: string;
+                                app?: string;
+                                count?: number;
+                                responseCount?: number;
+                                complaintCount?: number;
+                                ratedCount?: number;
+                                skippedCount?: number;
+                                average?: null | number;
+                                staffRatedCount?: number;
+                                appRatedCount?: number;
+                                staffAverage?: null | number;
+                                appAverage?: null | number;
+                                reasons?: {
+                                    key: string;
+                                    count: number;
+                                }[];
+                                dimensions?: {
+                                    key: string;
+                                    count: number;
+                                    average: null | number;
+                                }[];
+                                distribution?: {
+                                    stars: number;
+                                    count: number;
+                                }[];
+                            }[];
+                            byApp: {
+                                key: string;
+                                app?: string;
+                                count?: number;
+                                responseCount?: number;
+                                complaintCount?: number;
+                                ratedCount?: number;
+                                skippedCount?: number;
+                                average?: null | number;
+                                staffRatedCount?: number;
+                                appRatedCount?: number;
+                                staffAverage?: null | number;
+                                appAverage?: null | number;
+                                reasons?: {
+                                    key: string;
+                                    count: number;
+                                }[];
+                                dimensions?: {
+                                    key: string;
+                                    count: number;
+                                    average: null | number;
+                                }[];
+                                distribution?: {
+                                    stars: number;
+                                    count: number;
+                                }[];
+                            }[];
+                            bySupervisor: {
+                                key: string;
+                                app?: string;
+                                count?: number;
+                                responseCount?: number;
+                                complaintCount?: number;
+                                ratedCount?: number;
+                                skippedCount?: number;
+                                average?: null | number;
+                                staffRatedCount?: number;
+                                appRatedCount?: number;
+                                staffAverage?: null | number;
+                                appAverage?: null | number;
+                                reasons?: {
+                                    key: string;
+                                    count: number;
+                                }[];
+                                dimensions?: {
+                                    key: string;
+                                    count: number;
+                                    average: null | number;
+                                }[];
+                                distribution?: {
+                                    stars: number;
+                                    count: number;
+                                }[];
+                            }[];
+                            byNationality: {
+                                key: string;
+                                app?: string;
+                                count?: number;
+                                responseCount?: number;
+                                complaintCount?: number;
+                                ratedCount?: number;
+                                skippedCount?: number;
+                                average?: null | number;
+                                staffRatedCount?: number;
+                                appRatedCount?: number;
+                                staffAverage?: null | number;
+                                appAverage?: null | number;
+                                reasons?: {
+                                    key: string;
+                                    count: number;
+                                }[];
+                                dimensions?: {
+                                    key: string;
+                                    count: number;
+                                    average: null | number;
+                                }[];
+                                distribution?: {
+                                    stars: number;
+                                    count: number;
+                                }[];
+                            }[];
+                            commonFactors: {
+                                key: string;
+                                app?: string;
+                                count?: number;
+                                responseCount?: number;
+                                complaintCount?: number;
+                                ratedCount?: number;
+                                skippedCount?: number;
+                                average?: null | number;
+                                staffRatedCount?: number;
+                                appRatedCount?: number;
+                                staffAverage?: null | number;
+                                appAverage?: null | number;
+                                reasons?: {
+                                    key: string;
+                                    count: number;
+                                }[];
+                                dimensions?: {
+                                    key: string;
+                                    count: number;
+                                    average: null | number;
+                                }[];
+                                distribution?: {
+                                    stars: number;
+                                    count: number;
+                                }[];
+                            }[];
+                            dailyTrend: {
+                                key: string;
+                                app?: string;
+                                count?: number;
+                                responseCount?: number;
+                                complaintCount?: number;
+                                ratedCount?: number;
+                                skippedCount?: number;
+                                average?: null | number;
+                                staffRatedCount?: number;
+                                appRatedCount?: number;
+                                staffAverage?: null | number;
+                                appAverage?: null | number;
+                                reasons?: {
+                                    key: string;
+                                    count: number;
+                                }[];
+                                dimensions?: {
+                                    key: string;
+                                    count: number;
+                                    average: null | number;
+                                }[];
+                                distribution?: {
+                                    stars: number;
+                                    count: number;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds/{id}/statistics/{dimension}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Evaluation statistics by dimension */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    dimension: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            roundId: string;
+                            totalResponses: number;
+                            items: {
+                                key: string;
+                                app?: string;
+                                count?: number;
+                                responseCount?: number;
+                                complaintCount?: number;
+                                ratedCount?: number;
+                                skippedCount?: number;
+                                average?: null | number;
+                                staffRatedCount?: number;
+                                appRatedCount?: number;
+                                staffAverage?: null | number;
+                                appAverage?: null | number;
+                                reasons?: {
+                                    key: string;
+                                    count: number;
+                                }[];
+                                dimensions?: {
+                                    key: string;
+                                    count: number;
+                                    average: null | number;
+                                }[];
+                                distribution?: {
+                                    stars: number;
+                                    count: number;
+                                }[];
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export evaluation replies workbook */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/inquiry-access": {
         parameters: {
             query?: never;
@@ -18977,6 +20008,12 @@ export interface components {
             orphanCampaignResponses: number | string;
             /** Format: int32 */
             orphanDebts: number | string;
+        };
+        AnonymousTypeOfstringAndstringAndstringAndstring: {
+            id: null | string;
+            title: null | string;
+            token: null | string;
+            schema: null | string;
         };
         AnonymousTypeOfstringAndstringAndstringAndstringAndstring: {
             iqama: null | string;
