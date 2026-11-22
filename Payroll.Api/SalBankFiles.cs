@@ -112,7 +112,13 @@ public static partial class SalBankFiles
         };
         string dbIssuanceChoice=sheetShape=="combined"?"combined":"per_company";
 
-        string payingBankId=input.Required("payingBankId");
+        string payingBankId=input.S("payingBankId");
+        if(string.IsNullOrWhiteSpace(payingBankId))
+        {
+            string reqComp=input.S("payingCompanyId",input.S("scopeCompanyId",input.S("companyId")));
+            string reqReg=input.S("payingRegistrationId",input.S("scopeRegistrationId",input.S("registrationId")));
+            payingBankId=ResolvePayingBankId(c,tx,reqComp,reqReg);
+        }
         var bankInfo=LoadPayingBank(c,tx,payingBankId);
         if(!string.IsNullOrWhiteSpace(input.S("payingCompanyId")))
             J.Need(string.Equals(input.S("payingCompanyId"),bankInfo.CompanyId,StringComparison.OrdinalIgnoreCase),"الشركة الدافعة لا تطابق الحساب البنكي المختار.",400);
@@ -335,6 +341,19 @@ public static partial class SalBankFiles
                 ("@payable",cand.PayableId),("@c",cand.CompanyId),("@reg",cand.RegistrationId),
                 ("@pid",paymentId),("@aid",allocId),("@amt",cand.Amount),("@bank",cand.Meta.BankShortCode),
                 ("@by",actorGuid),("@at",now));
+
+            if(!string.Equals(cand.CompanyId,bankInfo.CompanyId,StringComparison.OrdinalIgnoreCase))
+            {
+                string settlementId=SchemaSql.GuidText(SchemaSql.NewId());
+                Exec(c,tx,$"""
+                    INSERT INTO {SchemaSql.Q(c,"fin","inter_company_settlement")}
+                    (id,bank_file_line_id,period_month,paying_company_id,entitlement_company_id,amount,status,created_by,created_at)
+                    VALUES(@id,@lid,@pm,@payer,@ent,@amt,1,@by,@at)
+                    """,
+                    ("@id",settlementId),("@lid",lineId),("@pm",periodMonth),
+                    ("@payer",bankInfo.CompanyId),("@ent",cand.CompanyId),("@amt",cand.Amount),
+                    ("@by",actorGuid),("@at",now));
+            }
         }
 
         // Compute canonical file_hash over consolidated sheet rows while status = 1.
@@ -644,6 +663,12 @@ public static partial class SalBankFiles
         decimal totalAmount=J.Money(sheetRows.OfType<JsonObject>().Sum(r=>r.N("amount")));
         string contentHash=BankPayrollFiles.FileContentHash(sheetRows.OfType<JsonObject>(),totalAmount);
         string sheetShape=issuanceChoice=="combined"?"combined":scopeReg!=""?"per_registration":"per_company";
+        var bankMeta=LoadPayingBank(c,tx,payingBank);
+        string payingCompanyCode=LoadCompanyCode(c,tx,payingComp);
+        string payingRegNumber=LoadRegistrationNumber(c,tx,payingReg);
+        string scopeCompanyCode=scopeComp!=""?LoadCompanyCode(c,tx,scopeComp):"";
+        string scopeRegNumber=scopeReg!=""?LoadRegistrationNumber(c,tx,scopeReg):"";
+        var settlements=LoadSettlements(c,tx,id);
 
         var actions=new JsonArray("export_csv","export_xlsx");
         if(status is StatusDraft or StatusApproved&&!payoutBlocked)
@@ -659,13 +684,20 @@ public static partial class SalBankFiles
         {
             ["id"]=id,
             ["periodMonth"]=periodMonth,
-            ["issuanceChoice"]=issuanceChoice,
+            ["issuanceChoice"]=sheetShape,
+            ["dbIssuanceChoice"]=issuanceChoice,
             ["sheetShape"]=sheetShape,
             ["scopeCompanyId"]=scopeComp,
+            ["scopeCompanyCode"]=scopeCompanyCode,
             ["scopeRegistrationId"]=scopeReg,
+            ["scopeRegistrationNumber"]=scopeRegNumber,
             ["payingCompanyId"]=payingComp,
+            ["payingCompanyCode"]=payingCompanyCode,
             ["payingRegistrationId"]=payingReg,
+            ["payingRegistrationNumber"]=payingRegNumber,
             ["payingBankId"]=payingBank,
+            ["payingBankCode"]=bankMeta.Iban,
+            ["payingBankNameAr"]=bankMeta.BankName,
             ["status"]=StatusName(status),
             ["statusCode"]=status,
             ["fileHash"]=fileHashHex!=""?fileHashHex:contentHash,
@@ -686,9 +718,71 @@ public static partial class SalBankFiles
             ["createdAt"]=createdAt,
             ["lines"]=lines,
             ["sheetRows"]=sheetRows,
+            ["settlements"]=settlements,
             ["excludedRows"]=excludedRows??new JsonArray(),
             ["allowedActions"]=actions
         };
+    }
+
+    static string ResolvePayingBankId(DbConnection c,DbTransaction? tx,string companyId,string registrationId)
+    {
+        J.Need(!string.IsNullOrWhiteSpace(companyId)||!string.IsNullOrWhiteSpace(registrationId),"حدد الحساب البنكي الدافع أو الشركة والسجل التجاري الدافع.",400);
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        cmd.CommandText=$"""
+            SELECT id,company_id,registration_id FROM {SchemaSql.Q(c,"treasury","bank_account")}
+            WHERE status=1
+            ORDER BY code,id
+            """;
+        using var r=cmd.ExecuteReader();
+        while(r.Read())
+        {
+            string bComp=r["company_id"].ToString()!;
+            string bReg=r["registration_id"].ToString()!;
+            if(!string.IsNullOrWhiteSpace(companyId)&&!string.Equals(bComp,companyId,StringComparison.OrdinalIgnoreCase))continue;
+            if(!string.IsNullOrWhiteSpace(registrationId)&&!string.Equals(bReg,registrationId,StringComparison.OrdinalIgnoreCase))continue;
+            return r["id"].ToString()!;
+        }
+        throw new ApiError("لا يوجد حساب بنكي نشط يطابق الشركة أو السجل التجاري الدافع.",404);
+    }
+
+    static string LoadCompanyCode(DbConnection c,DbTransaction? tx,string companyId)=>
+        Str(SchemaSql.Scalar(c,tx,$"SELECT code FROM {SchemaSql.Q(c,"hr","company")} WHERE id=@id",("@id",companyId)));
+
+    static string LoadRegistrationNumber(DbConnection c,DbTransaction? tx,string registrationId)=>
+        Str(SchemaSql.Scalar(c,tx,$"SELECT cr_number FROM {SchemaSql.Q(c,"hr","commercial_registration")} WHERE id=@id",("@id",registrationId)));
+
+    static JsonArray LoadSettlements(DbConnection c,DbTransaction? tx,string bankFileId)
+    {
+        var arr=new JsonArray();
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        cmd.CommandText=$"""
+            SELECT s.id,s.bank_file_line_id,s.period_month,s.paying_company_id,s.entitlement_company_id,
+                   s.amount,s.payer_journal_id,s.entitlement_journal_id,s.status
+            FROM {SchemaSql.Q(c,"fin","inter_company_settlement")} s
+            INNER JOIN {SchemaSql.Q(c,"sal","bank_file_line")} l ON l.id=s.bank_file_line_id
+            WHERE l.bank_file_id=@fid
+            ORDER BY s.id
+            """;
+        Add(cmd,"@fid",bankFileId);
+        using var r=cmd.ExecuteReader();
+        while(r.Read())
+        {
+            int st=Convert.ToInt32(r["status"]);
+            arr.Add(new JsonObject
+            {
+                ["id"]=r["id"].ToString()!,
+                ["bankFileLineId"]=r["bank_file_line_id"].ToString()!,
+                ["periodMonth"]=ReadMonth(r["period_month"]),
+                ["payingCompanyId"]=r["paying_company_id"].ToString()!,
+                ["entitlementCompanyId"]=r["entitlement_company_id"].ToString()!,
+                ["amount"]=J.Money(Convert.ToDecimal(r["amount"])),
+                ["payerJournalId"]=Str(r["payer_journal_id"]),
+                ["entitlementJournalId"]=Str(r["entitlement_journal_id"]),
+                ["status"]=st==2?"posted":"pending",
+                ["statusCode"]=st
+            });
+        }
+        return arr;
     }
 
     static PayingBankInfo LoadPayingBank(DbConnection c,DbTransaction? tx,string bankId)

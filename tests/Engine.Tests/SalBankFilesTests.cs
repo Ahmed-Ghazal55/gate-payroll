@@ -73,7 +73,7 @@ public sealed class SalBankFilesTests
         string id=MoneySchemaFixture.Id();
         string accId=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_account WHERE code=@code",("@code",accountCode))!;
         MoneySchemaFixture.Exec(c,null,"INSERT INTO treasury_bank_account(id,company_id,registration_id,code,name_ar,account_id,status,created_at) VALUES(@id,@c,@r,@code,@name,@acc,1,datetime('now'))",
-            ("@id",id),("@c",companyId),("@r",registrationId),("@code","BNK-"+id[..8]),("@name","بنك الرواتب"),("@acc",accId));
+            ("@id",id),("@c",companyId),("@r",registrationId),("@code","BNK-"+id[^12..]),("@name","بنك الرواتب"),("@acc",accId));
         return id;
     }
 
@@ -355,6 +355,119 @@ public sealed class SalBankFilesTests
         Assert.IsFalse(csvText.Contains("لا يُرسل",StringComparison.Ordinal));
 
         Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalBankFiles.MarkSent(c,tx,checker,built.S("id"))).Status);
+        tx.Commit();
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void IssuanceChoices_PerRegistration_PerCompany_Combined_StoredOnBankFile_AndDriveSheetShape(bool sqlServer)
+    {
+        // U-W2-17b: issuance choice stored on sal.bank_file (paying bank/company/registration;
+        // per_registration vs per_company vs combined driving the sheet shape).
+        using var c=Open(sqlServer);
+        string compA=SeedCompany(c,"BW");
+        string regA1=SeedRegistration(c,compA,"1010000201");
+        string regA2=SeedRegistration(c,compA,"1010000202");
+        string bankA1=SeedBank(c,compA,regA1,"111201");
+
+        string compB=SeedCompany(c,"EX");
+        string regB1=SeedRegistration(c,compB,"1010000301");
+        string bankB1=SeedBank(c,compB,regB1,"111202");
+
+        var maker=Actor(MoneySchemaFixture.Id());
+        var checker=Actor(MoneySchemaFixture.Id());
+        using var tx=c.BeginTransaction();
+        EnsurePeriod(c,tx,compA);
+        EnsurePeriod(c,tx,compB);
+
+        string rajhiIban=MakeIban("80","000000000000001234");
+        string snbIban=MakeIban("10","000000000000005678");
+        string inmaIban=MakeIban("05","000000000000009012");
+
+        string rA1=MoneySchemaFixture.Id(),rA2=MoneySchemaFixture.Id(),rA3=MoneySchemaFixture.Id(),rB1=MoneySchemaFixture.Id();
+        SeedRiderDoc(c,tx,rA1,"2000000101","مندوب سجل أ١",rajhiIban,regA1);
+        SeedRiderDoc(c,tx,rA2,"2000000102","مندوب سجل أ٢",snbIban,regA2);
+        SeedRiderDoc(c,tx,rA3,"2000000103","مندوب شركة أ كيتا",rajhiIban,regA1);
+        SeedRiderDoc(c,tx,rB1,"2000000201","مندوب شركة ب",inmaIban,regB1);
+
+        // Company A Ninja run: rA1 (400 SAR on regA1) and rA2 (300 SAR on regA2)
+        string runANinja=FrozenRun(c,tx,maker,compA,"ninja",rA1,customize:(f,acc)=>
+            f.Rows["assignment"].Add(new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=acc,["actualRiderProfileId"]=rA2,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-31",["appCode"]="ninja"}));
+        SalEvidence.Gross(c,tx,runANinja,rA1,400m);
+        SalEvidence.Gross(c,tx,runANinja,rA2,300m);
+        var calcANinja=SalPayCalc.Calculate(c,tx,maker,runANinja,new JsonObject{["riders"]=new JsonArray(new JsonObject{["erpRiderId"]=rA1},new JsonObject{["erpRiderId"]=rA2})});
+        string prA1=calcANinja["riders"]![0]!["id"]!.GetValue<string>();
+        string prA2=calcANinja["riders"]![1]!["id"]!.GetValue<string>();
+        SalDebtConfirm.Confirm(c,tx,maker,runANinja,new JsonObject{["rows"]=new JsonArray(
+            new JsonObject{["payRunRiderId"]=prA1,["amount"]=0},
+            new JsonObject{["payRunRiderId"]=prA2,["amount"]=0})});
+        SalSalaryApprove.Approve(c,tx,checker,runANinja,new JsonObject{["payRunRiderIds"]=new JsonArray(prA1,prA2)});
+
+        // 1. per_registration for regA1 (resolving payingBankId from payingCompanyId + payingRegistrationId):
+        //    Only rA1 (400 SAR) enters; rA2 (regA2) stays unclaimed.
+        var fileReg=SalBankFiles.Build(c,tx,maker,new JsonObject
+        {
+            ["periodMonth"]="2026-10-01",
+            ["issuanceChoice"]="per_registration",
+            ["scopeCompanyId"]=compA,
+            ["scopeRegistrationId"]=regA1,
+            ["payingCompanyId"]=compA,
+            ["payingRegistrationId"]=regA1
+        });
+        Assert.AreEqual("per_registration",fileReg.S("issuanceChoice"));
+        Assert.AreEqual("per_registration",fileReg.S("sheetShape"));
+        Assert.AreEqual(compA,fileReg.S("scopeCompanyId"));
+        Assert.AreEqual(regA1,fileReg.S("scopeRegistrationId"));
+        Assert.AreEqual(compA,fileReg.S("payingCompanyId"));
+        Assert.AreEqual(regA1,fileReg.S("payingRegistrationId"));
+        Assert.AreEqual(bankA1,fileReg.S("payingBankId"));
+        Assert.AreEqual("BW",fileReg.S("payingCompanyCode"));
+        Assert.AreEqual("1010000201",fileReg.S("payingRegistrationNumber"));
+        Assert.AreEqual("1010000201",fileReg.S("scopeRegistrationNumber"));
+        Assert.AreEqual(400m,fileReg.N("totalAmount"));
+        Assert.AreEqual(1,fileReg["sheetRows"]!.AsArray().Count);
+        Assert.AreEqual("2000000101",fileReg["sheetRows"]![0]!["iqama"]!.GetValue<string>());
+
+        // 2. per_company for compA: picks up the remaining unclaimed rider rA2 (300 SAR on regA2)
+        var fileComp=SalBankFiles.Build(c,tx,maker,new JsonObject
+        {
+            ["periodMonth"]="2026-10-01",
+            ["issuanceChoice"]="per_company",
+            ["scopeCompanyId"]=compA,
+            ["payingBankId"]=bankA1
+        });
+        Assert.AreEqual("per_company",fileComp.S("issuanceChoice"));
+        Assert.AreEqual("per_company",fileComp.S("sheetShape"));
+        Assert.AreEqual(compA,fileComp.S("scopeCompanyId"));
+        Assert.AreEqual("",fileComp.S("scopeRegistrationId"));
+        Assert.AreEqual(300m,fileComp.N("totalAmount"));
+        Assert.AreEqual(1,fileComp["sheetRows"]!.AsArray().Count);
+        Assert.AreEqual("2000000102",fileComp["sheetRows"]![0]!["iqama"]!.GetValue<string>());
+
+        // 3. combined across Company A (rA3 on Keeta = 350 SAR) and Company B (rB1 on Ninja = 500 SAR), paid by Bank A1:
+        ApprovedRider(c,tx,maker,checker,compA,"keeta",rA3,350m,customize:(f,acc)=>
+            f.Rows["keeta_invoice_row"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpPlatformAccountId"]=acc,["gross"]=350m,["deductions"]=0m,["orders"]=10}]);
+        ApprovedRider(c,tx,maker,checker,compB,"ninja",rB1,500m);
+
+        var fileCombined=SalBankFiles.Build(c,tx,maker,new JsonObject
+        {
+            ["periodMonth"]="2026-10-01",
+            ["issuanceChoice"]="combined",
+            ["payingBankId"]=bankA1
+        });
+        Assert.AreEqual("combined",fileCombined.S("issuanceChoice"));
+        Assert.AreEqual("combined",fileCombined.S("sheetShape"));
+        Assert.AreEqual("",fileCombined.S("scopeCompanyId"));
+        Assert.AreEqual("",fileCombined.S("scopeRegistrationId"));
+        Assert.AreEqual(compA,fileCombined.S("payingCompanyId"));
+        Assert.AreEqual(regA1,fileCombined.S("payingRegistrationId"));
+        Assert.AreEqual(bankA1,fileCombined.S("payingBankId"));
+        Assert.AreEqual(850m,fileCombined.N("totalAmount"));
+        Assert.AreEqual(2,fileCombined["sheetRows"]!.AsArray().Count);
+        Assert.AreEqual(1,fileCombined["settlements"]!.AsArray().Count);
+        Assert.AreEqual(500m,fileCombined["settlements"]![0]!["amount"]!.GetValue<decimal>());
+        _=bankB1;
         tx.Commit();
     }
 }
