@@ -11,7 +11,8 @@ public static class SalEvidence
     public static JsonObject Calculate(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string run,JsonObject input)
     {
         string app=MoneySchemaFixture.Scalar(c,tx,"SELECT app_code FROM sal_pay_run WHERE id=@id",("@id",run))?.ToString()??"";
-        if(app is not "keeta" and not "chefz")
+        bool frozenKeeta=app=="keeta"&&Convert.ToInt64(MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM fin_operation_snapshot_link WHERE operation_id=@run AND snapshot_kind='keeta_invoice_row'",("@run",run)))>0;
+        if(app!="chefz"&&!frozenKeeta)
             foreach(var rider in (input["riders"] as JsonArray??[]).OfType<JsonObject>())
                 if(rider.ContainsKey("gross"))Gross(c,tx,run,rider.S("erpRiderId"),J.Money(rider.N("gross")));
         return SalPayCalc.Calculate(c,tx,actor,run,input);

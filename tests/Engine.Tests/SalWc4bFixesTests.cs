@@ -56,7 +56,7 @@ public sealed class SalWc4bFixesTests
         string account=accountId??MoneySchemaFixture.Id(),rider=riderId??MoneySchemaFixture.Id();
         string primary=app switch{"ninja"=>"ninja_daily","keeta"=>"keeta_invoice_row","hs"=>"hs_ops","amazon"=>"platform_ops","chefz"=>"chefz_settlement","jahez"=>"jahez_day",_=>"assignment"};
         decimal gross=frozenGross??800m;
-        facts.Rows[primary]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["riderProfileId"]=rider,["erpRiderId"]=rider,["orders"]=1,["reportDate"]="2026-10-01",["RiderAmount"]=gross,["gross"]=gross}];
+        facts.Rows[primary]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["erpPlatformAccountId"]=account,["riderProfileId"]=rider,["erpRiderId"]=rider,["orders"]=1,["reportDate"]="2026-10-01",["RiderAmount"]=gross,["gross"]=gross}];
         if(app=="ninja")facts.Rows["ninja_daily_deduction"]=[];
         facts.Rows["platform_account"]=[new(){["id"]=account,["externalAccountId"]="A1",["code"]="A1"}];
         facts.Rows["assignment"]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["actualRiderProfileId"]=rider,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-31"}];
@@ -95,7 +95,7 @@ public sealed class SalWc4bFixesTests
         using var tx=c.BeginTransaction();
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"ninja",riderId:rider);
-        var result=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var result=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -127,7 +127,7 @@ public sealed class SalWc4bFixesTests
         using var tx=c.BeginTransaction();
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"keeta",riderId:rider,keetaEligible:false,frozenGross:100m);
-        var result=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var result=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -156,7 +156,7 @@ public sealed class SalWc4bFixesTests
         using var tx=c.BeginTransaction();
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"keeta",riderId:rider,keetaEligible:false,frozenGross:100m);
-        var result=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var result=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -184,7 +184,7 @@ public sealed class SalWc4bFixesTests
         using var tx=c.BeginTransaction();
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"chefz",riderId:rider);
-        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -206,7 +206,7 @@ public sealed class SalWc4bFixesTests
         using var tx=c.BeginTransaction();
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"hs",riderId:rider);
-        Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -215,7 +215,7 @@ public sealed class SalWc4bFixesTests
                 ["level2"]=new JsonArray()
             })
         })).Status);
-        Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -225,7 +225,7 @@ public sealed class SalWc4bFixesTests
             })
         })).Status);
 
-        var ok=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var ok=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -251,7 +251,7 @@ public sealed class SalWc4bFixesTests
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,admin,company,"ninja",riderId:rider);
         var outsider=Scoped(MoneySchemaFixture.Id(),other,"Ninja","pay.manage","pay.approve");
-        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>SalPayCalc.Calculate(c,tx,outsider,run,new JsonObject
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>SalEvidence.Calculate(c,tx,outsider,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -274,7 +274,7 @@ public sealed class SalWc4bFixesTests
         EnsurePeriod(c,tx,company);
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"ninja",riderId:rider);
-        var calc=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var calc=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -316,7 +316,7 @@ public sealed class SalWc4bFixesTests
         EnsurePeriod(c,tx,company);
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,maker,company,"ninja",riderId:rider);
-        var calc=SalPayCalc.Calculate(c,tx,maker,run,new JsonObject
+        var calc=SalEvidence.Calculate(c,tx,maker,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -355,7 +355,7 @@ public sealed class SalWc4bFixesTests
         EnsurePeriod(c,tx,company);
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,admin,company,"ninja",riderId:rider);
-        var calc=SalPayCalc.Calculate(c,tx,admin,run,new JsonObject
+        var calc=SalEvidence.Calculate(c,tx,admin,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -401,7 +401,7 @@ public sealed class SalWc4bFixesTests
         {
             ["matches"]=new JsonArray(new JsonObject{["lineId"]=lineId,["erpEmployeeId"]=other})
         });
-        SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -420,7 +420,7 @@ public sealed class SalWc4bFixesTests
             ["matches"]=new JsonArray(new JsonObject{["lineId"]=lineId,["erpEmployeeId"]=erp})
         });
         // Recalc then apply — engine must fold mudad into L1 before L2 on recalculation.
-        SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -430,7 +430,7 @@ public sealed class SalWc4bFixesTests
                 ["mudadLineId"]=lineId,["mudadAmount"]=50
             })
         });
-        var row=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var row=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -460,7 +460,7 @@ public sealed class SalWc4bFixesTests
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"ninja",riderId:rider);
         string debtId=OpenDebt(c,tx,company,rider,60);
-        var result=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var result=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -491,7 +491,7 @@ public sealed class SalWc4bFixesTests
         string run=FrozenRun(c,tx,maker,company,"ninja",riderId:rider);
         MoneySchemaFixture.Exec(c,tx,"INSERT INTO sal_shared_rider_hold(id,erp_rider_id,period_month,status,created_at) VALUES(@id,@r,'2026-10-01','open',datetime('now'))",
             ("@id",MoneySchemaFixture.Id()),("@r",rider));
-        var calc=SalPayCalc.Calculate(c,tx,maker,run,new JsonObject
+        var calc=SalEvidence.Calculate(c,tx,maker,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {

@@ -69,7 +69,7 @@ public sealed class SalDebtConfirmApproveTests
         MoneySchemaFixture.Exec(c,tx,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) SELECT @id,@c,'2026-10-01',1,datetime('now') WHERE NOT EXISTS(SELECT 1 FROM fin_accounting_period WHERE company_id=@c AND period_month='2026-10-01')",("@id",period),("@c",company));
         string erp=erpRiderId??MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,app,erp);
-        var calc=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var calc=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {

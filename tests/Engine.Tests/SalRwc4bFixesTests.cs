@@ -95,7 +95,7 @@ public sealed class SalRwc4bFixesTests
         using var tx=c.BeginTransaction();
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"keeta",riderId:rider);
-        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -104,7 +104,7 @@ public sealed class SalRwc4bFixesTests
             })
         })).Status);
 
-        var ok=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var ok=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -133,7 +133,7 @@ public sealed class SalRwc4bFixesTests
         EnsurePeriod(c,tx,company);
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"ninja",riderId:rider);
-        var calc=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var calc=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -183,7 +183,7 @@ public sealed class SalRwc4bFixesTests
         using var tx=c.BeginTransaction();
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"keeta",riderId:rider);
-        var result=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var result=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -216,7 +216,7 @@ public sealed class SalRwc4bFixesTests
         string rider=MoneySchemaFixture.Id();
         // Frozen settlement RiderAmount=800; caller twin 900/900 must still fail provenance.
         string run=FrozenRun(c,tx,actor,company,"chefz",riderId:rider);
-        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -224,7 +224,7 @@ public sealed class SalRwc4bFixesTests
                 ["level1"]=new JsonArray(),["level2"]=new JsonArray()
             })
         })).Status);
-        var ok=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var ok=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -257,7 +257,7 @@ public sealed class SalRwc4bFixesTests
                 new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=r,["balance"]=0,["asOf"]="2026-10-20",["fundingType"]="invoice_close",["amount"]=250,["eventType"]="close_refund",["offsetsTopup"]=true}
             ];
         });
-        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -267,7 +267,7 @@ public sealed class SalRwc4bFixesTests
             })
         })).Status);
 
-        var ok=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var ok=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -298,11 +298,11 @@ public sealed class SalRwc4bFixesTests
         string rider=MoneySchemaFixture.Id();
         string ninja=FrozenRun(c,tx,actor,company,"ninja",riderId:rider);
         string keeta=FrozenRun(c,tx,actor,company,"keeta",riderId:rider);
-        SalPayCalc.Calculate(c,tx,actor,keeta,new JsonObject
+        SalEvidence.Calculate(c,tx,actor,keeta,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject{["erpRiderId"]=rider,["level1"]=new JsonArray(),["level2"]=new JsonArray()})
         });
-        var calc=SalPayCalc.Calculate(c,tx,actor,ninja,new JsonObject
+        var calc=SalEvidence.Calculate(c,tx,actor,ninja,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -332,7 +332,7 @@ public sealed class SalRwc4bFixesTests
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"ninja",riderId:rider);
         string debtId=OpenDebt(c,tx,company,rider,60);
-        var calc=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var calc=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -373,7 +373,7 @@ public sealed class SalRwc4bFixesTests
         {
             ["matches"]=new JsonArray(new JsonObject{["lineId"]=lineId,["erpEmployeeId"]=erp})
         });
-        SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -406,7 +406,7 @@ public sealed class SalRwc4bFixesTests
         EnsurePeriod(c,tx,company);
         string rider=MoneySchemaFixture.Id();
         string run=FrozenRun(c,tx,actor,company,"ninja",riderId:rider);
-        var calc=SalPayCalc.Calculate(c,tx,actor,run,new JsonObject
+        var calc=SalEvidence.Calculate(c,tx,actor,run,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject
             {
@@ -445,7 +445,7 @@ public sealed class SalRwc4bFixesTests
         string rider=MoneySchemaFixture.Id();
         string debtId=OpenDebt(c,tx,company,rider,200);
         string runOct=FrozenRun(c,tx,actor,company,"ninja",riderId:rider);
-        var calcOct=SalPayCalc.Calculate(c,tx,actor,runOct,new JsonObject
+        var calcOct=SalEvidence.Calculate(c,tx,actor,runOct,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject{["erpRiderId"]=rider,["gross"]=300,["commission"]=0,["level1"]=new JsonArray(),["level2"]=new JsonArray()})
         });
@@ -474,7 +474,7 @@ public sealed class SalRwc4bFixesTests
         OpsSnapshotCapture.Capture(c,tx,actor,runNov,facts,reasons);
         OpsSnapshotCapture.Freeze(c,tx,actor,runNov);
 
-        var calcNov=SalPayCalc.Calculate(c,tx,actor,runNov,new JsonObject
+        var calcNov=SalEvidence.Calculate(c,tx,actor,runNov,new JsonObject
         {
             ["riders"]=new JsonArray(new JsonObject{["erpRiderId"]=rider,["gross"]=300,["commission"]=0,["level1"]=new JsonArray(),["level2"]=new JsonArray()})
         });

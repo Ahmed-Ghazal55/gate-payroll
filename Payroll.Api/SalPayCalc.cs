@@ -31,12 +31,14 @@ public static class SalPayCalc
         foreach(var src in riders)
         {
             string erpRider=src.Required("erpRiderId");
-            DemandAssigned(assignments,erpRider);
+            DemandAssigned(assignments,run.S("app"),erpRider);
             BindFromFrozen(src,run.S("app"),erpRider,frozenScheme,frozenEligibility,frozenChefz,frozenKeeta,frozenWallet);
+            BindGrossFromEvidence(c,tx,run,src,erpRider,assignments,frozenKeeta);
             DetectAndOpenSharedHold(c,tx,run,erpRider);
             rules.ValidateRider(src);
             decimal gross=J.Money(src.N("gross"));
             decimal commission=J.Money(src.N("commission"));
+            J.Need(commission>=0&&commission<=gross,"العمولة بين صفر والإجمالي المجمّد.",400);
             // Chefz: RiderAmount is the entitlement; commission is Omar's already-netted figure — do not subtract again.
             bool chefz=string.Equals(run.S("app"),"chefz",StringComparison.OrdinalIgnoreCase);
             decimal entitlement=chefz?gross:J.Money(gross-commission);
@@ -351,12 +353,71 @@ public static class SalPayCalc
         return run;
     }
 
-    static void DemandAssigned(List<JsonObject> assignments,string erpRider)
+    static void DemandAssigned(List<JsonObject> assignments,string app,string erpRider)
     {
         if(assignments.Count==0)return;
-        bool ok=assignments.Any(a=>
-            string.Equals(a.S("actualRiderProfileId",a.S("riderProfileId",a.S("erpRiderId"))),erpRider,StringComparison.Ordinal));
+        bool ok=AppAssignments(assignments,app).Any(a=>AssignmentRider(a)==erpRider);
         J.Need(ok,"المندوب غير معيّن في التقاط التجميد.",409);
+    }
+
+    /// <summary>Frozen timeline rows may cover every app the rider worked (H11); rows without appCode belong to the run's app.</summary>
+    internal static IEnumerable<JsonObject> AppAssignments(IEnumerable<JsonObject> assignments,string app)
+    {
+        string own=PayPlatforms.For(app).App;
+        return assignments.Where(a=>{string code=AssignmentApp(a);return code==""||code==own;});
+    }
+    internal static string AssignmentApp(JsonObject a)
+    {
+        string raw=a.S("appCode",a.S("platformCode"));
+        return raw==""?"":PayPlatforms.For(raw).App;
+    }
+    internal static string AssignmentRider(JsonObject a)=>a.S("actualRiderProfileId",a.S("riderProfileId",a.S("erpRiderId",a.S("riderId"))));
+
+    /// <summary>WC4D H1 (§40.1–40.2): the rider's gross comes only from HIS evidence — Chefz frozen settlement (bound in BindFromFrozen),
+    /// else the distribution of his account's invoice line (sal.distribution), else (Keeta) the frozen invoice row of an account
+    /// that only he worked. A caller gross is never money; a conflicting one is rejected.</summary>
+    static void BindGrossFromEvidence(DbConnection c,DbTransaction tx,JsonObject run,JsonObject src,string erpRider,List<JsonObject> assignments,List<JsonObject> keeta)
+    {
+        string app=PayPlatforms.For(run.S("app")).App;
+        if(app=="chefz")
+        {
+            J.Need(J.Money(src.N("commission"))==0,"شيفز: RiderAmount صافٍ من عمولة عمر؛ لا عمولة من الطلب.",409);
+            src["commission"]=0;
+            return;
+        }
+        decimal? bound=null;
+        using(var cmd=c.CreateCommand())
+        {
+            cmd.Transaction=tx;
+            cmd.CommandText=$"""
+                SELECT d.share_amount,d.status FROM {SchemaSql.Q(c,"sal","distribution")} d
+                INNER JOIN {SchemaSql.Q(c,"sal","platform_invoice")} i ON i.id=d.invoice_id
+                WHERE i.company_id=@c AND i.app_code=@app AND i.period_month=@pm AND i.status<>4 AND d.erp_rider_id=@erp
+                """;
+            Add(cmd,"@c",run.S("companyId"));Add(cmd,"@app",app);Add(cmd,"@pm",run.S("periodMonth"));Add(cmd,"@erp",erpRider);
+            using var r=cmd.ExecuteReader();
+            while(r.Read())
+            {
+                J.Need(r["status"].ToString()!="needs_decision","توزيع فاتورة المندوب ينتظر قرار المراجع.",409);
+                bound=J.Money((bound??0)+Convert.ToDecimal(r["share_amount"]));
+            }
+        }
+        if(bound==null&&app=="keeta")
+        {
+            var own=AppAssignments(assignments,app).ToList();
+            var accounts=own.Where(a=>AssignmentRider(a)==erpRider).Select(a=>a.S("platformRiderAccountId")).Where(a=>a!="").ToHashSet(StringComparer.Ordinal);
+            var rows=keeta.Where(k=>accounts.Contains(k.S("erpPlatformAccountId"))).ToList();
+            foreach(string account in rows.Select(k=>k.S("erpPlatformAccountId")).Distinct(StringComparer.Ordinal))
+            {
+                int riders=own.Where(a=>a.S("platformRiderAccountId")==account).Select(AssignmentRider).Distinct(StringComparer.Ordinal).Count();
+                J.Need(riders==1,"صف فاتورة كيتا لحساب عليه أكثر من مندوب؛ وزّع الحصة أولاً (§40.2).",409);
+            }
+            if(rows.Count>0)bound=J.Money(rows.Sum(k=>J.Money(k.N("gross"))));
+        }
+        J.Need(bound!=null,"لا دليل مجمّد لإجمالي هذا المندوب (بند فاتورة حسابه أو توزيعه).",409);
+        if(src.ContainsKey("gross")&&src["gross"] is not null&&J.Money(src.N("gross"))!=bound)
+            throw new ApiError("الإجمالي في الطلب يتعارض مع دليل المندوب المجمّد.",409);
+        src["gross"]=bound;
     }
 
     static List<JsonObject> LoadFrozenKind(DbConnection c,DbTransaction tx,string payRunId,string kind)
@@ -477,20 +538,8 @@ public static class SalPayCalc
             src["frozenSettlement"]=true;
             src["frozenRiderAmount"]=frozenAmount;
         }
-        if(string.Equals(app,"keeta",StringComparison.OrdinalIgnoreCase))
-        {
-            // Prefer rider-tagged invoice row; else sole frozen gross for the run.
-            var inv=keeta.FirstOrDefault(s=>RiderMatch(s,erpRider))
-                ??(keeta.Count==1?keeta[0]:null);
-            if(inv!=null&&inv.ContainsKey("gross"))
-            {
-                decimal frozenGross=J.Money(inv.N("gross"));
-                if(src.ContainsKey("gross")&&J.Money(src.N("gross"))!=0&&J.Money(src.N("gross"))!=frozenGross)
-                    throw new ApiError("إجمالي كيتا في الطلب يتعارض مع فاتورة التجميد.",409);
-                if(!src.ContainsKey("gross")||J.Money(src.N("gross"))==0)src["gross"]=frozenGross;
-                else src["gross"]=frozenGross; // authoritative frozen
-            }
-        }
+        // Keeta gross binds per account in BindGrossFromEvidence (WC4D H1) — never a sole-row fallback.
+        _=keeta;
         if(string.Equals(app,"hs",StringComparison.OrdinalIgnoreCase))
         {
             var rows=wallet.Where(s=>RiderMatch(s,erpRider)).Select(s=>
