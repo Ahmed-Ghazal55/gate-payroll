@@ -303,9 +303,22 @@ public static class SalPayCalc
 
         // Atomic reorder: mudad is L1 before NET/L2 (M-0669); never net−amount after L2 (RWC4b H13).
         decimal newNet=ReorderAfterMudad(c,tx,actor,riderId,period,amount,now);
+        // RWC4m New HIGH / §40.5: after consolidate, shrink combined_net by the actual salary_net drop so payables follow the refreshed total.
+        decimal netDrop=J.Money(net-newNet);
+        if(netDrop>0)ReduceSharedCombinedNet(c,tx,erpRider,period,netDrop,now);
 
         Store.Audit(c,tx,"sal.mudad_applied",dedId,actor.Identity!.Name!);
         return new(){["id"]=dedId,["payRunRiderId"]=riderId,["mudadLineId"]=lineId,["amount"]=amount,["salaryNet"]=newNet,["noteAr"]="مدد ضمن المستوى 1 قبل الصافي والمستوى 2."};
+    }
+
+    /// <summary>RWC4m: cleared multi-app hold — reduce combined_net when a post-consolidate L1 (Mudad) lowers salary_net.</summary>
+    static void ReduceSharedCombinedNet(DbConnection c,DbTransaction tx,string erpRider,string periodMonth,decimal amount,string now)
+    {
+        Exec(c,tx,$"""
+            UPDATE {SchemaSql.Q(c,"sal","shared_rider_hold")}
+            SET combined_net=combined_net-@amt,updated_at=@at
+            WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'
+            """,("@amt",amount),("@at",now),("@erp",erpRider),("@pm",periodMonth));
     }
 
     public static void Map(RouteGroupBuilder api,Store store)
