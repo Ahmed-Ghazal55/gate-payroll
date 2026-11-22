@@ -189,29 +189,101 @@ public static class SalSalaryApprove
         return J.Money(Math.Min(appNet,Math.Max(0,remaining)));
     }
 
-    /// <summary>Credit 212103 for the shared-L1 add-back so liability matches the boosted payable (§40.5 once).</summary>
+    /// <summary>Credit 212103 for the shared-L1 add-back so liability matches the boosted payable (§40.5 once).
+    /// RWC4a3 New HIGH: reverse each duplicate shared deduction against its own account (not one lumped account).</summary>
     static void PostSharedDeductionOnce(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,decimal boost)
     {
-        string sharedAcc="112511";
-        object? acc=SchemaSql.Scalar(c,tx,$"""
-            SELECT account_code FROM {SchemaSql.Q(c,"sal","pay_run_item")}
-            WHERE pay_run_rider_id=@r AND amount>0 AND stage_code='level1' AND item_code IN ('fuel','vehicle','housing')
-            ORDER BY line_no
-            """,("@r",rider.S("id")));
-        if(acc is not null and not DBNull&&acc.ToString() is {Length:>0} code)sharedAcc=code;
+        var parts=SharedDuplicateParts(c,tx,rider.S("erpRiderId"),run.S("periodMonth"));
+        if(parts.Count==0)
+        {
+            // Fallback: split boost across this rider's shared L1 lines by amount/account.
+            using var cmd=c.CreateCommand();cmd.Transaction=tx;
+            cmd.CommandText=$"""
+                SELECT item_code,amount,account_code FROM {SchemaSql.Q(c,"sal","pay_run_item")}
+                WHERE pay_run_rider_id=@r AND amount>0 AND stage_code='level1' AND item_code IN ('fuel','vehicle','housing')
+                ORDER BY line_no
+                """;
+            Add(cmd,"@r",rider.S("id"));
+            using var r=cmd.ExecuteReader();
+            while(r.Read())
+                parts.Add((r["item_code"].ToString()!,Convert.ToDecimal(r["amount"]),r["account_code"].ToString() is {Length:>0} a?a:"112511"));
+            r.Close();
+        }
         Guid company=Guid.Parse(run.S("companyId"));
         Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
         Guid payableAcc=AccountId(c,tx,"212103");
-        Guid recoveryAcc=AccountId(c,tx,sharedAcc);
-        JournalPosting.Post(c,tx,new JournalPosting.Draft(
-            company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
-            DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
-            "sal_pay_run_rider",SchemaSql.NewId(),"salary_shared_once",(byte)run.N("runMode"),run.B("payoutBlocked"),
-            actor.Identity!.Name!,
-            [
-                new(recoveryAcc,SchemaOrgCostCentre.NoneId,run.S("app"),boost,0m,"خصم مشترك مرة واحدة"),
-                new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,boost,"خصم مشترك مرة واحدة")
-            ]));
+        decimal remaining=boost;
+        foreach(var part in parts)
+        {
+            if(remaining<=0)break;
+            decimal take=J.Money(Math.Min(part.Amount,remaining));
+            if(take<=0)continue;
+            string accCode=part.Account is {Length:>0}?part.Account:"112511";
+            Guid recoveryAcc=AccountId(c,tx,accCode);
+            JournalPosting.Post(c,tx,new JournalPosting.Draft(
+                company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                "sal_pay_run_rider",SchemaSql.NewId(),"salary_shared_once",(byte)run.N("runMode"),run.B("payoutBlocked"),
+                actor.Identity!.Name!,
+                [
+                    new(recoveryAcc,SchemaOrgCostCentre.NoneId,run.S("app"),take,0m,"خصم مشترك مرة واحدة"),
+                    new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,take,"خصم مشترك مرة واحدة")
+                ]));
+            remaining=J.Money(remaining-take);
+        }
+        if(remaining>0)
+        {
+            // Any leftover boost (rounding / missing line) still lands on fuel receivable so liability matches payable.
+            Guid recoveryAcc=AccountId(c,tx,"112511");
+            JournalPosting.Post(c,tx,new JournalPosting.Draft(
+                company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                "sal_pay_run_rider",SchemaSql.NewId(),"salary_shared_once",(byte)run.N("runMode"),run.B("payoutBlocked"),
+                actor.Identity!.Name!,
+                [
+                    new(recoveryAcc,SchemaOrgCostCentre.NoneId,run.S("app"),remaining,0m,"خصم مشترك مرة واحدة"),
+                    new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,remaining,"خصم مشترك مرة واحدة")
+                ]));
+        }
+    }
+
+    /// <summary>Same duplicate detection as SalSharedRiders.ConsolidateIfComplete: second+ occurrence of each shared code, with its account.</summary>
+    static List<(string Code,decimal Amount,string Account)> SharedDuplicateParts(DbConnection c,DbTransaction tx,string erpRider,string periodMonth)
+    {
+        var seen=new HashSet<string>(StringComparer.Ordinal);
+        var parts=new List<(string Code,decimal Amount,string Account)>();
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        cmd.CommandText=$"""
+            SELECT r.id FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+            WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND pr.status<>4
+            ORDER BY pr.app_code,r.id
+            """;
+        Add(cmd,"@erp",erpRider);Add(cmd,"@pm",periodMonth);
+        using var r=cmd.ExecuteReader();
+        var riderIds=new List<string>();
+        while(r.Read())riderIds.Add(r["id"].ToString()!);
+        r.Close();
+        foreach(string riderId in riderIds)
+        {
+            using var items=c.CreateCommand();items.Transaction=tx;
+            items.CommandText=$"""
+                SELECT item_code,amount,account_code FROM {SchemaSql.Q(c,"sal","pay_run_item")}
+                WHERE pay_run_rider_id=@r AND stage_code='level1' AND affects_net=1 AND amount>0
+                  AND item_code IN ('fuel','vehicle','housing')
+                ORDER BY line_no
+                """;
+            Add(items,"@r",riderId);
+            using var ir=items.ExecuteReader();
+            while(ir.Read())
+            {
+                string code=ir["item_code"].ToString()!;
+                decimal amt=Convert.ToDecimal(ir["amount"]);
+                string account=ir["account_code"].ToString() is {Length:>0} a?a:"112511";
+                if(!seen.Add(code))parts.Add((code,amt,account));
+            }
+        }
+        return parts;
     }
 
     /// <summary>RWC4b H12: settle each pay_run_item.debt_id for the actual deducted amount at approval. Returns the settled total.</summary>
