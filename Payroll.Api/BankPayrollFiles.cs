@@ -105,6 +105,12 @@ public static class BankPayrollFiles
             if(rider.B("isEmployee")||rider.S("personRole") is "Employee" or "employee" or "administrative")continue;
             decimal balance=amounts.GetValueOrDefault(iqama);
             if(pendingRiders.Contains(iqama)){excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]="pay_cycle_pending_salary_or_debt_confirmation"});continue;}
+            var consol=Store.Get(c,SharedRiderConsolidation.Id(iqama,request.To),SharedRiderConsolidation.Kind,tx);
+            if((consol!=null&&consol.S("status")=="open"&&!consol.B("released"))||SalRiderRequests.HasActiveBankBlockingHold(c,tx,iqama,request.To+"-01","all"))
+            {
+                excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]="shared_rider_or_salary_hold_open"});
+                continue;
+            }
             if(balance<=0)
             {
                 excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]=balance==0?"zero_balance":"rider_owes_company"});
