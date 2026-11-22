@@ -12,6 +12,9 @@ import {
   normalizeEvalDigits,
   localizedLabel,
   platformDisplayName,
+  shrinkImageForEvaluation,
+  voiceFileForEvaluation,
+  type EvalAttachmentDraft,
   type EvalLanguage,
 } from './evaluation-helpers';
 import { ApiError } from '../../lib/api';
@@ -31,6 +34,7 @@ type StaffDraft = {
   notes: string;
   complaint: boolean;
   complaintDetails: string;
+  attachments: EvalAttachmentDraft[];
 };
 
 type AppDraft = {
@@ -38,6 +42,7 @@ type AppDraft = {
   overall: number;
   factors: string[];
   notes: string;
+  attachments: EvalAttachmentDraft[];
 };
 
 const FORM_COPY: Record<EvalLanguage, Record<string, string>> = {
@@ -362,6 +367,7 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
         notes: '',
         complaint: false,
         complaintDetails: '',
+        attachments: [],
       };
       return { ...prev, [staffId]: updater(cur) };
     });
@@ -375,6 +381,7 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
         overall: 0,
         factors: [],
         notes: '',
+        attachments: [],
       };
       return { ...prev, [appId]: updater(cur) };
     });
@@ -437,6 +444,7 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
           notes: '',
           complaint: false,
           complaintDetails: '',
+          attachments: [],
         };
         return {
           staffId: s.id,
@@ -445,7 +453,7 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
           notes: a.notes.trim(),
           complaint: Boolean(a.complaint),
           complaintDetails: a.complaint ? a.complaintDetails.trim() : '',
-          attachments: [],
+          attachments: a.attachments || [],
         };
       }),
       appAnswers: schema.apps.map((app) => {
@@ -454,13 +462,14 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
           overall: 0,
           factors: [],
           notes: '',
+          attachments: [],
         };
         return {
           app,
           reason: a.reason,
           ...(a.reason === '' ? { overall: a.overall, factors: a.factors } : {}),
           notes: a.notes.trim(),
-          attachments: [],
+          attachments: a.attachments || [],
         };
       }),
     };
@@ -781,6 +790,7 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
                       notes: '',
                       complaint: false,
                       complaintDetails: '',
+                      attachments: [],
                     };
                     const done = isStaffCardComplete(s.id);
                     const roles = s.pendingRoleApproval
@@ -920,6 +930,67 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
                             className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--ink)]"
                           />
                         </label>
+
+                        <div className="grid gap-2 sm:grid-cols-2 text-xs" data-staff-attachments={s.id}>
+                          <label className="block space-y-1">
+                            <span className="font-semibold text-[var(--muted)]">صور (حتى 2)</span>
+                            <input
+                              type="file"
+                              accept="image/jpeg,image/png,image/webp"
+                              multiple
+                              onChange={async (e) => {
+                                const files = Array.from(e.target.files || []).slice(0, 2);
+                                e.target.value = '';
+                                const images: EvalAttachmentDraft[] = [];
+                                for (const f of files) {
+                                  try {
+                                    images.push(await shrinkImageForEvaluation(f));
+                                  } catch {
+                                    setFormError(t('err_invalid_request'));
+                                  }
+                                }
+                                updateStaffDraft(s.id, (prev) => ({
+                                  ...prev,
+                                  attachments: [
+                                    ...images,
+                                    ...(prev.attachments || []).filter((a) => a.kind === 'voice'),
+                                  ].slice(0, 3),
+                                }));
+                              }}
+                              className="w-full text-[11px]"
+                            />
+                          </label>
+                          <label className="block space-y-1">
+                            <span className="font-semibold text-[var(--muted)]">صوت (≤60ث)</span>
+                            <input
+                              type="file"
+                              accept="audio/webm,audio/ogg,audio/mpeg,audio/mp4,audio/wav,audio/aac"
+                              onChange={async (e) => {
+                                const f = e.target.files?.[0];
+                                e.target.value = '';
+                                if (!f) return;
+                                try {
+                                  const voice = await voiceFileForEvaluation(f, 30);
+                                  updateStaffDraft(s.id, (prev) => ({
+                                    ...prev,
+                                    attachments: [
+                                      ...(prev.attachments || []).filter((a) => a.kind === 'image').slice(0, 2),
+                                      voice,
+                                    ],
+                                  }));
+                                } catch {
+                                  setFormError(t('err_invalid_request'));
+                                }
+                              }}
+                              className="w-full text-[11px]"
+                            />
+                          </label>
+                          {(ans.attachments || []).length > 0 && (
+                            <p className="sm:col-span-2 text-[11px] text-[var(--muted)]">
+                              {(ans.attachments || []).map((a) => a.fileName).join(' · ')}
+                            </p>
+                          )}
+                        </div>
 
                         <div className="space-y-2 pt-1">
                           <button

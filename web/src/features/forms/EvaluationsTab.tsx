@@ -1714,6 +1714,26 @@ export function EvaluationsTab() {
                         <strong>🛡️ شكوى سرية:</strong> {card.complaintDetails}
                       </div>
                     )}
+                    {Array.isArray((card as { attachments?: { playbackUrl?: string; kind?: string; fileName?: string }[] }).attachments) &&
+                      (card as { attachments: { playbackUrl?: string; kind?: string; fileName?: string }[] }).attachments.length > 0 && (
+                        <div className="flex flex-wrap gap-2 pt-1">
+                          {(card as { attachments: { playbackUrl?: string; kind?: string; fileName?: string; contentType?: string }[] }).attachments.map((att, ai) =>
+                            att.kind === 'voice' ? (
+                              <audio key={ai} controls src={att.playbackUrl} className="h-8 max-w-full" />
+                            ) : (
+                              <a
+                                key={ai}
+                                href={att.playbackUrl}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="text-[11px] text-[var(--accent)] underline"
+                              >
+                                {att.fileName || 'صورة'}
+                              </a>
+                            )
+                          )}
+                        </div>
+                      )}
                   </div>
                 );
               })}
