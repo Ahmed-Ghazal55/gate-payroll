@@ -35,7 +35,7 @@ public static class SalPayCalc
             DemandAssigned(assignments,run.S("app"),erpRider);
             BindFromFrozen(src,run.S("app"),erpRider,frozenScheme,frozenEligibility,frozenChefz,frozenKeeta,frozenWallet);
             BindGrossFromEvidence(c,tx,run,src,erpRider,assignments,frozenKeeta);
-            DetectAndOpenSharedHold(c,tx,run,erpRider,worked);
+            BindCommissionFromEvidence(src,run.S("app"),frozenKeeta,frozenChefz,erpRider,assignments);
             rules.ValidateRider(src);
             decimal gross=J.Money(src.N("gross"));
             decimal commission=J.Money(src.N("commission"));
@@ -173,6 +173,9 @@ public static class SalPayCalc
             Persist(Item("net","net_after_l1",netAfterL1,true,"212103",null),"net");
             foreach(var it in l2Items)Persist(it,"level2");
             if(proposedDebt>0)Persist(Item("old_debt","old_debt_instalment",proposedDebt,true,"112507",null),"old_debt");
+
+            // After the rider + items exist so consolidation can read this app's net and shared L1 (§40.5).
+            DetectAndOpenSharedHold(c,tx,run,erpRider,worked);
 
             outRiders.Add(new JsonObject
             {
@@ -426,6 +429,36 @@ public static class SalPayCalc
         if(src.ContainsKey("gross")&&src["gross"] is not null&&J.Money(src.N("gross"))!=bound)
             throw new ApiError("الإجمالي في الطلب يتعارض مع دليل المندوب المجمّد.",409);
         src["gross"]=bound;
+    }
+
+    /// <summary>RWC4a1 H1: commission binds from frozen evidence only. No frozen commission amount → 0; a non-zero caller is 409.
+    /// Keeta invoice-row deductions stay on the bearer path (§40.1 / answer 12) — not invented here.</summary>
+    static void BindCommissionFromEvidence(JsonObject src,string app,List<JsonObject> keeta,List<JsonObject> chefz,string erpRider,List<JsonObject> assignments)
+    {
+        string code=PayPlatforms.For(app).App;
+        if(code=="chefz")
+        {
+            J.Need(J.Money(src.N("commission"))==0,"شيفز: RiderAmount صافٍ من عمولة عمر؛ لا عمولة من الطلب.",409);
+            src["commission"]=0;
+            return;
+        }
+        decimal? frozen=null;
+        if(code=="keeta")
+        {
+            var own=AppAssignments(assignments,code).ToList();
+            var accounts=own.Where(a=>AssignmentRider(a)==erpRider).Select(a=>a.S("platformRiderAccountId")).Where(a=>a!="").ToHashSet(StringComparer.Ordinal);
+            var rows=keeta.Where(k=>accounts.Contains(k.S("erpPlatformAccountId"))).ToList();
+            foreach(var row in rows)
+                if(row.ContainsKey("commission")&&row["commission"] is not null)
+                    frozen=J.Money((frozen??0)+J.Money(row.N("commission")));
+            // Rows without a commission field are evidence of zero company commission on the rider share.
+            if(rows.Count>0&&frozen==null)frozen=0m;
+        }
+        // No frozen commission field anywhere → evidence is zero (rate source for non-zero stays a question).
+        frozen??=0m;
+        if(src.ContainsKey("commission")&&src["commission"] is not null&&J.Money(src.N("commission"))!=frozen)
+            throw new ApiError("العمولة في الطلب تتعارض مع الدليل المجمّد.",409);
+        src["commission"]=frozen;
     }
 
     static List<JsonObject> LoadFrozenKind(DbConnection c,DbTransaction tx,string payRunId,string kind)

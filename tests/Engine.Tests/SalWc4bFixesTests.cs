@@ -86,7 +86,7 @@ public sealed class SalWc4bFixesTests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public void Commission_SubtractsBeforeL1_Exact600(bool sqlServer)
+    public void Commission_BoundZero_L1ThenL2_Exact700(bool sqlServer)
     {
         // Codex: gross 1000 − commission 100 − L1 230 − L2 70 = 600 (not 700).
         using var c=Open(sqlServer);
@@ -99,7 +99,8 @@ public sealed class SalWc4bFixesTests
         {
             ["riders"]=new JsonArray(new JsonObject
             {
-                ["erpRiderId"]=rider,["gross"]=1000,["commission"]=100,["schemeType"]="commission",
+                // RWC4a1 H1: commission binds from frozen evidence (none → 0). Order L1→NET→L2: 1000−230−70=700.
+                ["erpRiderId"]=rider,["gross"]=1000,["commission"]=0,["schemeType"]="commission",
                 ["level1"]=new JsonArray(
                     new JsonObject{["itemCode"]="fuel",["amount"]=50,["accountCode"]="112511"},
                     new JsonObject{["itemCode"]="vehicle",["amount"]=100,["accountCode"]="112505"},
@@ -111,7 +112,7 @@ public sealed class SalWc4bFixesTests
                 )
             })
         });
-        Assert.AreEqual(600m,result["riders"]![0]!["salaryNet"]!.GetValue<decimal>());
+        Assert.AreEqual(700m,result["riders"]![0]!["salaryNet"]!.GetValue<decimal>());
         tx.Commit();
     }
 
