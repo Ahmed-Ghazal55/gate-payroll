@@ -869,7 +869,14 @@ public static class RiderAsks
         return true;
     }
 
-    public static JsonObject FormSchemasCatalog(DbConnection c, string iqama)
+    public static bool HasRiderCapability(string? capabilitiesHeader, string capability)
+    {
+        if (string.IsNullOrWhiteSpace(capabilitiesHeader)) return false;
+        return capabilitiesHeader.Split([',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(c => c.Equals(capability, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static JsonObject FormSchemasCatalog(DbConnection c, string iqama, string? capabilitiesHeader = null)
     {
         var rider = Store.Get(c, iqama, "rider");
         var schemas = new JsonArray
@@ -1069,14 +1076,18 @@ public static class RiderAsks
             });
         }
 
-        foreach (var round in Store.ListWhere(c, EvaluationSurvey.RoundKind, null, null, ("status", "open")))
+        // Old mobile clients (≤0.25.0) render unknown schemas as the work-system form; only advertise evaluations when the client opts in.
+        if (HasRiderCapability(capabilitiesHeader, "evaluation-web"))
         {
-            bool submitted = Store.ListWhere(c, EvaluationSurvey.ResponseKind, null, 1, ("roundId", round.S("id")), ("iqama", iqama)).Count > 0;
-            activeCampaigns.Add(new JsonObject
+            foreach (var round in Store.ListWhere(c, EvaluationSurvey.RoundKind, null, null, ("status", "open")))
             {
-                ["id"] = round.S("id"), ["token"] = round.S("sharingToken"), ["kind"] = "evaluation", ["schema"] = "evaluation-v1",
-                ["title"] = round.S("title"), ["alreadySubmitted"] = submitted, ["allowedActions"] = submitted ? new JsonArray() : new JsonArray("submit")
-            });
+                bool submitted = Store.ListWhere(c, EvaluationSurvey.ResponseKind, null, 1, ("roundId", round.S("id")), ("iqama", iqama)).Count > 0;
+                activeCampaigns.Add(new JsonObject
+                {
+                    ["id"] = round.S("id"), ["token"] = round.S("sharingToken"), ["kind"] = "evaluation", ["schema"] = "evaluation-v1",
+                    ["title"] = round.S("title"), ["alreadySubmitted"] = submitted, ["allowedActions"] = submitted ? new JsonArray() : new JsonArray("submit")
+                });
+            }
         }
         return new JsonObject
         {
@@ -1272,7 +1283,8 @@ public static class RiderAsks
         app.MapGet("/api/rider-mobile/forms", (HttpContext ctx) =>
         {
             var session = PushNotifications.AuthenticateAndRateLimit(store, ctx, write: false);
-            return store.Read(c => FormSchemasCatalog(c, session.S("iqama")));
+            string caps = ctx.Request.Headers["X-Rider-App-Capabilities"].ToString();
+            return store.Read(c => FormSchemasCatalog(c, session.S("iqama"), caps));
         }).WithTags("Riders").WithSummary("Read unified form schemas and active campaigns for the authenticated rider app");
 
         app.MapPost("/api/rider-mobile/forms/{token}/submit", (string token, JsonObject input, HttpContext ctx) =>

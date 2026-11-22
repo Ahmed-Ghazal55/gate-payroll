@@ -226,16 +226,18 @@ public sealed class EvaluationSurveyTests
         Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store)));
     }
     [TestMethod]
-    public void UnifiedRiderCatalogIncludesOpenEvaluationsAndMarksSubmittedOnes()
+    public void UnifiedRiderCatalogIncludesOpenEvaluationsOnlyWhenClientDeclaresEvaluationWebCapability()
     {
         using var f = new PayFixture(); var r = Setup(f);
-        var catalog = f.Store.Read(c => RiderAsks.FormSchemasCatalog(c, "2000000091"));
+        var without = f.Store.Read(c => RiderAsks.FormSchemasCatalog(c, "2000000091"));
+        Assert.IsFalse(without["activeCampaigns"]!.AsArray().OfType<JsonObject>().Any(a => a.S("schema") == "evaluation-v1"));
+        var catalog = f.Store.Read(c => RiderAsks.FormSchemasCatalog(c, "2000000091", "evaluation-web"));
         Assert.IsTrue(catalog["activeCampaigns"]!.AsArray().OfType<JsonObject>().Any(a => a.S("schema") == "evaluation-v1" && !a.B("alreadySubmitted")));
         f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), Reply(r)));
-        catalog = f.Store.Read(c => RiderAsks.FormSchemasCatalog(c, "2000000091"));
+        catalog = f.Store.Read(c => RiderAsks.FormSchemasCatalog(c, "2000000091", "evaluation-web, other-cap"));
         Assert.IsTrue(catalog["activeCampaigns"]!.AsArray().OfType<JsonObject>().Single(a => a.S("schema") == "evaluation-v1").B("alreadySubmitted"));
         f.Store.Write((c, tx) => EvaluationSurvey.Transition(c, tx, Admin, r.S("id"), "paused"));
-        Assert.IsFalse(f.Store.Read(c => RiderAsks.FormSchemasCatalog(c, "2000000091"))["activeCampaigns"]!.AsArray().OfType<JsonObject>().Any(a => a.S("schema") == "evaluation-v1"));
+        Assert.IsFalse(f.Store.Read(c => RiderAsks.FormSchemasCatalog(c, "2000000091", "evaluation-web"))["activeCampaigns"]!.AsArray().OfType<JsonObject>().Any(a => a.S("schema") == "evaluation-v1"));
     }
     [TestMethod]
     public void AuthenticatedReplyUsesTheTrustedDirectoryName()

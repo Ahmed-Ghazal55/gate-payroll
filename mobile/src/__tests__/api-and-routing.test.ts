@@ -579,6 +579,21 @@ describe('API Client and Error Handling', () => {
     await expect(api('/api/test')).rejects.toThrow('الطلب مكرر أو غير صالح');
   });
 
+  it('sends evaluation-web capability header on every api call', async () => {
+    const fetchMock = vi.fn().mockResolvedValue({
+      ok: true,
+      status: 200,
+      json: async () => ({ ok: true })
+    } as any);
+    global.fetch = fetchMock;
+
+    await api('/api/rider-mobile/forms');
+    expect(fetchMock).toHaveBeenCalled();
+    const init = fetchMock.mock.calls[0][1] as RequestInit;
+    const headers = init.headers as Record<string, string>;
+    expect(headers['X-Rider-App-Capabilities']).toBe('evaluation-web');
+  });
+
   it('maps network failure to clear Arabic message', async () => {
     global.fetch = vi.fn().mockRejectedValue(new TypeError('Failed to fetch'));
 
