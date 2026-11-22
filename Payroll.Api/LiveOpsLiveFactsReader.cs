@@ -59,12 +59,12 @@ public sealed class LiveOpsLiveFactsReader:IOpsLiveFactsReader
 
     static JsonObject NormalizeJahezDay(JsonObject r)
     {
+        // WC4D H4: keep the account; the rider is resolved from the frozen timeline at capture. No invented net/commission.
         var copy=r.DeepClone()!.AsObject();
-        if(copy.S("erpRiderId")=="")copy["erpRiderId"]=copy.S("riderId",copy.S("riderProfileId"));
+        if(copy.S("platformRiderAccountId")=="")copy["platformRiderAccountId"]=copy.S("platformAccountId");
+        if(copy.S("erpRiderId")==""&&copy.S("riderId",copy.S("riderProfileId"))!="")copy["erpRiderId"]=copy.S("riderId",copy.S("riderProfileId"));
         if(copy.S("workDate")=="")copy["workDate"]=Day(copy.S("date",copy.S("workDate")));
         if(!copy.ContainsKey("orders"))copy["orders"]=copy.N("count");
-        if(!copy.ContainsKey("net"))copy["net"]=0;
-        if(!copy.ContainsKey("commission"))copy["commission"]=0;
         return copy;
     }
 

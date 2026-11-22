@@ -31,7 +31,7 @@ public static class OpsSnapshotCapture
         ["hs_ops"]=["id","erpPlatformAccountId","orders","workDate"],
         ["hs_wallet"]=["id","erpRiderId","balance","asOf","fundingType","amount","eventType","offsetsTopup"],
         ["platform_ops"]=["id","erpPlatformAccountId","orders","workDate"],
-        ["chefz_settlement"]=["id","erpRiderId","RiderAmount","GrossEarnings","CompanyAmount"],
+        ["chefz_settlement"]=["id","erpRiderId","platformRiderAccountId","periodFrom","periodTo","RiderAmount","GrossEarnings","CompanyAmount"],
         ["jahez_day"]=["id","erpRiderId","platformRiderAccountId","net","commission","orders","workDate"]
     };
 
@@ -49,9 +49,12 @@ public static class OpsSnapshotCapture
         // Recapture on an open run replaces prior links/manifest (snapshots stay append-only evidence).
         ClearOpenCaptureLinks(c,tx,payRunId);
         int snapshots=0;
-        foreach(string kind in required)
+        // Assignment first: later kinds (Jahez days) resolve their rider from the run's own frozen timeline (WC4D H4).
+        var assignmentRows=new List<JsonObject>();
+        foreach(string kind in required.OrderBy(k=>k=="assignment"?0:1).ThenBy(k=>k,StringComparer.Ordinal))
         {
-            var rows=facts.RowsFor(kind,company,app,month).ToList();
+            var rows=facts.RowsFor(kind,company,app,month).Select(r=>NormalizeForCapture(kind,r,assignmentRows)).ToList();
+            if(kind=="assignment")assignmentRows=rows;
             if(rows.Count==0)
             {
                 // Empty only freezes with a written reason AND a confirmed live read (never StoreOps fallback).
@@ -235,6 +238,45 @@ public static class OpsSnapshotCapture
             """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@run",payRunId),("@kind",kind),("@st",status),
             ("@reason",(object?)emptyReason??DBNull.Value),("@link",(object?)linkId??DBNull.Value),("@pm",month));
     }
+
+    /// <summary>WC4D H4/H9: map live ERP field names onto the capture contract BEFORE the used-field allowlist,
+    /// so identity and money are frozen instead of silently dropped. Never invents money (no default net/commission).</summary>
+    public static JsonObject NormalizeForCapture(string kind,JsonObject row,IReadOnlyList<JsonObject> assignments)
+    {
+        if(kind is not ("chefz_settlement" or "jahez_day"))return row;
+        var copy=row.DeepClone()!.AsObject();
+        void From(string target,params string[] sources)
+        {
+            if(copy.TryGetPropertyValue(target,out var have)&&have is not null&&have.ToString()!="")return;
+            foreach(string s in sources)
+                if(copy.TryGetPropertyValue(s,out var v)&&v is not null&&v.ToString()!=""){copy[target]=v.DeepClone();return;}
+        }
+        From("platformRiderAccountId","platformAccountId");
+        if(kind=="chefz_settlement")
+        {
+            From("erpRiderId","riderId","riderProfileId");
+            From("RiderAmount","riderAmount");
+            From("GrossEarnings","gross");
+            From("CompanyAmount","companyAmount");
+            return copy;
+        }
+        From("workDate","date");
+        if(copy.S("workDate").Length>10)copy["workDate"]=copy.S("workDate")[..10];
+        From("orders","count");
+        From("erpRiderId","riderId","riderProfileId");
+        if(copy.S("erpRiderId")==""&&copy.S("platformRiderAccountId")!=""&&copy.S("workDate")!="")
+        {
+            string day=copy.S("workDate"),account=copy.S("platformRiderAccountId");
+            var riders=assignments.Where(a=>a.S("platformRiderAccountId")==account
+                    &&string.CompareOrdinal(Day(a.S("effectiveFrom")),day)<=0
+                    &&(a.S("effectiveTo")==""||string.CompareOrdinal(day,Day(a.S("effectiveTo")))<=0))
+                .Select(a=>a.S("actualRiderProfileId",a.S("riderProfileId",a.S("riderId")))).Where(r=>r!="")
+                .Distinct(StringComparer.Ordinal).ToList();
+            if(riders.Count==1)copy["erpRiderId"]=riders[0];
+        }
+        return copy;
+    }
+    static string Day(string value)=>value.Length>=10?value[..10]:value;
 
     public static JsonObject ProjectUsed(string kind,JsonObject row)
     {
