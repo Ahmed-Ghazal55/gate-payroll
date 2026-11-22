@@ -145,6 +145,7 @@ public sealed class HungerStationPayRules:IAppPayRules
     {
         _shared.ValidateRider(rider);
         var evidence=(rider["frozenWallet"] as JsonArray??[]).OfType<JsonObject>().ToList();
+        var used=new HashSet<int>();
         foreach(var item in (rider["level1"] as JsonArray??[]).OfType<JsonObject>())
         {
             string code=item.S("itemCode");
@@ -162,12 +163,24 @@ public sealed class HungerStationPayRules:IAppPayRules
             if(funding=="custody"&&item.S("accountCode")=="")item["accountCode"]="112501";
             if(funding=="invoice_close"&&item.S("accountCode")=="")item["accountCode"]="112513";
             decimal amount=J.Money(item.N("amount"));
-            bool matched=evidence.Any(e=>
-                string.Equals(e.S("fundingType"),funding,StringComparison.OrdinalIgnoreCase)
-                &&J.Money(e.N("amount",e.N("balance")))==amount);
-            J.Need(matched,"محفظة هنقر: البند غير مطابق لدليل التجميد المختوم.",409);
+            // WC4D H10: each verified frozen event is consumed once; refund/offset class comes from the event, never the caller.
+            string wanted=item.S("walletEventId");
+            var candidates=evidence.Select((e,i)=>(e,i)).Where(x=>!used.Contains(x.i)
+                &&string.Equals(x.e.S("fundingType"),funding,StringComparison.OrdinalIgnoreCase)
+                &&J.Money(x.e.N("amount",x.e.N("balance")))==amount
+                &&(wanted==""||x.e.S("id")==wanted||x.e.S("sourceKey")==wanted)).ToList();
+            J.Need(candidates.Count>0,"محفظة هنقر: البند غير مطابق لدليل التجميد المختوم أو مستخدم مسبقاً.",409);
+            J.Need(wanted!=""||candidates.Select(x=>EventClass(x.e)).Distinct(StringComparer.Ordinal).Count()==1,
+                "محفظة هنقر: أكثر من واقعة مطابقة بتصنيف مختلف؛ حدّد walletEventId.",409);
+            var pick=candidates[0].e;
+            used.Add(candidates[0].i);
+            item.Remove("eventType");item.Remove("offsetsTopup");
+            if(pick.S("eventType")!="")item["eventType"]=pick.S("eventType");
+            if(pick.B("offsetsTopup"))item["offsetsTopup"]=true;
+            item["walletEventId"]=pick.S("id");
         }
     }
+    static string EventClass(JsonObject e)=>e.S("eventType").Trim().ToLowerInvariant()+"|"+(e.B("offsetsTopup")?"1":"0");
     public bool OperatingCostOnCompany(JsonObject rider,JsonObject item)=>_shared.OperatingCostOnCompany(rider,item);
     public decimal AdjustLevel1(JsonObject rider,List<JsonObject> l1Items,ref decimal level1Personal,ref decimal companyOperating,ref decimal wagesRoom)
     {
