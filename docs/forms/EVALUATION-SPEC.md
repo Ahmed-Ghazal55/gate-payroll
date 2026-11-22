@@ -54,3 +54,9 @@ The forms builder lacks: pages, 1–10/star ratings, image/voice upload, city-dr
 
 ## Build order (proposal)
 1. Data model: supervisor list (city, name, platforms, active), round, reply, card answers, attachments. 2. Admin: supervisor list + rounds. 3. Form page (2 pages) + uploads + limits + public link. 4. Complaints into rider requests. 5. Replies table + Excel. 6. Dashboard/KPIs (design first).
+
+## Next session: start here
+1. Read this file, then the shared notes folder `~/.config/Claude/side-session-notes/local_fcb3a12c-60c9-421d-8d73-b03138def3e5/` (`forms-and-filters-handover.md`, `evaluation-staff-seed.json`: 44 people, 4 excluded).
+2. Read Ghazal's role report (HTML in `~/Downloads`, starts with «تقرير_المهام»; 813 KB, read in ranges/grep). Propose HIS card text (roles: Keeta team lead in both cities + Egypt team, from his career progression; never show his reporting line). Ask Ghazal to approve.
+3. Compare the staff list with Omar's ERP system users (live, read only). Report anyone in the ERP users who has rider contact but is missing from the list. Ask Ghazal.
+4. Then build in the order above (data model → admin → form → complaints → table/Excel → dashboard with KPIs designed first). Branch stays `fix/cascading-column-filters` unless the planner splits it.
