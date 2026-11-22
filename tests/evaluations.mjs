@@ -48,12 +48,15 @@ try{
   await request(pub,{...answer,nationality:''},400,false);
   await request(pub,{...answer,staffAnswers:[]},400,false);
   await request(pub,{...answer,appAnswers:[...answer.appAnswers,{app:'Unknown',overall:5}]},400,false);
-  const reply=await request(pub,answer,200,false);assert.ok(reply.receipt);assert.deepEqual(reply.allowedActions,[]);
-  await request(pub,answer,409,false);
+  const reply=await request(pub,answer,200,false);assert.ok(reply.receipt);assert.deepEqual(reply.allowedActions,['edit']);assert.equal(reply.editCount,0);assert.equal(reply.editsRemaining,3);
+  const dup=await fetch(base+pub,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(answer)});assert.equal(dup.status,409);const dupBody=await dup.json();assert.equal(dupBody.code,'already_submitted');checks++;
   let stats=await request(prefix+'/rounds/'+round.id+'/statistics');
   assert.equal(stats.totalResponses,1);assert.equal(stats.bySupervisor[0].average,8);assert.equal(stats.bySupervisor[0].complaintCount,1);
   assert.equal(stats.byApp.find(a=>a.key==='Ninja').average,4);assert.equal(stats.commonFactors.length,2);
   assert.ok(!JSON.stringify(stats).includes(answer.iqama));assert.ok(!JSON.stringify(stats).includes(answer.name));
+  const editPayload={receipt:reply.receipt,iqama:answer.iqama,staffAnswers:answer.staffAnswers.map(a=>({...a,ratings:Object.fromEntries(schema.staffDimensions.map(d=>[d.id,5])),notes:'Synthetic edit'})),appAnswers:answer.appAnswers};
+  const edited=await fetch(base+pub,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(editPayload)});assert.equal(edited.status,200);const editedBody=await edited.json();assert.equal(editedBody.editCount,1);checks++;
+  stats=await request(prefix+'/rounds/'+round.id+'/statistics');assert.equal(stats.bySupervisor[0].average,5);
   for(const dimension of ['city','app','supervisor','nationality','factors','trend'])assert.ok(Array.isArray((await request(prefix+'/rounds/'+round.id+'/statistics/'+dimension)).items));
   const responses=await request(prefix+'/rounds/'+round.id+'/responses?page=1&pageSize=10');assert.equal(responses.total,1);assert.equal(responses.items[0].nationality,answer.nationality);
   const complaints=await request('/api/rider-mobile/service-requests');
