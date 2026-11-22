@@ -2364,7 +2364,11 @@ export const api = {
 
   listRecurringPayees: (companyId?: string) => {
     const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
-    return handleRequest<{ items?: Record<string, unknown>[]; allowedActions?: string[] }>(`/payments/recurring-payees${qs}`);
+    return handleRequest<{
+      items?: Record<string, unknown>[];
+      costCentres?: Record<string, unknown>[];
+      allowedActions?: string[];
+    }>(`/payments/recurring-payees${qs}`);
   },
   getRecurringPayee: (id: string) =>
     handleRequest<Record<string, unknown>>(`/payments/recurring-payees/${encodeURIComponent(id)}`),

@@ -105,6 +105,7 @@ export function RecurringPayeesWorkspace({
   const [busy, setBusy] = useState(false);
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
   const [payees, setPayees] = useState<PayeeRow[]>([]);
+  const [costCentres, setCostCentres] = useState<Record<string, unknown>[]>([]);
   const [runs, setRuns] = useState<RunRow[]>([]);
   const [run, setRun] = useState<(RunRow & { lines?: RunLine[]; allowedActions?: string[] }) | null>(null);
   const [historyPayeeId, setHistoryPayeeId] = useState('');
@@ -167,6 +168,7 @@ export function RecurringPayeesWorkspace({
       ]);
       setCompanies(c);
       setPayees(p.items || []);
+      setCostCentres(p.costCentres || []);
       setRuns(r.items || []);
       if (!form.companyId && c[0]) setForm((f) => ({ ...f, companyId: String(c[0].id || '') }));
       if (!oneOff.companyId && c[0]) setOneOff((f) => ({ ...f, companyId: String(c[0].id || '') }));
@@ -381,6 +383,8 @@ export function RecurringPayeesWorkspace({
     setBusy(true);
     try {
       const idempotencyKey = oneOff.idempotencyKey || crypto.randomUUID().replace(/-/g, '');
+      // Save before send so a lost response can retry with the same key.
+      setOneOff((f) => ({ ...f, idempotencyKey }));
       const created = (await api.createRecurringOneOff({
         companyId: oneOff.companyId,
         nameAr: oneOff.nameAr,
@@ -397,7 +401,6 @@ export function RecurringPayeesWorkspace({
         period,
         idempotencyKey,
       })) as VoucherRow;
-      setOneOff((f) => ({ ...f, idempotencyKey }));
       if (created?.id) await refreshVouchers([created]);
       toast('تم إنشاء السند — أكمل الاعتماد الثنائي ثم الصرف');
       setOneOff((f) => ({ ...f, nameAr: '', amount: '', bankDetails: '', idempotencyKey: '' }));
@@ -506,6 +509,70 @@ export function RecurringPayeesWorkspace({
   if (!canView) {
     return <EmptyState title="صلاحية غير كافية" description="عرض المدفوعات الدورية يحتاج صلاحية المدفوعات." />;
   }
+
+  const costCentreOptions =
+    costCentres.length === 0 ? (
+      <option value={NONE_COST_CENTRE_ID}>بدون مركز تكلفة</option>
+    ) : (
+      <>
+        {costCentres.map((cc) => (
+          <option key={String(cc.id)} value={String(cc.id)}>
+            {String(cc.nameAr || cc.code || cc.id)}
+          </option>
+        ))}
+      </>
+    );
+
+  const voucherPanel =
+    vouchers.length > 0 ? (
+      <div className="space-y-2">
+        <h3 className="text-sm font-medium">سندات الصرف (vouchers)</h3>
+        <DataTable
+          data={vouchers}
+          columns={[
+            { key: 'id', header: 'المعرّف', getValue: (r) => String(r.id || '').slice(0, 8) },
+            {
+              key: 'amount',
+              header: 'المبلغ',
+              money: true,
+              getValue: (r) => Number(r.amount || 0),
+              render: (r) => <span className="num">{formatSar(r.amount)}</span>,
+            },
+            {
+              key: 'status',
+              header: 'الحالة',
+              getValue: (r) => (Number(r.status) === 2 ? 'مصروف' : 'محجوز'),
+            },
+            {
+              key: 'actions',
+              header: 'إجراءات',
+              getValue: () => '',
+              render: (r) => (
+                <div className="flex gap-2 text-xs">
+                  {canApprove && r.approvalRequestId && Number(r.status) === 1 && (
+                    <button
+                      type="button"
+                      className="underline"
+                      disabled={busy}
+                      onClick={() => void approveVoucherDual(r)}
+                    >
+                      اعتماد ثنائي
+                    </button>
+                  )}
+                  {canDisburse && Number(r.status) === 1 && (
+                    <button type="button" className="underline" disabled={busy} onClick={() => void payVoucher(r)}>
+                      صرف وترحيل
+                    </button>
+                  )}
+                </div>
+              ),
+            },
+          ]}
+          emptyTitle="لا سندات"
+          emptyDescription="نفّذ التشغيل لإنشاء السندات."
+        />
+      </div>
+    ) : null;
 
   return (
     <div className="space-y-4">
@@ -630,7 +697,7 @@ export function RecurringPayeesWorkspace({
               value={form.costCentreId}
               onChange={(e) => setForm({ ...form, costCentreId: e.target.value })}
             >
-              <option value={NONE_COST_CENTRE_ID}>بدون مركز تكلفة</option>
+              {costCentreOptions}
             </select>
           </label>
           <label className="text-xs space-y-1">
@@ -752,7 +819,7 @@ export function RecurringPayeesWorkspace({
               value={oneOff.costCentreId}
               onChange={(e) => setOneOff({ ...oneOff, costCentreId: e.target.value })}
             >
-              <option value={NONE_COST_CENTRE_ID}>بدون مركز تكلفة</option>
+              {costCentreOptions}
             </select>
           </label>
           <label className="text-xs space-y-1">
@@ -777,6 +844,7 @@ export function RecurringPayeesWorkspace({
               إنشاء سند
             </button>
           )}
+          {voucherPanel}
         </div>
       ) : (
         <div className="space-y-4">
@@ -994,57 +1062,9 @@ export function RecurringPayeesWorkspace({
                   </button>
                 </div>
               )}
-              {vouchers.length > 0 && (
-                <div className="space-y-2">
-                  <h3 className="text-sm font-medium">سندات الصرف (vouchers)</h3>
-                  <DataTable
-                    data={vouchers}
-                    columns={[
-                      { key: 'id', header: 'المعرّف', getValue: (r) => String(r.id || '').slice(0, 8) },
-                      {
-                        key: 'amount',
-                        header: 'المبلغ',
-                        money: true,
-                        getValue: (r) => Number(r.amount || 0),
-                        render: (r) => <span className="num">{formatSar(r.amount)}</span>,
-                      },
-                      {
-                        key: 'status',
-                        header: 'الحالة',
-                        getValue: (r) => (Number(r.status) === 2 ? 'مصروف' : 'محجوز'),
-                      },
-                      {
-                        key: 'actions',
-                        header: 'إجراءات',
-                        getValue: () => '',
-                        render: (r) => (
-                          <div className="flex gap-2 text-xs">
-                            {canApprove && r.approvalRequestId && Number(r.status) === 1 && (
-                              <button
-                                type="button"
-                                className="underline"
-                                disabled={busy}
-                                onClick={() => void approveVoucherDual(r)}
-                              >
-                                اعتماد ثنائي
-                              </button>
-                            )}
-                            {canDisburse && Number(r.status) === 1 && (
-                              <button type="button" className="underline" disabled={busy} onClick={() => void payVoucher(r)}>
-                                صرف وترحيل
-                              </button>
-                            )}
-                          </div>
-                        ),
-                      },
-                    ]}
-                    emptyTitle="لا سندات"
-                    emptyDescription="نفّذ التشغيل لإنشاء السندات."
-                  />
-                </div>
-              )}
             </div>
           )}
+          {voucherPanel}
         </div>
       )}
     </div>
