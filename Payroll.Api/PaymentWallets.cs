@@ -68,5 +68,6 @@ public static partial class PaymentsEngine
         PaymentWallets.RecordPayment(c,tx,actor,doc,payment,journal);
         PaymentAdvances.RecordCardWalletWithdrawal(c,tx,actor,doc,payment,journal);
         PaymentAdvances.RecordDebt(c,tx,actor,doc,payment,journal);
+        RecurringPayees.ApplyFxGainReclass(c,tx,actor,doc,payment);
     }
 }
