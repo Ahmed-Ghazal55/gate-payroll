@@ -132,7 +132,7 @@ public static class SchemaDebt
               WHERE r.id={n}.pay_run_rider_id AND r.company_id={n}.company_id AND r.erp_rider_id=d.erp_rider_id AND pr.run_mode=0
               AND (({n}.source_type='salary_deduction' AND {n}.amount<0 AND r.salary_approved_at IS NULL AND r.debt_confirm_status='confirmed' AND -{n}.amount<=r.old_debt_instalment AND -{n}.amount<=r.salary_net)
                 OR ({n}.source_type='pay_item_debt_settle' AND {n}.amount<0 AND r.salary_approved_at IS NULL
-                  AND EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"sal","pay_run_item")} i WHERE i.pay_run_rider_id=r.id AND i.debt_id={n}.debt_id AND i.amount>0 AND i.amount=-{n}.amount AND i.item_code<>'old_debt_instalment'))
+                  AND EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"sal","pay_run_item")} i WHERE i.pay_run_rider_id=r.id AND i.debt_id={n}.debt_id AND i.amount>0 AND i.amount=-{n}.amount AND i.affects_net=1 AND i.item_code<>'old_debt_instalment'))
                 OR ({n}.source_type='carryover_112507' AND {n}.amount>0 AND r.salary_approved_at IS NOT NULL AND r.keeta_ineligible=0 AND r.salary_net<0 AND {n}.amount<=-r.salary_net AND (
                   {n}.amount=-r.salary_net
                   OR EXISTS(SELECT 1 FROM {hold} h WHERE h.erp_rider_id=r.erp_rider_id AND h.period_month=r.period_month AND h.status='cleared' AND h.combined_net<0
