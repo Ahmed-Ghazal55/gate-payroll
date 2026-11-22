@@ -42,7 +42,7 @@ public static class SalSalaryApprove
             string? payableId=null;
 
             // Settle linked L1/L2 debt_id rows before the approval stamp (SchemaDebt source guard).
-            decimal linkedSettled=SettleLinkedDebts(c,tx,actor,run,rider,now);
+            SettleLinkedDebts(c,tx,actor,run,rider,now);
 
             Exec(c,tx,$"""
                 UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}
@@ -50,10 +50,12 @@ public static class SalSalaryApprove
                 WHERE id=@id
                 """,("@at",now),("@by",actor.Identity!.Name!),("@id",riderId));
 
+            // RWC4a1 New HIGH: post entitlement and recoveries separately so −30 does not leave orphan 212103 credit.
+            PostEntitlementAccrual(c,tx,actor,run,rider);
+            PostPersonalRecoveries(c,tx,actor,run,rider);
             if(net<0&&!keetaIneligible)
                 negDebt=CreateNegativeCarryover(c,tx,actor,run,rider,now);
-            // WC4D H3: accrue even when the final net is zero (500 − confirmed debt 500 → accrual 500, payable none).
-            payableId=CreatePayableAndAccrual(c,tx,actor,run,rider,now,linkedSettled,negDebt?J.Money(-net):0m);
+            payableId=CreatePayable(c,tx,actor,run,rider,now);
 
             FreezeStatement(c,tx,actor,run,rider,now,payableId);
             outRows.Add(new JsonObject
@@ -77,14 +79,66 @@ public static class SalSalaryApprove
         })).WithTags("Payroll").WithSummary("Final salary approval after debt confirmation");
     }
 
-    /// <summary>212103 must end at the payable: accrual − confirmed debt − linked settlements + negative carry-over = max(0,net).
-    /// So accrual = payable + confirmed + linked − carry-over; posted whenever positive (net may be zero). Payable only when net&gt;0.</summary>
-    static string? CreatePayableAndAccrual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now,decimal linkedDebt,decimal carryover)
+    /// <summary>Platform entitlement = gross − commission (Chefz: RiderAmount already net). Posted whenever positive.</summary>
+    static void PostEntitlementAccrual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider)
+    {
+        decimal entitlement=J.Money(rider.N("gross")-rider.N("commission"));
+        if(entitlement<=0)return;
+        Guid company=Guid.Parse(run.S("companyId"));
+        Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
+        Guid expenseAcc=AccountId(c,tx,"512101");
+        Guid payableAcc=AccountId(c,tx,"212103");
+        JournalPosting.Post(c,tx,new JournalPosting.Draft(
+            company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+            DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+            "sal_pay_run_rider",Guid.Parse(rider.S("id")),"salary_accrual",(byte)run.N("runMode"),run.B("payoutBlocked"),
+            actor.Identity!.Name!,
+            [
+                new(expenseAcc,SchemaOrgCostCentre.NoneId,run.S("app"),entitlement,0m,"استحقاق راتب"),
+                new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,entitlement,"استحقاق راتب")
+            ]));
+    }
+
+    /// <summary>Recover personal L1/L2 that still sit on 212103 (skip linked debt_id — settled earlier; skip old_debt — settled at confirm).</summary>
+    static void PostPersonalRecoveries(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider)
+    {
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        cmd.CommandText=$"""
+            SELECT item_code,amount,account_code FROM {SchemaSql.Q(c,"sal","pay_run_item")}
+            WHERE pay_run_rider_id=@r AND amount>0 AND affects_net=1
+              AND stage_code IN ('level1','level2')
+              AND item_code<>'old_debt_instalment'
+              AND debt_id IS NULL
+            """;
+        Add(cmd,"@r",rider.S("id"));
+        using var r=cmd.ExecuteReader();
+        var rows=new List<(string Code,decimal Amount,string Account)>();
+        while(r.Read())
+            rows.Add((r["item_code"].ToString()!,Convert.ToDecimal(r["amount"]),r["account_code"].ToString()!));
+        r.Close();
+        if(rows.Count==0)return;
+        Guid company=Guid.Parse(run.S("companyId"));
+        Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
+        Guid payableAcc=AccountId(c,tx,"212103");
+        foreach(var row in rows)
+        {
+            Guid recoveryAcc=AccountId(c,tx,row.Account is {Length:>0}?row.Account:"112505");
+            JournalPosting.Post(c,tx,new JournalPosting.Draft(
+                company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                "sal_pay_run_rider",SchemaSql.NewId(),"salary_recovery",(byte)run.N("runMode"),run.B("payoutBlocked"),
+                actor.Identity!.Name!,
+                [
+                    new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),row.Amount,0m,"استرداد من الراتب"),
+                    new(recoveryAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,row.Amount,"استرداد من الراتب")
+                ]));
+        }
+    }
+
+    /// <summary>Payable only when final net &gt; 0. Accrual and recoveries are posted separately.</summary>
+    static string? CreatePayable(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
     {
         decimal netPay=J.Money(Math.Max(0,rider.N("salaryNet")));
-        decimal confirmedDebt=J.Money(rider.N("oldDebtInstalment"));
-        decimal entitlement=J.Money(netPay+confirmedDebt+linkedDebt-carryover);
-        if(entitlement>0)PostAccrual(c,tx,actor,run,rider,entitlement);
         if(netPay<=0)return null;
         string payableId=SchemaSql.GuidText(SchemaSql.NewId());
         Exec(c,tx,$"""
@@ -100,23 +154,6 @@ public static class SalSalaryApprove
             WHERE id=@id
             """,("@p",payableId),("@pb",run.B("payoutBlocked")?1:0),("@by",actor.Identity!.Name!),("@at",now),("@id",rider.S("id")));
         return payableId;
-    }
-
-    static void PostAccrual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,decimal entitlement)
-    {
-        Guid company=Guid.Parse(run.S("companyId"));
-        Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
-        Guid expenseAcc=AccountId(c,tx,"512101");
-        Guid payableAcc=AccountId(c,tx,"212103");
-        JournalPosting.Post(c,tx,new JournalPosting.Draft(
-            company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
-            DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
-            "sal_pay_run_rider",Guid.Parse(rider.S("id")),"salary_accrual",(byte)run.N("runMode"),run.B("payoutBlocked"),
-            actor.Identity!.Name!,
-            [
-                new(expenseAcc,SchemaOrgCostCentre.NoneId,run.S("app"),entitlement,0m,"استحقاق راتب"),
-                new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,entitlement,"استحقاق راتب")
-            ]));
     }
 
     /// <summary>RWC4b H12: settle each pay_run_item.debt_id for the actual deducted amount at approval. Returns the settled total.</summary>
