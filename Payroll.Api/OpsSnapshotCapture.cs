@@ -21,7 +21,7 @@ public static class OpsSnapshotCapture
         ["ninja_daily"]=["id","reportDate","platformRiderAccountId","riderProfileId","riderClientAssignmentId","captainId","externalAccountId","accountCode","orders","hours","ownerUnifiedNumber"],
         ["ninja_daily_deduction"]=["id","reportDate","platformRiderAccountId","actualRiderProfileId","riderClientAssignmentId","captainId","externalAccountId","accountCode","collectedAmount","deductionsAmount","ownerUnifiedNumber"],
         ["platform_account"]=["id","externalAccountId","code","sponsorId","registeredEmployeeId","platformCode"],
-        ["assignment"]=["id","platformRiderAccountId","actualRiderProfileId","effectiveFrom","effectiveTo","assignmentPaymentModel","assignmentStatus"],
+        ["assignment"]=["id","platformRiderAccountId","actualRiderProfileId","effectiveFrom","effectiveTo","assignmentPaymentModel","assignmentStatus","appCode"],
         ["housing"]=["id","erpRiderId","housingId","effectiveFrom","effectiveTo","roomId","month","monthOnly"],
         ["fuel"]=["id","erpRiderId","liters","totalInclVat","amount","month","fuelCardId","plateNumber","effectiveFrom","effectiveTo","monthOnly"],
         ["vehicle"]=["id","assetNumber","plateNumberAr","vehicleType","sponsorId","actualRiderProfileId","erpRiderId","effectiveFrom","effectiveTo"],

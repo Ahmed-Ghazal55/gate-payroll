@@ -35,7 +35,8 @@ public sealed class LiveOpsLiveFactsReader:IOpsLiveFactsReader
             "housing"=>CollectAllPages((p,s)=>PaySourcesLiveQuery.HousingPeriods(erp,from,to,p,s,"",scope)).Select(NormalizeHousing).ToList(),
             "fuel"=>CollectAllPages((p,s)=>PaySourcesLiveQuery.FuelConsumption(erp,from,p,s,"",scope)).Select(NormalizeFuelRow).ToList(),
             "vehicle"=>CollectAllPages((p,s)=>PaySourcesLiveQuery.VehicleAssignmentPeriods(erp,from,to,p,s,"",scope)).Select(NormalizeVehicle).ToList(),
-            "assignment"=>LiveKindPages(erp,scope,app,from,to,"rider_work_timeline").Select(NormalizeAssignment).ToList(),
+            // WC4D H11: the timeline of EVERY app (no platform filter) so a shared rider is detected before approval; rows carry appCode.
+            "assignment"=>LiveKindPages(erp,scope,"",from,to,"rider_work_timeline").Select(NormalizeAssignment).ToList(),
             "platform_account"=>LiveKindPages(erp,scope,app,from,to,"platform_account").ToList(),
             "keeta_invoice_row"=>LiveKindPages(erp,scope,app,from,to,"platform_account").ToList(),
             "hs_ops" or "platform_ops"=>LiveKindPages(erp,scope,app,from,to,"platform_day_usage").ToList(),
@@ -253,6 +254,7 @@ public sealed class LiveOpsLiveFactsReader:IOpsLiveFactsReader
         if(copy.S("platformRiderAccountId")=="")copy["platformRiderAccountId"]=copy.S("platformAccountId");
         if(copy.S("effectiveFrom")==""&&copy.S("startedAt")!="")copy["effectiveFrom"]=Day(copy.S("startedAt"));
         if(copy.S("effectiveTo")==""&&copy.S("endedAt")!="")copy["effectiveTo"]=Day(copy.S("endedAt"));
+        if(copy.S("appCode")==""&&copy.S("platformCode")!="")copy["appCode"]=PayPlatforms.For(copy.S("platformCode")).App;
         return copy;
     }
 

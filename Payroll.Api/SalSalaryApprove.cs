@@ -22,12 +22,14 @@ public static class SalSalaryApprove
         J.Need(ids.Count>0,"حدد مناديب الاعتماد.",400);
         var outRows=new JsonArray();
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
+        // WC4D H11: re-detect every app each rider worked this month before any approval.
+        var worked=SalSharedRiders.WorkedApps(c,tx,run.S("periodMonth"));
         foreach(string riderId in ids)
         {
             var rider=LoadRider(c,tx,payRunId,riderId);
             J.Need(rider.S("debtConfirmStatus") is "confirmed" or "deferred","أكمل تأكيد الدين قبل اعتماد الراتب.",409);
             J.Need(string.IsNullOrEmpty(rider.S("salaryApprovedAt")),"الراتب معتمد مسبقاً.",409);
-            DemandNoOpenSharedHold(c,tx,rider.S("erpRiderId"),run.S("periodMonth"));
+            SalSharedRiders.DemandApprovable(c,tx,worked,rider.S("erpRiderId"),run.S("periodMonth"),run.S("app"));
 
             string calcBy=rider.S("createdBy",run.S("createdBy"));
             bool self=AccessPolicy.SamePerson(actor,calcBy);
@@ -73,15 +75,6 @@ public static class SalSalaryApprove
         {
             Ensure(c,tx);return Approve(c,tx,ctx.User,id,input);
         })).WithTags("Payroll").WithSummary("Final salary approval after debt confirmation");
-    }
-
-    static void DemandNoOpenSharedHold(DbConnection c,DbTransaction tx,string erpRiderId,string periodMonth)
-    {
-        object? open=SchemaSql.Scalar(c,tx,$"""
-            SELECT 1 FROM {SchemaSql.Q(c,"sal","shared_rider_hold")}
-            WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'
-            """,("@erp",erpRiderId),("@pm",periodMonth));
-        J.Need(open is null or DBNull,"مندوب عمل مشترك معلّق — أكمل دمج التطبيقات قبل الاعتماد.",409);
     }
 
     /// <summary>212103 must end at the payable: accrual − confirmed debt − linked settlements + negative carry-over = max(0,net).

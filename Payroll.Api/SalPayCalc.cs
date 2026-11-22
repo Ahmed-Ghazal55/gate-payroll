@@ -26,6 +26,7 @@ public static class SalPayCalc
         var frozenChefz=LoadFrozenKind(c,tx,payRunId,"chefz_settlement");
         var frozenKeeta=LoadFrozenKind(c,tx,payRunId,"keeta_invoice_row");
         var frozenWallet=LoadFrozenKind(c,tx,payRunId,"hs_wallet");
+        var worked=SalSharedRiders.WorkedApps(c,tx,run.S("periodMonth"));
 
         var outRiders=new JsonArray();
         foreach(var src in riders)
@@ -34,7 +35,7 @@ public static class SalPayCalc
             DemandAssigned(assignments,run.S("app"),erpRider);
             BindFromFrozen(src,run.S("app"),erpRider,frozenScheme,frozenEligibility,frozenChefz,frozenKeeta,frozenWallet);
             BindGrossFromEvidence(c,tx,run,src,erpRider,assignments,frozenKeeta);
-            DetectAndOpenSharedHold(c,tx,run,erpRider);
+            DetectAndOpenSharedHold(c,tx,run,erpRider,worked);
             rules.ValidateRider(src);
             decimal gross=J.Money(src.N("gross"));
             decimal commission=J.Money(src.N("commission"));
@@ -596,47 +597,13 @@ public static class SalPayCalc
     static bool RiderMatch(JsonObject row,string erpRider)
         =>string.Equals(row.S("erpRiderId",row.S("riderProfileId",row.S("actualRiderProfileId"))),erpRider,StringComparison.Ordinal);
 
-    /// <summary>§40.5 / RWC4b H11: open shared hold when the rider already has another app run this month.</summary>
-    static void DetectAndOpenSharedHold(DbConnection c,DbTransaction tx,JsonObject run,string erpRider)
+    /// <summary>§40.5 / WC4D H11: open the shared hold when the rider worked another app this month — from calculated riders
+    /// AND frozen timelines of every live run, so the first app calculated is already held (M-0587 hold by default).</summary>
+    static void DetectAndOpenSharedHold(DbConnection c,DbTransaction tx,JsonObject run,string erpRider,Dictionary<string,HashSet<string>> worked)
     {
-        var otherApps=new List<string>();
-        using(var cmd=c.CreateCommand())
-        {
-            cmd.Transaction=tx;
-            cmd.CommandText=$"""
-                SELECT DISTINCT pr.app_code FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
-                INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
-                WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND pr.app_code<>@app AND pr.status<>4
-                """;
-            Add(cmd,"@erp",erpRider);Add(cmd,"@pm",run.S("periodMonth"));Add(cmd,"@app",run.S("app"));
-            using var reader=cmd.ExecuteReader();
-            while(reader.Read())otherApps.Add(reader.GetString(0));
-        }
-        if(otherApps.Count==0)return;
-        object? existing=SchemaSql.Scalar(c,tx,$"""
-            SELECT id FROM {SchemaSql.Q(c,"sal","shared_rider_hold")}
-            WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'
-            """,("@erp",erpRider),("@pm",run.S("periodMonth")));
-        string holdId;
-        if(existing is null or DBNull)
-        {
-            holdId=SchemaSql.GuidText(SchemaSql.NewId());
-            Exec(c,tx,$"""
-                INSERT INTO {SchemaSql.Q(c,"sal","shared_rider_hold")}
-                (id,erp_rider_id,period_month,status,created_at)
-                VALUES(@id,@erp,@pm,'open',@at)
-                """,("@id",holdId),("@erp",erpRider),("@pm",run.S("periodMonth")),
-                ("@at",DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture)));
-        }
-        else holdId=existing.ToString()!;
-        foreach(string app in otherApps.Append(run.S("app")).Distinct(StringComparer.Ordinal))
-        {
-            object? has=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"sal","shared_rider_hold_app")} WHERE hold_id=@h AND app_code=@a",
-                ("@h",holdId),("@a",app));
-            if(has is null or DBNull)
-                Exec(c,tx,$"INSERT INTO {SchemaSql.Q(c,"sal","shared_rider_hold_app")}(id,hold_id,app_code,received) VALUES(@id,@h,@a,0)",
-                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@h",holdId),("@a",app));
-        }
+        var apps=SalSharedRiders.AppsFor(worked,erpRider,run.S("app"));
+        if(apps.Count<=1)return;
+        SalSharedRiders.OpenHold(c,tx,erpRider,run.S("periodMonth"),apps,PayPlatforms.For(run.S("app")).App);
     }
 
     /// <summary>Rebuild L1 (incl. mudad) then cap L2 by remaining positive net — exact: 100−50 L1, L2 min(80,50)=50 → 0.</summary>
