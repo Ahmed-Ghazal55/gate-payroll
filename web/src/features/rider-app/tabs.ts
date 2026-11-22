@@ -27,7 +27,8 @@ export const RIDER_APP_TAB_LABELS: Record<RiderAppTab, string> = {
 
 /** Inner sub-tabs per entry (`?subtab=`); allowed by rule 3.0 because they are not sidebar entries. */
 export const RIDER_APP_SUBTABS: Partial<Record<RiderAppTab, readonly string[]>> = {
-  campaigns: ['list', 'analytics'],
+  campaigns: ['list', 'analytics', 'evaluations'],
+  responses: ['forms', 'evaluations'],
   broadcasts: ['broadcast', 'individual', 'history'],
   requests: ['all', 'annual_leave', 'appointments', 'other', 'advances'],
 };
@@ -37,6 +38,7 @@ const LEGACY: Record<string, { tab: RiderAppTab; subtab?: string }> = {
   'statement-preview': { tab: 'statements' },
   statement: { tab: 'statements' },
   analytics: { tab: 'campaigns', subtab: 'analytics' },
+  evaluations: { tab: 'campaigns', subtab: 'evaluations' },
 };
 
 export function isRiderAppTab(id: string | null | undefined): id is RiderAppTab {

@@ -23,7 +23,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const fetchMe = useCallback(async () => {
     if (typeof window !== 'undefined') {
       const p = window.location.pathname;
-      if (p.includes('/login') || p.includes('/setup')) {
+      if (p.includes('/login') || p.includes('/setup') || p.includes('/evaluation')) {
         setLoading(false);
         return;
       }
