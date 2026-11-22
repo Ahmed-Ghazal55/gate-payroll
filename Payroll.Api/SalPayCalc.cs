@@ -283,6 +283,13 @@ public static class SalPayCalc
         J.Need(r["debt_confirm_status"].ToString()=="pending","لا تطبيق مدد بعد تأكيد الدين.",409);
         string period=ReadMonth(r["period_month"]);
         r.Close();
+        // RWC4m2: after any related app is salary-approved, Mudad would desync combined_net vs posted payables.
+        object? siblingApproved=SchemaSql.Scalar(c,tx,$"""
+            SELECT 1 FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+            WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND r.salary_approved_at IS NOT NULL AND pr.status<>4
+            """,("@erp",erpRider),("@pm",period));
+        J.Need(siblingApproved is null or DBNull,"لا تطبيق مدد بعد اعتماد راتب تطبيق آخر لنفس المندوب.",409);
 
         DemandMudadLine(c,tx,lineId,run.S("companyId"),period,erpRider,amount);
 
