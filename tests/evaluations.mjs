@@ -44,7 +44,7 @@ try{
   const schema=await request(pub+'?city=Synthetic%20city',undefined,200,false);
   assert.equal(schema.staff.length,1);assert.equal(schema.staffDimensions.length,5);assert.equal(schema.staffRatingMax,10);assert.equal(schema.appRatingMax,5);
   assert.ok(!JSON.stringify(schema).includes('sharingToken'));assert.ok(!JSON.stringify(schema).includes('reportingLine'));
-  const answer={iqama:'2000000091',name:'Synthetic rider',city:'Synthetic city',nationality:'Synthetic nationality',workApps:['Ninja'],staffAnswers:[{staffId:round.staff[0].id,ratings:Object.fromEntries(schema.staffDimensions.map(d=>[d.id,8])),complaint:true,complaintDetails:'Synthetic complaint details'}],appAnswers:round.apps.map(app=>app==='Ninja'?{app,overall:4,factors:['orderVolume','appProblems']}:{app,reason:'not_worked'})};
+  const answer={iqama:'2000000091',name:'Synthetic rider',city:'Synthetic city',nationality:'Synthetic nationality',workApps:['Ninja'],staffAnswers:[{staffId:round.staff[0].id,ratings:Object.fromEntries(schema.staffDimensions.map(d=>[d.id,8])),complaint:true,complaintDetails:'Synthetic complaint details'}],appAnswers:round.apps.map(app=>app==='Ninja'?{app,overall:4,factorRatings:{orderVolume:5,appProblems:2}}:{app,reason:'not_worked'})};
   await request(pub,{...answer,nationality:''},400,false);
   await request(pub,{...answer,staffAnswers:[]},400,false);
   await request(pub,{...answer,appAnswers:[...answer.appAnswers,{app:'Unknown',overall:5}]},400,false);
@@ -52,7 +52,7 @@ try{
   const dup=await fetch(base+pub,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(answer)});assert.equal(dup.status,409);const dupBody=await dup.json();assert.equal(dupBody.code,'already_submitted');checks++;
   let stats=await request(prefix+'/rounds/'+round.id+'/statistics');
   assert.equal(stats.totalResponses,1);assert.equal(stats.bySupervisor[0].average,8);assert.equal(stats.bySupervisor[0].complaintCount,1);
-  assert.equal(stats.byApp.find(a=>a.key==='Ninja').average,4);assert.equal(stats.commonFactors.length,2);
+  assert.equal(stats.byApp.find(a=>a.key==='Ninja').average,4);assert.equal(stats.factorAverages.length,2);assert.equal(stats.factorAverages.find(f=>f.key==='orderVolume').average,5);
   assert.ok(!JSON.stringify(stats).includes(answer.iqama));assert.ok(!JSON.stringify(stats).includes(answer.name));
   const editPayload={receipt:reply.receipt,iqama:answer.iqama,staffAnswers:answer.staffAnswers.map(a=>({...a,ratings:Object.fromEntries(schema.staffDimensions.map(d=>[d.id,5])),notes:'Synthetic edit'})),appAnswers:answer.appAnswers};
   const edited=await fetch(base+pub,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(editPayload)});assert.equal(edited.status,200);const editedBody=await edited.json();assert.equal(editedBody.editCount,1);checks++;

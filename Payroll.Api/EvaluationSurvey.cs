@@ -147,6 +147,19 @@ public static partial class EvaluationSurvey
         J.Need(input[key] is JsonValue j && j.GetValueKind() == JsonValueKind.Number && decimal.TryParse(j.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var n) && n >= 1 && n <= max && decimal.Truncate(n) == n, "تقييم خارج النطاق: " + key);
         return input.N(key);
     }
+    static JsonObject FactorRatings(JsonObject card) => card["factorRatings"] as JsonObject ?? new JsonObject();
+    static JsonObject ParseFactorRatings(JsonObject card)
+    {
+        var raw = FactorRatings(card);
+        J.Need(raw.All(p => Factors.Contains(p.Key)), "عامل تقييم غير معروف.", "invalid_factor");
+        var clean = new JsonObject();
+        foreach (var pair in raw)
+        {
+            if (pair.Value is null || pair.Value.GetValueKind() is JsonValueKind.Null or JsonValueKind.Undefined) continue;
+            clean[pair.Key] = Rating(raw, pair.Key, 5);
+        }
+        return clean;
+    }
     static JsonArray Answers(JsonObject round, JsonObject input, bool staff, string city, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes)
     {
         string field = staff ? "staffAnswers" : "appAnswers", key = staff ? "staffId" : "app";
@@ -161,7 +174,7 @@ public static partial class EvaluationSurvey
             if (reason != "")
             {
                 J.Need((staff ? StaffReasons : AppReasons).Contains(reason), "سبب غير صالح.", "invalid_reason");
-                J.Need(card["ratings"] == null && card["overall"] == null && Strings(card, "factors").Length == 0, "اختر التقييم أو سبب عدم التقييم.", "rating_or_reason");
+                J.Need(card["ratings"] == null && card["overall"] == null && Strings(card, "factors").Length == 0 && FactorRatings(card).Count == 0, "اختر التقييم أو سبب عدم التقييم.", "rating_or_reason");
             }
             else if (staff)
             {
@@ -172,8 +185,7 @@ public static partial class EvaluationSurvey
             else
             {
                 answer["overall"] = Rating(card, "overall", 5);
-                var factors = Strings(card, "factors"); J.Need(factors.All(Factors.Contains), "عامل تقييم غير معروف.", "invalid_factor");
-                answer["factors"] = Array(factors);
+                answer["factorRatings"] = ParseFactorRatings(card);
             }
             if (staff)
             {
@@ -315,7 +327,12 @@ public static partial class EvaluationSurvey
                 return bucket;
             })),
             ["bySupervisor"] = GroupCards(staff, "staffId", true), ["byApp"] = GroupCards(apps, "app", false),
-            ["commonFactors"] = Array(apps.SelectMany(a => Strings(a, "factors").Select(f => (App: a.S("app"), Factor: f))).GroupBy(p => p).OrderByDescending(g => g.Count()).Select(g => new JsonObject { ["app"] = g.Key.App, ["key"] = g.Key.Factor, ["count"] = g.Count() })),
+            ["factorAverages"] = Array(apps.Where(a => a.S("reason") == "").SelectMany(a =>
+            {
+                var ratings = a["factorRatings"] as JsonObject ?? new JsonObject();
+                return Factors.Where(f => ratings[f] is JsonValue).Select(f => (App: a.S("app"), Factor: f, Stars: ratings.N(f)));
+            }).GroupBy(p => (p.App, p.Factor)).OrderBy(g => g.Key.App, StringComparer.Ordinal).ThenBy(g => System.Array.IndexOf(Factors, g.Key.Factor))
+              .Select(g => new JsonObject { ["app"] = g.Key.App, ["key"] = g.Key.Factor, ["count"] = g.Count(), ["average"] = Math.Round(g.Average(x => x.Stars), 2) })),
             ["dailyTrend"] = Array(rows.GroupBy(r => r.S("createdAt")[..10]).OrderBy(g => g.Key).Select(g => Summary(g.Key, g)))
         };
     }

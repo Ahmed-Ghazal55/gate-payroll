@@ -45,7 +45,7 @@ public static partial class EvaluationSurvey
                 Label("workingHours", "عدد ساعات العمل", "Working hours", "کام کے اوقات"), Label("shiftTimes", "مواعيد الورديات", "Shift times", "شفٹ کے اوقات"),
                 Label("flexibility", "المرونة", "Flexibility", "لچک"), Label("customerService", "خدمة عملاء المنصة", "Platform customer service", "پلیٹ فارم کسٹمر سروس"),
                 Label("appProblems", "مشكلات التطبيق", "App problems", "ایپ کے مسائل"), Label("worthIt", "هل العمل يستحق", "Is the work worth it", "کیا یہ کام قابل قدر ہے") }),
-            ["factorMode"] = "multipleChoice", ["editPolicyPending"] = false, ["uploadsPolicyPending"] = false,
+            ["factorMode"] = "optionalStars", ["editPolicyPending"] = false, ["uploadsPolicyPending"] = false,
             ["maxEdits"] = MaxEdits, ["attachmentRetentionDays"] = (int)AttachmentRetention.TotalDays,
             ["attachmentLimits"] = new JsonObject { ["imagesPerCard"] = 2, ["voicePerCard"] = 1, ["voiceSeconds"] = 60, ["replyBytes"] = 6 * 1024 * 1024 },
             ["nationalities"] = Array(new[] {
@@ -67,7 +67,7 @@ public static partial class EvaluationSurvey
     }
     static JsonObject FilterStatistics(JsonObject stats, string dimension)
     {
-        string field = dimension switch { "city" => "byCity", "app" => "byApp", "supervisor" => "bySupervisor", "nationality" => "byNationality", "factors" => "commonFactors", "trend" => "dailyTrend", _ => throw new ApiError("نوع إحصاء غير صالح.") };
+        string field = dimension switch { "city" => "byCity", "app" => "byApp", "supervisor" => "bySupervisor", "nationality" => "byNationality", "factors" => "factorAverages", "trend" => "dailyTrend", _ => throw new ApiError("نوع إحصاء غير صالح.") };
         return new() { ["roundId"] = stats.S("roundId"), ["totalResponses"] = stats.N("totalResponses"), ["items"] = stats[field]!.DeepClone() };
     }
     static byte[] Export(DbConnection c, System.Security.Claims.ClaimsPrincipal user, string id)
@@ -81,7 +81,7 @@ public static partial class EvaluationSurvey
         var columns = new List<ExcelColumn> { new("الرد"), new("الإقامة"), new("الاسم"), new("المدينة"), new("الجنسية"), new("الجوال"), new("تاريخ الإرسال"), new("نوع البطاقة"), new("البطاقة"), new("اسم الموظف"), new("سبب عدم التقييم"), new("التقييم العام", true) };
         columns.AddRange(StaffDimensions.Select(d => new ExcelColumn(dimensions[d], true)));
         columns.Add(new("ملاحظات")); columns.Add(new("شكوى")); columns.Add(new("تفاصيل الشكوى"));
-        columns.AddRange(Factors.Select(f => new ExcelColumn(factors[f])));
+        columns.AddRange(Factors.Select(f => new ExcelColumn(factors[f], true)));
         columns.AddRange(apps.Select(a => new ExcelColumn("منصة العمل: " + a)));
         var cells = new List<object?[]>();
         foreach (var row in Responses(c, user, id))
@@ -91,7 +91,7 @@ public static partial class EvaluationSurvey
             var values = new List<object?> { row.S("id"), row.S("iqama"), row.S("name"), row.S("city"), row.S("nationality"), row.S("phone"), row.S("createdAt"), staff ? "موظف" : "منصة", card.S(staff ? "staffId" : "app"), staff ? names.GetValueOrDefault(card.S("staffId"), "") : "", card.S("reason"), card["overall"] == null ? null : card.N("overall") };
             values.AddRange(StaffDimensions.Select(d => (object?)(card["ratings"]?[d] == null ? null : card["ratings"]!.N(d))));
             values.Add(card.S("notes")); values.Add(card.B("complaint") ? "نعم" : "لا"); values.Add(card.S("complaintDetails"));
-            values.AddRange(Factors.Select(f => (object?)(Strings(card, "factors").Contains(f) ? "نعم" : "")));
+            values.AddRange(Factors.Select(f => (object?)(card["factorRatings"]?[f] == null ? null : card["factorRatings"]!.N(f))));
             values.AddRange(apps.Select(a => (object?)(Strings(row, "workApps").Contains(a) ? "نعم" : "")));
             cells.Add(values.ToArray());
         }

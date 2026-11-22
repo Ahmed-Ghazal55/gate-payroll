@@ -303,10 +303,10 @@ try {
   await publicPage.click('#eval-next-btn');
   await publicPage.locator('#eval-page-2').waitFor();
 
-  // Rate Ninja 5 stars + factors, mark other platforms not_worked
+  // Rate Ninja 5 stars + optional factor stars, mark other platforms not_worked
   await publicPage.click('[data-app-star="Ninja"][data-stars="5"]');
-  await publicPage.check('[data-app-factor="Ninja"][value="orderVolume"]');
-  await publicPage.check('[data-app-factor="Ninja"][value="fairPay"]');
+  await publicPage.click('[data-app-factor-star="Ninja"][data-factor-id="orderVolume"][data-stars="4"]');
+  await publicPage.click('[data-app-factor-star="Ninja"][data-factor-id="fairPay"][data-stars="3"]');
   for (const app of round.apps.filter((a) => a !== 'Ninja')) {
     await publicPage.selectOption(`[data-app-reason="${app}"]`, 'not_worked');
   }
@@ -375,11 +375,12 @@ try {
   assert.match(byAppText, /كيتا/);
 
   const factorsText = await adminPage
-    .locator('[data-testid="eval-chart-common-factors"]')
+    .locator('[data-testid="eval-chart-factor-averages"]')
     .textContent();
   assert.match(factorsText, /عدد الطلبات/);
   assert.match(factorsText, /عدالة احتساب الأجر/);
-  assert.match(factorsText, /مشكلات التطبيق/);
+  assert.match(factorsText, /4/);
+  assert.match(factorsText, /3/);
 
   const supText = await adminPage
     .locator('[data-testid="eval-chart-by-supervisor"]')

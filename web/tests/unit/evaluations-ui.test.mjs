@@ -82,7 +82,7 @@ describe('EV1 evaluation survey and admin results screens', () => {
     assert.match(adminTab, /eval-chart-by-city/);
     assert.match(adminTab, /eval-chart-by-nationality/);
     assert.match(adminTab, /eval-chart-by-app/);
-    assert.match(adminTab, /eval-chart-common-factors/);
+    assert.match(adminTab, /eval-chart-factor-averages/);
     assert.match(adminTab, /eval-chart-by-supervisor/);
     assert.match(adminTab, /<DataTable\b/);
     assert.match(adminTab, /بانتظار موافقة غزال/);

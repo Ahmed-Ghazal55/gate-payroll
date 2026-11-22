@@ -302,11 +302,11 @@ export function EvaluationsTab() {
     );
   }, [stats, dimensionFocus, dimensionItems, nationalityFilter]);
 
-  const filteredCommonFactors = useMemo(() => {
+  const filteredFactorAverages = useMemo(() => {
     const source =
       dimensionFocus === 'factors' && dimensionItems
         ? dimensionItems
-        : stats?.commonFactors || [];
+        : stats?.factorAverages || [];
     return source.filter((b) => appFilter === 'ALL' || !b.app || b.app === appFilter);
   }, [stats, dimensionFocus, dimensionItems, appFilter]);
 
@@ -1001,7 +1001,7 @@ export function EvaluationsTab() {
               ['app', 'حسب المنصة'],
               ['supervisor', 'حسب المشرف والموظف'],
               ['nationality', 'حسب الجنسية'],
-              ['factors', 'العوامل الشائعة'],
+              ['factors', 'متوسط العوامل'],
               ['trend', 'الاتجاه اليومي'],
             ] as [EvaluationDimensionKey, string][]
           ).map(([key, label]) => (
@@ -1283,31 +1283,31 @@ export function EvaluationsTab() {
               )}
             </section>
 
-            {/* 4. Common Factors & Daily Trend */}
+            {/* 4. Per-factor averages & Daily Trend */}
             <section
               className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-5 space-y-4"
-              data-testid="eval-chart-common-factors"
+              data-testid="eval-chart-factor-averages"
             >
               <div className="flex items-center justify-between">
                 <h3 className="text-base font-bold text-[var(--ink)]">
-                  العوامل والأسباب الأكثر شيوعًا في تقييم المنصات
+                  متوسط تقييم عوامل المنصات (1–5)
                 </h3>
                 <span className="text-xs text-[var(--muted)] num">
-                  {filteredCommonFactors.length} عامل
+                  {filteredFactorAverages.length} عامل
                 </span>
               </div>
-              {filteredCommonFactors.length === 0 ? (
+              {filteredFactorAverages.length === 0 ? (
                 <p className="text-xs text-[var(--muted)]">
-                  لم تُسجل عوامل تقييم للمنصات بعد.
+                  لم تُسجل تقييمات عوامل للمنصات بعد.
                 </p>
               ) : (
                 <div className="space-y-2.5">
                   {(() => {
-                    const maxFactorCount = Math.max(
+                    const maxFactorAvg = Math.max(
                       1,
-                      ...filteredCommonFactors.map((f) => Number(f.count ?? 0))
+                      ...filteredFactorAverages.map((f) => Number(f.average ?? 0))
                     );
-                    return filteredCommonFactors.map((f, idx) => (
+                    return filteredFactorAverages.map((f, idx) => (
                       <div key={`${f.app}-${f.key}-${idx}`} className="space-y-1">
                         <div className="flex items-center justify-between text-xs">
                           <span className="font-semibold text-[var(--ink)]">
@@ -1318,13 +1318,15 @@ export function EvaluationsTab() {
                               </span>
                             )}
                           </span>
-                          <span className="num font-bold">{f.count ?? 0}</span>
+                          <span className="num font-bold">
+                            {f.average ?? '—'} ★ · {f.count ?? 0}
+                          </span>
                         </div>
                         <div className="w-full h-2 rounded-full bg-[var(--raised)] overflow-hidden">
                           <div
                             className="h-full bg-[var(--info)]"
                             style={{
-                              width: `${pctWidth(Number(f.count ?? 0), maxFactorCount)}%`,
+                              width: `${pctWidth(Number(f.average ?? 0), maxFactorAvg)}%`,
                             }}
                           />
                         </div>
@@ -1760,14 +1762,15 @@ export function EvaluationsTab() {
                       </span>
                     )}
                   </div>
-                  {Array.isArray(card.factors) && card.factors.length > 0 && (
+                  {card.factorRatings &&
+                    Object.keys(card.factorRatings).length > 0 && (
                     <div className="flex flex-wrap gap-1">
-                      {card.factors.map((f) => (
+                      {Object.entries(card.factorRatings).map(([f, stars]) => (
                         <span
                           key={f}
-                          className="rounded-full bg-[var(--raised)] px-2 py-0.5 text-[10px]"
+                          className="rounded-full bg-[var(--raised)] px-2 py-0.5 text-[10px] num"
                         >
-                          {FACTOR_LABELS_AR[f] || f}
+                          {FACTOR_LABELS_AR[f] || f}: {stars}★
                         </span>
                       ))}
                     </div>

@@ -63,7 +63,7 @@ export interface StaffCardAnswerDraft {
 export interface AppCardAnswerDraft {
   reason: string;
   overall: number;
-  factors: string[];
+  factorRatings: Record<string, number>;
   notes: string;
 }
 
@@ -226,12 +226,14 @@ export function buildEvaluationPayload(
       };
     }),
     appAnswers: (schema.apps || []).map((app) => {
-      const ans = draft.appAnswers[app] || { reason: '', overall: 0, factors: [], notes: '' };
+      const ans = draft.appAnswers[app] || { reason: '', overall: 0, factorRatings: {}, notes: '' };
       const reason = ans.reason || '';
       return {
         app,
         reason,
-        ...(reason === '' ? { overall: Number(ans.overall), factors: ans.factors || [] } : {}),
+        ...(reason === ''
+          ? { overall: Number(ans.overall), factorRatings: ans.factorRatings || {} }
+          : {}),
         notes: (ans.notes || '').trim(),
         attachments: [],
       };
@@ -531,7 +533,7 @@ export function renderEvaluationSurveyHtml(
           const ans: AppCardAnswerDraft = draft.appAnswers[app] || {
             reason: '',
             overall: 0,
-            factors: [],
+            factorRatings: {},
             notes: '',
           };
           const done = isAppCardComplete(schema, ans);
@@ -584,21 +586,34 @@ export function renderEvaluationSurveyHtml(
 
                       <div style="margin-top:10px">
                         <div class="small muted" style="font-weight:600;margin-bottom:4px">${esc(t('evalFactorsTitle'))}</div>
-                        <div style="display:flex;flex-wrap:wrap;gap:6px">
+                        <div style="display:grid;gap:8px">
                           ${schema.factors
                             .map((f) => {
-                              const checked = (ans.factors || []).includes(f.id);
+                              const stars = Number(ans.factorRatings?.[f.id] || 0);
                               return `
-                                <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;border:1px solid var(--line);border-radius:8px;padding:4px 8px">
-                                  <input
-                                    type="checkbox"
-                                    data-eval-app-factor="${token}"
-                                    data-app-id="${esc(app)}"
-                                    value="${esc(f.id)}"
-                                    ${checked ? 'checked' : ''}
-                                  >
-                                  <span>${esc(pickLang(f, 'label', lang))}</span>
-                                </label>`;
+                                <div data-eval-app-factor-row="${token}" data-app-id="${esc(app)}" data-factor-id="${esc(f.id)}">
+                                  <div class="small" style="display:flex;justify-content:space-between;margin-bottom:2px">
+                                    <span>${esc(pickLang(f, 'label', lang))}</span>
+                                    <b class="number">${stars ? `${stars} / 5 ★` : '—'}</b>
+                                  </div>
+                                  <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px">
+                                    ${[1, 2, 3, 4, 5]
+                                      .map(
+                                        (star) => `
+                                          <button
+                                            type="button"
+                                            class="small ${stars === star ? 'good' : 'secondary'}"
+                                            data-eval-app-factor-star="${token}"
+                                            data-app-id="${esc(app)}"
+                                            data-factor-id="${esc(f.id)}"
+                                            data-stars="${star}"
+                                            aria-pressed="${stars === star}"
+                                            style="padding:4px 2px;font-size:11px"
+                                          >${star} ★</button>`
+                                      )
+                                      .join('')}
+                                  </div>
+                                </div>`;
                             })
                             .join('')}
                         </div>
@@ -664,10 +679,11 @@ export function bindEvaluationSurveyEvents(
       draft.appAnswers[appId] = {
         reason: '',
         overall: 0,
-        factors: [],
+        factorRatings: {},
         notes: '',
       };
     }
+    if (!draft.appAnswers[appId].factorRatings) draft.appAnswers[appId].factorRatings = {};
     return draft.appAnswers[appId];
   };
 
@@ -876,7 +892,7 @@ export function bindEvaluationSurveyEvents(
       ans.reason = sel.value;
       if (ans.reason !== '') {
         ans.overall = 0;
-        ans.factors = [];
+        ans.factorRatings = {};
       }
       draft.error = '';
       rerender();
@@ -899,20 +915,21 @@ export function bindEvaluationSurveyEvents(
     };
   });
 
-  root.querySelectorAll<HTMLInputElement>('[data-eval-app-factor]').forEach((chk) => {
-    chk.onchange = () => {
-      const token = chk.dataset.evalAppFactor || '';
-      const appId = chk.dataset.appId || '';
-      const factor = chk.value;
+  root.querySelectorAll<HTMLButtonElement>('[data-eval-app-factor-star]').forEach((btn) => {
+    btn.onclick = () => {
+      const token = btn.dataset.evalAppFactorStar || '';
+      const appId = btn.dataset.appId || '';
+      const factor = btn.dataset.factorId || '';
+      const stars = Number(btn.dataset.stars || 0);
       const schema = schemas.get(token);
-      if (!schema || !appId || !factor) return;
+      if (!schema || !appId || !factor || !stars) return;
       const draft = getOrInitDraft(token, schema);
       const ans = ensureAppAns(draft, appId);
-      if (chk.checked) {
-        if (!ans.factors.includes(factor)) ans.factors.push(factor);
-      } else {
-        ans.factors = ans.factors.filter((f) => f !== factor);
-      }
+      ans.reason = '';
+      if (ans.factorRatings[factor] === stars) delete ans.factorRatings[factor];
+      else ans.factorRatings[factor] = stars;
+      draft.error = '';
+      rerender();
     };
   });
 

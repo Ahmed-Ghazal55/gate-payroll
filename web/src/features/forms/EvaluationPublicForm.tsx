@@ -40,7 +40,7 @@ type StaffDraft = {
 type AppDraft = {
   reason: string;
   overall: number;
-  factors: string[];
+  factorRatings: Record<string, number>;
   notes: string;
   attachments: EvalAttachmentDraft[];
 };
@@ -74,7 +74,8 @@ const FORM_COPY: Record<EvalLanguage, Record<string, string>> = {
     complaintBtn: 'تقديم شكوى سرية على هذه البطاقة',
     complaintActive: 'شكوى سرية مفعّلة (تراجعها الإدارة فقط)',
     complaintDetails: 'تفاصيل الشكوى السرية (مطلوب، 5 أحرف على الأقل)',
-    factorsTitle: 'أسباب التقييم وعوامل الأداء والأجر (يمكن اختيار أكثر من عامل)',
+    factorsTitle: 'عوامل المنصة (اختياري، نجمة إلى 5 لكل عامل)',
+    factorOptional: 'اختياري',
     starsLabel: 'التقييم العام للمنصة (من 1 إلى 5 نجوم)',
     nextBtn: 'التالي: تقييم المنصات ←',
     prevBtn: '→ السابق: بطاقات المشرفين',
@@ -126,7 +127,8 @@ const FORM_COPY: Record<EvalLanguage, Record<string, string>> = {
     complaintBtn: 'File a confidential complaint on this card',
     complaintActive: 'Confidential complaint active (management only)',
     complaintDetails: 'Confidential complaint details (required, min 5 characters)',
-    factorsTitle: 'Evaluation reasons & performance/pay factors (select all that apply)',
+    factorsTitle: 'Platform factors (optional, 1 to 5 stars each)',
+    factorOptional: 'Optional',
     starsLabel: 'Overall platform rating (1 to 5 stars)',
     nextBtn: 'Next: Evaluate Platforms →',
     prevBtn: '← Previous: Staff Cards',
@@ -178,7 +180,8 @@ const FORM_COPY: Record<EvalLanguage, Record<string, string>> = {
     complaintBtn: 'اس کارڈ پر خفیہ شکایت درج کریں',
     complaintActive: 'خفیہ شکایت فعال ہے (صرف انتظامیہ کے لیے)',
     complaintDetails: 'خفیہ شکایت کی تفصیل (لازمی، کم از کم 5 حروف)',
-    factorsTitle: 'درجہ بندی کی وجوہات اور کارکردگی و اجرت کے عوامل',
+    factorsTitle: 'پلیٹ فارم عوامل (اختیاری، ہر عامل 1 سے 5 ستارے)',
+    factorOptional: 'اختیاری',
     starsLabel: 'پلیٹ فارم کی مجموعی درجہ بندی (1 سے 5 ستارے)',
     nextBtn: 'اگلا: پلیٹ فارمز کی درجہ بندی ←',
     prevBtn: '→ پچھلا: عملے کے کارڈز',
@@ -403,7 +406,7 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
       const cur = prev[appId] || {
         reason: '',
         overall: 0,
-        factors: [],
+        factorRatings: {},
         notes: '',
         attachments: [],
       };
@@ -484,14 +487,14 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
         const a = appAnswers[app] || {
           reason: '',
           overall: 0,
-          factors: [],
+          factorRatings: {},
           notes: '',
           attachments: [],
         };
         return {
           app,
           reason: a.reason,
-          ...(a.reason === '' ? { overall: a.overall, factors: a.factors } : {}),
+          ...(a.reason === '' ? { overall: a.overall, factorRatings: a.factorRatings } : {}),
           notes: a.notes.trim(),
           attachments: a.attachments || [],
         };
@@ -1106,7 +1109,7 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
                 const ans = appAnswers[app] || {
                   reason: '',
                   overall: 0,
-                  factors: [],
+                  factorRatings: {},
                   notes: '',
                 };
                 const done = isAppCardComplete(app);
@@ -1144,7 +1147,7 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
                             ...prev,
                             reason,
                             overall: reason !== '' ? 0 : prev.overall,
-                            factors: reason !== '' ? [] : prev.factors,
+                            factorRatings: reason !== '' ? {} : prev.factorRatings,
                           }));
                         }}
                         className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs text-[var(--ink)]"
@@ -1196,40 +1199,63 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
                           </div>
                         </div>
 
-                        <div className="space-y-1.5">
+                        <div className="space-y-2">
                           <span className="block text-xs font-semibold text-[var(--ink)]">
-                            {t('factorsTitle')}
+                            {t('factorsTitle')}{' '}
+                            <span className="font-normal text-[var(--muted)]">
+                              ({t('factorOptional')})
+                            </span>
                           </span>
-                          <div className="flex flex-wrap gap-2">
+                          <div className="grid gap-2">
                             {schema.factors.map((f) => {
-                              const checked = ans.factors.includes(f.id);
+                              const stars = ans.factorRatings[f.id] || 0;
                               return (
-                                <label
+                                <div
                                   key={f.id}
-                                  className={`inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs cursor-pointer ${
-                                    checked
-                                      ? 'border-[var(--accent)] bg-[var(--row-selected)] font-bold text-[var(--ink)]'
-                                      : 'border-[var(--line)] bg-[var(--bg)] text-[var(--muted)]'
-                                  }`}
+                                  data-app-factor-row={app}
+                                  data-factor-id={f.id}
+                                  className="space-y-1"
                                 >
-                                  <input
-                                    type="checkbox"
-                                    data-app-factor={app}
-                                    value={f.id}
-                                    checked={checked}
-                                    onChange={(e) => {
-                                      updateAppDraft(app, (prev) => ({
-                                        ...prev,
-                                        factors: e.target.checked
-                                          ? prev.factors.includes(f.id)
-                                            ? prev.factors
-                                            : [...prev.factors, f.id]
-                                          : prev.factors.filter((x) => x !== f.id),
-                                      }));
-                                    }}
-                                  />
-                                  <span>{localizedLabel(f, lang)}</span>
-                                </label>
+                                  <div className="flex items-center justify-between text-[11px]">
+                                    <span className="font-semibold text-[var(--ink)]">
+                                      {localizedLabel(f, lang)}
+                                    </span>
+                                    <span className="num text-[var(--muted)]">
+                                      {stars ? `${stars} / 5 ★` : '—'}
+                                    </span>
+                                  </div>
+                                  <div className="grid grid-cols-5 gap-1">
+                                    {[1, 2, 3, 4, 5].map((star) => (
+                                      <button
+                                        key={star}
+                                        type="button"
+                                        data-app-factor-star={app}
+                                        data-factor-id={f.id}
+                                        data-stars={star}
+                                        aria-pressed={stars === star}
+                                        onClick={() =>
+                                          updateAppDraft(app, (prev) => {
+                                            const next = { ...prev.factorRatings };
+                                            if (next[f.id] === star) delete next[f.id];
+                                            else next[f.id] = star;
+                                            return {
+                                              ...prev,
+                                              reason: '',
+                                              factorRatings: next,
+                                            };
+                                          })
+                                        }
+                                        className={`py-1.5 rounded-md text-[11px] font-bold border transition ${
+                                          stars === star
+                                            ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]'
+                                            : 'border-[var(--line)] bg-[var(--bg)] text-[var(--ink)] hover:bg-[var(--raised)]'
+                                        }`}
+                                      >
+                                        {star} ★
+                                      </button>
+                                    ))}
+                                  </div>
+                                </div>
                               );
                             })}
                           </div>

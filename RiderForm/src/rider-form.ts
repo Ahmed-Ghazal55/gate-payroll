@@ -25,7 +25,7 @@ Object.assign(dictionaries.ar,{
  eval_pickCity:'اختر مدينة العمل لعرض بطاقات المشرفين والموظفين',eval_allDepts:'كل الأقسام',eval_allApps:'كل المنصات',eval_cardsProgress:'البطاقات المجابة',
  eval_rateMode:'تقييم (1–10)',eval_appRateMode:'تقييم بالنجوم (1–5)',eval_skipLabel:'أو اختر سبب عدم التقييم',eval_notes:'ملاحظات إضافية (اختياري)',
  eval_complaintBtn:'🛡️ تقديم شكوى سرية على هذه البطاقة',eval_complaintActive:'🛡️ شكوى سرية مفعّلة (تراجعها الإدارة فقط)',eval_complaintDetails:'تفاصيل الشكوى السرية (مطلوب، 5 أحرف على الأقل)',
- eval_factorsTitle:'أسباب التقييم وعوامل الأداء والأجر (يمكن اختيار أكثر من عامل)',eval_starsLabel:'التقييم العام للمنصة (من 1 إلى 5 نجوم)',
+ eval_factorsTitle:'عوامل المنصة (اختياري، نجمة إلى 5 لكل عامل)',eval_starsLabel:'التقييم العام للمنصة (من 1 إلى 5 نجوم)',eval_factorOptional:'اختياري',
  eval_unansweredStaff:'أجب عن جميع بطاقات المشرفين والموظفين في مدينتك قبل الانتقال للصفحة التالية (قيّم الأبعاد الخمسة أو اختر سبب عدم التعامل).',
  eval_unansweredApps:'أجب عن جميع بطاقات المنصات قبل الإرسال (اختر التقييم بالنجوم أو سبب عدم العمل عليها).',
  eval_missingIdentity:'أكمل رقم الإقامة (10 أرقام)، الاسم، مدينة العمل، الجنسية، ومنصة عمل واحدة على الأقل.',
@@ -40,7 +40,7 @@ Object.assign(dictionaries.en,{
  eval_pickCity:'Choose your work city to display supervisor and staff cards',eval_allDepts:'All departments',eval_allApps:'All platforms',eval_cardsProgress:'Answered cards',
  eval_rateMode:'Rate (1–10)',eval_appRateMode:'Star rating (1–5)',eval_skipLabel:'Or choose a reason not to rate',eval_notes:'Additional notes (optional)',
  eval_complaintBtn:'🛡️ File a confidential complaint on this card',eval_complaintActive:'🛡️ Confidential complaint active (management only)',eval_complaintDetails:'Confidential complaint details (required, min 5 characters)',
- eval_factorsTitle:'Evaluation reasons & performance/pay factors (select all that apply)',eval_starsLabel:'Overall platform rating (1 to 5 stars)',
+ eval_factorsTitle:'Platform factors (optional, 1 to 5 stars each)',eval_starsLabel:'Overall platform rating (1 to 5 stars)',eval_factorOptional:'Optional',
  eval_unansweredStaff:'Please answer every staff card in your city before continuing (rate all 5 dimensions or choose a skip reason).',
  eval_unansweredApps:'Please answer every platform card before submitting (choose a star rating or a skip reason).',
  eval_missingIdentity:'Complete your 10-digit Iqama, full name, work city, nationality, and at least one current work platform.',
@@ -55,7 +55,7 @@ Object.assign(dictionaries.ur,{
  eval_pickCity:'سپروائزرز اور عملے کے کارڈز دیکھنے کے لیے کام کا شہر منتخب کریں',eval_allDepts:'تمام شعبے',eval_allApps:'تمام پلیٹ فارمز',eval_cardsProgress:'مکمل کردہ کارڈز',
  eval_rateMode:'درجہ بندی (1–10)',eval_appRateMode:'ستاروں کی درجہ بندی (1–5)',eval_skipLabel:'یا درجہ بندی نہ کرنے کی وجہ منتخب کریں',eval_notes:'اضافی نوٹس (اختیاری)',
  eval_complaintBtn:'🛡️ اس کارڈ پر خفیہ شکایت درج کریں',eval_complaintActive:'🛡️ خفیہ شکایت فعال ہے (صرف انتظامیہ کے لیے)',eval_complaintDetails:'خفیہ شکایت کی تفصیل (لازمی، کم از کم 5 حروف)',
- eval_factorsTitle:'درجہ بندی کی وجوہات اور کارکردگی و اجرت کے عوامل (ایک سے زیادہ منتخب کر سکتے ہیں)',eval_starsLabel:'پلیٹ فارم کی مجموعی درجہ بندی (1 سے 5 ستارے)',
+ eval_factorsTitle:'پلیٹ فارم عوامل (اختیاری، ہر عامل 1 سے 5 ستارے)',eval_starsLabel:'پلیٹ فارم کی مجموعی درجہ بندی (1 سے 5 ستارے)',eval_factorOptional:'اختیاری',
  eval_unansweredStaff:'اگلے صفحے پر جانے سے پہلے اپنے شہر کے تمام عملے کے کارڈز کا جواب دیں (پانچوں سوالات کی درجہ بندی کریں یا وجہ منتخب کریں)۔',
  eval_unansweredApps:'جمع کرنے سے پہلے تمام پلیٹ فارم کارڈز کا جواب دیں (ستارے منتخب کریں یا کام نہ کرنے کی وجہ منتخب کریں)۔',
  eval_missingIdentity:'اپنا 10 ہندسوں کا اقامہ، پورا نام، کام کا شہر، قومیت اور کم از کم ایک موجودہ پلیٹ فارم مکمل کریں۔',
@@ -104,14 +104,14 @@ const NAT_KEYS=['nat_sa','nat_eg','nat_ye','nat_sd','nat_pk','nat_in','nat_bd','
 function evalAppLabel(a:string){return EVAL_APP_LABELS[a]?.[language]||a;}
 function normalizeAsciiDigits(raw:string){return String(raw||'').replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x0660)).replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-0x06F0)).trim();}
 interface EvalStaffDraft{reason:string;ratings:Record<string,number>;notes:string;complaint:boolean;complaintDetails:string}
-interface EvalAppDraft{reason:string;overall:number;factors:string[];notes:string}
+interface EvalAppDraft{reason:string;overall:number;factorRatings:Record<string,number>;notes:string}
 const evalState:{page:1|2;iqama:string;name:string;city:string;nationality:string;phone:string;workApps:string[];deptFilter:string;appFilter:string;staffAnswers:Record<string,EvalStaffDraft>;appAnswers:Record<string,EvalAppDraft>;error:string}={page:1,iqama:'',name:'',city:'',nationality:'',phone:'',workApps:[],deptFilter:'ALL',appFilter:'ALL',staffAnswers:{},appAnswers:{},error:''};
 function evalCityList():string[]{return ((formData?.cities as unknown[])||[]).map(c=>typeof c==='string'?c:(c as {ar:string}).ar).filter(Boolean);}
 function evalCityStaff():EvalStaff[]{if(!evalState.city)return [];return (formData?.staff||[]).filter(s=>!s.excluded&&(s.cities||[]).includes(evalState.city));}
 function isEvalStaffDone(s:EvalStaff):boolean{const a=evalState.staffAnswers[s.id];if(!a)return false;if(a.complaint&&(a.complaintDetails||'').trim().length<5)return false;if(a.reason!=='')return (formData?.staffReasons||[]).some(r=>r.id===a.reason);return (formData?.staffDimensions||[]).every(d=>{const v=Number(a.ratings?.[d.id]);return Number.isInteger(v)&&v>=(formData?.staffRatingMin??1)&&v<=(formData?.staffRatingMax??10);});}
 function isEvalAppDone(app:string):boolean{const a=evalState.appAnswers[app];if(!a)return false;if(a.reason!=='')return (formData?.appReasons||[]).some(r=>r.id===a.reason);const v=Number(a.overall);return Number.isInteger(v)&&v>=(formData?.appRatingMin??1)&&v<=(formData?.appRatingMax??5);}
 function ensureEvalStaff(id:string):EvalStaffDraft{if(!evalState.staffAnswers[id])evalState.staffAnswers[id]={reason:'',ratings:{},notes:'',complaint:false,complaintDetails:''};return evalState.staffAnswers[id];}
-function ensureEvalApp(app:string):EvalAppDraft{if(!evalState.appAnswers[app])evalState.appAnswers[app]={reason:'',overall:0,factors:[],notes:''};return evalState.appAnswers[app];}
+function ensureEvalApp(app:string):EvalAppDraft{if(!evalState.appAnswers[app])evalState.appAnswers[app]={reason:'',overall:0,factorRatings:{},notes:''};return evalState.appAnswers[app];}
 interface ChoiceReceipt{iqama:string;name:string;workSystem:string;status:string;submittedAt:string;version:number;ibanLast4?:string;bankCode?:string}
 let editMode=false,editedSuccess=false,responseVersion=1,recordedChoice='';
 let previousChoice:Record<string,string>|null=null,receiptData:ChoiceReceipt|null=null;
@@ -246,9 +246,9 @@ function renderEvaluation(){
         ${[1,2,3,4,5].map(star=>`<button type="button" class="${ans.overall===star?'':'secondary'}" data-app-star="${escapeText(app)}" data-stars="${star}" aria-pressed="${ans.overall===star}" style="padding:6px 2px;font-size:12px">${star} ★</button>`).join('')}
        </div>
        <div style="margin-top:10px">
-        <div class="small" style="font-weight:700;margin-bottom:6px">${escapeText(t('factorsTitle'))}</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px">
-         ${(formData?.factors||[]).map(f=>`<label class="check" style="margin:0"><input type="checkbox" data-app-factor="${escapeText(app)}" value="${escapeText(f.id)}" ${ans.factors.includes(f.id)?'checked':''}>${escapeText(localized(f,'label'))}</label>`).join('')}
+        <div class="small" style="font-weight:700;margin-bottom:6px">${escapeText(t('factorsTitle'))} <span class="muted">(${escapeText(t('factorOptional'))})</span></div>
+        <div style="display:grid;gap:8px">
+         ${(formData?.factors||[]).map(f=>{const stars=ans.factorRatings[f.id]||0;return `<div data-app-factor-row="${escapeText(app)}" data-factor-id="${escapeText(f.id)}"><div class="small" style="display:flex;justify-content:space-between;margin-bottom:2px"><span>${escapeText(localized(f,'label'))}</span><strong class="number">${stars?`${stars} / 5 ★`:'—'}</strong></div><div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px">${[1,2,3,4,5].map(star=>`<button type="button" class="${stars===star?'':'secondary'}" data-app-factor-star="${escapeText(app)}" data-factor-id="${escapeText(f.id)}" data-stars="${star}" aria-pressed="${stars===star}" style="padding:4px 2px;font-size:11px">${star} ★</button>`).join('')}</div></div>`;}).join('')}
         </div>
        </div>
       </div>`:''}
@@ -286,9 +286,9 @@ function renderEvaluation(){
   evalState.error='';evalState.page=2;renderPublic();
  });
  form.querySelector<HTMLButtonElement>('#eval-prev-btn')?.addEventListener('click',()=>{evalState.error='';evalState.page=1;renderPublic();});
- form.querySelectorAll<HTMLSelectElement>('[data-app-reason]').forEach(sel=>sel.addEventListener('change',()=>{const app=sel.dataset.appReason!;const a=ensureEvalApp(app);a.reason=sel.value;if(a.reason!==''){a.overall=0;a.factors=[];}evalState.error='';renderPublic();}));
+ form.querySelectorAll<HTMLSelectElement>('[data-app-reason]').forEach(sel=>sel.addEventListener('change',()=>{const app=sel.dataset.appReason!;const a=ensureEvalApp(app);a.reason=sel.value;if(a.reason!==''){a.overall=0;a.factorRatings={};}evalState.error='';renderPublic();}));
  form.querySelectorAll<HTMLButtonElement>('[data-app-star]').forEach(btn=>btn.addEventListener('click',()=>{const app=btn.dataset.appStar!,stars=Number(btn.dataset.stars);const a=ensureEvalApp(app);a.reason='';a.overall=stars;evalState.error='';renderPublic();}));
- form.querySelectorAll<HTMLInputElement>('[data-app-factor]').forEach(chk=>chk.addEventListener('change',()=>{const app=chk.dataset.appFactor!,f=chk.value;const a=ensureEvalApp(app);if(chk.checked){if(!a.factors.includes(f))a.factors.push(f);}else{a.factors=a.factors.filter(x=>x!==f);}}));
+ form.querySelectorAll<HTMLButtonElement>('[data-app-factor-star]').forEach(btn=>btn.addEventListener('click',()=>{const app=btn.dataset.appFactorStar!,factorId=btn.dataset.factorId!,stars=Number(btn.dataset.stars);const a=ensureEvalApp(app);a.reason='';if(a.factorRatings[factorId]===stars)delete a.factorRatings[factorId];else a.factorRatings[factorId]=stars;evalState.error='';renderPublic();}));
  form.querySelectorAll<HTMLTextAreaElement>('[data-app-notes]').forEach(ta=>ta.addEventListener('input',()=>{ensureEvalApp(ta.dataset.appNotes!).notes=ta.value;}));
  form.onsubmit=async e=>{
   e.preventDefault();
@@ -298,7 +298,7 @@ function renderEvaluation(){
   const payload={
    iqama:normalizeAsciiDigits(evalState.iqama),name:evalState.name.trim(),city:evalState.city,nationality:evalState.nationality.trim(),phone:evalState.phone.trim(),workApps:evalState.workApps,
    staffAnswers:cs.map(s=>{const a=ensureEvalStaff(s.id);return {staffId:s.id,reason:a.reason,...(a.reason===''?{ratings:a.ratings}:{}),notes:a.notes.trim(),complaint:Boolean(a.complaint),complaintDetails:a.complaint?a.complaintDetails.trim():'',attachments:[]};}),
-   appAnswers:apps.map(app=>{const a=ensureEvalApp(app);return {app,reason:a.reason,...(a.reason===''?{overall:a.overall,factors:a.factors}:{}),notes:a.notes.trim(),attachments:[]};})
+   appAnswers:apps.map(app=>{const a=ensureEvalApp(app);return {app,reason:a.reason,...(a.reason===''?{overall:a.overall,factorRatings:a.factorRatings}:{}),notes:a.notes.trim(),attachments:[]};})
   };
   try{
    const useMob=Boolean(sess?.accessToken&&searchParams.get('mode')==='app');

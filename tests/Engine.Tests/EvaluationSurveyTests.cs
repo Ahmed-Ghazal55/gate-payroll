@@ -136,15 +136,23 @@ public sealed class EvaluationSurveyTests
         input["appAnswers"]![0] = new JsonObject { ["app"] = r["apps"]![0]!.ToString(), ["overall"] = 6 };
         Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input)));
         input["appAnswers"]![0]!["overall"] = 4;
-        input["appAnswers"]![0]!["factors"] = new JsonArray("orderVolume", "orderVolume", "appProblems");
+        input["appAnswers"]![0]!["factorRatings"] = new JsonObject { ["orderVolume"] = 5, ["appProblems"] = 2, ["ghost"] = 3 };
+        Assert.ThrowsExactly<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input)));
+        input["appAnswers"]![0]!["factorRatings"] = new JsonObject { ["orderVolume"] = 5, ["appProblems"] = 2 };
         input["staffAnswers"]![0] = new JsonObject { ["staffId"] = r["staff"]![0]!.S("id"), ["reason"] = "not_dealt" };
         f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input));
+        var stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single();
+        Assert.AreEqual(5m, stored["appAnswers"]![0]!["factorRatings"]!.N("orderVolume"));
+        Assert.IsNull(stored["appAnswers"]![0]!["factors"]);
         var stats = f.Store.Read(c => EvaluationSurvey.Statistics(c, Admin, r.S("id")));
         Assert.IsNull(stats["bySupervisor"]![0]!["average"]);
         Assert.AreEqual(1m, stats["bySupervisor"]![0]!.N("skippedCount"));
         Assert.AreEqual(4m, stats["byApp"]!.AsArray().OfType<JsonObject>().Single(a => a.N("ratedCount") == 1).N("average"));
-        Assert.AreEqual(2, stats["commonFactors"]!.AsArray().Count);
-        Assert.IsTrue(stats["commonFactors"]!.AsArray().All(factor => factor.N("count") == 1));
+        var factors = stats["factorAverages"]!.AsArray().OfType<JsonObject>().ToList();
+        Assert.AreEqual(2, factors.Count);
+        Assert.AreEqual(5m, factors.Single(x => x.S("key") == "orderVolume").N("average"));
+        Assert.AreEqual(2m, factors.Single(x => x.S("key") == "appProblems").N("average"));
+        Assert.AreEqual(1m, factors.Single(x => x.S("key") == "orderVolume").N("count"));
     }
     [TestMethod]
     public void ExplicitPlatformScopeRedactsOtherPlatformCardsFromRepliesAndStatistics()
@@ -220,7 +228,7 @@ public sealed class EvaluationSurveyTests
         using var f = new PayFixture(); var r = Setup(f); var input = Reply(r);
         input["staffAnswers"]![0]!["attachments"] = new JsonArray(new JsonObject { ["kind"] = "image", ["fileName"] = "x.exe", ["contentType"] = "application/octet-stream", ["dataBase64"] = Convert.ToBase64String(new byte[] { 1, 2, 3 }) });
         Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store)));
-        input = Reply(r); input["appAnswers"]![0] = new JsonObject { ["app"] = r["apps"]![0]!.ToString(), ["overall"] = 4, ["factors"] = new JsonArray("unapprovedMetric") };
+        input = Reply(r); input["appAnswers"]![0] = new JsonObject { ["app"] = r["apps"]![0]!.ToString(), ["overall"] = 4, ["factorRatings"] = new JsonObject { ["unapprovedMetric"] = 3 } };
         Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store)));
         input = Reply(r); input["staffAnswers"]![0]!["ratings"]!["support"] = "8";
         Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store)));
@@ -300,7 +308,7 @@ public sealed class EvaluationSurveyTests
                 ["complaint"] = true,
                 ["complaintDetails"] = "Synthetic edited complaint"
             }).ToArray()),
-            ["appAnswers"] = new JsonArray(r["apps"]!.AsArray().Select(a => (JsonNode?)new JsonObject { ["app"] = a!.ToString(), ["overall"] = 2, ["factors"] = new JsonArray("orderVolume") }).ToArray())
+            ["appAnswers"] = new JsonArray(r["apps"]!.AsArray().Select(a => (JsonNode?)new JsonObject { ["app"] = a!.ToString(), ["overall"] = 2, ["factorRatings"] = new JsonObject { ["orderVolume"] = 3 } }).ToArray())
         };
         for (int i = 0; i < 3; i++)
             f.Store.Write((c, tx) => EvaluationSurvey.Edit(c, tx, r.S("sharingToken"), edit, "2000000091"));

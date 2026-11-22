@@ -17833,7 +17833,9 @@ export interface paths {
                                         problemSolving?: number;
                                     };
                                     overall?: number;
-                                    factors?: string[];
+                                    factorRatings?: {
+                                        [key: string]: number;
+                                    };
                                     notes?: string;
                                     complaint?: boolean;
                                     complaintDetails?: string;
@@ -17851,7 +17853,9 @@ export interface paths {
                                         problemSolving?: number;
                                     };
                                     overall?: number;
-                                    factors?: string[];
+                                    factorRatings?: {
+                                        [key: string]: number;
+                                    };
                                     notes?: string;
                                     complaint?: boolean;
                                     complaintDetails?: string;
@@ -18011,7 +18015,7 @@ export interface paths {
                                     count: number;
                                 }[];
                             }[];
-                            commonFactors: {
+                            factorAverages: {
                                 key: string;
                                 app?: string;
                                 count?: number;

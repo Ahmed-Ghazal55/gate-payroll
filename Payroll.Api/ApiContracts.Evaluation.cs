@@ -15,7 +15,7 @@ public static partial class ApiContracts
         ["factorMode"] = S(), ["editPolicyPending"] = B(), ["uploadsPolicyPending"] = B(), ["allowedActions"] = A(S()),
         ["attachmentLimits"] = O(new() { ["imagesPerCard"] = N(), ["voicePerCard"] = N(), ["voiceSeconds"] = N(), ["replyBytes"] = N() })
     }, "schema", "roundId", "title", "staff", "cities", "apps", "staffDimensions", "staffReasons", "appReasons", "factors", "allowedActions");
-    static OpenApiSchema EvaluationCard() => O(new() { ["staffId"] = S(), ["app"] = S(), ["reason"] = S(), ["ratings"] = O(EvaluationSurvey.StaffDimensions.ToDictionary(d => d, _ => (IOpenApiSchema)N())), ["overall"] = N(), ["factors"] = A(S()), ["notes"] = S(), ["complaint"] = B(), ["complaintDetails"] = S(), ["attachments"] = A(Free()) });
+    static OpenApiSchema EvaluationCard() => O(new() { ["staffId"] = S(), ["app"] = S(), ["reason"] = S(), ["ratings"] = O(EvaluationSurvey.StaffDimensions.ToDictionary(d => d, _ => (IOpenApiSchema)N())), ["overall"] = N(), ["factorRatings"] = O(EvaluationSurvey.Factors.ToDictionary(d => d, _ => (IOpenApiSchema)N())), ["notes"] = S(), ["complaint"] = B(), ["complaintDetails"] = S(), ["attachments"] = A(Free()) });
     static OpenApiSchema EvaluationReply() => O(new() { ["id"] = S(), ["roundId"] = S(), ["schemaVersion"] = N(), ["iqama"] = S(), ["name"] = S(), ["city"] = S(), ["nationality"] = S(), ["phone"] = S(), ["workApps"] = A(S()), ["companyId"] = S(), ["identityVerified"] = B(), ["staffAnswers"] = A(EvaluationCard()), ["appAnswers"] = A(EvaluationCard()), ["createdAt"] = S() }, "id", "roundId", "iqama", "name", "city", "nationality", "workApps", "staffAnswers", "appAnswers", "createdAt");
     static OpenApiSchema EvaluationBucket() => O(new()
     {
@@ -35,7 +35,7 @@ public static partial class ApiContracts
             if (path.EndsWith("/staff", StringComparison.Ordinal)) return A(EvaluationStaff());
             if (path.EndsWith("/responses", StringComparison.Ordinal)) return Page(EvaluationReply());
             if (path.EndsWith("/statistics/{dimension}", StringComparison.Ordinal)) return O(new() { ["roundId"] = S(), ["totalResponses"] = N(), ["items"] = A(EvaluationBucket()) }, "roundId", "totalResponses", "items");
-            if (path.EndsWith("/statistics", StringComparison.Ordinal)) return O(new() { ["roundId"] = S(), ["totalResponses"] = N(), ["byCity"] = A(EvaluationBucket()), ["byApp"] = A(EvaluationBucket()), ["bySupervisor"] = A(EvaluationBucket()), ["byNationality"] = A(EvaluationBucket()), ["commonFactors"] = A(EvaluationBucket()), ["dailyTrend"] = A(EvaluationBucket()) }, "roundId", "totalResponses", "byCity", "byApp", "bySupervisor", "byNationality", "commonFactors", "dailyTrend");
+            if (path.EndsWith("/statistics", StringComparison.Ordinal)) return O(new() { ["roundId"] = S(), ["totalResponses"] = N(), ["byCity"] = A(EvaluationBucket()), ["byApp"] = A(EvaluationBucket()), ["bySupervisor"] = A(EvaluationBucket()), ["byNationality"] = A(EvaluationBucket()), ["factorAverages"] = A(EvaluationBucket()), ["dailyTrend"] = A(EvaluationBucket()) }, "roundId", "totalResponses", "byCity", "byApp", "bySupervisor", "byNationality", "factorAverages", "dailyTrend");
             if (path.EndsWith("/export", StringComparison.Ordinal)) return null;
             return get && path.EndsWith("/rounds", StringComparison.Ordinal) ? A(EvaluationRound()) : EvaluationRound();
         }

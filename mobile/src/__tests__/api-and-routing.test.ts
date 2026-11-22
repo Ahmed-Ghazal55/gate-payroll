@@ -497,13 +497,13 @@ describe('Statement, Debts, Notifications, and Requests Screens', () => {
     draft.appAnswers['Ninja'] = {
       reason: '',
       overall: 4,
-      factors: ['orderVolume', 'fairPay'],
+      factorRatings: { orderVolume: 5, fairPay: 3 },
       notes: 'Synthetic app note'
     };
     draft.appAnswers['Keeta'] = {
       reason: 'not_worked',
       overall: 0,
-      factors: [],
+      factorRatings: {},
       notes: ''
     };
 
