@@ -644,12 +644,25 @@ public static class SalPayCalc
     {
         decimal gross=0,commission=0,l1Other=0;
         var l2=new List<(string Code,decimal Amount,string Account,string? DebtId)>();
+        // WC4D H13: the zero floor is only the Keeta §22.9.2 protected salary rider; everyone else carries a negative.
+        bool keetaIneligible=false;string payRunId="",erpRider="";
         using(var cmd=c.CreateCommand())
         {
             cmd.Transaction=tx;
+            cmd.CommandText=$"SELECT pay_run_id,erp_rider_id,keeta_ineligible FROM {SchemaSql.Q(c,"sal","pay_run_rider")} WHERE id=@r";
+            Add(cmd,"@r",riderId);
+            using var r=cmd.ExecuteReader();
+            if(r.Read()){payRunId=r["pay_run_id"].ToString()!;erpRider=r["erp_rider_id"].ToString()!;keetaIneligible=Convert.ToInt32(r["keeta_ineligible"])==1;}
+        }
+        var schemeRow=LoadFrozenKind(c,tx,payRunId,"scheme").FirstOrDefault(s=>string.Equals(s.S("erpRiderId",s.S("riderProfileId")),erpRider,StringComparison.OrdinalIgnoreCase));
+        bool protectedSalary=keetaIneligible&&(schemeRow==null||string.Equals(schemeRow.S("schemeCode"),"salary",StringComparison.OrdinalIgnoreCase));
+        using(var cmd=c.CreateCommand())
+        {
+            cmd.Transaction=tx;
+            // Only lines that reduce the rider's net (affects_net=1); company operating cost stays off the salary.
             cmd.CommandText=$"""
                 SELECT stage_code,item_code,amount,account_code,debt_id FROM {SchemaSql.Q(c,"sal","pay_run_item")}
-                WHERE pay_run_rider_id=@r AND amount<>0 ORDER BY line_no
+                WHERE pay_run_rider_id=@r AND amount<>0 AND affects_net=1 ORDER BY line_no
                 """;
             Add(cmd,"@r",riderId);
             using var r=cmd.ExecuteReader();
@@ -668,7 +681,8 @@ public static class SalPayCalc
         }
         decimal entitlement=J.Money(gross-commission);
         decimal level1=J.Money(l1Other+mudadAmount);
-        decimal netAfterL1=J.Money(Math.Max(0,entitlement-level1));
+        decimal netAfterL1=J.Money(entitlement-level1);
+        if(protectedSalary&&netAfterL1<0)netAfterL1=0;
         decimal level2Total=0;
         var l2Takes=new List<(string Code,decimal Take,string Account,string? DebtId)>();
         foreach(var item in l2)
