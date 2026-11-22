@@ -46,6 +46,8 @@ import {
   compareColumnValues,
   defaultStatusTone,
   evaluateColumnFilter,
+  partitionRowsForFacets,
+  facetRowsFor,
   extractDistinctOptions,
   extractDistinctTones,
   inferColumnFilterType,
@@ -381,6 +383,102 @@ export function DataTable<T extends Record<string, any>>({
     [getCellRawValue]
   );
 
+  // Precompute topN thresholds for any active topN column filter
+  const topNThresholdByCol = useMemo(() => {
+    const map: Record<string, number | null> = {};
+    for (const col of columns) {
+      const spec = colFilterSpecs[col.key];
+      if (spec?.op === 'topN' && spec.value) {
+        const n = Number(spec.value);
+        if (Number.isFinite(n) && n > 0) {
+          map[col.key] = computeTopNThreshold(
+            data.map((r) => getCellRawValue(r, col)),
+            n
+          );
+        }
+      }
+    }
+    return map;
+  }, [columns, colFilterSpecs, data, getCellRawValue]);
+
+  const tanstackColumnFilters = useMemo<ColumnFiltersState>(() => {
+    const list: ColumnFiltersState = [];
+    for (const col of columns) {
+      const spec = colFilterSpecs[col.key];
+      const quickVal = columnSearch[col.key];
+      let effectiveSpec: ColumnFilterValue | undefined = spec;
+      if (!isColumnFilterActive(effectiveSpec) && quickVal && quickVal.trim()) {
+        const fType = inferColumnFilterType(col.key, col.type ?? col.filterType);
+        effectiveSpec = {
+          op: fType === 'list' ? 'eq' : 'contains',
+          value: quickVal.trim(),
+        };
+      }
+      if (isColumnFilterActive(effectiveSpec)) {
+        list.push({ id: col.key, value: effectiveSpec });
+      }
+    }
+    return list;
+  }, [columns, colFilterSpecs, columnSearch]);
+
+  const serverOwnsColumnFilters =
+    serverSide && (Boolean(onColumnFiltersChange) || Boolean(onServerQueryChange));
+
+  // Global search predicate (normalized term; empty term matches every row)
+  const rowMatchesGlobalSearch = useCallback(
+    (row: T, normGlobal: string): boolean => {
+      if (!normGlobal) return true;
+      for (const col of columns) {
+        if (col.filterable === false || col.key === 'actions') continue;
+        const rawNorm = normalizeArabicSearch(getCellString(row, col));
+        const dispNorm = normalizeArabicSearch(getCellDisplayString(row, col));
+        if (rawNorm.includes(normGlobal) || dispNorm.includes(normGlobal)) return true;
+      }
+      return false;
+    },
+    [columns, getCellString, getCellDisplayString]
+  );
+
+  // Excel-style cascading value lists: each column's value list is built only from rows
+  // that pass the global search and every OTHER active column filter.
+  // `passAll` = rows passing every filter; `failOnly[key]` = rows failing only that column's filter.
+  const facetRows = useMemo(() => {
+    if (serverOwnsColumnFilters) return null;
+    const normGlobal = serverSide ? '' : normalizeArabicSearch(globalSearch);
+    if (tanstackColumnFilters.length === 0 && !normGlobal) return null;
+    const evaluators = tanstackColumnFilters.flatMap((f) => {
+      const col = columns.find((c) => c.key === f.id);
+      if (!col) return [];
+      const type = resolveColumnType(col);
+      const spec = f.value as ColumnFilterValue;
+      return [
+        {
+          key: f.id,
+          test: (row: T) =>
+            evaluateColumnFilter(getCellRawValue(row, col), spec, {
+              type,
+              labelOf: col.labelOf ? (v) => col.labelOf!(v, row) : undefined,
+              toneOf: col.toneOf ? (v) => col.toneOf!(v, row) : undefined,
+              topNThreshold: topNThresholdByCol[col.key],
+            }),
+        },
+      ];
+    });
+    return partitionRowsForFacets(data, evaluators, (row) =>
+      rowMatchesGlobalSearch(row, normGlobal)
+    );
+  }, [
+    serverOwnsColumnFilters,
+    serverSide,
+    globalSearch,
+    tanstackColumnFilters,
+    columns,
+    data,
+    getCellRawValue,
+    topNThresholdByCol,
+    rowMatchesGlobalSearch,
+  ]);
+
   // Distinct options per column (combines preset filterOptions, remote distinct values, and local row values with labelOf & toneOf)
   const distinctOptionsByCol = useMemo(() => {
     const map: Record<string, ColumnFilterOption[]> = {};
@@ -391,7 +489,10 @@ export function DataTable<T extends Record<string, any>>({
       const rawValues =
         remote && (remote.values.length > 0 || (remote.emptyCount ?? 0) > 0)
           ? remote.values
-          : data.map((r) => getCellRawValue(r, col));
+          : (facetRows
+              ? facetRowsFor(facetRows, col.key)
+              : data
+            ).map((r) => getCellRawValue(r, col));
       const colType = resolveColumnType(col);
       map[col.key] = extractDistinctOptions(rawValues, {
         labelOf: col.labelOf ? (v) => col.labelOf!(v) : undefined,
@@ -404,7 +505,7 @@ export function DataTable<T extends Record<string, any>>({
       });
     }
     return map;
-  }, [columns, data, distinctCacheKey, remoteDistinct, getCellRawValue]);
+  }, [columns, data, facetRows, distinctCacheKey, remoteDistinct, getCellRawValue]);
 
   // Distinct color tones per column
   const availableTonesByCol = useMemo(() => {
@@ -428,24 +529,6 @@ export function DataTable<T extends Record<string, any>>({
     }
     return map;
   }, [columns, distinctOptionsByCol]);
-
-  // Precompute topN thresholds for any active topN column filter
-  const topNThresholdByCol = useMemo(() => {
-    const map: Record<string, number | null> = {};
-    for (const col of columns) {
-      const spec = colFilterSpecs[col.key];
-      if (spec?.op === 'topN' && spec.value) {
-        const n = Number(spec.value);
-        if (Number.isFinite(n) && n > 0) {
-          map[col.key] = computeTopNThreshold(
-            data.map((r) => getCellRawValue(r, col)),
-            n
-          );
-        }
-      }
-    }
-    return map;
-  }, [columns, colFilterSpecs, data, getCellRawValue]);
 
   // Notify server-paged tables when filters or sort change
   const emitServerQuery = useCallback(
@@ -659,29 +742,6 @@ export function DataTable<T extends Record<string, any>>({
     });
   }, [columns, getCellRawValue, topNThresholdByCol]);
 
-  const tanstackColumnFilters = useMemo<ColumnFiltersState>(() => {
-    const list: ColumnFiltersState = [];
-    for (const col of columns) {
-      const spec = colFilterSpecs[col.key];
-      const quickVal = columnSearch[col.key];
-      let effectiveSpec: ColumnFilterValue | undefined = spec;
-      if (!isColumnFilterActive(effectiveSpec) && quickVal && quickVal.trim()) {
-        const fType = inferColumnFilterType(col.key, col.type ?? col.filterType);
-        effectiveSpec = {
-          op: fType === 'list' ? 'eq' : 'contains',
-          value: quickVal.trim(),
-        };
-      }
-      if (isColumnFilterActive(effectiveSpec)) {
-        list.push({ id: col.key, value: effectiveSpec });
-      }
-    }
-    return list;
-  }, [columns, colFilterSpecs, columnSearch]);
-
-  const serverOwnsColumnFilters =
-    serverSide && (Boolean(onColumnFiltersChange) || Boolean(onServerQueryChange));
-
   const tableInstance = useReactTable({
     data,
     columns: tanstackColumns,
@@ -689,19 +749,8 @@ export function DataTable<T extends Record<string, any>>({
       columnFilters: serverOwnsColumnFilters ? [] : tanstackColumnFilters,
       globalFilter: serverSide ? '' : globalSearch,
     },
-    globalFilterFn: (row, _columnId, filterValue: string) => {
-      const normGlobal = normalizeArabicSearch(filterValue);
-      if (!normGlobal) return true;
-      for (const col of columns) {
-        if (col.filterable === false || col.key === 'actions') continue;
-        const rawNorm = normalizeArabicSearch(getCellString(row.original, col));
-        const dispNorm = normalizeArabicSearch(getCellDisplayString(row.original, col));
-        if (rawNorm.includes(normGlobal) || dispNorm.includes(normGlobal)) {
-          return true;
-        }
-      }
-      return false;
-    },
+    globalFilterFn: (row, _columnId, filterValue: string) =>
+      rowMatchesGlobalSearch(row.original, normalizeArabicSearch(filterValue)),
     manualFiltering: serverOwnsColumnFilters,
     getCoreRowModel: getCoreRowModel(),
     getFilteredRowModel: getFilteredRowModel(),
