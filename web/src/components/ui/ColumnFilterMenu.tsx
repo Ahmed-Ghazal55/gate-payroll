@@ -33,6 +33,8 @@ import {
   computeTopNThreshold,
   evaluateColumnFilter,
   extractDistinctOptions,
+  partitionRowsForFacets,
+  facetRowsFor,
   extractDistinctTones,
   filterSelectOptions,
   isColumnFilterActive,
@@ -700,13 +702,53 @@ export function useTableAutoFilter<T>(
     return (row as any)?.[col.key];
   }, []);
 
+  const topNThresholdByCol = useMemo(() => {
+    const map: Record<string, number | null> = {};
+    for (const col of columns) {
+      const spec = filters[col.key];
+      if (spec?.op === 'topN' && spec.value) {
+        const n = Number(spec.value);
+        if (Number.isFinite(n) && n > 0) {
+          map[col.key] = computeTopNThreshold(
+            data.map((r) => getRaw(r, col)),
+            n
+          );
+        }
+      }
+    }
+    return map;
+  }, [columns, filters, data, getRaw]);
+
+  // Excel-style cascading value lists: each column lists only values from rows
+  // that pass every OTHER active column filter.
+  const facets = useMemo(() => {
+    const tests = columns.flatMap((col) => {
+      const spec = filters[col.key];
+      if (!isColumnFilterActive(spec)) return [];
+      const colType = resolveColumnType(col);
+      return [
+        {
+          key: col.key,
+          test: (row: T) =>
+            evaluateColumnFilter(getRaw(row, col), spec, {
+              type: colType,
+              labelOf: col.labelOf ? (v) => col.labelOf!(v, row) : undefined,
+              toneOf: col.toneOf ? (v) => col.toneOf!(v, row) : undefined,
+              topNThreshold: topNThresholdByCol[col.key],
+            }),
+        },
+      ];
+    });
+    return tests.length > 0 ? partitionRowsForFacets(data, tests) : null;
+  }, [data, columns, filters, getRaw, topNThresholdByCol]);
+
   const optionsByCol = useMemo(() => {
     const map: Record<string, ColumnFilterOption[]> = {};
     for (const col of columns) {
       if (col.filterable === false || col.key === 'actions') continue;
       const colType = resolveColumnType(col);
       map[col.key] = extractDistinctOptions(
-        data.map((r) => getRaw(r, col)),
+        (facets ? facetRowsFor(facets, col.key) : data).map((r) => getRaw(r, col)),
         {
           labelOf: col.labelOf ? (v) => col.labelOf!(v) : undefined,
           toneOf: col.toneOf ? (v) => col.toneOf!(v) : undefined,
@@ -717,7 +759,7 @@ export function useTableAutoFilter<T>(
       );
     }
     return map;
-  }, [data, columns, getRaw]);
+  }, [data, columns, getRaw, facets]);
 
   const tonesByCol = useMemo(() => {
     const map: Record<
@@ -740,23 +782,6 @@ export function useTableAutoFilter<T>(
     }
     return map;
   }, [columns, optionsByCol]);
-
-  const topNThresholdByCol = useMemo(() => {
-    const map: Record<string, number | null> = {};
-    for (const col of columns) {
-      const spec = filters[col.key];
-      if (spec?.op === 'topN' && spec.value) {
-        const n = Number(spec.value);
-        if (Number.isFinite(n) && n > 0) {
-          map[col.key] = computeTopNThreshold(
-            data.map((r) => getRaw(r, col)),
-            n
-          );
-        }
-      }
-    }
-    return map;
-  }, [columns, filters, data, getRaw]);
 
   const rows = useMemo(() => {
     const filtered = data.filter((row) => {

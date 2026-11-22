@@ -57,7 +57,7 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/roles/",StringComparison.Ordinal))return false;
         if(path.StartsWith("/api/config/lists",StringComparison.Ordinal))return method=="GET"||method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return method is "GET" or "POST" or "PUT"&&Has("users.manage"); // Handlers guard escalation and self-edit.
-        if(path=="/api/responses")return method=="GET"&&Has("forms.view");
+        if(path=="/api/responses"||path=="/api/responses/forms")return method=="GET"&&Has("forms.view");
         if(path=="/api/search")return method=="GET";
         if(path.StartsWith("/api/operations/",StringComparison.Ordinal)||path.StartsWith("/api/riders/",StringComparison.Ordinal)&&path.EndsWith("/accounts",StringComparison.Ordinal))return method=="GET"&&Has("operations.view");
         if(path=="/api/pay/apps/chefz/operations/review")return method=="POST"&&Has("pay.view");

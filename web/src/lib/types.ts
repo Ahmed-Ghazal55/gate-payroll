@@ -182,9 +182,15 @@ export interface SubmissionHistory {
   reviewedBy?: string;
 }
 
+/** One campaign or builder form in the per-form responses picker (generated contract). */
+export type ResponseForm = paths['/api/responses/forms']['get']['responses'][200]['content']['application/json'][number];
+export type ResponseFormColumn = ResponseForm['columns'][number];
+
 export interface Submission {
   id: string;
   campaignId: string;
+  /** campaign = work-system / IBAN campaign; custom = builder form. */
+  source?: 'campaign' | 'custom';
   campaignTitle?: string;
   name: string;
   iqama: string;

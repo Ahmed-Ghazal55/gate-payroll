@@ -11,6 +11,7 @@ import type {
   CompanyImportPlan,
   DashboardMetrics,
   Campaign,
+  ResponseForm,
   Submission,
   CustomForm,
   PaginatedResult,
@@ -874,6 +875,8 @@ export const api = {
 
   // Campaigns
   getCampaigns: () => handleRequest<Campaign[]>('/campaigns'),
+  // Per-form responses table: every campaign and builder form with its own column definitions.
+  getResponseForms: () => handleRequest<ResponseForm[]>('/responses/forms'),
   createCampaign: (data: Partial<Campaign> & { days?: number }) => handleRequest<Campaign>('/campaigns', { method: 'POST', body: JSON.stringify(data) }),
   closeCampaign: (id: string) => handleRequest<{ ok: boolean }>(`/campaigns/${id}/close`, { method: 'POST' }),
   updateCampaign: (id: string, input: { expiresAt?: string; status?: 'open' | 'closed'; title?: string }) =>

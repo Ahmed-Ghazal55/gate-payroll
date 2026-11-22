@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import {
   Check,
   X,
@@ -13,7 +13,7 @@ import {
   AlertCircle,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
-import type { Submission, Campaign } from '../../lib/types';
+import type { Submission, Campaign, ResponseForm, ResponseFormColumn } from '../../lib/types';
 import { Toolbar } from '../../components/ui/Toolbar';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { Dialog } from '../../components/ui/Dialog';
@@ -62,23 +62,66 @@ export function ResponsesTab({
   // Full IBAN for review (Ghazal 2026-11-15): reviewers check the collected IBANs on screen and in the exported sheet.
   // The API already returns the full value to anyone allowed to list responses; nothing is unmasked for other roles.
 
-  // Campaign name for the user: the title the API sent, else the title of the loaded campaign.
-  // The internal id is never shown.
-  const campaignTitles = useMemo(() => {
-    const map = new Map<string, string>();
-    for (const c of campaigns) if (c.title) map.set(c.id, c.title);
-    for (const s of submissions) if (s.campaignTitle) map.set(s.campaignId, s.campaignTitle);
-    return map;
-  }, [campaigns, submissions]);
-  const campaignName = (s: Submission) => s.campaignTitle || campaignTitles.get(s.campaignId) || '—';
-  // Filter choices = every campaign and form that has a title, including custom forms that only appear in the responses.
-  const campaignOptions = useMemo(
+  // Per-form table (Ghazal 2026-11-22): one campaign or builder form at a time, chosen at the top.
+  // Its columns are built by looping over that form's questions from GET /api/responses/forms.
+  const [forms, setForms] = useState<ResponseForm[]>([]);
+  const [formsError, setFormsError] = useState<string | null>(null);
+  const loadForms = useCallback(async () => {
+    try {
+      setForms(await api.getResponseForms());
+      setFormsError(null);
+    } catch (err: any) {
+      setFormsError(err?.message || 'تعذر تحميل قائمة النماذج');
+    }
+  }, []);
+  useEffect(() => {
+    loadForms();
+  }, [loadForms]);
+  const refreshAll = () => {
+    loadForms();
+    onRefresh();
+  };
+
+  const selectedForm = useMemo(() => {
+    if (forms.length === 0) return null;
+    return (
+      forms.find((f) => f.id === campaignFilter) ??
+      forms.find((f) => f.responseCount > 0) ??
+      forms[0]
+    );
+  }, [forms, campaignFilter]);
+  const isCampaign = selectedForm?.source === 'campaign';
+  const canActOnRows = canReview && isCampaign;
+
+  // Start from the form named in the link (?form=), so a link opens the same table.
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    const fromUrl = new URLSearchParams(window.location.search).get('form');
+    if (fromUrl) setCampaignFilter(fromUrl);
+  }, []);
+  const chooseForm = (id: string) => {
+    setCampaignFilter(id);
+    setSelectedIds([]);
+    setStatusFilter('all');
+    if (typeof window !== 'undefined') {
+      const url = new URL(window.location.href);
+      url.searchParams.set('form', id);
+      window.history.replaceState(null, '', url.toString());
+    }
+  };
+  const formOptions = useMemo(
     () =>
-      [...campaignTitles.entries()]
-        .map(([value, label]) => ({ value, label }))
-        .sort((a, b) => a.label.localeCompare(b.label, 'ar')),
-    [campaignTitles]
+      forms.map((f) => ({
+        value: f.id,
+        label: `${f.title || 'بدون عنوان'} (${f.responseCount.toLocaleString('en-US')})`,
+      })),
+    [forms]
   );
+  const formRows = useMemo(
+    () => (selectedForm ? submissions.filter((s) => s.campaignId === selectedForm.id) : []),
+    [submissions, selectedForm]
+  );
+
   const workSystemLabel = (s: Submission) =>
     s.workSystem === 'tiers'
       ? 'نظام الراتب الجديد'
@@ -93,12 +136,8 @@ export function ResponsesTab({
     s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة';
 
   const filteredSubmissions = useMemo(() => {
-    return submissions.filter((s) => {
-      if (statusFilter !== 'all' && s.status !== statusFilter) return false;
-      if (campaignFilter && s.campaignId !== campaignFilter) return false;
-      return true;
-    });
-  }, [submissions, statusFilter, campaignFilter]);
+    return formRows.filter((s) => statusFilter === 'all' || s.status === statusFilter);
+  }, [formRows, statusFilter]);
 
   // Quick review
   const handleQuickApprove = async (s: Submission) => {
@@ -114,7 +153,7 @@ export function ResponsesTab({
         identityReviewed: true,
       });
       toast('تم اعتماد الاختيار بنجاح', 'success');
-      onRefresh();
+      refreshAll();
     } catch (err: any) {
       toast(err?.message || 'تعذر الاعتماد', 'danger');
     }
@@ -149,7 +188,7 @@ export function ResponsesTab({
     if (!bulkAction || selectedIds.length === 0) return;
 
     if (bulkAction === 'approve') {
-      const selectedRows = submissions.filter((s) => selectedIds.includes(s.id));
+      const selectedRows = formRows.filter((s) => selectedIds.includes(s.id));
       const hasIbanRow = selectedRows.some((s) => !!s.iban);
       if (hasIbanRow) {
         toast('تتضمن الدفعة المحددة آيبانات بنكية؛ راجع ملكيتها فرديًا قبل الاعتماد الجماعي.', 'danger');
@@ -161,15 +200,15 @@ export function ResponsesTab({
     setBulkSubmitting(true);
     try {
       if (bulkAction === 'approve') {
-        const res = await api.bulkApproveSubmissions(campaignFilter || undefined, selectedIds);
+        const res = await api.bulkApproveSubmissions(selectedForm?.id, selectedIds);
         toast(`تم اعتماد ${res.count} رد بنجاح`, 'success');
       } else {
-        const res = await api.bulkDeleteSubmissions(campaignFilter || undefined, selectedIds);
+        const res = await api.bulkDeleteSubmissions(selectedForm?.id, selectedIds);
         toast(`تم حذف ${res.count} رد بنجاح`, 'warning');
       }
       setSelectedIds([]);
       setBulkAction(null);
-      onRefresh();
+      refreshAll();
     } catch (err: any) {
       toast(err?.message || 'تعذر تنفيذ الإجراء الجماعي', 'danger');
     } finally {
@@ -177,14 +216,113 @@ export function ResponsesTab({
     }
   };
 
-  // Excel / CSV Export
+  // Answer of one question on a row (campaign rows carry fields at the top; builder answers are flattened by the API client).
+  const answerOf = (s: Submission, id: string): unknown => (s as unknown as Record<string, unknown>)[id];
+  const optionLabel = (col: ResponseFormColumn, v: unknown) => {
+    const raw = v == null ? '' : String(v);
+    return col.options?.find((o) => o.value === raw)?.labelAr || raw;
+  };
+  const ibanText = (s: Submission) => {
+    const iban = cleanIban(String(answerOf(s, 'iban') ?? ''));
+    if (!iban) return '';
+    return canViewIban ? iban : `••••${iban.slice(-4)}`;
+  };
+  /** Plain text of a question's answer, used by filters, export and the default cell. */
+  const answerText = (s: Submission, col: ResponseFormColumn): string => {
+    const v = answerOf(s, col.id);
+    if (col.type === 'workSystem') return s.workSystem ? workSystemLabel(s) : '';
+    if (col.type === 'iban') return ibanText(s);
+    if (Array.isArray(v)) return v.map((x) => optionLabel(col, x)).join('، ');
+    if (col.type === 'list') return optionLabel(col, v);
+    return v == null ? '' : String(v);
+  };
+
+  /** One table column per question of the selected form. */
+  const questionColumns = (selectedForm?.columns ?? []).map((q): ColumnDef<Submission> => {
+    const key = `q_${q.id}`;
+    if (q.type === 'iban') {
+      return {
+        key,
+        header: q.labelAr,
+        type: 'text',
+        filterType: 'text',
+        getValue: (s) => `${ibanText(s)} ${answerOf(s, 'iban') ? bankLabel(s) : ''}`.trim(),
+        exportColumns: canViewIban ? [{ header: 'الآيبان', value: (s) => ibanText(s) }] : [],
+        render: (s) =>
+          !answerOf(s, 'iban') ? (
+            <span className="text-[var(--muted)]">—</span>
+          ) : canViewIban ? (
+            <IbanDisplay iban={String(s.iban)} bankCode={s.bankCode} bank={s.bank} />
+          ) : (
+            <span className="font-mono text-xs" dir="ltr">{ibanText(s)}</span>
+          ),
+      };
+    }
+    if (q.type === 'number') {
+      return {
+        key,
+        header: q.labelAr,
+        type: 'number',
+        numeric: true,
+        summary: 'sum',
+        getValue: (s) => {
+          const v = answerOf(s, q.id);
+          return v === '' || v == null ? null : Number(v);
+        },
+        render: (s) => {
+          const v = answerOf(s, q.id);
+          return v === '' || v == null ? (
+            <span className="text-[var(--muted)]">—</span>
+          ) : (
+            <span className="num">{Number(v).toLocaleString('en-US')}</span>
+          );
+        },
+      };
+    }
+    if (q.type === 'date') {
+      return {
+        key,
+        header: q.labelAr,
+        type: 'date',
+        getValue: (s) => answerText(s, q),
+        render: (s) => <span className="num text-xs">{answerText(s, q) || '—'}</span>,
+      };
+    }
+    const isList = q.type === 'list' || q.type === 'workSystem';
+    const isId = q.type === 'phone';
+    return {
+      key,
+      header: q.labelAr,
+      type: isList ? 'list' : 'text',
+      filterType: isList ? 'list' : 'text',
+      getValue: (s) => answerText(s, q),
+      render: (s) => {
+        const text = answerText(s, q);
+        if (!text) return <span className="text-[var(--muted)]">—</span>;
+        return isId ? (
+          <span className="num font-mono text-xs" dir="ltr">{text}</span>
+        ) : (
+          <span className={isList ? 'font-semibold text-xs' : 'text-xs'}>{text}</span>
+        );
+      },
+    };
+  });
+
+  // Excel / CSV export: the same columns as the screen (one file per form).
   const handleExport = async (format: 'excel-all' | 'excel-filtered' | 'csv-filtered') => {
+    if (!selectedForm) return;
     setExportLoading(true);
-    const targetRows = format === 'excel-all' ? submissions : filteredSubmissions;
-    // R1 / H20: IBAN column only when the caller has riders.iban.view; otherwise omit it entirely.
-    const headers = canViewIban
-      ? ['اسم المندوب', 'الإقامة', 'الجوال', 'المدينة', 'الآيبان', 'النظام', 'المنصات', 'الحملة', 'الحالة', 'ملاحظة المراجعة', 'النسخة', 'التاريخ']
-      : ['اسم المندوب', 'الإقامة', 'الجوال', 'المدينة', 'النظام', 'المنصات', 'الحملة', 'الحالة', 'ملاحظة المراجعة', 'النسخة', 'التاريخ'];
+    const targetRows = format === 'excel-all' ? formRows : filteredSubmissions;
+    const questions = selectedForm.columns.filter((q) => q.type !== 'iban' || canViewIban);
+    const headers = [
+      'اسم المندوب',
+      'رقم الإقامة',
+      ...questions.map((q) => q.labelAr),
+      'الحالة',
+      'ملاحظة المراجعة',
+      'النسخة',
+      'تاريخ الإرسال',
+    ];
 
     // Formula injection guard matching Frontend/src/table-tools.ts:86
     const sanitize = (val: string) => {
@@ -192,25 +330,25 @@ export function ResponsesTab({
       return val;
     };
 
-    const rows = targetRows.map((s) => {
-      const base = [
-        sanitize(s.name),
-        sanitize(s.iqama),
-        sanitize(s.phone || ''),
-        sanitize(s.city || ''),
-      ];
-      if (canViewIban) base.push(sanitize(s.iban ? cleanIban(s.iban) : ''));
-      base.push(
-        sanitize(workSystemLabel(s)),
-        sanitize((s.platforms || []).join('، ')),
-        sanitize(campaignName(s)),
-        sanitize(s.status === 'approved' ? 'معتمد' : s.status === 'rejected' ? 'مرفوض' : 'قيد المراجعة'),
-        sanitize(s.reviewNote || ''),
-        sanitize(String(s.version || 1)),
-        sanitize(s.createdAt ? new Date(s.createdAt).toLocaleDateString('ar-SA') : '—'),
-      );
-      return base;
-    });
+    const rows = targetRows.map((s) => [
+      sanitize(s.name || ''),
+      sanitize(s.iqama || ''),
+      ...questions.map((q) => {
+        if (q.type === 'number') {
+          const v = answerOf(s, q.id);
+          return v === '' || v == null ? '' : Number(v);
+        }
+        return sanitize(answerText(s, q));
+      }),
+      sanitize(statusLabel(s)),
+      sanitize(s.reviewNote || ''),
+      sanitize(String(s.version || 1)),
+      sanitize(s.createdAt ? new Date(s.createdAt).toLocaleDateString('ar-SA') : '—'),
+    ]);
+    const numericColumns = questions
+      .map((q, i) => (q.type === 'number' ? i + 2 : -1))
+      .filter((i) => i >= 0);
+    const baseName = (selectedForm.title || 'responses').replace(/[\\/:*?"<>|]+/g, '-').slice(0, 80);
 
     try {
       if (format === 'csv-filtered') {
@@ -224,22 +362,21 @@ export function ResponsesTab({
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `responses-filtered.csv`;
+        a.download = `${baseName}.csv`;
         a.click();
         URL.revokeObjectURL(url);
         toast('تم تنزيل الملف النصي المفلتر بنجاح', 'success');
       } else {
-        // Excel Export via backend
         const blob = await api.exportExcel({
           headers,
           rows,
-          numericColumns: [], // iqama and IBAN stay text
-          filename: `responses-${format}.xlsx`,
+          numericColumns, // iqama, phone and IBAN stay text
+          filename: `${baseName}.xlsx`,
         });
         const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
-        a.download = `responses-${format}.xlsx`;
+        a.download = `${baseName}.xlsx`;
         a.click();
         URL.revokeObjectURL(url);
         toast('تم تنزيل جدول البيانات بنجاح', 'success');
@@ -277,46 +414,7 @@ export function ResponsesTab({
       getValue: (s) => s.iqama || '',
       render: (s) => <span className="num font-mono text-xs font-bold">{s.iqama}</span>,
     },
-    {
-      key: 'choice',
-      header: 'البيان / الآيبان',
-      type: 'text',
-      filterType: 'text',
-      getValue: (s) => (s.iban ? (canViewIban ? `${cleanIban(s.iban)} ${bankLabel(s)}` : `••••${cleanIban(s.iban).slice(-4)}`) : workSystemLabel(s)),
-      exportColumns: canViewIban
-        ? [
-            { header: 'الآيبان', value: (s) => (s.iban ? cleanIban(s.iban) : '') },
-            { header: 'نظام العمل', value: (s) => (s.iban ? '' : workSystemLabel(s)) },
-          ]
-        : [{ header: 'نظام العمل', value: (s) => (s.iban ? '' : workSystemLabel(s)) }],
-      render: (s) =>
-        s.iban ? (
-          canViewIban ? (
-          <IbanDisplay iban={s.iban} bankCode={s.bankCode} bank={s.bank} />
-          ) : (
-            <span className="font-mono text-xs" dir="ltr">••••{cleanIban(s.iban).slice(-4)}</span>
-          )
-        ) : (
-          <span className="font-semibold text-xs">
-            {workSystemLabel(s)}
-          </span>
-        ),
-    },
-    {
-      key: 'campaign',
-      header: 'الحملة',
-      type: 'list',
-      filterType: 'list',
-      getValue: (s) => campaignName(s),
-      render: (s) => (
-        <span
-          className="text-xs text-[var(--muted)] truncate max-w-[220px] inline-block align-bottom"
-          title={campaignName(s)}
-        >
-          {campaignName(s)}
-        </span>
-      ),
-    },
+    ...questionColumns,
     {
       key: 'status',
       header: 'الحالة',
@@ -360,28 +458,28 @@ export function ResponsesTab({
             id: 'all',
             label: 'كل الردود',
             active: statusFilter === 'all',
-            count: submissions.length,
+            count: formRows.length,
             onToggle: () => setStatusFilter('all'),
           },
           {
             id: 'pending',
             label: 'بانتظار المراجعة',
             active: statusFilter === 'pending',
-            count: submissions.filter((s) => s.status === 'pending').length,
+            count: formRows.filter((s) => s.status === 'pending').length,
             onToggle: () => setStatusFilter('pending'),
           },
           {
             id: 'approved',
             label: 'معتمدة',
             active: statusFilter === 'approved',
-            count: submissions.filter((s) => s.status === 'approved').length,
+            count: formRows.filter((s) => s.status === 'approved').length,
             onToggle: () => setStatusFilter('approved'),
           },
           {
             id: 'rejected',
             label: 'مرفوضة',
             active: statusFilter === 'rejected',
-            count: submissions.filter((s) => s.status === 'rejected').length,
+            count: formRows.filter((s) => s.status === 'rejected').length,
             onToggle: () => setStatusFilter('rejected'),
           },
         ]}
@@ -389,22 +487,19 @@ export function ResponsesTab({
         exportLoading={exportLoading}
         extraControls={
           <div className="flex items-center gap-2">
-            {/* Campaign filter */}
+            {/* Form / campaign picker: the table shows one form at a time */}
             <SearchableSelect
               id="select-campaign-filter"
-              value={campaignFilter}
-              onChange={setCampaignFilter}
-              ariaLabel="تصفية حسب الحملة"
-              placeholder="كل الحملات"
-              className="w-52"
-              options={[
-                { value: '', label: 'كل الحملات' },
-                ...campaignOptions,
-              ]}
+              value={selectedForm?.id ?? ''}
+              onChange={chooseForm}
+              ariaLabel="اختيار الحملة أو النموذج"
+              placeholder="اختر حملة أو نموذجًا"
+              className="w-72"
+              options={formOptions}
             />
 
             {/* Bulk actions */}
-            {canReview && selectedIds.length > 0 && (
+            {canActOnRows && selectedIds.length > 0 && (
               <div className="flex items-center gap-1.5 bg-[var(--row-selected)] px-2.5 py-1 rounded-lg border border-[var(--accent)]">
                 <span className="text-xs font-bold text-[var(--accent)] num">
                   {selectedIds.length} محدد
@@ -432,7 +527,7 @@ export function ResponsesTab({
 
             <button
               type="button"
-              onClick={onRefresh}
+              onClick={refreshAll}
               className="p-2 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--muted)] hover:text-[var(--ink)]"
               title="تحديث البيانات"
             >
@@ -442,7 +537,30 @@ export function ResponsesTab({
         }
       />
 
-      {error ? (
+      {selectedForm && (
+        <div className="flex flex-wrap items-center gap-2 text-xs text-[var(--muted)]">
+          <strong className="text-sm text-[var(--ink)]">{selectedForm.title}</strong>
+          <span className="px-2 py-0.5 rounded-full bg-[var(--raised)]">
+            {selectedForm.source === 'custom'
+              ? 'نموذج من المصمم'
+              : selectedForm.kind === 'iban'
+                ? 'حملة الآيبان'
+                : 'حملة نظام العمل'}
+          </span>
+          <span className="px-2 py-0.5 rounded-full bg-[var(--raised)]">
+            {selectedForm.status === 'open' ? 'مفتوح' : selectedForm.status === 'closed' ? 'مغلق' : selectedForm.status}
+          </span>
+          <span>
+            <span className="num">{selectedForm.responseCount.toLocaleString('en-US')}</span> رد،{' '}
+            <span className="num">{selectedForm.pendingCount.toLocaleString('en-US')}</span> بانتظار المراجعة
+          </span>
+          {!isCampaign && <span>ردود نماذج المصمم للعرض والتصدير فقط.</span>}
+        </div>
+      )}
+
+      {formsError && !error ? (
+        <ErrorState title="تعذر تحميل قائمة النماذج" message={formsError} onRetry={refreshAll} />
+      ) : error ? (
         <ErrorState
           title={error.includes('404') ? 'خدمة مراجعة الردود قيد التجهيز' : 'تعذر تحميل الردود'}
           message={
@@ -450,25 +568,32 @@ export function ResponsesTab({
               ? 'خدمة مراجعة الردود قيد الإطلاق من الخادم. يمكنك الاستمرار في مراجعة الردود عبر الواجهة السابقة.'
               : error
           }
-          onRetry={onRefresh}
+          onRetry={refreshAll}
         />
       ) : (
         <DataTable
+          key={selectedForm?.id ?? 'none'}
           columns={columns}
           data={filteredSubmissions}
           loading={loading}
           exportable={false}
-          selectable={canReview}
+          selectable={canActOnRows}
           selectedIds={selectedIds}
           onSelectionChange={setSelectedIds}
           getRowId={(r) => r.id}
-          emptyTitle={noCompanyScope ? emptyScopeHint : 'لا توجد ردود مسجلة'}
+          emptyTitle={
+            noCompanyScope
+              ? emptyScopeHint
+              : !selectedForm
+                ? 'لا توجد حملات أو نماذج بعد'
+                : 'لا توجد ردود مسجلة'
+          }
           emptyDescription={
             noCompanyScope
               ? emptyScopeHint
               : 'لم تصل ردود جديدة تطابق خيارات التصفية المحددة.'
           }
-          rowActions={[
+          rowActions={isCampaign ? [
             {
               label: 'معاينة وتدقيق',
               onClick: (s) => setReviewTarget(s),
@@ -502,7 +627,7 @@ export function ResponsesTab({
                   },
                 ]
               : []),
-          ]}
+          ] : undefined}
         />
       )}
 
@@ -510,7 +635,7 @@ export function ResponsesTab({
       <ReviewDrawer
         submission={reviewTarget}
         onClose={() => setReviewTarget(null)}
-        onSuccess={onRefresh}
+        onSuccess={refreshAll}
       />
 
       {/* Bulk Action Confirmation Dialog */}

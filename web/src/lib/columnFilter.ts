@@ -1279,3 +1279,47 @@ export function applyConditionValueDraftChange(
     nextFilter: isColumnFilterActive(nextFilter) ? nextFilter : undefined,
   };
 }
+
+/** One active column filter as a row predicate (used for cascading value lists). */
+export interface FacetFilterTest<T> {
+  key: string;
+  test: (row: T) => boolean;
+}
+
+/**
+ * Excel-style cascading value lists. Splits rows into those passing every active filter
+ * (`passAll`) and those failing exactly one (`failOnly[key]`). A column's value list is then
+ * built from `facetRowsFor(result, key)`: rows that pass every OTHER filter.
+ */
+export function partitionRowsForFacets<T>(
+  rows: ReadonlyArray<T>,
+  tests: ReadonlyArray<FacetFilterTest<T>>,
+  include: (row: T) => boolean = () => true
+): { passAll: T[]; failOnly: Record<string, T[]> } {
+  const passAll: T[] = [];
+  const failOnly: Record<string, T[]> = {};
+  for (const row of rows) {
+    if (!include(row)) continue;
+    let failedKey: string | null = null;
+    let failures = 0;
+    for (const t of tests) {
+      if (!t.test(row)) {
+        failures++;
+        failedKey = t.key;
+        if (failures > 1) break;
+      }
+    }
+    if (failures === 0) passAll.push(row);
+    else if (failures === 1 && failedKey !== null) (failOnly[failedKey] ??= []).push(row);
+  }
+  return { passAll, failOnly };
+}
+
+/** Rows a column's value list is built from: rows passing every filter except that column's own. */
+export function facetRowsFor<T>(
+  facets: { passAll: T[]; failOnly: Record<string, T[]> },
+  key: string
+): T[] {
+  const own = facets.failOnly[key];
+  return own && own.length > 0 ? facets.passAll.concat(own) : facets.passAll;
+}
