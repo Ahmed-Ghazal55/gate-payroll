@@ -21,14 +21,40 @@ public static partial class HungerStationInvoices
     static bool EscalatedCar(DbConnection c,DbTransaction? tx,string id)=>Store.List(c,"platform_dispute",tx).Any(d=>d.S("invoiceId")==id&&RejectedCar(d));
     static bool HasUnresolvedDispute(DbConnection c,DbTransaction? tx,string id)
     {
-        var disputes=Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==id).ToList();
-        if(disputes.Any(d=>d.S("status")!="resolved"&&!RejectedCar(d)))return true;
-        // A nonzero CAR source needs a platform credit or a recorded platform rejection, even if a claim is missing.
-        return Store.List(c,"platform_invoice_line",tx).Where(l=>l.S("invoiceId")==id&&l.S("lineType")=="company"&&l.N("carDeduction")!=0)
-            .Any(l=>!disputes.Any(d=>d.S("lineId")==l.S("id")&&(CreditedCar(d)||RejectedCar(d))));
+        // U-W2-11c / M-0718: vehicle/CAR values no longer invent a dispute; only formal open disputes block.
+        return Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==id).Any(d=>d.S("status")!="resolved"&&!RejectedCar(d));
+    }
+    static bool NeedsAccountantReview(DbConnection c,DbTransaction? tx,string id)
+    {
+        var invoice=Store.Get(c,id,"platform_invoice",tx);
+        if(invoice!=null&&invoice.S("status")=="accountant_review")return true;
+        return Store.List(c,"platform_invoice_line",tx).Any(l=>l.S("invoiceId")==id&&l.S("accountantReview")=="required");
     }
     public static void DemandResolvedDisputes(DbConnection c,DbTransaction? tx,string id)
-    {if(HasUnresolvedDispute(c,tx,id))throw new ApiError("ترحيل الفاتورة متوقف بالكامل حتى حسم الاعتراض؛ فتح بوابة الترحيل لا يتجاوز الاعتراض.",409);}
+    {
+        if(NeedsAccountantReview(c,tx,id))throw new ApiError("ترحيل الفاتورة متوقف حتى ينهي المحاسب مراجعة قيم المركبات ويقيد القيد المخصص.",409);
+        if(HasUnresolvedDispute(c,tx,id))throw new ApiError("ترحيل الفاتورة متوقف بالكامل حتى حسم الاعتراض؛ فتح بوابة الترحيل لا يتجاوز الاعتراض.",409);
+    }
+    /// <summary>U-W2-11c / M-0718: accountant confirms vehicle/growth values were booked by a custom entry (no auto CAR dispute).</summary>
+    public static JsonObject ClearAccountantReview(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
+    {
+        Scope(actor,"platforms.hs.manage");
+        var invoice=GetInvoice(c,tx,actor,id).Clone();
+        J.Need(NeedsAccountantReview(c,tx,id),"لا توجد مراجعة محاسب معلّقة على هذه الفاتورة.",409);
+        J.Need(input.S("reason").Length is >0 and <=500,"سبب إنهاء المراجعة مطلوب.");
+        J.Need(input.S("customEntryRef").Length is >0 and <=120,"مرجع القيد المخصص مطلوب.");
+        foreach(var line in Store.List(c,"platform_invoice_line",tx).Where(l=>l.S("invoiceId")==id&&l.S("accountantReview")=="required").Select(l=>l.Clone()))
+        {
+            line["accountantReview"]="cleared";line["accountantClearedBy"]=actor.Identity!.Name;line["accountantClearedAt"]=DateTimeOffset.UtcNow.ToString("O");
+            line["customEntryRef"]=input.S("customEntryRef");line["status"]=line.N("tgaAmount")!=0?"pending_allocation":"pending_review";
+            Store.Save(c,"platform_invoice_line",line,tx);
+        }
+        bool needsTga=Store.List(c,"platform_invoice_line",tx).Any(l=>l.S("invoiceId")==id&&l.N("tgaAmount")!=0&&l.S("status")=="pending_allocation");
+        invoice["status"]=needsTga?"pending_allocation":"pending_review";invoice["accountantReviewReason"]="";invoice["accountantClearedBy"]=actor.Identity!.Name;
+        invoice["accountantClearedAt"]=DateTimeOffset.UtcNow.ToString("O");invoice["customEntryRef"]=input.S("customEntryRef");
+        Store.Save(c,"platform_invoice",invoice,tx);Store.Audit(c,tx,"platform.hs.accountant_review_cleared",id,actor.Identity!.Name!);
+        return invoice;
+    }
     static bool Closed(DbConnection c,DbTransaction? tx,string company,string period)=>Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==company&&p.S("period")==period&&p.S("status")=="closed");
     static void Independent(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject facts,string makerField="createdBy")
     {var request=new JsonObject{["requestedBy"]=facts.S(makerField),["targetDepartment"]="FIN",["requiredRankLevel"]=1};AccessPolicy.ValidateApproval(actor,request,new JsonObject(),"platforms.hs.approve",c,tx,"platform.hs.approve",facts);if(facts.B("selfApprovedException"))Store.Save(c,facts.S("action")!=""?ActionKind:facts.S("invoiceId")!=""?"platform_dispute":"platform_invoice",facts,tx);}
@@ -54,14 +80,19 @@ public static partial class HungerStationInvoices
         var allocations=Store.List(c,"platform_allocation",tx).Where(a=>a.S("invoiceId")==id&&a.S("status")=="approved").ToList();
         foreach(var line in all.Where(l=>l.N("tgaAmount")!=0))
             if(!allocations.Any(a=>a.S("lineId")==line.S("id")&&a.N("amount")==Math.Abs(line.N("tgaAmount"))))blockers.Add("tga_pending_allocation");
-        decimal disputed=all.Where(l=>l.S("lineType")=="company").Sum(l=>Math.Abs(l.N("carDeduction")));bool openDispute=HasUnresolvedDispute(c,tx,id),enabled=PlatformPosting.Enabled(c,"hs",tx);
+        // Formal disputes only (manual). Vehicle/CAR columns stay out of auto journals (M-0718 custom entry).
+        var carDisputes=Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==id&&d.S("category")=="CAR"&&(d.S("status") is "open" or "escalated"||CreditedCar(d)||RejectedCar(d))).ToList(); // open/escalated or settled CAR claim amounts
+        decimal disputed=carDisputes.Sum(d=>Math.Abs(d.N("amount")));
+        bool openDispute=HasUnresolvedDispute(c,tx,id),needsAccountant=NeedsAccountantReview(c,tx,id),enabled=PlatformPosting.Enabled(c,"hs",tx);
+        if(needsAccountant)blockers.Add("accountant_review_pending");
         void Add(string code,decimal debit,decimal credit,string note,string rider="")
         {if(debit==0&&credit==0)return;var line=FinancialCore.CreateJournalLine(code,company,debit,credit,note,rider,targetChart:true);line["platform"]="HungerStation";lines.Add(line);}
         if(blockers.Count==0)
         {
             Add(PayPlatforms.For("hs").Receivable,invoice.N("amountExclVat")+invoice.N("vat"),0,"فاتورة الخدمة والضريبة");Add("411102",0,salary,"إيراد نظام الراتب");
             foreach(var row in work.Where(l=>l.S("scheme")=="commission")){Add("212103",0,row.N("riderNet"),"مستحق المندوب المعتمد",row.S("riderId"));Add("411601",0,row.N("companyCommission"),"عمولة هنقر المعتمدة");}
-            Add("213201",0,invoice.N("vat"),"ضريبة الفاتورة");Add("112803",disputed,0,"مبلغ CAR في حساب النزاعات دون تحميل أي طرف");Add(PayPlatforms.For("hs").Receivable,0,disputed,"فصل المبلغ المتنازع عليه");
+            Add("213201",0,invoice.N("vat"),"ضريبة الفاتورة");
+            Add("112803",disputed,0,"مبلغ اعتراض CAR في حساب النزاعات دون تحميل أي طرف");Add(PayPlatforms.For("hs").Receivable,0,disputed,"فصل المبلغ المتنازع عليه");
             foreach(var allocation in allocations)
             {
                 foreach(var share in allocation["riderShares"]!.AsArray().OfType<JsonObject>())Add("112502",share.N("amount"),0,"نصيب المندوب المعتمد من TGA",share.S("riderId"));
@@ -69,7 +100,10 @@ public static partial class HungerStationInvoices
             }
             if(lines.Count==0)blockers.Add("no_postable_amount");
         }
-        return new(){["invoiceId"]=id,["companyId"]=company,["period"]=period,["lines"]=lines,["blockers"]=new JsonArray(blockers.Distinct().Select(b=>(JsonNode?)JsonValue.Create(b)).ToArray()),["readyForApproval"]=blockers.Count==0,["postingEnabled"]=enabled,["postingBlockedByDispute"]=openDispute,["postingAllowed"]=enabled&&!openDispute&&blockers.Count==0,["postingBlockers"]=new JsonArray((!enabled?new[]{"posting_gate_disabled"}:Array.Empty<string>()).Concat(openDispute?new[]{"unresolved_invoice_dispute"}:Array.Empty<string>()).Select(b=>(JsonNode?)JsonValue.Create(b)).ToArray()),["disputedAmount"]=disputed};
+        var postingBlockers=(!enabled?new[]{"posting_gate_disabled"}:Array.Empty<string>())
+            .Concat(needsAccountant?new[]{"accountant_review_pending"}:Array.Empty<string>())
+            .Concat(openDispute?new[]{"unresolved_invoice_dispute"}:Array.Empty<string>());
+        return new(){["invoiceId"]=id,["companyId"]=company,["period"]=period,["lines"]=lines,["blockers"]=new JsonArray(blockers.Distinct().Select(b=>(JsonNode?)JsonValue.Create(b)).ToArray()),["readyForApproval"]=blockers.Count==0,["postingEnabled"]=enabled,["postingBlockedByDispute"]=openDispute,["postingBlockedByAccountantReview"]=needsAccountant,["postingAllowed"]=enabled&&!openDispute&&!needsAccountant&&blockers.Count==0,["postingBlockers"]=new JsonArray(postingBlockers.Select(b=>(JsonNode?)JsonValue.Create(b)).ToArray()),["disputedAmount"]=disputed};
     }
     public static JsonObject Proposal(DbConnection c,ClaimsPrincipal actor,string id)
     {Scope(actor,"platforms.hs.view");var rows=new JsonArray(PostingRow(c,null,actor,id));return new(){["rows"]=rows,["fingerprint"]=FinancialImports.Issue(c,PostingPreview,rows,actor.Identity!.Name!)};}

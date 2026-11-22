@@ -29,7 +29,8 @@ public sealed class HungerStationInvoiceTests
     public static byte[] Workbook(string cr,decimal car=0,decimal tga=0,decimal riderBasic=1000,decimal incl=1150,decimal balance=0,decimal net=1150,int detailOrders=10,string taggedMonth="October",bool riderTga=false,bool damage=false,decimal carAdjustment=0,decimal latePenalty=0)
     {
         Dictionary<string,string> Row(params (string Key,object Value)[] values)=>values.ToDictionary(v=>v.Key,v=>Convert.ToString(v.Value,CultureInfo.InvariantCulture)!);
-        var company=Row(("Company CR",cr),("Contract Name","Synthetic Contract"),("completed_orders",10),("basic_payment",1000),("COURIER_BASIC_PAYMENT",1000),("Rider Balance",balance),("Amount Excl VAT",1000),("VAT",150),("Amount Incl VAT",incl),("Total Deduction",0),("Net FTR",net),("CAR Deduction October 2026",car),("TGA Deduction October 2026",tga),("Driver Card Support "+taggedMonth+" 2026",0),("Car Adjustment - October 2026",carAdjustment),("late_penalty",latePenalty));
+        decimal totalDed=balance+car+tga;decimal netFtr=net==incl&&totalDed!=0?incl-totalDed:net;
+        var company=Row(("Company CR",cr),("Contract Name","Synthetic Contract"),("completed_orders",10),("basic_payment",1000),("COURIER_BASIC_PAYMENT",1000),("Rider Balance",balance),("Amount Excl VAT",1000),("VAT",150),("Amount Incl VAT",incl),("Total Deduction",totalDed),("Net FTR",netFtr),("CAR Deduction October 2026",car),("TGA Deduction October 2026",tga),("Driver Card Support "+taggedMonth+" 2026",0),("Car Adjustment - October 2026",carAdjustment),("late_penalty",latePenalty));
         // Different column order is intentional: the adapter must use headers.
         var rider=Row(("basic_payment",riderBasic),("Contract Name","Synthetic Contract"),("rider_id","SYN-ACCOUNT-1"),("completed_orders",10),("COURIER_BASIC_PAYMENT",1000),("Rider Balance",balance),("scheme","salary"),("late_penalty",latePenalty));if(riderTga)rider["TGA Deduction October 2026"]=tga.ToString(CultureInfo.InvariantCulture);
         var detail=Row(("rider_id","SYN-ACCOUNT-1"),("completed_orders",detailOrders),("working_hours",100));
@@ -57,7 +58,41 @@ public sealed class HungerStationInvoiceTests
         using var f=new Fixture();var preview=f.Preview(f.Input(Workbook(f.Cr(),balance:10,net:1111,carAdjustment:25)));
         Assert.IsTrue(preview.B("canCommit"));Assert.AreEqual(0,preview["errors"]!.AsArray().Count);Assert.AreEqual(2m,preview["counts"].N("flags"));
         var rows=preview["rows"]![0]!["lines"]!.AsArray().OfType<JsonObject>().ToArray();Assert.AreEqual(2,rows.Length);Assert.AreEqual(1000m,rows.Single(r=>r.S("lineType")=="rider").N("basicPayment"));Assert.AreEqual(25m,rows.Single(r=>r.S("lineType")=="company").N("carAdjustment"));
+        Assert.AreEqual("required",rows.Single(r=>r.S("lineType")=="company").S("accountantReview"));
+        Assert.IsTrue(preview["rows"]![0]!["columnLabelsAr"]!.AsObject().ContainsKey("Rider Balance"));
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"platform_invoice").Count));
+    }
+    [TestMethod]
+    public void OctoberTieChecks_TotalDeductionEqualsBalancePlusCarPlusTga()
+    {
+        // Annex 71g: Total Deduction = Rider Balance + CAR + TGA (exact SAR 40+50+10=100).
+        using var f=new Fixture();
+        var ok=f.Preview(f.Input(Workbook(f.Cr(),balance:40,car:50,tga:10,incl:1150,net:1050)));
+        Assert.IsTrue(ok.B("canCommit"));
+        Assert.AreEqual(0,ok["rows"]![0]!["flags"]!.AsArray().OfType<JsonObject>().Count(x=>x.S("code")=="total_deduction_tie_failed"));
+        Assert.IsTrue(ok["rows"]![0]!["flags"]!.AsArray().OfType<JsonObject>().Any(x=>x.S("code")=="vehicle_or_growth_value_needs_accountant"));
+        // Wrong Total Deduction 60 ≠ 100 → flag (still canCommit; flags do not block).
+        Dictionary<string,string> Row(params (string Key,object Value)[] values)=>values.ToDictionary(v=>v.Key,v=>Convert.ToString(v.Value,CultureInfo.InvariantCulture)!);
+        var company=Row(("Company CR",f.Cr()),("Contract Name","Synthetic Contract"),("completed_orders",10),("basic_payment",1000),("COURIER_BASIC_PAYMENT",1000),("Rider Balance",40),("Amount Excl VAT",1000),("VAT",150),("Amount Incl VAT",1150),("Total Deduction",60),("Net FTR",1090),("CAR Deduction October 2026",50),("TGA Deduction October 2026",10),("Driver Card Support October 2026",0),("Car Adjustment - October 2026",0),("late_penalty",0));
+        var rider=Row(("basic_payment",1000),("Contract Name","Synthetic Contract"),("rider_id","SYN-ACCOUNT-1"),("completed_orders",10),("COURIER_BASIC_PAYMENT",1000),("Rider Balance",40),("scheme","salary"),("late_penalty",0));
+        var detail=Row(("rider_id","SYN-ACCOUNT-1"),("completed_orders",10),("working_hours",100));
+        using var memory=new MemoryStream();
+        using(var zip=new ZipArchive(memory,ZipArchiveMode.Create,true))
+        {
+            void Entry(string name,string xml){using var writer=new StreamWriter(zip.CreateEntry(name).Open(),new UTF8Encoding(false));writer.Write(xml);}
+            XNamespace ns="http://schemas.openxmlformats.org/spreadsheetml/2006/main",rel="http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+            var sheets=new[]{("Co LVL",company),("Rider LVL",rider),("Breakdown",detail)};
+            Entry("xl/workbook.xml",new XElement(ns+"workbook",new XAttribute(XNamespace.Xmlns+"r",rel),new XElement(ns+"sheets",sheets.Select((s,i)=>new XElement(ns+"sheet",new XAttribute("name",s.Item1),new XAttribute(rel+"id","rId"+i))))).ToString());
+            Entry("xl/_rels/workbook.xml.rels",new XElement("Relationships",sheets.Select((s,i)=>new XElement("Relationship",new XAttribute("Id","rId"+i),new XAttribute("Target","worksheets/sheet"+i+".xml")))).ToString());
+            for(int i=0;i<sheets.Length;i++)
+            {
+                string Column(int index){string value="";for(int n=index+1;n>0;n=(n-1)/26)value=(char)('A'+(n-1)%26)+value;return value;}
+                XElement Cells(IEnumerable<string> values,int row)=>new(ns+"row",new XAttribute("r",row),values.Select((v,n)=>new XElement(ns+"c",new XAttribute("r",Column(n)+row),new XAttribute("t","inlineStr"),new XElement(ns+"is",new XElement(ns+"t",v)))));
+                Entry("xl/worksheets/sheet"+i+".xml",new XElement(ns+"worksheet",new XElement(ns+"sheetData",Cells(sheets[i].Item2.Keys,1),Cells(sheets[i].Item2.Values,2))).ToString());
+            }
+        }
+        var broken=f.Preview(f.Input(memory.ToArray()));
+        Assert.IsTrue(broken["rows"]![0]!["flags"]!.AsArray().OfType<JsonObject>().Any(x=>x.S("code")=="total_deduction_tie_failed"));
     }
     [TestMethod]
     public void VatComponentOrdersAndTaggedMonthsBlockTheWholeCommit()
@@ -77,14 +112,17 @@ public sealed class HungerStationInvoiceTests
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"journal").Count));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
     }
     [TestMethod]
-    public void CarDisputeAndTgaSplitRequireExplicitIndependentDecisions()
+    public void VehicleValueNeedsAccountantReviewAndTgaSplitStillExplicit()
     {
+        // U-W2-11c / M-0718: CAR value → accountant review (no legacy CAR dispute). TGA still needs bearer (M-0719).
         using var f=new Fixture();var input=f.Input(Workbook(f.Cr(),car:50,tga:100));f.Commit(input,f.Preview(input));
-        Assert.AreEqual("disputed",f.Store.Read(c=>Store.List(c,"platform_invoice").Single().S("status")));Assert.AreEqual(50m,f.Store.Read(c=>Store.List(c,"platform_dispute").Single().N("amount")));Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"sys_notification").Count));
-        string line=f.Store.Read(c=>Store.List(c,"platform_invoice_line").Single(l=>l.N("tgaAmount")!=0).S("id"));Assert.AreEqual("pending_allocation",f.Store.Read(c=>Store.Get(c,line,"platform_invoice_line")!.S("status")));
+        Assert.AreEqual("accountant_review",f.Store.Read(c=>Store.List(c,"platform_invoice").Single().S("status")));
+        Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"platform_dispute").Count));
+        Assert.IsTrue(f.Store.Read(c=>Store.List(c,"sys_notification").Count)>=1);
+        string line=f.Store.Read(c=>Store.List(c,"platform_invoice_line").Single(l=>l.N("tgaAmount")!=0).S("id"));
+        Assert.AreEqual("pending_allocation",f.Store.Read(c=>Store.Get(c,line,"platform_invoice_line")!.S("status")));
         Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.Split(c,tx,Actor(),line,new())));
         var allocation=f.Store.Write((c,tx)=>HungerStationInvoices.Split(c,tx,Actor(),line,new(){["riderPercent"]=30,["riderId"]=Rider}));
-        // BR §35: HS allocation approve is permission-only (not dual money-out).
         var approved=f.Store.Write((c,tx)=>HungerStationInvoices.ApproveAllocation(c,tx,Actor(),allocation.S("id")));Assert.AreEqual(70m,approved.N("companyAmount"));Assert.AreEqual(30m,approved["riderShares"]![0].N("amount"));
         Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.Split(c,tx,Actor(),line,new(){["riderPercent"]=0})));
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"journal").Count));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
@@ -101,7 +139,8 @@ public sealed class HungerStationInvoiceTests
         using var f=new Fixture();var input=f.Input(Workbook(f.Cr(),damage:true));for(int i=1;i<3;i++)input["files"]!.AsArray().Add(f.Input(Workbook(f.Cr(i)))["files"]![0]!.DeepClone());
         var preview=f.Preview(input);Assert.IsTrue(preview.B("canCommit"));Assert.AreEqual(3m,f.Commit(input,preview).N("importedInvoices"));
         Assert.AreEqual(3,f.Store.Read(c=>Store.List(c,"platform_invoice").Select(i=>i.S("companyId")).Distinct().Count()));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"platform_dispute").Count));
-        Assert.AreEqual("2026-09",f.Store.Read(c=>Store.List(c,"platform_invoice_line").Single(l=>l.S("lineType")=="car_damage").S("loadingPeriod")));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
+        Assert.AreEqual("2026-09",f.Store.Read(c=>Store.List(c,"platform_invoice_line").Single(l=>l.S("lineType")=="vehicle_damage").S("loadingPeriod")));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
+        Assert.AreEqual("accountant_review",f.Store.Read(c=>Store.List(c,"platform_invoice").First(i=>Store.List(c,"platform_invoice_line").Any(l=>l.S("invoiceId")==i.S("id")&&l.S("lineType")=="vehicle_damage")).S("status")));
     }
     [TestMethod]
     public void ImportRollbackRetainsPrivateEvidenceButNoFinancialDocuments()

@@ -70,17 +70,22 @@ public static partial class HungerStationInvoices
             if(Store.Get(c,row.S("id"),"platform_invoice",tx)!=null){unchanged++;continue;}
             var invoice=row.Clone();string fingerprint=Hash(FinancialImports.Canonical(row));var lines=invoice["lines"]!.AsArray().OfType<JsonObject>().Select(l=>l.Clone()).ToList();invoice.Remove("lines");
             invoice["lineIds"]=new JsonArray(lines.Select(l=>(JsonNode?)JsonValue.Create(l.S("id"))).ToArray());invoice["importFingerprint"]=fingerprint;invoice["createdBy"]=actor.Identity!.Name;invoice["createdAt"]=DateTimeOffset.UtcNow.ToString("O");invoice["approvalStatus"]="pending";
-            invoice["status"]=lines.Any(l=>l.S("lineType")=="company"&&l.N("carDeduction")!=0)?"disputed":lines.Any(l=>l.N("tgaAmount")!=0)?"pending_allocation":"pending_review";
+            // U-W2-11c / M-0718: vehicle/CAR values → accountant review (no legacy CAR→dispute). TGA waits for bearer pick (M-0719).
+            bool needsAccountant=lines.Any(l=>l.S("accountantReview")=="required"||(l.S("lineType")=="company"&&(l.N("carDeduction")!=0||l.N("carAdjustment")!=0||l.N("growthProgram")!=0)));
+            bool needsTga=lines.Any(l=>l.N("tgaAmount")!=0);
+            invoice["status"]=needsAccountant?"accountant_review":needsTga?"pending_allocation":"pending_review";
+            if(needsAccountant)invoice["accountantReviewReason"]="قيم مركبات أو نمو في الفاتورة؛ راجع وأنشئ قيدًا مخصصًا";
             Store.Save(c,"platform_invoice",invoice,tx);Store.Audit(c,tx,"platform.hs.invoice_imported",invoice.S("id"),actor.Identity!.Name!);imported++;
             foreach(var line in lines)
             {
-                line["invoiceId"]=invoice.S("id");line["companyId"]=invoice.S("companyId");line["period"]=invoice.S("period");line["status"]=line.N("tgaAmount")!=0?"pending_allocation":"pending_review";
+                line["invoiceId"]=invoice.S("id");line["companyId"]=invoice.S("companyId");line["period"]=invoice.S("period");
+                // TGA bearer pick (M-0719) stays actionable even when the same company line also needs vehicle review (M-0718).
+                line["status"]=line.N("tgaAmount")!=0?"pending_allocation":line.S("accountantReview")=="required"?"accountant_review":"pending_review";
                 Store.Save(c,"platform_invoice_line",line,tx);Store.Audit(c,tx,"platform.hs.invoice_line_imported",line.S("id"),actor.Identity!.Name!);
-                if(line.S("lineType")=="company"&&line.N("carDeduction")!=0)
+                if(line.S("accountantReview")=="required"||(line.S("lineType")=="company"&&(line.N("carDeduction")!=0||line.N("carAdjustment")!=0||line.N("growthProgram")!=0)))
                 {
-                    var dispute=new JsonObject{["id"]="hs-dispute:"+Hash(line.S("id")),["invoiceId"]=invoice.S("id"),["lineId"]=line.S("id"),["companyId"]=invoice.S("companyId"),["period"]=invoice.S("period"),["category"]="CAR",["sourceAmount"]=line.N("carDeduction"),["amount"]=Math.Abs(line.N("carDeduction")),["status"]="open",["createdBy"]=actor.Identity!.Name};
-                    Store.Save(c,"platform_dispute",dispute,tx);Store.Audit(c,tx,"platform.hs.dispute_created",dispute.S("id"),actor.Identity!.Name!);disputes++;
-                    Notifications.Raise(c,tx,"notice:"+dispute.S("id"),"system","فاتورة هنقر تحتاج اعتراضًا رسميًا؛ راجع شاشة المنصة.","platforms.hs.view",actor.Identity!.Name!,eventKey:dispute.S("id"),companyId:invoice.S("companyId"),platform:"HungerStation");
+                    Notifications.Raise(c,tx,"notice:hs-acct:"+line.S("id"),"system","فاتورة هنقر تحتاج مراجعة المحاسب لقيم المركبات؛ لا اعتراض CAR تلقائي.","platforms.hs.view",actor.Identity!.Name!,eventKey:line.S("id"),companyId:invoice.S("companyId"),platform:"HungerStation");
+                    disputes++; // count accountant-review notices (legacy field name kept for API compatibility)
                 }
             }
         }

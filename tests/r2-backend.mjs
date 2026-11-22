@@ -64,8 +64,9 @@ try{
  await json('/api/companies/import/commit',confirmation);
  const repeated=await json('/api/companies/import/preview',{companies:companyRows});assert.equal(repeated.counts.company.unchanged,3);assert.equal(repeated.counts.commercial_registration.unchanged,3);
  const expiring=await json('/api/companies/expiring?days=3650');assert.equal(expiring.length,3);assert.ok(expiring.every(row=>row.annualConfirmation==='2028-01-01'));
+ // Annex 71g: Total Deduction = Rider Balance + CAR + TGA (5+20=25); Net FTR = Incl − Total Deduction.
  const hsFile=syntheticWorkbook([
-  {name:'Co LVL',rows:[['Company CR','Contract Name','completed_orders','basic_payment','COURIER_BASIC_PAYMENT','Amount Excl VAT','VAT','Amount Incl VAT','Net FTR','CAR Deduction October 2026','TGA Deduction October 2026'],[companyRows[0].crNumber,'Synthetic HS contract',10,100,100,100,15,115,115,5,20]]},
+  {name:'Co LVL',rows:[['Company CR','Contract Name','completed_orders','basic_payment','COURIER_BASIC_PAYMENT','Amount Excl VAT','VAT','Amount Incl VAT','Rider Balance','Total Deduction','Net FTR','CAR Deduction October 2026','TGA Deduction October 2026'],[companyRows[0].crNumber,'Synthetic HS contract',10,100,100,100,15,115,0,25,90,5,20]]},
   {name:'Rider LVL',rows:[['rider_id','Contract Name','completed_orders','basic_payment','COURIER_BASIC_PAYMENT','scheme'],['SYN-HS-API','Synthetic HS contract',10,100,100,'salary']]},
   {name:'Breakdown',rows:[['rider_id','completed_orders'],['SYN-HS-API',10]]}
  ]);
@@ -74,7 +75,9 @@ try{
  const hsConfirmed={...hsInput,rows:hsPreview.rows,fingerprint:hsPreview.fingerprint,confirm:true};await json('/api/platforms/hs/invoices/import/commit',hsConfirmed);
  const hsRepeated=await json('/api/platforms/hs/invoices/import/preview',hsInput);assert.equal(hsRepeated.counts.unchangedInvoices,1);
  const db=new DatabaseSync(path.join(data,'payroll.db'));
- assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind='platform_dispute'").get().n,1);
+ // U-W2-11c / M-0718: vehicle/CAR value → accountant review; no auto CAR dispute.
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind='platform_dispute'").get().n,0);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind='platform_invoice' AND json_extract(body,'$.status')='accountant_review'").get().n,1);
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind='platform_invoice_line' AND json_extract(body,'$.status')='pending_allocation'").get().n,1);
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind IN ('journal','debt')").get().n,0);
  db.close();
@@ -82,11 +85,13 @@ try{
  await json('/api/users',{username:'synthetic-r2-checker',password:checkerPassword,role:'FinancialAccountant'});
  const invoices=await json('/api/platforms/hs/invoices?page=1&pageSize=500');assert.equal(invoices.total,1);assert.equal(invoices.pageSize,200);
  const hsId=invoices.items[0].id,encodedHs=encodeURIComponent(hsId),lineId=hsPreview.rows[0].lines.find(l=>l.tgaAmount!==0).id;
+ const companyLineId=hsPreview.rows[0].lines.find(l=>l.lineType==='company').id;
  const proposalUrl='/api/platforms/hs/proposed-journals?invoiceId='+encodedHs;
- assert.equal((await json('/api/platforms/hs/disputes')).total,1);
+ assert.equal((await json('/api/platforms/hs/disputes')).total,0);
  assert.equal((await json('/api/platforms/hs/allocations')).total,0);
  for(const kind of ['hs_wallet_event','hs_remittance','hs_remittance_allocation','hs_handover_review','hs_month_close'])assert.equal((await json('/api/platforms/hs/facts?kind='+kind+'&page=1')).total,0);
  await json('/api/platforms/hs/facts?kind=user',undefined,400);await json('/api/platforms/hs/facts?kind=hs_wallet_event&page=0',undefined,400);
+ await json('/api/platforms/hs/invoices/'+encodedHs+'/resolve',{mode:'accountant_review',reason:'Synthetic custom vehicle entry',customEntryRef:'JE-SYN-R2-VEHICLE'});
  const split=await json('/api/platforms/hs/allocations/'+encodeURIComponent(lineId),{riderAmount:0,companyAmount:20});
  // BR §35 / M-0672: HS approve is permission-only (dual is bank/payment/shared-rider only).
  await json('/api/platforms/hs/allocations/'+encodeURIComponent(split.id)+'/approve',{});
@@ -97,10 +102,13 @@ try{
  await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{...modified,confirm:true},409);
  assert.equal((await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{...proposed,confirm:true})).accountingStatus,'blocked_by_gate');
  cookie=makerCookie;await json('/api/platforms/hs/posting',{enabled:true});cookie=checkerCookie;
+ // Formal CAR dispute is raised by hand (never auto on import).
+ cookie=makerCookie;
+ const carClaim=await json('/api/platforms/hs/invoices/'+encodedHs+'/dispute',{lineId:companyLineId,category:'CAR',amount:5,reason:'Synthetic formal CAR claim'});
+ cookie=checkerCookie;
  const held=await json(proposalUrl);assert.equal(held.rows[0].postingBlockedByDispute,true);assert.equal(held.rows[0].postingAllowed,false);
  await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{...held,confirm:true},409);
- assert.equal((await json('/api/finance/journals')).length,0,'No partial journal while CAR is unresolved');
- const carClaim=(await json('/api/platforms/hs/disputes')).items[0];
+ assert.equal((await json('/api/finance/journals')).length,0,'No partial journal while CAR dispute is open');
  await json('/api/platforms/hs/invoices/'+encodedHs+'/resolve',{mode:'dispute',disputeId:carClaim.id,outcome:'platform_credit',platformReference:'synthetic-credit',reason:'Synthetic platform response'});
  await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{...held,confirm:true},409,'Resolution invalidates an old signed preview');
  const released=await json(proposalUrl);assert.equal(released.rows[0].postingAllowed,true);
