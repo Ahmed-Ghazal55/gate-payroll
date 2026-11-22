@@ -373,7 +373,8 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/forms/responses/{id}` | Payroll.Api/FormBuilder.cs:100 | forms.view | web | keep |
 | GET | `/api/public/forms/{token}` | Payroll.Api/Program.cs:308 | public (rider portal: own authenticated rider) | rider form | keep |
 | GET | `/api/public/questionnaires/{token}` | Payroll.Api/FormBuilder.cs:117 | public (rider portal: own authenticated rider) | rider form | keep |
-| GET | `/api/responses` | Payroll.Api/ResponsesInbox.cs:49 | forms.view | none | new |
+| GET | `/api/responses` | Payroll.Api/ResponsesInbox.cs:97 | forms.view | none | new |
+| GET | `/api/responses/forms` | Payroll.Api/ResponsesInbox.cs:96 | forms.view | none | new |
 | GET | `/api/submissions` | Payroll.Api/Program.cs:295 | forms.view | web | keep |
 | GET | `/forms/{token}` | Payroll.Api/Program.cs:312 | public (rider portal: own authenticated rider) | web | keep |
 | GET | `/questionnaires/{token}` | Payroll.Api/FormBuilder.cs:126 | public (rider portal: own authenticated rider) | web | keep |

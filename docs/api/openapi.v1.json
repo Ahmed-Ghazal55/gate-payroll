@@ -20682,6 +20682,113 @@
         }
       }
     },
+    "/api/responses/forms": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "List campaigns and builder forms with their response columns",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "required": [
+                      "id",
+                      "source",
+                      "kind",
+                      "title",
+                      "status",
+                      "responseCount",
+                      "pendingCount",
+                      "columns"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "source": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "expiresAt": {
+                        "type": "string"
+                      },
+                      "responseCount": {
+                        "type": "number"
+                      },
+                      "pendingCount": {
+                        "type": "number"
+                      },
+                      "columns": {
+                        "type": "array",
+                        "items": {
+                          "required": [
+                            "id",
+                            "labelAr",
+                            "type"
+                          ],
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "labelAr": {
+                              "type": "string"
+                            },
+                            "type": {
+                              "type": "string"
+                            },
+                            "options": {
+                              "type": "array",
+                              "items": {
+                                "required": [
+                                  "value"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "value": {
+                                    "type": "string"
+                                  },
+                                  "labelAr": {
+                                    "type": "string"
+                                  },
+                                  "labelEn": {
+                                    "type": "string"
+                                  },
+                                  "labelUr": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/responses": {
       "get": {
         "tags": [

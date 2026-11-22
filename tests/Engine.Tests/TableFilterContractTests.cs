@@ -496,4 +496,24 @@ public sealed class TableFilterContractTests
         var opsDistScoped = (JsonObject)opsDistinct.Invoke(null, [f.Store, cfg, env, opsDistScopedCtx])!;
         Assert.AreEqual(0, opsDistScoped["values"]!.AsArray().Count);
     }
+
+    [TestMethod]
+    public void DistinctValuesCascadeFromOtherColumnFiltersButNotOwnColumn()
+    {
+        var rows = new[]
+        {
+            new JsonObject { ["city"] = "الرياض", ["platform"] = "Ninja" },
+            new JsonObject { ["city"] = "الرياض", ["platform"] = "Keeta" },
+            new JsonObject { ["city"] = "جدة", ["platform"] = "Jahez" },
+        };
+        var allowed = new HashSet<string> { "city", "platform" };
+        var query = new QueryCollection(new Dictionary<string, Microsoft.Extensions.Primitives.StringValues>
+        {
+            ["filters"] = "[{\"col\":\"city\",\"op\":\"in\",\"values\":[\"الرياض\"]}]"
+        });
+        var platforms = TableFilterContract.BuildDistinct(rows, "platform", query, allowed);
+        CollectionAssert.AreEquivalent(new[] { "Keeta", "Ninja" }, platforms["values"]!.AsArray().Select(v => v!.ToString()).ToArray());
+        var cities = TableFilterContract.BuildDistinct(rows, "city", query, allowed);
+        Assert.AreEqual(2, cities["values"]!.AsArray().Count, "the filtered column keeps all its own values");
+    }
 }
