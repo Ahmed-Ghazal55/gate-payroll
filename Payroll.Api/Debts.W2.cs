@@ -34,26 +34,7 @@ public static partial class Debts
         })).WithTags("Debts and advances").WithSummary("Preview debt sheet reduce import");
 
         api.MapPost("/debts/import/reduce/commit",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
-        {
-            string company=input.Required("companyId");
-            J.Need(Guid.TryParse(company,out var companyId),"معرّف الشركة غير صالح.");
-            FinancialScopes.DemandSponsor(ctx.User,company);
-            string period=J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM")));
-            var periodMonth=DateOnly.ParseExact(period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture);
-            Guid periodId=DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth);
-            byte[] bytes=FinancialImports.FileBytes(input);
-            // Checker = authenticated user of the approvals decision (never a typed Admin name).
-            var checker=ctx.User;
-            string fingerprint=input.Required("fingerprint");
-            string approvalId=input.S("approvalRequestId");
-            if(approvalId!="")J.Need(input.ContainsKey("totalReduce"),"إجمالي التخفيض (totalReduce) مطلوب مع طلب الاعتماد.",400);
-            var maker=ResolveMaker(c,tx,input,ctx.User,expectedReference:fingerprint,
-                expectedAmount:approvalId!=""?input.N("totalReduce"):null,expectedKind:approvalId!=""?"debt_reduce":null);
-            Debts.ConsumeApprovalRequest(c,tx,approvalId);
-            Guid receivable=DebtLedger.AccountId(c,tx,"112501");
-            Guid contra=DebtLedger.AccountId(c,tx,"331301");
-            return DebtLedger.CommitReduce(c,tx,companyId,periodId,periodMonth,maker,checker,bytes,Path.GetFileName(input.Required("filename")),fingerprint,receivable,contra);
-        })).WithTags("Debts and advances").WithSummary("Commit debt sheet reduce import with approval");
+            CommitReduceImport(c,tx,input,ctx.User))).WithTags("Debts and advances").WithSummary("Commit debt sheet reduce import with approval");
 
         api.MapPost("/debts/{id}/reschedule",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>
         {
@@ -133,6 +114,37 @@ public static partial class Debts
         api.MapPost("/debts/disburse",(JsonObject _,HttpContext ctx)=>{DebtLedger.DemandDisburseAvailable();return Results.Empty;})
             .WithTags("Debts and advances").WithSummary("Debt disbursement via payment engine (not available until U-W2-07)");
     }
+
+    /// <summary>Bind approval amount to the recomputed file total (not a client-supplied totalReduce alone).</summary>
+    static JsonObject CommitReduceImport(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction? tx,JsonObject input,ClaimsPrincipal checker)
+    {
+        string company=input.Required("companyId");
+        J.Need(Guid.TryParse(company,out var companyId),"معرّف الشركة غير صالح.");
+        FinancialScopes.DemandSponsor(checker,company);
+        string period=J.Period(input.S("period",DateTime.UtcNow.ToString("yyyy-MM")));
+        var periodMonth=DateOnly.ParseExact(period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture);
+        Guid periodId=DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth);
+        byte[] bytes=FinancialImports.FileBytes(input);
+        string fingerprint=input.Required("fingerprint");
+        // Recompute from file first — approval amount must equal this total.
+        var preview=DebtLedger.PreviewReduce(c,tx,companyId,checker,bytes,Path.GetFileName(input.Required("filename")),periodMonth);
+        J.Need(preview.S("fingerprint")==fingerprint,"بصمة المعاينة لا تطابق الملف؛ أعد المعاينة.",409);
+        decimal fileTotal=preview.N("totalReduce");
+        string approvalId=input.S("approvalRequestId");
+        if(approvalId!="")
+        {
+            J.Need(input.ContainsKey("totalReduce"),"إجمالي التخفيض (totalReduce) مطلوب مع طلب الاعتماد.",400);
+            J.Need(input.N("totalReduce")==fileTotal,"إجمالي التخفيض لا يطابق إجمالي الملف المعاد حسابه.",409);
+        }
+        var maker=ResolveMaker(c,tx,input,checker,expectedReference:fingerprint,
+            expectedAmount:approvalId!=""?fileTotal:null,expectedKind:approvalId!=""?"debt_reduce":null);
+        Debts.ConsumeApprovalRequest(c,tx!,approvalId);
+        Guid receivable=DebtLedger.AccountId(c,tx!,"112501");
+        Guid contra=DebtLedger.AccountId(c,tx!,"331301");
+        return DebtLedger.CommitReduce(c,tx!,companyId,periodId,periodMonth,maker,checker,bytes,Path.GetFileName(input.Required("filename")),fingerprint,receivable,contra);
+    }
+    public static JsonObject CommitReduceImportForTests(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction? tx,JsonObject input,ClaimsPrincipal checker)
+        =>CommitReduceImport(c,tx,input,checker);
 
     /// <summary>Maker comes from a prior authenticated approval request (requestedBy), never a typed elevated role.</summary>
     static ClaimsPrincipal ResolveMaker(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction? tx,JsonObject input,ClaimsPrincipal checker,string? expectedReference=null,decimal? expectedAmount=null,string? expectedKind=null)
