@@ -40,7 +40,7 @@ public static class SalSalaryApprove
             string? payableId=null;
 
             // Settle linked L1/L2 debt_id rows before the approval stamp (SchemaDebt source guard).
-            SettleLinkedDebts(c,tx,actor,run,rider,now);
+            decimal linkedSettled=SettleLinkedDebts(c,tx,actor,run,rider,now);
 
             Exec(c,tx,$"""
                 UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}
@@ -50,8 +50,8 @@ public static class SalSalaryApprove
 
             if(net<0&&!keetaIneligible)
                 negDebt=CreateNegativeCarryover(c,tx,actor,run,rider,now);
-            else if(net>0)
-                payableId=CreatePayableAndAccrual(c,tx,actor,run,rider,now);
+            // WC4D H3: accrue even when the final net is zero (500 − confirmed debt 500 → accrual 500, payable none).
+            payableId=CreatePayableAndAccrual(c,tx,actor,run,rider,now,linkedSettled,negDebt?J.Money(-net):0m);
 
             FreezeStatement(c,tx,actor,run,rider,now,payableId);
             outRows.Add(new JsonObject
@@ -84,14 +84,15 @@ public static class SalSalaryApprove
         J.Need(open is null or DBNull,"مندوب عمل مشترك معلّق — أكمل دمج التطبيقات قبل الاعتماد.",409);
     }
 
-    static string CreatePayableAndAccrual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
+    /// <summary>212103 must end at the payable: accrual − confirmed debt − linked settlements + negative carry-over = max(0,net).
+    /// So accrual = payable + confirmed + linked − carry-over; posted whenever positive (net may be zero). Payable only when net&gt;0.</summary>
+    static string? CreatePayableAndAccrual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now,decimal linkedDebt,decimal carryover)
     {
-        decimal netPay=J.Money(rider.N("salaryNet"));
-        J.Need(netPay>0,"لا مستحق بلا صافٍ موجب.",400);
-        // RWC4b H3/H12: post full entitlement; recoveries (old-debt confirm + linked L1/L2 debt_id) settle separately.
+        decimal netPay=J.Money(Math.Max(0,rider.N("salaryNet")));
         decimal confirmedDebt=J.Money(rider.N("oldDebtInstalment"));
-        decimal linkedDebt=LinkedDebtDeductions(c,tx,rider.S("id"));
-        decimal entitlement=J.Money(netPay+confirmedDebt+linkedDebt);
+        decimal entitlement=J.Money(netPay+confirmedDebt+linkedDebt-carryover);
+        if(entitlement>0)PostAccrual(c,tx,actor,run,rider,entitlement);
+        if(netPay<=0)return null;
         string payableId=SchemaSql.GuidText(SchemaSql.NewId());
         Exec(c,tx,$"""
             INSERT INTO {SchemaSql.Q(c,"pay","payable")}
@@ -100,6 +101,16 @@ public static class SalSalaryApprove
             """,("@id",payableId),("@src",rider.S("id")),("@c",run.S("companyId")),("@erp",rider.S("erpRiderId")),
             ("@amt",netPay),("@pm",run.S("periodMonth")),("@by",actor.Identity!.Name!),("@at",now));
 
+        Exec(c,tx,$"""
+            UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}
+            SET payable_id=@p,bank_eligible=CASE WHEN run_mode=0 AND @pb=0 THEN 1 ELSE 0 END,updated_by=@by,updated_at=@at
+            WHERE id=@id
+            """,("@p",payableId),("@pb",run.B("payoutBlocked")?1:0),("@by",actor.Identity!.Name!),("@at",now),("@id",rider.S("id")));
+        return payableId;
+    }
+
+    static void PostAccrual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,decimal entitlement)
+    {
         Guid company=Guid.Parse(run.S("companyId"));
         Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
         Guid expenseAcc=AccountId(c,tx,"512101");
@@ -113,27 +124,12 @@ public static class SalSalaryApprove
                 new(expenseAcc,SchemaOrgCostCentre.NoneId,run.S("app"),entitlement,0m,"استحقاق راتب"),
                 new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,entitlement,"استحقاق راتب")
             ]));
-
-        Exec(c,tx,$"""
-            UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}
-            SET payable_id=@p,bank_eligible=CASE WHEN run_mode=0 AND @pb=0 THEN 1 ELSE 0 END,updated_by=@by,updated_at=@at
-            WHERE id=@id
-            """,("@p",payableId),("@pb",run.B("payoutBlocked")?1:0),("@by",actor.Identity!.Name!),("@at",now),("@id",rider.S("id")));
-        return payableId;
     }
 
-    static decimal LinkedDebtDeductions(DbConnection c,DbTransaction tx,string riderId)
+    /// <summary>RWC4b H12: settle each pay_run_item.debt_id for the actual deducted amount at approval. Returns the settled total.</summary>
+    static decimal SettleLinkedDebts(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
     {
-        object? sum=SchemaSql.Scalar(c,tx,$"""
-            SELECT COALESCE(SUM(amount),0) FROM {SchemaSql.Q(c,"sal","pay_run_item")}
-            WHERE pay_run_rider_id=@r AND amount>0 AND debt_id IS NOT NULL AND item_code<>'old_debt_instalment'
-            """,("@r",riderId));
-        return sum is null or DBNull?0m:J.Money(Convert.ToDecimal(sum));
-    }
-
-    /// <summary>RWC4b H12: settle each pay_run_item.debt_id for the actual deducted amount at approval.</summary>
-    static void SettleLinkedDebts(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
-    {
+        decimal settled=0;
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
         cmd.CommandText=$"""
             SELECT debt_id,amount,account_code FROM {SchemaSql.Q(c,"sal","pay_run_item")}
@@ -172,7 +168,9 @@ public static class SalSalaryApprove
                 ("@on",run.S("periodMonth")),("@amt",-take),("@src",movId),("@rider",rider.S("id")),
                 ("@j",SchemaSql.GuidText(journal.JournalId)),("@pb",run.B("payoutBlocked")?1:0),
                 ("@by",actor.Identity!.Name!),("@at",now));
+            settled=J.Money(settled+take);
         }
+        return settled;
     }
 
     static bool CreateNegativeCarryover(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
