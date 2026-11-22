@@ -18,13 +18,46 @@ public static partial class EvaluationSurvey
     public static readonly string[] AppReasons = ["unavailable_city", "not_worked"];
     // The spec defines these as reasons, not additional numeric rating scales.
     public static readonly string[] Factors = ["orderVolume", "fairPay", "workingHours", "shiftTimes", "flexibility", "customerService", "appProblems", "worthIt"];
+    static readonly Dictionary<string, string> NationalityAliases = new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["saudi"] = "saudi", ["سعودي"] = "saudi", ["سعودی"] = "saudi",
+        ["egyptian"] = "egyptian", ["مصري"] = "egyptian", ["مصری"] = "egyptian",
+        ["yemeni"] = "yemeni", ["يمني"] = "yemeni", ["یمنی"] = "yemeni",
+        ["sudanese"] = "sudanese", ["سوداني"] = "sudanese", ["سوڈانی"] = "sudanese",
+        ["pakistani"] = "pakistani", ["باكستاني"] = "pakistani", ["پاکستانی"] = "pakistani",
+        ["indian"] = "indian", ["هندي"] = "indian", ["بھارتی"] = "indian",
+        ["bangladeshi"] = "bangladeshi", ["بنغلاديشي"] = "bangladeshi", ["بنگلہ دیشی"] = "bangladeshi",
+        ["syrian"] = "syrian", ["سوري"] = "syrian", ["شامی"] = "syrian",
+        ["jordanian"] = "jordanian", ["أردني"] = "jordanian", ["اردنی"] = "jordanian",
+        ["filipino"] = "filipino", ["فلبيني"] = "filipino", ["فلپائنی"] = "filipino"
+    };
     static string Now() => DateTimeOffset.UtcNow.ToString("O");
     static JsonArray Array(IEnumerable<string> values) => new(values.Select(v => (JsonNode?)JsonValue.Create(v)).ToArray());
     static JsonArray Array(IEnumerable<JsonObject> values) => new(values.Select(v => (JsonNode?)v.Clone()).ToArray());
+    public static string ReplyId(string roundId, string iqama) =>
+        "evreply:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(roundId + ":" + iqama))).ToLowerInvariant();
+    public static string CanonicalNationality(string raw, out string display)
+    {
+        string value = raw.Trim();
+        if (NationalityAliases.TryGetValue(value, out var id))
+        {
+            display = id switch
+            {
+                "saudi" => "Saudi", "egyptian" => "Egyptian", "yemeni" => "Yemeni", "sudanese" => "Sudanese",
+                "pakistani" => "Pakistani", "indian" => "Indian", "bangladeshi" => "Bangladeshi",
+                "syrian" => "Syrian", "jordanian" => "Jordanian", "filipino" => "Filipino", _ => value
+            };
+            return id;
+        }
+        // Unknown free-text: stable slug from normalized text so languages that share a spelling still group.
+        display = value;
+        string slug = string.Concat(value.Normalize().ToLowerInvariant().Where(ch => !char.IsWhiteSpace(ch)));
+        return string.IsNullOrEmpty(slug) ? "unknown" : "other:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(slug))).ToLowerInvariant()[..16];
+    }
     static string Text(JsonObject input, string key, int max, bool required = false)
     {
         string value = input.S(key);
-        J.Need(value.Length <= max && (!required || value.Length > 0) && !value.Any(ch => char.IsControl(ch) && ch is not '\n' and not '\r'), "بيانات غير صالحة: " + key);
+        J.Need(value.Length <= max && (!required || value.Length > 0) && !value.Any(ch => char.IsControl(ch) && ch is not '\n' and not '\r'), "بيانات غير صالحة: " + key, "invalid_field");
         return value;
     }
     static string[] Strings(JsonObject input, string key, int max = 100)
@@ -114,68 +147,84 @@ public static partial class EvaluationSurvey
         J.Need(input[key] is JsonValue j && j.GetValueKind() == JsonValueKind.Number && decimal.TryParse(j.ToJsonString(), NumberStyles.Float, CultureInfo.InvariantCulture, out var n) && n >= 1 && n <= max && decimal.Truncate(n) == n, "تقييم خارج النطاق: " + key);
         return input.N(key);
     }
-    static JsonArray Answers(JsonObject round, JsonObject input, bool staff, string city)
+    static JsonArray Answers(JsonObject round, JsonObject input, bool staff, string city, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes)
     {
         string field = staff ? "staffAnswers" : "appAnswers", key = staff ? "staffId" : "app";
         var expected = staff ? round["staff"]!.AsArray().OfType<JsonObject>().Where(s => Strings(s, "cities").Contains(city)).Select(s => s.S("id")).ToArray() : Strings(round, "apps");
         var cards = Cards(input, field);
-        J.Need(cards.Count == expected.Length && cards.Select(a => a.S(key)).Distinct().Count() == expected.Length && cards.All(a => expected.Contains(a.S(key))), "أجب عن كل بطاقة مرة واحدة.");
+        J.Need(cards.Count == expected.Length && cards.Select(a => a.S(key)).Distinct().Count() == expected.Length && cards.All(a => expected.Contains(a.S(key))), "أجب عن كل بطاقة مرة واحدة.", "cards_incomplete");
         var clean = new JsonArray();
         foreach (var card in cards)
         {
             string reason = card.S("reason");
-            var answer = new JsonObject { [key] = card.S(key), ["reason"] = reason, ["notes"] = Text(card, "notes", 2000), ["attachments"] = new JsonArray() };
-            J.Need(card["attachments"] == null || card["attachments"] is JsonArray { Count: 0 }, "المرفقات تنتظر اعتماد سياسة الاحتفاظ.");
+            var answer = new JsonObject { [key] = card.S(key), ["reason"] = reason, ["notes"] = Text(card, "notes", 2000) };
             if (reason != "")
             {
-                J.Need((staff ? StaffReasons : AppReasons).Contains(reason), "سبب غير صالح.");
-                J.Need(card["ratings"] == null && card["overall"] == null && Strings(card, "factors").Length == 0, "اختر التقييم أو سبب عدم التقييم.");
+                J.Need((staff ? StaffReasons : AppReasons).Contains(reason), "سبب غير صالح.", "invalid_reason");
+                J.Need(card["ratings"] == null && card["overall"] == null && Strings(card, "factors").Length == 0, "اختر التقييم أو سبب عدم التقييم.", "rating_or_reason");
             }
             else if (staff)
             {
-                var ratings = card["ratings"] as JsonObject ?? throw new ApiError("التقييمات الخمسة مطلوبة.");
-                J.Need(ratings.Count == StaffDimensions.Length && ratings.All(p => StaffDimensions.Contains(p.Key)), "أسئلة تقييم غير صالحة.");
+                var ratings = card["ratings"] as JsonObject ?? throw new ApiError("التقييمات الخمسة مطلوبة.", 400, "ratings_required");
+                J.Need(ratings.Count == StaffDimensions.Length && ratings.All(p => StaffDimensions.Contains(p.Key)), "أسئلة تقييم غير صالحة.", "invalid_ratings");
                 answer["ratings"] = new JsonObject(StaffDimensions.Select(k => KeyValuePair.Create<string, JsonNode?>(k, JsonValue.Create(Rating(ratings, k, 10)))));
             }
             else
             {
                 answer["overall"] = Rating(card, "overall", 5);
-                var factors = Strings(card, "factors"); J.Need(factors.All(Factors.Contains), "عامل تقييم غير معروف.");
+                var factors = Strings(card, "factors"); J.Need(factors.All(Factors.Contains), "عامل تقييم غير معروف.", "invalid_factor");
                 answer["factors"] = Array(factors);
             }
             if (staff)
             {
                 answer["complaint"] = card.B("complaint"); answer["complaintDetails"] = Text(card, "complaintDetails", 2000);
-                J.Need(!answer.B("complaint") || answer.S("complaintDetails").Length >= 5, "تفاصيل الشكوى مطلوبة.");
+                J.Need(!answer.B("complaint") || answer.S("complaintDetails").Length >= 5, "تفاصيل الشكوى مطلوبة.", "complaint_details");
             }
+            if (card["attachments"] is JsonArray arr && arr.Count > 0)
+            {
+                if (arr.All(x => x is JsonObject o && o.S("id") != "" && o.S("dataBase64") == ""))
+                    answer["attachments"] = arr.DeepClone();
+                else
+                {
+                    J.Need(store != null && c != null && tx != null, "رفع المرفقات غير متاح.", "attachment_unavailable");
+                    answer["attachments"] = PersistAttachments(store!, c!, tx!, replyId, key, card.S(key), card, ref replyBytes);
+                }
+            }
+            else answer["attachments"] = new JsonArray();
             clean.Add(answer);
         }
         return clean;
     }
-    public static JsonObject Submit(DbConnection c, DbTransaction tx, string token, JsonObject input, string? authenticatedIqama = null)
+    public static JsonObject Submit(DbConnection c, DbTransaction tx, string token, JsonObject input, string? authenticatedIqama = null, Store? store = null)
     {
         var round = ByToken(c, token, tx);
         string iqama = J.Iqama(authenticatedIqama ?? input.Required("iqama"));
-        J.Need(authenticatedIqama == null || input.S("iqama") is "" || J.Iqama(input.S("iqama")) == iqama, "هوية المندوب لا تطابق الجلسة.");
-        string id = "evreply:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(round.S("id") + ":" + iqama))).ToLowerInvariant();
-        if (Store.Get(c, id, ResponseKind, tx) != null) throw new ApiError("سبق إرسال الرد؛ التعديل ينتظر تحديد الحقول المسموحة.", 409);
-        string city = Text(input, "city", 100, true); J.Need(Strings(round, "cities").Contains(city), "اختر مدينة من الجولة.");
-        var workApps = Strings(input, "workApps"); J.Need(workApps.Length > 0 && workApps.All(a => Strings(round, "apps").Contains(a)), "اختر منصات العمل الحالية.");
+        J.Need(authenticatedIqama == null || input.S("iqama") is "" || J.Iqama(input.S("iqama")) == iqama, "هوية المندوب لا تطابق الجلسة.", "identity_mismatch");
+        string id = ReplyId(round.S("id"), iqama);
+        if (Store.Get(c, id, ResponseKind, tx) != null) throw new ApiError("سبق إرسال هذا الرد؛ يمكنك تعديله إن كانت الجولة ما زالت مفتوحة.", 409, "already_submitted");
+        string city = Text(input, "city", 100, true); J.Need(Strings(round, "cities").Contains(city), "اختر مدينة من الجولة.", "invalid_city");
+        var workApps = Strings(input, "workApps"); J.Need(workApps.Length > 0 && workApps.All(a => Strings(round, "apps").Contains(a)), "اختر منصات العمل الحالية.", "invalid_apps");
+        string nationalityRaw = Text(input, "nationality", 100, true);
+        string nationalityId = CanonicalNationality(nationalityRaw, out string nationalityDisplay);
         var rider = Store.Get(c, iqama, "rider", tx);
         string companyId = rider == null ? "" : new[] { "financeSponsorId", "sponsorId", "companyId" }.Select(k => rider.S(k)).FirstOrDefault(v => v != "") ?? "";
+        long replyBytes = 0;
         var reply = new JsonObject
         {
             ["id"] = id, ["roundId"] = round.S("id"), ["schemaVersion"] = 1, ["iqama"] = iqama,
-            ["name"] = authenticatedIqama == null ? Text(input, "name", 200, true) : rider?.Required("name") ?? throw new ApiError("المندوب غير موجود.", 404), ["city"] = city, ["nationality"] = Text(input, "nationality", 100, true),
+            ["name"] = authenticatedIqama == null ? Text(input, "name", 200, true) : rider?.Required("name") ?? throw new ApiError("المندوب غير موجود.", 404, "not_found"),
+            ["city"] = city, ["nationality"] = nationalityDisplay, ["nationalityId"] = nationalityId,
             ["phone"] = input.S("phone") == "" ? "" : RiderDirectory.Phone(input.S("phone")), ["workApps"] = Array(workApps),
-            ["companyId"] = companyId, ["identityVerified"] = authenticatedIqama != null,
-            ["staffAnswers"] = Answers(round, input, true, city), ["appAnswers"] = Answers(round, input, false, city), ["createdAt"] = Now()
+            ["companyId"] = companyId, ["identityVerified"] = authenticatedIqama != null, ["editCount"] = 0,
+            ["staffAnswers"] = Answers(round, input, true, city, store, c, tx, id, ref replyBytes),
+            ["appAnswers"] = Answers(round, input, false, city, store, c, tx, id, ref replyBytes),
+            ["createdAt"] = Now()
         };
         Store.Save(c, ResponseKind, reply, tx);
         foreach (var answer in reply["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => a.B("complaint")))
             CreateComplaint(c, tx, reply, answer);
         Store.Audit(c, tx, "evaluation.submitted", id, authenticatedIqama == null ? "public-form" : "rider-app");
-        return new() { ["receipt"] = id, ["allowedActions"] = new JsonArray(), ["editPolicyPending"] = true };
+        return new() { ["receipt"] = id, ["allowedActions"] = new JsonArray("edit"), ["editCount"] = 0, ["editsRemaining"] = MaxEdits, ["editPolicyPending"] = false, ["uploadsPolicyPending"] = false };
     }
     static void CreateComplaint(DbConnection c, DbTransaction tx, JsonObject reply, JsonObject answer)
     {
@@ -227,9 +276,11 @@ public static partial class EvaluationSurvey
             return r;
         }).ToList();
     }
-    public static JsonObject Statistics(DbConnection c, ClaimsPrincipal user, string id)
+    public static JsonObject Statistics(DbConnection c, ClaimsPrincipal user, string id, string? city = null, string? nationalityId = null)
     {
         var rows = Responses(c, user, id);
+        if (!string.IsNullOrEmpty(city)) rows = rows.Where(r => r.S("city") == city).ToList();
+        if (!string.IsNullOrEmpty(nationalityId)) rows = rows.Where(r => r.S("nationalityId") == nationalityId || r.S("nationality") == nationalityId).ToList();
         JsonObject Summary(string key, IEnumerable<JsonObject> subset)
         {
             var list = subset.ToList();
@@ -257,7 +308,7 @@ public static partial class EvaluationSurvey
         {
             ["roundId"] = id, ["totalResponses"] = rows.Count,
             ["byCity"] = Array(rows.GroupBy(r => r.S("city")).Select(g => Summary(g.Key, g))),
-            ["byNationality"] = Array(rows.GroupBy(r => r.S("nationality")).Select(g => Summary(g.Key, g))),
+            ["byNationality"] = Array(rows.GroupBy(r => r.S("nationalityId") == "" ? r.S("nationality") : r.S("nationalityId")).Select(g => Summary(g.Key, g))),
             ["bySupervisor"] = GroupCards(staff, "staffId", true), ["byApp"] = GroupCards(apps, "app", false),
             ["commonFactors"] = Array(apps.SelectMany(a => Strings(a, "factors").Select(f => (App: a.S("app"), Factor: f))).GroupBy(p => p).OrderByDescending(g => g.Count()).Select(g => new JsonObject { ["app"] = g.Key.App, ["key"] = g.Key.Factor, ["count"] = g.Count() })),
             ["dailyTrend"] = Array(rows.GroupBy(r => r.S("createdAt")[..10]).OrderBy(g => g.Key).Select(g => Summary(g.Key, g)))

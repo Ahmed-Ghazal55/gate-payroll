@@ -45,8 +45,16 @@ public static partial class EvaluationSurvey
                 Label("workingHours", "عدد ساعات العمل", "Working hours", "کام کے اوقات"), Label("shiftTimes", "مواعيد الورديات", "Shift times", "شفٹ کے اوقات"),
                 Label("flexibility", "المرونة", "Flexibility", "لچک"), Label("customerService", "خدمة عملاء المنصة", "Platform customer service", "پلیٹ فارم کسٹمر سروس"),
                 Label("appProblems", "مشكلات التطبيق", "App problems", "ایپ کے مسائل"), Label("worthIt", "هل العمل يستحق", "Is the work worth it", "کیا یہ کام قابل قدر ہے") }),
-            ["factorMode"] = "multipleChoice", ["editPolicyPending"] = true, ["uploadsPolicyPending"] = true,
+            ["factorMode"] = "multipleChoice", ["editPolicyPending"] = false, ["uploadsPolicyPending"] = false,
+            ["maxEdits"] = MaxEdits, ["attachmentRetentionDays"] = (int)AttachmentRetention.TotalDays,
             ["attachmentLimits"] = new JsonObject { ["imagesPerCard"] = 2, ["voicePerCard"] = 1, ["voiceSeconds"] = 60, ["replyBytes"] = 6 * 1024 * 1024 },
+            ["nationalities"] = Array(new[] {
+                Label("saudi", "سعودي", "Saudi", "سعودی"), Label("egyptian", "مصري", "Egyptian", "مصری"),
+                Label("yemeni", "يمني", "Yemeni", "یمنی"), Label("sudanese", "سوداني", "Sudanese", "سوڈانی"),
+                Label("pakistani", "باكستاني", "Pakistani", "پاکستانی"), Label("indian", "هندي", "Indian", "بھارتی"),
+                Label("bangladeshi", "بنغلاديشي", "Bangladeshi", "بنگلہ دیشی"), Label("syrian", "سوري", "Syrian", "شامی"),
+                Label("jordanian", "أردني", "Jordanian", "اردنی"), Label("filipino", "فلبيني", "Filipino", "فلپائنی")
+            }),
             ["allowedActions"] = new JsonArray("submit")
         };
     }
@@ -100,19 +108,34 @@ public static partial class EvaluationSurvey
         api.MapPost("/forms/evaluations/rounds/{id}/{action}", (string id, string action, HttpContext ctx) => store.Write((c, tx) => RoundView(Transition(c, tx, ctx.User, id, action switch { "open" => "open", "pause" => "paused", "close" => "closed", _ => throw new ApiError("إجراء غير معروف.", 404) }), ctx))).WithTags("Forms and responses").WithSummary("Open, pause or close evaluation round");
         api.MapGet("/forms/evaluations/rounds/{id}/responses", (string id, HttpContext ctx) => store.Read(c => ApiPagination.Apply(Responses(c, ctx.User, id), ctx.Request.Query, always: true,
             whitelist: new HashSet<string>(StringComparer.Ordinal) { "id", "iqama", "name", "city", "nationality", "phone", "companyId", "createdAt", "workApps" }))).WithTags("Forms and responses").WithSummary("Page evaluation replies");
-        api.MapGet("/forms/evaluations/rounds/{id}/statistics", (string id, HttpContext ctx) => store.Read(c => Statistics(c, ctx.User, id))).WithTags("Forms and responses").WithSummary("Evaluation statistics for charts");
-        api.MapGet("/forms/evaluations/rounds/{id}/statistics/{dimension}", (string id, string dimension, HttpContext ctx) => store.Read(c => FilterStatistics(Statistics(c, ctx.User, id), dimension))).WithTags("Forms and responses").WithSummary("Evaluation statistics by dimension");
+        api.MapGet("/forms/evaluations/rounds/{id}/statistics", (string id, string? city, string? nationalityId, HttpContext ctx) => store.Read(c => Statistics(c, ctx.User, id, city, nationalityId))).WithTags("Forms and responses").WithSummary("Evaluation statistics for charts");
+        api.MapGet("/forms/evaluations/rounds/{id}/statistics/{dimension}", (string id, string dimension, string? city, string? nationalityId, HttpContext ctx) => store.Read(c => FilterStatistics(Statistics(c, ctx.User, id, city, nationalityId), dimension))).WithTags("Forms and responses").WithSummary("Evaluation statistics by dimension");
         api.MapGet("/forms/evaluations/rounds/{id}/export", (string id, HttpContext ctx) => Results.File(store.Read(c => Export(c, ctx.User, id)), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "evaluations.xlsx")).WithTags("Forms and responses").WithSummary("Export evaluation replies workbook");
+        api.MapGet("/forms/evaluations/attachments/{attachmentId}", (string attachmentId, HttpContext ctx) => store.Read(c => PlayAttachment(store, c, ctx.User, attachmentId))).WithTags("Forms and responses").WithSummary("Play or download an evaluation attachment");
         app.MapGet("/api/public/evaluations/{token}", (string token, string? city) => store.Read(c => Schema(ByToken(c, token), city))).RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Public evaluation schema");
-        app.MapPost("/api/public/evaluations/{token}", (string token, JsonObject input) => store.Write((c, tx) => Submit(c, tx, token, input))).RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Submit public evaluation reply");
+        app.MapPost("/api/public/evaluations/{token}", (string token, JsonObject input) => store.Write((c, tx) => Submit(c, tx, token, input, store: store))).RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Submit public evaluation reply");
         app.MapGet("/api/rider-mobile/evaluations", (HttpContext ctx) =>
         {
             MobileSessions.Authenticate(store, ctx);
-            return store.Read(c => Store.ListWhere(c, RoundKind, null, null, ("status", "open")).Select(r => new { id = r.S("id"), title = r.S("title"), token = r.S("sharingToken"), schema = "evaluation-v1" }).ToList());
+            return store.Read(c => Store.ListWhere(c, RoundKind, null, null, ("status", "open")).Select(r =>
+            {
+                string token = r.S("sharingToken");
+                string hosted = CampaignLinks.Base(app.Configuration, ctx) + "/rider-form.html?evaluation=" + Uri.EscapeDataString(token);
+                return new { id = r.S("id"), title = r.S("title"), token, schema = "evaluation-v1", hostedUrl = hosted };
+            }).ToList());
         }).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Open evaluation rounds for signed-in rider");
         app.MapGet("/api/rider-mobile/evaluations/{token}", (string token, string? city, HttpContext ctx) =>
         { MobileSessions.Authenticate(store, ctx); return store.Read(c => Schema(ByToken(c, token), city)); }).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Evaluation schema for signed-in rider");
         app.MapPost("/api/rider-mobile/evaluations/{token}", (string token, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-        { var session = MobileSessions.Validate(c, ctx, null, tx); return Submit(c, tx, token, input, session.S("iqama")); })).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Submit evaluation reply as signed-in rider");
+        { var session = MobileSessions.Validate(c, ctx, null, tx); return Submit(c, tx, token, input, session.S("iqama"), store); })).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Submit evaluation reply as signed-in rider");
+        app.MapPut("/api/rider-mobile/evaluations/{token}", (string token, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
+        { var session = MobileSessions.Validate(c, ctx, null, tx); return Edit(c, tx, token, input, session.S("iqama"), store); })).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Edit evaluation reply as signed-in rider");
+        app.MapPut("/api/public/evaluations/{token}", (string token, JsonObject input) => store.Write((c, tx) =>
+        {
+            string iqama = J.Iqama(input.Required("iqama"));
+            string expected = ReplyId(ByToken(c, token, tx).S("id"), iqama);
+            J.Need(input.S("receipt") == expected, "إيصال التعديل غير صالح.", "edit_receipt_invalid", 403);
+            return Edit(c, tx, token, input, iqama, store);
+        })).RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Edit public evaluation reply with receipt");
     }
 }

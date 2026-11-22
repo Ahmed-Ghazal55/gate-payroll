@@ -4,7 +4,11 @@ using System.Text.RegularExpressions;
 
 namespace Payroll;
 
-public sealed class ApiError(string message, int status = 400) : Exception(message) { public int Status { get; } = status; }
+public sealed class ApiError(string message, int status = 400, string? code = null) : Exception(message)
+{
+    public int Status { get; } = status;
+    public string? Code { get; } = code;
+}
 public static class J
 {
     public static string S(this JsonNode? n, string key, string fallback = "") => n?[key]?.ToString()?.Trim() ?? fallback;
@@ -15,6 +19,7 @@ public static class J
     public static string Required(this JsonNode n, string key) => string.IsNullOrWhiteSpace(n.S(key)) ? throw new ApiError($"الحقل مطلوب: {key}") : n.S(key);
     public static void Need(bool ok, string message) { if (!ok) throw new ApiError(message); }
     public static void Need(bool ok, string message, int status) { if (!ok) throw new ApiError(message, status); }
+    public static void Need(bool ok, string message, string code, int status = 400) { if (!ok) throw new ApiError(message, status, code); }
     public static decimal Money(decimal value) => decimal.Round(value, 2, MidpointRounding.AwayFromZero);
     public static string Digits(string s) => string.Concat(s.Select(c => c is >= '٠' and <= '٩' ? (char)('0' + c - '٠') : c is >= '۰' and <= '۹' ? (char)('0' + c - '۰') : c));
     public static string Iqama(string s) { s = Digits(s.Trim()); Need(Regex.IsMatch(s, "^[12][0-9]{9}$"), "الإقامة/الهوية يجب أن تكون 10 أرقام وتبدأ بـ1 أو2؛ لا تستخدم هوية صاحب الحساب بدل المندوب الفعلي."); return s; }

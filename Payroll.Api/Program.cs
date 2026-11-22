@@ -49,6 +49,7 @@ builder.Services.AddSingleton<InquiryLimits>();
 int formsLimit = builder.Environment.IsDevelopment() ? 200 : 30;
 builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = formsLimit, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddHostedService<EvaluationAttachmentRetentionService>();
 var riderIpLimitWarnings = PushNotifications.ConfigureIpLimits(builder.Configuration);
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
 PayStatements.Logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PayStatements");
@@ -82,7 +83,7 @@ app.Use(async (ctx, next) =>
         await next();
     }
     catch (Exception e) when (e is ApiError or JsonException or FormatException or BadHttpRequestException)
-    { ctx.Response.StatusCode = e is ApiError ae ? ae.Status : 400; await ctx.Response.WriteAsJsonAsync(ApiErrors.Body(ctx.Response.StatusCode, e is ApiError ? e.Message : "بيانات الطلب غير صحيحة.")); }
+    { ctx.Response.StatusCode = e is ApiError ae ? ae.Status : 400; await ctx.Response.WriteAsJsonAsync(ApiErrors.Body(ctx.Response.StatusCode, e is ApiError ? e.Message : "بيانات الطلب غير صحيحة.", e is ApiError coded ? coded.Code : null)); }
     catch (Exception e)
     { app.Logger.LogError(e, "Payroll request failed: {Path}", ctx.Request.Path); ctx.Response.StatusCode = 500; await ctx.Response.WriteAsJsonAsync(ApiErrors.Body(500, "تعذر إتمام العملية. راجع سجل الخادم دون إعادة الاعتماد عشوائيًا.")); }
 });

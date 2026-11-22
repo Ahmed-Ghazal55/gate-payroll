@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json.Nodes;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Payroll;
@@ -217,12 +218,12 @@ public sealed class EvaluationSurveyTests
     public void UnsupportedUploadsAndUnapprovedFactorsAreRejected()
     {
         using var f = new PayFixture(); var r = Setup(f); var input = Reply(r);
-        input["staffAnswers"]![0]!["attachments"] = new JsonArray(new JsonObject { ["name"] = "synthetic.png", ["size"] = 100 });
-        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input)));
+        input["staffAnswers"]![0]!["attachments"] = new JsonArray(new JsonObject { ["kind"] = "image", ["fileName"] = "x.exe", ["contentType"] = "application/octet-stream", ["dataBase64"] = Convert.ToBase64String(new byte[] { 1, 2, 3 }) });
+        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store)));
         input = Reply(r); input["appAnswers"]![0] = new JsonObject { ["app"] = r["apps"]![0]!.ToString(), ["overall"] = 4, ["factors"] = new JsonArray("unapprovedMetric") };
-        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input)));
+        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store)));
         input = Reply(r); input["staffAnswers"]![0]!["ratings"]!["support"] = "8";
-        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input)));
+        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store)));
     }
     [TestMethod]
     public void UnifiedRiderCatalogIncludesOpenEvaluationsAndMarksSubmittedOnes()
@@ -244,5 +245,142 @@ public sealed class EvaluationSurveyTests
         f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), Reply(r), "2000000091"));
         var stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single();
         Assert.AreEqual("Synthetic trusted name", stored.S("name")); Assert.IsTrue(stored.B("identityVerified"));
+    }
+    [TestMethod]
+    public void AttachmentsAcceptAgreedLimitsAndPersistOnDisk()
+    {
+        using var f = new PayFixture(); var r = Setup(f); var input = Reply(r);
+        string tinyPng = Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D });
+        string voice = Convert.ToBase64String(Encoding.UTF8.GetBytes(new string('a', 200)));
+        input["staffAnswers"]![0]!["attachments"] = new JsonArray(
+            new JsonObject { ["kind"] = "image", ["fileName"] = "a.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng },
+            new JsonObject { ["kind"] = "image", ["fileName"] = "b.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng },
+            new JsonObject { ["kind"] = "voice", ["fileName"] = "note.webm", ["contentType"] = "audio/webm", ["dataBase64"] = voice, ["durationSeconds"] = 12 });
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store));
+        var stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single();
+        var atts = stored["staffAnswers"]![0]!["attachments"]!.AsArray().OfType<JsonObject>().ToList();
+        Assert.HasCount(3, atts);
+        Assert.IsTrue(atts.All(a => a.S("playbackUrl") != "" && a.S("dataBase64") == ""));
+        var files = f.Store.Read(c => Store.List(c, EvaluationSurvey.AttachmentKind));
+        Assert.HasCount(3, files);
+        Assert.IsTrue(files.All(a => File.Exists(Path.Combine(f.Store.DirectoryPath, a.S("relativePath")))));
+    }
+    [TestMethod]
+    public void AttachmentsRejectFourthFileOrVoiceOverSixtySeconds()
+    {
+        using var f = new PayFixture(); var r = Setup(f); var input = Reply(r);
+        string tinyPng = Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+        input["staffAnswers"]![0]!["attachments"] = new JsonArray(
+            new JsonObject { ["kind"] = "image", ["fileName"] = "a.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng },
+            new JsonObject { ["kind"] = "image", ["fileName"] = "b.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng },
+            new JsonObject { ["kind"] = "voice", ["fileName"] = "n.webm", ["contentType"] = "audio/webm", ["dataBase64"] = tinyPng, ["durationSeconds"] = 10 },
+            new JsonObject { ["kind"] = "image", ["fileName"] = "c.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng });
+        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store)));
+        input = Reply(r);
+        input["staffAnswers"]![0]!["attachments"] = new JsonArray(new JsonObject { ["kind"] = "voice", ["fileName"] = "n.webm", ["contentType"] = "audio/webm", ["dataBase64"] = tinyPng, ["durationSeconds"] = 61 });
+        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store)));
+    }
+    [TestMethod]
+    public void RiderMayEditRatingsNotesComplaintUpToThreeTimesWhileRoundOpen()
+    {
+        using var f = new PayFixture(); var r = Setup(f);
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), Reply(r)));
+        var edit = new JsonObject
+        {
+            ["staffAnswers"] = new JsonArray(r["staff"]!.AsArray().OfType<JsonObject>().Select(s => (JsonNode?)new JsonObject
+            {
+                ["staffId"] = s.S("id"),
+                ["ratings"] = new JsonObject(EvaluationSurvey.StaffDimensions.Select(k => KeyValuePair.Create<string, JsonNode?>(k, JsonValue.Create(3)))),
+                ["notes"] = "Synthetic edit note",
+                ["complaint"] = true,
+                ["complaintDetails"] = "Synthetic edited complaint"
+            }).ToArray()),
+            ["appAnswers"] = new JsonArray(r["apps"]!.AsArray().Select(a => (JsonNode?)new JsonObject { ["app"] = a!.ToString(), ["overall"] = 2, ["factors"] = new JsonArray("orderVolume") }).ToArray())
+        };
+        for (int i = 0; i < 3; i++)
+            f.Store.Write((c, tx) => EvaluationSurvey.Edit(c, tx, r.S("sharingToken"), edit, "2000000091"));
+        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Edit(c, tx, r.S("sharingToken"), edit, "2000000091")));
+        var stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single();
+        Assert.AreEqual(3m, stored.N("editCount"));
+        Assert.AreEqual("Synthetic city", stored.S("city"));
+        Assert.AreEqual(3m, stored["staffAnswers"]![0]!["ratings"]!.N("support"));
+        f.Store.Write((c, tx) => EvaluationSurvey.Transition(c, tx, Admin, r.S("id"), "closed"));
+        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Edit(c, tx, r.S("sharingToken"), edit, "2000000091")));
+    }
+    [TestMethod]
+    public void EditRejectsIdentityCityNationalityChanges()
+    {
+        using var f = new PayFixture(); var r = Setup(f);
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), Reply(r)));
+        var edit = new JsonObject { ["city"] = "Other city", ["staffAnswers"] = Reply(r)["staffAnswers"]!.DeepClone(), ["appAnswers"] = Reply(r)["appAnswers"]!.DeepClone() };
+        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Edit(c, tx, r.S("sharingToken"), edit, "2000000091")));
+    }
+    [TestMethod]
+    public void NationalityIsStoredAsCanonicalIdAcrossLanguages()
+    {
+        using var f = new PayFixture(); var r = Setup(f);
+        var input = Reply(r); input["nationality"] = "مصري";
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input));
+        var stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single();
+        Assert.AreEqual("egyptian", stored.S("nationalityId"));
+        var stats = f.Store.Read(c => EvaluationSurvey.Statistics(c, Admin, r.S("id")));
+        Assert.AreEqual("egyptian", stats["byNationality"]![0]!.S("key"));
+    }
+    [TestMethod]
+    public void StatisticsFilterByCityRecalculatesSupervisorAverages()
+    {
+        using var f = new PayFixture();
+        f.Store.Write((c, tx) =>
+        {
+            var a = Staff("Synthetic A"); a["cities"] = new JsonArray("CityA", "CityB");
+            return EvaluationSurvey.ImportStaff(c, tx, Admin, new() { ["staff"] = new JsonArray(a) });
+        });
+        var round = f.Store.Write((c, tx) =>
+        {
+            var created = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Synthetic multi-city" });
+            return EvaluationSurvey.Transition(c, tx, Admin, created.S("id"), "open");
+        });
+        JsonObject Make(string city, string iqama, int rating) => new()
+        {
+            ["iqama"] = iqama, ["name"] = "Synthetic rider", ["city"] = city, ["nationality"] = "Saudi",
+            ["workApps"] = new JsonArray("Ninja"),
+            ["staffAnswers"] = new JsonArray(round["staff"]!.AsArray().OfType<JsonObject>()
+                .Where(s => s["cities"]!.AsArray().Any(v => v!.ToString() == city))
+                .Select(s => (JsonNode?)new JsonObject
+                {
+                    ["staffId"] = s.S("id"),
+                    ["ratings"] = new JsonObject(EvaluationSurvey.StaffDimensions.Select(k => KeyValuePair.Create<string, JsonNode?>(k, JsonValue.Create(rating))))
+                }).ToArray()),
+            ["appAnswers"] = new JsonArray(round["apps"]!.AsArray().Select(a => (JsonNode?)new JsonObject { ["app"] = a!.ToString(), ["reason"] = "not_worked" }).ToArray())
+        };
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, round.S("sharingToken"), Make("CityA", "2000000091", 2)));
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, round.S("sharingToken"), Make("CityB", "2000000092", 10)));
+        var all = f.Store.Read(c => EvaluationSurvey.Statistics(c, Admin, round.S("id")));
+        Assert.AreEqual(6m, all["bySupervisor"]![0]!.N("average"));
+        var filtered = f.Store.Read(c => EvaluationSurvey.Statistics(c, Admin, round.S("id"), city: "CityA"));
+        Assert.AreEqual(2m, filtered["bySupervisor"]![0]!.N("average"));
+        Assert.AreEqual(1m, filtered.N("totalResponses"));
+    }
+    [TestMethod]
+    public void DuplicateSubmitUsesStableErrorCode()
+    {
+        using var f = new PayFixture(); var r = Setup(f);
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), Reply(r)));
+        var ex = Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), Reply(r))));
+        Assert.AreEqual("already_submitted", ex.Code);
+    }
+    [TestMethod]
+    public void RetentionPurgeDeletesAttachmentsOlderThanSixMonths()
+    {
+        using var f = new PayFixture(); var r = Setup(f); var input = Reply(r);
+        string tinyPng = Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+        input["staffAnswers"]![0]!["attachments"] = new JsonArray(new JsonObject { ["kind"] = "image", ["fileName"] = "a.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng });
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store));
+        var att = f.Store.Read(c => Store.List(c, EvaluationSurvey.AttachmentKind)).Single();
+        att["createdAt"] = DateTimeOffset.UtcNow.AddMonths(-7).ToString("O");
+        f.Store.Write((c, tx) => { Store.Save(c, EvaluationSurvey.AttachmentKind, att, tx); return true; });
+        int removed = EvaluationSurvey.PurgeExpiredAttachments(f.Store, DateTimeOffset.UtcNow);
+        Assert.AreEqual(1, removed);
+        Assert.HasCount(0, f.Store.Read(c => Store.List(c, EvaluationSurvey.AttachmentKind)));
     }
 }
