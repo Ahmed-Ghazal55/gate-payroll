@@ -2,7 +2,7 @@ using Microsoft.OpenApi;
 namespace Payroll;
 
 // Schemas describe the document-store wire format; stored field names stay unchanged.
-public static class ApiContracts
+public static partial class ApiContracts
 {
     static OpenApiSchema S()=>new(){Type=JsonSchemaType.String};
     static OpenApiSchema N()=>new(){Type=JsonSchemaType.Number};
@@ -117,6 +117,7 @@ public static class ApiContracts
     public static OpenApiSchema? Response(string method,string path)
     {
         bool get=method=="GET";
+        if(EvaluationResponse(method,path) is { } evaluation)return evaluation;
         if(path=="/api/me"||path=="/api/users/{id}"||path=="/api/users/{id}/status"||path=="/api/users/{id}/reset-password"||path=="/api/me/password")return User();
         if(path=="/api/users")return get?A(User()):User();
         if(path=="/api/admin/approval-exceptions")return A(O(new(){["id"]=S(),["action"]=S(),["operation"]=S(),["recordId"]=S(),["maker"]=S(),["actor"]=S(),["at"]=S(),["approvalExceptionUntil"]=S(),["selfApprovedException"]=B()},"id","action","operation","recordId","maker","actor","at","approvalExceptionUntil","selfApprovedException"));

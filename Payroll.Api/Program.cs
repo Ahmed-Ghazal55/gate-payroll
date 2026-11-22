@@ -193,6 +193,7 @@ JahezReconciliation.Map(api,store);
 LegacyCashAllocation.Map(api,store);
 JahezHandovers.Map(api,store);
 FormBuilderApi.Map(app, api, store);
+EvaluationSurvey.Map(app, api, store);
 InquiryApi.Map(app, api, store);
 api.MapGet("/me", (HttpContext ctx) =>
 {
