@@ -348,7 +348,7 @@ try {
   await riderAppPage.locator('[data-testid="evaluation-page-2"]').waitFor();
 
   await riderAppPage.click('[data-app-star="Keeta"][data-stars="4"]');
-  await riderAppPage.check('[data-app-factor="Keeta"][value="appProblems"]');
+  await riderAppPage.click('[data-app-factor-star="Keeta"][data-factor-id="appProblems"][data-stars="2"]');
   for (const app of round.apps.filter((a) => a !== 'Keeta')) {
     await riderAppPage.selectOption(`[data-app-reason="${app}"]`, 'not_worked');
   }
@@ -379,8 +379,7 @@ try {
     .textContent();
   assert.match(factorsText, /عدد الطلبات/);
   assert.match(factorsText, /عدالة احتساب الأجر/);
-  assert.match(factorsText, /4/);
-  assert.match(factorsText, /3/);
+  assert.match(factorsText, /مشكلات التطبيق/);
 
   const supText = await adminPage
     .locator('[data-testid="eval-chart-by-supervisor"]')
