@@ -123,6 +123,8 @@ public static class SalDebtConfirm
                 SET salary_net=@net,updated_by=@by,updated_at=@at WHERE id=@id
                 """,("@net",newNet),("@by",actor.Identity!.Name!),("@at",now),("@id",riderId));
             ReplaceOldDebtItems(c,tx,actor,run,riderId,allocations,now);
+            // RWC4a3 H11 / §40.5+§40.6: after consolidate, old-debt confirm must shrink combined_net too.
+            if(total>0)ReduceSharedCombinedNet(c,tx,rider.S("erpRiderId"),run.S("periodMonth"),total,now);
 
             outRows.Add(new JsonObject
             {
@@ -142,6 +144,16 @@ public static class SalDebtConfirm
         {
             Ensure(c,tx);return Confirm(c,tx,ctx.User,id,input);
         })).WithTags("Payroll").WithSummary("Confirm old-debt instalments before final salary approval");
+    }
+
+    /// <summary>RWC4a3 H11: cleared multi-app hold — reduce combined_net by the confirmed instalment so payables follow §40.5 after §40.6.</summary>
+    static void ReduceSharedCombinedNet(DbConnection c,DbTransaction tx,string erpRider,string periodMonth,decimal amount,string now)
+    {
+        Exec(c,tx,$"""
+            UPDATE {SchemaSql.Q(c,"sal","shared_rider_hold")}
+            SET combined_net=combined_net-@amt,updated_at=@at
+            WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'
+            """,("@amt",amount),("@at",now),("@erp",erpRider),("@pm",periodMonth));
     }
 
     /// <summary>RWC4b M1: freeze each confirmed allocation with its receivable account (not hardcoded 112507).</summary>

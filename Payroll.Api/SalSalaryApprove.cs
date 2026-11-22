@@ -160,14 +160,20 @@ public static class SalSalaryApprove
         return payableId;
     }
 
-    /// <summary>§40.5: last approved app takes the remaining combined_net; earlier apps take their own net capped by remaining.</summary>
+    /// <summary>§40.5: last approved app takes the remaining combined_net; earlier apps take their own net capped by remaining.
+    /// RWC4a3: a consolidated zero/negative combined_net pays 0 (exception release with pending hold apps still uses appNet).</summary>
     static decimal CombinedPayableAmount(DbConnection c,DbTransaction tx,JsonObject run,JsonObject rider,decimal appNet)
     {
-        object? combinedObj=SchemaSql.Scalar(c,tx,$"SELECT combined_net FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'",
+        object? holdIdObj=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'",
             ("@erp",rider.S("erpRiderId")),("@pm",run.S("periodMonth")));
-        if(combinedObj is null or DBNull)return appNet;
-        decimal combined=J.Money(Convert.ToDecimal(combinedObj));
-        if(combined<=0)return appNet; // exception release without consolidated nets
+        if(holdIdObj is null or DBNull)return appNet;
+        string holdId=holdIdObj.ToString()!;
+        object? combinedObj=SchemaSql.Scalar(c,tx,$"SELECT combined_net FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE id=@id",("@id",holdId));
+        decimal combined=J.Money(Convert.ToDecimal(combinedObj??0m));
+        // Exception release clears before every app is received — fall back to each app's own net.
+        long pendingHoldApps=Convert.ToInt64(SchemaSql.Scalar(c,tx,$"SELECT COUNT(*) FROM {SchemaSql.Q(c,"sal","shared_rider_hold_app")} WHERE hold_id=@h AND received=0",("@h",holdId))??0L);
+        if(pendingHoldApps>0)return appNet;
+        if(combined<=0)return 0m;
         decimal already=Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"""
             SELECT COALESCE(SUM(p.amount_due),0) FROM {SchemaSql.Q(c,"pay","payable")} p
             INNER JOIN {SchemaSql.Q(c,"sal","pay_run_rider")} r ON r.id=p.source_id
