@@ -271,11 +271,12 @@ export function EvaluationsTab() {
   }, [selectedRound, staffList]);
 
   const roundNationalities = useMemo(() => {
-    const set = new Set<string>();
-    for (const b of stats?.byNationality || []) {
-      if (b.key) set.add(b.key);
-    }
-    return [...set];
+    return (stats?.byNationality || [])
+      .filter((b) => b.key)
+      .map((b) => ({
+        value: b.key,
+        label: (b as EvaluationBucketItem & { label?: string }).label || b.key,
+      }));
   }, [stats]);
 
   // Filtered chart buckets
@@ -986,7 +987,7 @@ export function EvaluationsTab() {
             placeholder="كل الجنسيات"
             options={[
               { value: 'ALL', label: 'كل الجنسيات' },
-              ...roundNationalities.map((n) => ({ value: n, label: n })),
+              ...roundNationalities,
             ]}
           />
         </div>
@@ -1153,7 +1154,9 @@ export function EvaluationsTab() {
                       className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-3 space-y-2"
                     >
                       <div className="flex flex-wrap items-center justify-between gap-2 text-xs">
-                        <strong className="text-sm text-[var(--ink)]">{n.key}</strong>
+                        <strong className="text-sm text-[var(--ink)]">
+                          {(n as EvaluationBucketItem & { label?: string }).label || n.key}
+                        </strong>
                         <div className="flex items-center gap-2">
                           <span className="rounded-full bg-[var(--raised)] px-2 py-0.5 font-bold num">
                             {n.responseCount ?? 0} مندوب

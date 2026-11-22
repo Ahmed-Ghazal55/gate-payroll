@@ -308,7 +308,12 @@ public static partial class EvaluationSurvey
         {
             ["roundId"] = id, ["totalResponses"] = rows.Count,
             ["byCity"] = Array(rows.GroupBy(r => r.S("city")).Select(g => Summary(g.Key, g))),
-            ["byNationality"] = Array(rows.GroupBy(r => r.S("nationalityId") == "" ? r.S("nationality") : r.S("nationalityId")).Select(g => Summary(g.Key, g))),
+            ["byNationality"] = Array(rows.GroupBy(r => r.S("nationalityId") == "" ? r.S("nationality") : r.S("nationalityId")).Select(g =>
+            {
+                var bucket = Summary(g.Key, g);
+                bucket["label"] = g.Select(r => r.S("nationality")).FirstOrDefault(v => v != "") ?? g.Key;
+                return bucket;
+            })),
             ["bySupervisor"] = GroupCards(staff, "staffId", true), ["byApp"] = GroupCards(apps, "app", false),
             ["commonFactors"] = Array(apps.SelectMany(a => Strings(a, "factors").Select(f => (App: a.S("app"), Factor: f))).GroupBy(p => p).OrderByDescending(g => g.Count()).Select(g => new JsonObject { ["app"] = g.Key.App, ["key"] = g.Key.Factor, ["count"] = g.Count() })),
             ["dailyTrend"] = Array(rows.GroupBy(r => r.S("createdAt")[..10]).OrderBy(g => g.Key).Select(g => Summary(g.Key, g)))
