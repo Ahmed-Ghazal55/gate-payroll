@@ -510,7 +510,7 @@ export function RecurringPayeesWorkspace({
   return (
     <div className="space-y-4">
       <PageHeader
-        title="مدفوعات دورية"
+        title="المدفوعات الدورية"
         description="مستفيدون اختياريون خارج المسير (تجربة خارج الكفالة / مكتب مصر) عبر محرك المدفوعات."
         primaryAction={{
           label: 'تحديث',
@@ -962,7 +962,7 @@ export function RecurringPayeesWorkspace({
               />
               {canDisburse && Number(run.status) === 1 && (
                 <div className="grid gap-2 max-w-xl border border-dashed border-[var(--line)] rounded-xl p-3">
-                  <p className="text-xs font-medium">إضافة بند لمرة (oneOffLine)</p>
+                  <p className="text-xs font-medium">إضافة بند لمرة واحدة</p>
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       className={inputClass}
@@ -996,7 +996,7 @@ export function RecurringPayeesWorkspace({
               )}
               {vouchers.length > 0 && (
                 <div className="space-y-2">
-                  <h3 className="text-sm font-medium">سندات الصرف (vouchers)</h3>
+                  <h3 className="text-sm font-medium">سندات الصرف</h3>
                   <DataTable
                     data={vouchers}
                     columns={[
