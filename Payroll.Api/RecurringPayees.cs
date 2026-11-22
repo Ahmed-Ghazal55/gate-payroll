@@ -464,7 +464,8 @@ public static class RecurringPayees
     }
 
     /// <summary>After Pay: reclass FX gain so expense shows full SAR and FX account is credited separately.
-    /// Allocates across partial payments (cancel+split) so a 960 voucher split into two 480s posts gain 40 once, not twice.</summary>
+    /// Allocates across partial payments (cancel+split) so a 960 voucher split into two 480s posts gain 40 once, not twice.
+    /// RWP7a2: each share is the difference of rounded cumulative amounts (not Round(thisPay/doc*gain)).</summary>
     internal static void ApplyFxGainReclass(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject doc,JsonObject payment)
     {
         var meta=doc["metadata"] as JsonObject;var gain=meta?["fxGainReclass"] as JsonObject;
@@ -475,7 +476,8 @@ public static class RecurringPayees
         decimal amountPaid=Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"SELECT COALESCE(amount_paid,0) FROM {Q(c,"payable")} WHERE source_table='pay.document' AND source_id=@id",("@id",PaymentsEngine.Id(doc.S("id")))));
         decimal priorPaid=amountPaid-thisPay;if(priorPaid<0)priorPaid=0;
         decimal priorShare=J.Money(priorPaid/docAmount*totalGain);
-        decimal share=amountPaid>=docAmount?J.Money(totalGain-priorShare):J.Money(thisPay/docAmount*totalGain);
+        decimal cumulative=amountPaid>=docAmount?J.Money(totalGain):J.Money(amountPaid/docAmount*totalGain);
+        decimal share=cumulative-priorShare;
         if(share<=0)return;
         string day=payment.S("paidOn")[..10];
         Guid expense=PaymentsEngine.Account(c,tx,gain.Required("expenseAccountCode"));
