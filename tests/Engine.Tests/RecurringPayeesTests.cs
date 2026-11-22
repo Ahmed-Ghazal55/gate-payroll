@@ -119,7 +119,8 @@ public sealed class RecurringPayeesTests
         {
             ["companyId"]=f.Company,["nameAr"]="مرة واحدة",["amount"]=80m,["currencyCode"]="SAR",["exchangeRate"]=1m,
             ["transferFee"]=0m,["fxDifference"]=0m,["paymentMethod"]="cash",["bankDetails"]="",
-            ["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),["paidOn"]="2026-11-21",["bankAccountCode"]="111101",["period"]="2026-11"
+            ["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),["paidOn"]="2026-11-21",["bankAccountCode"]="111101",["period"]="2026-11",
+            ["idempotencyKey"]="recurring-test-oneoff-80"
         }));
         f.Dual(oneOff);f.Pay(oneOff.S("id"));
         Assert.AreEqual(330m,Convert.ToDecimal(f.Scalar("SELECT SUM(l.debit) FROM fin_journal_line l JOIN fin_journal j ON j.id=l.journal_id JOIN fin_account a ON a.id=l.account_id WHERE a.code='526101' AND j.source_type='payment_document'")));
