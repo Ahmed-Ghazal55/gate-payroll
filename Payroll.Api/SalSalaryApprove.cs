@@ -335,10 +335,14 @@ public static class SalSalaryApprove
         return settled;
     }
 
+    /// <summary>RWC4m H11 / §40.5+§40.6: single-app carryover = −salary_net; cleared multi-app hold uses combined shortfall
+    /// (max(0,−combined_net) minus carryovers already posted this period), capped by this app's −net.</summary>
     static bool CreateNegativeCarryover(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now)
     {
-        decimal amount=J.Money(-rider.N("salaryNet"));
-        J.Need(amount>0,"لا مديونية عجز بدون صافٍ سالب.",400);
+        decimal appShort=J.Money(-rider.N("salaryNet"));
+        J.Need(appShort>0,"لا مديونية عجز بدون صافٍ سالب.",400);
+        decimal amount=CombinedCarryoverAmount(c,tx,run,rider,appShort);
+        if(amount<=0)return false;
         string debtId=SchemaSql.GuidText(SchemaSql.NewId());
         Exec(c,tx,$"""
             INSERT INTO {SchemaSql.Q(c,"debt","debt")}
@@ -371,6 +375,26 @@ public static class SalSalaryApprove
             ("@j",SchemaSql.GuidText(journal.JournalId)),("@pb",run.B("payoutBlocked")?1:0),
             ("@by",actor.Identity!.Name!),("@at",now));
         return true;
+    }
+
+    /// <summary>Cleared shared hold: debt only for the combined shortfall remaining this period; otherwise the app shortfall.</summary>
+    static decimal CombinedCarryoverAmount(DbConnection c,DbTransaction tx,JsonObject run,JsonObject rider,decimal appShort)
+    {
+        object? hold=SchemaSql.Scalar(c,tx,$"""
+            SELECT combined_net FROM {SchemaSql.Q(c,"sal","shared_rider_hold")}
+            WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'
+            """,("@erp",rider.S("erpRiderId")),("@pm",run.S("periodMonth")));
+        if(hold is null or DBNull)return appShort;
+        decimal combined=J.Money(Convert.ToDecimal(hold));
+        decimal need=J.Money(Math.Max(0m,-combined));
+        if(need<=0)return 0m;
+        decimal already=Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"""
+            SELECT COALESCE(SUM(m.amount),0) FROM {SchemaSql.Q(c,"debt","debt_movement")} m
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run_rider")} r ON r.id=m.pay_run_rider_id
+            WHERE m.source_type='carryover_112507' AND m.pay_run_period_month=@pm AND r.erp_rider_id=@erp
+            """,("@pm",run.S("periodMonth")),("@erp",rider.S("erpRiderId")))??0m);
+        decimal remaining=J.Money(Math.Max(0m,need-already));
+        return J.Money(Math.Min(appShort,remaining));
     }
 
     static void FreezeStatement(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,string now,string? payableId)

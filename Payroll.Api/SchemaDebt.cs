@@ -123,6 +123,8 @@ public static class SchemaDebt
     static void EnsureMovementRules(DbConnection c,DbTransaction? tx)
     {
         string d=SchemaSql.Q(c,"debt","debt"),r=SchemaSql.Q(c,"sal","pay_run_rider"),run=SchemaSql.Q(c,"sal","pay_run"),p=SchemaSql.Q(c,"pay","payment"),j=SchemaSql.Q(c,"fin","journal");
+        string hold=SchemaSql.Q(c,"sal","shared_rider_hold"),mov=SchemaSql.Q(c,"debt","debt_movement");
+        // RWC4m H11: carryover may equal −salary_net (single app) or the remaining combined shortfall on a cleared multi-app hold.
         SchemaMoneyGuard.Rule(c,tx,"debt","debt_movement","TR_debt_movement_source",n=>$"""
             NOT EXISTS(SELECT 1 FROM {d} d WHERE d.id={n}.debt_id AND d.status='open')
             OR ({n}.journal_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM {j} j WHERE j.id={n}.journal_id AND j.company_id={n}.company_id AND j.period_month={n}.period_month AND j.run_mode=0 AND j.status=2))
@@ -131,7 +133,11 @@ public static class SchemaDebt
               AND (({n}.source_type='salary_deduction' AND {n}.amount<0 AND r.salary_approved_at IS NULL AND r.debt_confirm_status='confirmed' AND -{n}.amount<=r.old_debt_instalment AND -{n}.amount<=r.salary_net)
                 OR ({n}.source_type='pay_item_debt_settle' AND {n}.amount<0 AND r.salary_approved_at IS NULL
                   AND EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"sal","pay_run_item")} i WHERE i.pay_run_rider_id=r.id AND i.debt_id={n}.debt_id AND i.amount>0 AND i.amount=-{n}.amount AND i.item_code<>'old_debt_instalment'))
-                OR ({n}.source_type='carryover_112507' AND {n}.amount>0 AND r.salary_approved_at IS NOT NULL AND r.keeta_ineligible=0 AND r.salary_net<0 AND {n}.amount=-r.salary_net))))
+                OR ({n}.source_type='carryover_112507' AND {n}.amount>0 AND r.salary_approved_at IS NOT NULL AND r.keeta_ineligible=0 AND r.salary_net<0 AND {n}.amount<=-r.salary_net AND (
+                  {n}.amount=-r.salary_net
+                  OR EXISTS(SELECT 1 FROM {hold} h WHERE h.erp_rider_id=r.erp_rider_id AND h.period_month=r.period_month AND h.status='cleared' AND h.combined_net<0
+                    AND {n}.amount+COALESCE((SELECT SUM(m.amount) FROM {mov} m INNER JOIN {r} ox ON ox.id=m.pay_run_rider_id
+                      WHERE m.source_type='carryover_112507' AND m.pay_run_period_month=r.period_month AND ox.erp_rider_id=r.erp_rider_id AND m.pay_run_rider_id<>{n}.pay_run_rider_id),0)=-h.combined_net))))))
             OR ({n}.source_type='new_disbursement' AND ({n}.amount<=0 OR NOT EXISTS(SELECT 1 FROM {p} p WHERE p.id={n}.payment_id AND p.company_id={n}.company_id AND p.status=2 AND p.run_mode=0 AND p.payout_blocked=0 AND p.amount={n}.amount)))
             """);
         foreach(var (kind,table,sign) in new[]{("collection","collection",-1),("waiver","waiver",-1),("new_disbursement","disbursement",1)})
