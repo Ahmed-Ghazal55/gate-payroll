@@ -144,7 +144,9 @@ public static class SalSalaryApprove
         foreach(var row in rows)
         {
             decimal locked=SchemaDebt.LockDebt(c,tx,row.DebtId);
-            decimal take=J.Money(Math.Min(row.Amount,locked));
+            // WC4D H12: a stale/exhausted link would leave accrual ≠ payable; reject so the run is recalculated.
+            J.Need(J.Money(row.Amount)<=locked,"رصيد الدين المربوط تغيّر بعد الاحتساب؛ ألغِ الدورة وأعد الاحتساب.",409);
+            decimal take=J.Money(row.Amount);
             if(take<=0)continue;
             Guid company=Guid.Parse(run.S("companyId"));
             Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));

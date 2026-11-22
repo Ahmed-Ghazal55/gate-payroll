@@ -53,6 +53,21 @@ public static class SalDebtConfirm
                 continue;
             }
 
+            // WC4D H12: validate every allocation (balance minus linked reservations) before any write.
+            var perDebt=new Dictionary<string,decimal>(StringComparer.Ordinal);
+            foreach(var alloc in allocations)
+            {
+                string debtId=NullIfEmpty(alloc.S("debtId"))??"";
+                J.Need(debtId!="","معرّف الدين مطلوب عند تأكيد قسط أكبر من صفر.",400);
+                perDebt[debtId]=J.Money(perDebt.GetValueOrDefault(debtId)+J.Money(alloc.N("amount")));
+            }
+            foreach(var (debtId,sum) in perDebt)
+            {
+                LoadDebt(c,tx,debtId,run.S("companyId"),rider.S("erpRiderId"));
+                decimal available=J.Money(SchemaDebt.LockDebt(c,tx,debtId)-SalPayCalc.ReservedByLinks(c,tx,debtId));
+                J.Need(sum<=available,"هذا الدين مخصوم كبند مربوط في المسير أو رصيده أقل؛ القسط يتجاوز المتاح.",409);
+            }
+
             // Confirm before movements so SchemaDebt TR sees confirmed + instalment cap on original net.
             Exec(c,tx,$"""
                 UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}

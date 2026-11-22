@@ -64,6 +64,13 @@ public static class SalPayCalc
                 else{level1Personal+=amount;l1Items.Add(row);}
             }
 
+            // WC4D H12: a linked debt line may not exceed the debt's open balance minus what other unapproved lines reserve.
+            var linked=new Dictionary<string,decimal>(StringComparer.Ordinal);
+            foreach(var item in (src["level1"] as JsonArray??[]).OfType<JsonObject>().Concat((src["level2"] as JsonArray??[]).OfType<JsonObject>()))
+                if(NullIfEmpty(item.S("debtId")) is {} d)linked[d]=J.Money(linked.GetValueOrDefault(d)+J.Money(item.N("amount")));
+            foreach(var (debtId,amount) in linked)
+                DemandLinkedDebt(c,tx,debtId,run.S("companyId"),erpRider,amount,payRunId);
+
             decimal wagesRoom=entitlement;
             decimal residualPersonal=rules.AdjustLevel1(src,l1Items,ref level1Personal,ref companyOperating,ref wagesRoom);
 
@@ -456,6 +463,40 @@ public static class SalPayCalc
         J.Need(r["erp_employee_id"] is not DBNull&&string.Equals(r["erp_employee_id"].ToString(),erpRider,StringComparison.Ordinal),"صف مدد لموظف آخر.",404);
         if(r["basic_salary"] is not DBNull)
             J.Need(J.Money(Convert.ToDecimal(r["basic_salary"]))==amount||amount<=J.Money(Convert.ToDecimal(r["basic_salary"])),"مبلغ مدد لا يطابق المصدر.",409);
+    }
+
+    static void DemandLinkedDebt(DbConnection c,DbTransaction tx,string debtId,string companyId,string erpRider,decimal amount,string payRunId)
+    {
+        using(var cmd=c.CreateCommand())
+        {
+            cmd.Transaction=tx;
+            cmd.CommandText=$"SELECT erp_rider_id,company_id,status,balance FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id";
+            Add(cmd,"@id",debtId);
+            using var r=cmd.ExecuteReader();
+            J.Need(r.Read(),"الدين المربوط غير موجود.",404);
+            J.Need(string.Equals(r["company_id"].ToString(),companyId,StringComparison.OrdinalIgnoreCase)
+                &&string.Equals(r["erp_rider_id"].ToString(),erpRider,StringComparison.OrdinalIgnoreCase),"الدين المربوط لا يخص هذا المندوب.",409);
+            J.Need(r["status"].ToString()=="open","الدين المربوط غير مفتوح.",409);
+            decimal balance=J.Money(Convert.ToDecimal(r["balance"]));
+            r.Close();
+            decimal reserved=ReservedByLinks(c,tx,debtId,payRunId,erpRider);
+            J.Need(amount<=J.Money(balance-reserved),"بند الدين المربوط أكبر من رصيده المتاح؛ حدّث المبلغ.",409);
+        }
+    }
+
+    /// <summary>Linked (debt_id) L1/L2 lines on unapproved riders of live runs hold part of the debt until approval settles it.
+    /// excludeRun/excludeErp skip the rider being recalculated (its lines are replaced).</summary>
+    internal static decimal ReservedByLinks(DbConnection c,DbTransaction? tx,string debtId,string? excludeRun=null,string? excludeErp=null)
+    {
+        object? sum=SchemaSql.Scalar(c,tx,$"""
+            SELECT COALESCE(SUM(i.amount),0) FROM {SchemaSql.Q(c,"sal","pay_run_item")} i
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run_rider")} r ON r.id=i.pay_run_rider_id
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+            WHERE i.debt_id=@d AND i.amount>0 AND i.item_code<>'old_debt_instalment'
+              AND r.salary_approved_at IS NULL AND pr.status<>4
+              AND NOT (r.pay_run_id=@xr AND r.erp_rider_id=@xe)
+            """,("@d",debtId),("@xr",(object?)excludeRun??SchemaSql.GuidText(Guid.Empty)),("@xe",(object?)excludeErp??SchemaSql.GuidText(Guid.Empty)));
+        return sum is null or DBNull?0m:J.Money(Convert.ToDecimal(sum));
     }
 
     static decimal LoadExistingMudad(DbConnection c,DbTransaction tx,string payRunId,string erpRider)
