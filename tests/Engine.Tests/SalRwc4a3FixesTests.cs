@@ -131,14 +131,14 @@ public sealed class SalRwc4a3FixesTests
         tx.Commit();
     }
 
-    // ---------------- H11: combined zero +100/−100 → pay 0, debt 100 ----------------
+    // ---------------- H11: combined zero +100/−100 → pay 0; debt from combined (RWC4m expects 0) ----------------
 
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public void H11_CombinedZero_Plus100Minus100_Pays0_Debt100(bool sqlServer)
+    public void H11_CombinedZero_Plus100Minus100_Pays0_Debt0(bool sqlServer)
     {
-        // Ninja net +100, Keeta net −100 → combined 0. Payables must total 0; negative app opens debt 100 (§40.5 / §40.6).
+        // Ninja net +100, Keeta net −100 → combined 0. Payables 0; carryover from combined shortfall = 0 (RWC4m / §40.5).
         using var c=Open(sqlServer);
         string company=MoneySchemaFixture.Company(c);
         var actor=Admin();
@@ -165,7 +165,7 @@ public sealed class SalRwc4a3FixesTests
         SalSalaryApprove.Approve(c,tx,actor,keeta,new JsonObject{["payRunRiderIds"]=new JsonArray(keetaRiderId)});
         decimal totalPay=Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(amount_due),0) FROM pay_payable WHERE erp_rider_id=@r",("@r",rider)));
         Assert.AreEqual(0m,totalPay);
-        Assert.AreEqual(100m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT balance FROM debt_debt WHERE erp_rider_id=@r AND category='NegativeSalaryCarryover'",("@r",rider))));
+        Assert.AreEqual(0m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(balance),0) FROM debt_debt WHERE erp_rider_id=@r AND category='NegativeSalaryCarryover'",("@r",rider))));
         tx.Commit();
     }
 
