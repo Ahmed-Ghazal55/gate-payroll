@@ -253,7 +253,8 @@ public sealed class EvaluationSurveyTests
     {
         using var f = new PayFixture(); var r = Setup(f); var input = Reply(r);
         string tinyPng = Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D });
-        string voice = Convert.ToBase64String(Encoding.UTF8.GetBytes(new string('a', 200)));
+        var voiceBytes = new byte[200]; voiceBytes[0] = 0x1A; voiceBytes[1] = 0x45; voiceBytes[2] = 0xDF; voiceBytes[3] = 0xA3;
+        string voice = Convert.ToBase64String(voiceBytes);
         input["staffAnswers"]![0]!["attachments"] = new JsonArray(
             new JsonObject { ["kind"] = "image", ["fileName"] = "a.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng },
             new JsonObject { ["kind"] = "image", ["fileName"] = "b.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng },
@@ -272,14 +273,16 @@ public sealed class EvaluationSurveyTests
     {
         using var f = new PayFixture(); var r = Setup(f); var input = Reply(r);
         string tinyPng = Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
+        var voiceBytes = new byte[] { 0x1A, 0x45, 0xDF, 0xA3, 0, 0, 0, 0, 0, 0, 0, 0 };
+        string voice = Convert.ToBase64String(voiceBytes);
         input["staffAnswers"]![0]!["attachments"] = new JsonArray(
             new JsonObject { ["kind"] = "image", ["fileName"] = "a.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng },
             new JsonObject { ["kind"] = "image", ["fileName"] = "b.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng },
-            new JsonObject { ["kind"] = "voice", ["fileName"] = "n.webm", ["contentType"] = "audio/webm", ["dataBase64"] = tinyPng, ["durationSeconds"] = 10 },
+            new JsonObject { ["kind"] = "voice", ["fileName"] = "n.webm", ["contentType"] = "audio/webm", ["dataBase64"] = voice, ["durationSeconds"] = 10 },
             new JsonObject { ["kind"] = "image", ["fileName"] = "c.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng });
         Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store)));
         input = Reply(r);
-        input["staffAnswers"]![0]!["attachments"] = new JsonArray(new JsonObject { ["kind"] = "voice", ["fileName"] = "n.webm", ["contentType"] = "audio/webm", ["dataBase64"] = tinyPng, ["durationSeconds"] = 61 });
+        input["staffAnswers"]![0]!["attachments"] = new JsonArray(new JsonObject { ["kind"] = "voice", ["fileName"] = "n.webm", ["contentType"] = "audio/webm", ["dataBase64"] = voice, ["durationSeconds"] = 61 });
         Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store)));
     }
     [TestMethod]
