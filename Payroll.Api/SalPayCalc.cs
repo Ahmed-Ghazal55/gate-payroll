@@ -76,6 +76,7 @@ public static class SalPayCalc
             decimal residualPersonal=rules.AdjustLevel1(src,l1Items,ref level1Personal,ref companyOperating,ref wagesRoom);
 
             // Mudad is L1 before NET/L2 (Codex RWC4); preserve through recalculation via request fields.
+            bool protectedSalary=keetaIneligible&&string.Equals(scheme,"salary",StringComparison.OrdinalIgnoreCase);
             decimal mudadAmount=0;
             string mudadLineId=src.S("mudadLineId");
             if(mudadLineId!="")
@@ -83,23 +84,29 @@ public static class SalPayCalc
                 mudadAmount=J.Money(src.N("mudadAmount",src.N("amount")));
                 J.Need(mudadAmount>=0,"مبلغ مدد لا يكون سالباً.",400);
                 DemandMudadLine(c,tx,mudadLineId,run.S("companyId"),run.S("periodMonth"),erpRider,mudadAmount);
-                level1Personal=J.Money(level1Personal+mudadAmount);
-                l1Items.Add(Item("level1","mudad_salary",mudadAmount,true,"112505",null));
             }
             else
             {
                 // Re-apply previously linked mudad on recalc so NET/L2 stay correct.
                 mudadAmount=LoadExistingMudad(c,tx,payRunId,erpRider);
-                if(mudadAmount>0)
-                {
-                    level1Personal=J.Money(level1Personal+mudadAmount);
-                    l1Items.Add(Item("level1","mudad_salary",mudadAmount,true,"112505",null));
-                }
+            }
+            // RWC4a2 New HIGH / §22.9.2: protected salary recovers mudad only within remaining wages room; leftover stays open.
+            decimal mudadTake=mudadAmount;
+            if(protectedSalary&&mudadAmount>0)
+            {
+                mudadTake=J.Money(Math.Min(mudadAmount,Math.Max(0,wagesRoom)));
+                residualPersonal=J.Money(residualPersonal+(mudadAmount-mudadTake));
+                wagesRoom=J.Money(Math.Max(0,wagesRoom-mudadTake));
+            }
+            if(mudadTake>0)
+            {
+                level1Personal=J.Money(level1Personal+mudadTake);
+                l1Items.Add(Item("level1","mudad_salary",mudadTake,true,"112505",null));
             }
 
             decimal netAfterL1=J.Money(entitlement-level1Personal);
             // Keeta protected salary: net floor zero (§22.9.2).
-            if(keetaIneligible&&string.Equals(scheme,"salary",StringComparison.OrdinalIgnoreCase)&&netAfterL1<0)
+            if(protectedSalary&&netAfterL1<0)
                 netAfterL1=0;
 
             decimal level2Total=0;
@@ -680,7 +687,11 @@ public static class SalPayCalc
             }
         }
         decimal entitlement=J.Money(gross-commission);
-        decimal level1=J.Money(l1Other+mudadAmount);
+        // RWC4a2 New HIGH / §22.9.2: protected path recovers mudad only within room left after other L1.
+        decimal mudadTake=mudadAmount;
+        if(protectedSalary)
+            mudadTake=J.Money(Math.Min(mudadAmount,Math.Max(0,entitlement-l1Other)));
+        decimal level1=J.Money(l1Other+mudadTake);
         decimal netAfterL1=J.Money(entitlement-level1);
         if(protectedSalary&&netAfterL1<0)netAfterL1=0;
         decimal level2Total=0;
@@ -706,7 +717,7 @@ public static class SalPayCalc
                 ("@stage",stage),("@code",code),("@amt",amt),("@acc",acc),
                 ("@debt",(object?)debt??DBNull.Value),("@by",actor.Identity!.Name!),("@at",now));
         }
-        Ins("level1","mudad_salary",mudadAmount,"112505",null);
+        if(mudadTake>0)Ins("level1","mudad_salary",mudadTake,"112505",null);
         Ins("net","net_after_l1",netAfterL1,"212103",null);
         foreach(var t in l2Takes)if(t.Take>0)Ins("level2",t.Code,t.Take,t.Account,t.DebtId);
         Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")} SET salary_net=@net,updated_by=@by,updated_at=@at WHERE id=@id",
