@@ -77,6 +77,8 @@ public static partial class PaymentsEngine
     public static JsonObject Create(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)
     {
         string type=input.Required("type");J.Need(DocumentTypes.Contains(type),"نوع المستند غير صالح.");AccessPolicy.Demand(actor,Permission(type));
+        // RWP7a1: FX reclass metadata is server-owned (RecurringPayees); reject caller injection that bypasses amount checks.
+        J.Need(!input.ContainsKey("fxGainReclass"),"بيانات فرق العملة الداخلية غير مسموحة من صاحب الطلب.",400);
         string company=Id(input.Required("companyId")),key=Text(input,"idempotencyKey"),hash=Hash(input);
         var scope=new JsonObject{["companyId"]=company,["platform"]=input.S("platform")};Scope(actor,scope);
         object? old=SchemaSql.Scalar(c,tx,$"SELECT id FROM {Q(c,"document")} WHERE company_id=@c AND idempotency_key=@k",("@c",company),("@k",key));

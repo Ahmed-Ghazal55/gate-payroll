@@ -150,7 +150,27 @@ public static class RecurringPayees
             active_from AS activeFrom,active_to AS activeTo,notes,status
             FROM {Q(c,"recurring_payee")} ORDER BY name_ar
             """).Where(r=>FinancialScopes.Sponsor(actor,r.S("companyId"))&&(companyId==null||r.S("companyId")==PaymentsEngine.Id(companyId))).Select(LineView);
-        return new(){["items"]=PaymentsEngine.Array(rows),["allowedActions"]=AccessPolicy.Has(actor,"payments.disburse")?new JsonArray("create","propose_run","one_off"):new JsonArray()};
+        string? scopeCompany=companyId==null?null:PaymentsEngine.Id(companyId);
+        var centres=PaymentsEngine.Rows(c,null,$"""
+            SELECT id,code,name_ar AS nameAr,kind,company_id AS companyId
+            FROM {SchemaSql.Q(c,"org","cost_centre")} WHERE status=1
+            ORDER BY CASE WHEN code='none' THEN 0 ELSE 1 END, name_ar
+            """).Where(r=>r.S("companyId")==""||scopeCompany==null||r.S("companyId")==scopeCompany||FinancialScopes.Sponsor(actor,r.S("companyId")));
+        return new()
+        {
+            ["items"]=PaymentsEngine.Array(rows),
+            ["costCentres"]=PaymentsEngine.Array(centres),
+            ["allowedActions"]=AccessPolicy.Has(actor,"payments.disburse")?new JsonArray("create","propose_run","one_off"):new JsonArray()
+        };
+    }
+
+    /// <summary>Server-only: attach trusted FX gain reclass after Create (callers cannot supply fxGainReclass).</summary>
+    static void AttachFxGainReclass(DbConnection c,DbTransaction tx,string documentId,JsonObject gain)
+    {
+        var doc=PaymentsEngine.Rows(c,tx,$"SELECT metadata FROM {Q(c,"document")} WHERE id=@id",("@id",PaymentsEngine.Id(documentId))).Single();
+        var meta=JsonNode.Parse(doc.S("metadata"))!.AsObject();
+        meta["fxGainReclass"]=gain.DeepClone();
+        SchemaSql.Exec(c,tx,$"UPDATE {Q(c,"document")} SET metadata=@meta WHERE id=@id",("@meta",meta.ToJsonString()),("@id",PaymentsEngine.Id(documentId)));
     }
 
     public static JsonObject PayeeHistory(DbConnection c,ClaimsPrincipal actor,string payeeId)
@@ -377,12 +397,12 @@ public static class RecurringPayees
                 ["idempotencyKey"]="rp:"+runId+":"+line.S("id"),["reference"]="RP-"+line.S("id").Replace("-","")[..Math.Min(30,line.S("id").Replace("-","").Length)],
                 ["lines"]=built.lines,["recurringRunId"]=runId,["recurringLineId"]=line.S("id"),["payeeName"]=line.S("nameAr")
             };
-            if(built.fxGain!=null)docInput["fxGainReclass"]=built.fxGain;
             JsonObject doc;
             if(line.S("documentId")!="")doc=PaymentsEngine.Get(c,tx,actor,line.S("documentId"));
             else
             {
                 doc=PaymentsEngine.Create(c,tx,actor,docInput);
+                if(built.fxGain!=null)AttachFxGainReclass(c,tx,doc.S("id"),built.fxGain);
                 SchemaSql.Exec(c,tx,$"UPDATE {Q(c,"recurring_run_line")} SET document_id=@d,updated_by=@by,updated_at={SchemaSql.NowLiteral(c)} WHERE id=@id",
                     ("@d",doc.S("id")),("@by",Me(actor)),("@id",line.S("id")));
             }
@@ -427,8 +447,8 @@ public static class RecurringPayees
             ["idempotencyKey"]=key,["reference"]=input.S("reference","ONEOFF-"+key[..Math.Min(8,key.Length)]),["lines"]=built.lines,
             ["payeeName"]=PaymentsEngine.Text(input,"nameAr",200),["oneOff"]=true
         };
-        if(built.fxGain!=null)docBody["fxGainReclass"]=built.fxGain;
         var doc=PaymentsEngine.Create(c,tx,actor,docBody);
+        if(built.fxGain!=null)AttachFxGainReclass(c,tx,doc.S("id"),built.fxGain);
         // Idempotent retry: if a voucher already exists for this key, return it.
         object? existingPay=SchemaSql.Scalar(c,tx,$"SELECT id FROM {Q(c,"payment_detail")} WHERE document_id=@d AND idempotency_key=@k",("@d",doc.S("id")),("@k","oneoff:"+key));
         if(existingPay!=null)return PaymentsEngine.Payment(c,tx,actor,existingPay.ToString()!);
@@ -443,12 +463,20 @@ public static class RecurringPayees
         return reserved;
     }
 
-    /// <summary>After Pay: reclass FX gain so expense shows full SAR and FX account is credited separately.</summary>
+    /// <summary>After Pay: reclass FX gain so expense shows full SAR and FX account is credited separately.
+    /// Allocates across partial payments (cancel+split) so a 960 voucher split into two 480s posts gain 40 once, not twice.</summary>
     internal static void ApplyFxGainReclass(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject doc,JsonObject payment)
     {
         var meta=doc["metadata"] as JsonObject;var gain=meta?["fxGainReclass"] as JsonObject;
         if(gain==null)return;
-        decimal amount=gain.N("amount");if(amount<=0)return;
+        decimal totalGain=gain.N("amount");if(totalGain<=0)return;
+        decimal docAmount=doc.N("amount");if(docAmount<=0)return;
+        decimal thisPay=payment.N("amount");
+        decimal amountPaid=Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"SELECT COALESCE(amount_paid,0) FROM {Q(c,"payable")} WHERE source_table='pay.document' AND source_id=@id",("@id",PaymentsEngine.Id(doc.S("id")))));
+        decimal priorPaid=amountPaid-thisPay;if(priorPaid<0)priorPaid=0;
+        decimal priorShare=J.Money(priorPaid/docAmount*totalGain);
+        decimal share=amountPaid>=docAmount?J.Money(totalGain-priorShare):J.Money(thisPay/docAmount*totalGain);
+        if(share<=0)return;
         string day=payment.S("paidOn")[..10];
         Guid expense=PaymentsEngine.Account(c,tx,gain.Required("expenseAccountCode"));
         Guid fx=PaymentsEngine.Account(c,tx,gain.Required("fxAccountCode"));
@@ -456,8 +484,8 @@ public static class RecurringPayees
         JournalPosting.Post(c,tx,new(Guid.Parse(doc.S("companyId")),PaymentsEngine.Period(c,tx,doc.S("companyId"),day),
             DateOnly.ParseExact(day[..7]+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture),DateOnly.ParseExact(day,"yyyy-MM-dd",CultureInfo.InvariantCulture),
             "payment_document",Guid.Parse(payment.S("id")),"fx_gain_reclass",(byte)doc.N("runMode"),doc.B("payoutBlocked"),Me(actor),[
-                new(expense,centre,"none",amount,0,"إعادة تصنيف ربح فرق العملة"),
-                new(fx,centre,"none",0,amount,"ربح فرق العملة")
+                new(expense,centre,"none",share,0,"إعادة تصنيف ربح فرق العملة"),
+                new(fx,centre,"none",0,share,"ربح فرق العملة")
             ]));
     }
 }
