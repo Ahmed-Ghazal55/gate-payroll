@@ -87,6 +87,13 @@ public static class SharedRiderConsolidation
         doc["released"]=true;doc["status"]="released";doc["releaseReason"]=reason.Trim();doc["releasedBy"]=actor.Identity!.Name;doc["releasedAt"]=DateTimeOffset.UtcNow.ToString("O");
         doc["combinedNet"]=J.Money(CombinedNet(doc));
         Store.Save(c,Kind,doc,tx);Store.Audit(c,tx,"pay.consolidation_released",doc.S("id"),actor.Identity!.Name!);
+        // RWC4a1 H11: clear the W2 table hold so sal approval sees status=cleared.
+        string periodMonth=period.Length==7?period+"-01":period;
+        SchemaSql.Exec(c,tx,$"""
+            UPDATE {SchemaSql.Q(c,"sal","shared_rider_hold")}
+            SET status='cleared',updated_by=@by,updated_at=@at
+            WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'
+            """,("@by",actor.Identity!.Name!),("@at",doc.S("releasedAt")),("@erp",rider),("@pm",periodMonth));
         return doc;
     }
 

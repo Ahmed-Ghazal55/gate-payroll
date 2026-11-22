@@ -310,11 +310,13 @@ public sealed class SalRwc4bFixesTests
                 ["level1"]=new JsonArray(),["level2"]=new JsonArray()
             })
         });
-        Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM sal_shared_rider_hold WHERE erp_rider_id=@r AND period_month='2026-10-01' AND status='open'",("@r",rider)));
+        // RWC4a1 H11: both apps calculated → consolidate clears the hold (§40.5); approve proceeds.
+        Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM sal_shared_rider_hold WHERE erp_rider_id=@r AND period_month='2026-10-01' AND status='cleared'",("@r",rider)));
         Assert.IsTrue(Convert.ToInt32(MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM sal_shared_rider_hold_app ha INNER JOIN sal_shared_rider_hold h ON h.id=ha.hold_id WHERE h.erp_rider_id=@r",("@r",rider)))>=2);
         string riderId=calc["riders"]![0]!["id"]!.GetValue<string>();
         SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})});
-        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)})).Status);
+        SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
+        Assert.AreEqual(200m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT amount_due FROM pay_payable WHERE source_id=@r",("@r",riderId))));
         tx.Commit();
     }
 

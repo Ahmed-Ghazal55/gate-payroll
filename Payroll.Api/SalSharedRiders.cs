@@ -1,13 +1,17 @@
 using System.Data.Common;
 using System.Globalization;
+using System.Security.Claims;
 using System.Text.Json.Nodes;
 namespace Payroll;
 
-/// <summary>WC4D H11 (§40.5, M-0587): a rider who worked more than one app in the month is held by default.
-/// Worked apps come from every live run of the month: riders already calculated AND the frozen work timelines
-/// (the capture's assignment kind covers all apps of the rider), so the first app cannot approve before the others exist.</summary>
+/// <summary>WC4D/RWC4a1 H11 (§40.5, M-0587, M-0672): a rider who worked more than one app in the month is held by default.
+/// Worked apps come from every live run of the month: riders already calculated AND the frozen work timelines.
+/// When every hold app is received, nets consolidate (shared fuel/vehicle/housing once) and the hold clears.
+/// Exception release needs the dedicated dual permission before every app is in.</summary>
 public static class SalSharedRiders
 {
+    static readonly HashSet<string> SharedDeductionCodes=new(StringComparer.Ordinal){"fuel","vehicle","housing"};
+
     public static Dictionary<string,HashSet<string>> WorkedApps(DbConnection c,DbTransaction tx,string periodMonth)
     {
         var map=new Dictionary<string,HashSet<string>>(StringComparer.OrdinalIgnoreCase);
@@ -56,19 +60,20 @@ public static class SalSharedRiders
         return apps;
     }
 
-    /// <summary>Open (or extend) the hold with one row per worked app; an app is "received" once its run has calculated the rider.</summary>
+    /// <summary>Open (or extend) the hold with one row per worked app; an app is "received" once its run has calculated the rider.
+    /// When every app is received, consolidate (§40.5) and clear the hold.</summary>
     public static void OpenHold(DbConnection c,DbTransaction tx,string erpRider,string periodMonth,IEnumerable<string> apps,string calculatingApp)
     {
         object? cleared=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'",
             ("@erp",erpRider),("@pm",periodMonth));
-        if(cleared is not null and not DBNull)return; // exception release already decided by a second person (M-0587)
+        if(cleared is not null and not DBNull)return; // consolidation or exception release already decided
         object? existing=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'",
             ("@erp",erpRider),("@pm",periodMonth));
         string holdId;
         if(existing is null or DBNull)
         {
             holdId=SchemaSql.GuidText(SchemaSql.NewId());
-            SchemaSql.Exec(c,tx,$"INSERT INTO {SchemaSql.Q(c,"sal","shared_rider_hold")}(id,erp_rider_id,period_month,status,created_at) VALUES(@id,@erp,@pm,'open',@at)",
+            SchemaSql.Exec(c,tx,$"INSERT INTO {SchemaSql.Q(c,"sal","shared_rider_hold")}(id,erp_rider_id,period_month,status,combined_net,created_at) VALUES(@id,@erp,@pm,'open',0,@at)",
                 ("@id",holdId),("@erp",erpRider),("@pm",periodMonth),("@at",DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture)));
         }
         else holdId=existing.ToString()!;
@@ -85,9 +90,72 @@ public static class SalSharedRiders
             if(app==calculatingApp||calculated is not null and not DBNull)
                 SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","shared_rider_hold_app")} SET received=1 WHERE hold_id=@h AND app_code=@a",("@h",holdId),("@a",app));
         }
+        ConsolidateIfComplete(c,tx,holdId,erpRider,periodMonth);
     }
 
-    /// <summary>Approval gate: a multi-app rider needs a cleared (second-person exception) hold; an open hold always blocks.</summary>
+    /// <summary>§40.5: when every hold app is received, sum each app's net and add back duplicate shared L1 (fuel/vehicle/housing), then clear.</summary>
+    public static void ConsolidateIfComplete(DbConnection c,DbTransaction tx,string holdId,string erpRider,string periodMonth)
+    {
+        object? pending=SchemaSql.Scalar(c,tx,$"SELECT COUNT(*) FROM {SchemaSql.Q(c,"sal","shared_rider_hold_app")} WHERE hold_id=@h AND received=0",("@h",holdId));
+        if(pending is not null and not DBNull&&Convert.ToInt64(pending)>0)return;
+
+        decimal combined=0;
+        var sharedSeen=new HashSet<string>(StringComparer.Ordinal);
+        decimal sharedDuplicate=0;
+        using(var cmd=c.CreateCommand())
+        {
+            cmd.Transaction=tx;
+            cmd.CommandText=$"""
+                SELECT r.id,r.salary_net,pr.app_code FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
+                INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+                INNER JOIN {SchemaSql.Q(c,"sal","shared_rider_hold_app")} ha ON ha.hold_id=@h AND ha.app_code=pr.app_code
+                WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND pr.status<>4
+                """;
+            Param(cmd,"@h",holdId);Param(cmd,"@erp",erpRider);Param(cmd,"@pm",periodMonth);
+            using var r=cmd.ExecuteReader();
+            var rows=new List<(string RiderId,decimal Net,string App)>();
+            while(r.Read())rows.Add((r["id"].ToString()!,Convert.ToDecimal(r["salary_net"]),r["app_code"].ToString()!));
+            r.Close();
+            foreach(var row in rows)
+            {
+                combined=J.Money(combined+row.Net);
+                using var items=c.CreateCommand();items.Transaction=tx;
+                items.CommandText=$"""
+                    SELECT item_code,amount FROM {SchemaSql.Q(c,"sal","pay_run_item")}
+                    WHERE pay_run_rider_id=@r AND stage_code='level1' AND affects_net=1 AND amount>0
+                    """;
+                Param(items,"@r",row.RiderId);
+                using var ir=items.ExecuteReader();
+                while(ir.Read())
+                {
+                    string code=ir["item_code"].ToString()!;
+                    if(!SharedDeductionCodes.Contains(code))continue;
+                    decimal amt=Convert.ToDecimal(ir["amount"]);
+                    if(!sharedSeen.Add(code))sharedDuplicate=J.Money(sharedDuplicate+amt);
+                }
+            }
+        }
+        combined=J.Money(combined+sharedDuplicate);
+        string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
+        SchemaSql.Exec(c,tx,$"""
+            UPDATE {SchemaSql.Q(c,"sal","shared_rider_hold")}
+            SET status='cleared',combined_net=@net,updated_at=@at WHERE id=@id
+            """,("@net",combined),("@at",now),("@id",holdId));
+        // Keep the legacy queue document in sync for the shared-riders UI (period key yyyy-MM).
+        string periodKey=periodMonth.Length>=7?periodMonth[..7]:periodMonth;
+        try
+        {
+            string companyId=CompanyForRiderMonth(c,tx,erpRider,periodMonth);
+            var doc=SharedRiderConsolidation.Ensure(c,tx,erpRider,periodKey,companyId);
+            doc["status"]="ready";doc["combinedNet"]=combined;doc["released"]=false;
+            doc["missingApps"]=new JsonArray();
+            Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
+        }
+        catch(ApiError){ /* no live run yet — table hold is still cleared */ }
+        Store.Audit(c,tx,"sal.shared_rider_consolidated",holdId,"system");
+    }
+
+    /// <summary>Approval gate: a multi-app rider needs a cleared hold (all apps received + consolidated, or second-person exception); an open hold always blocks.</summary>
     public static void DemandApprovable(DbConnection c,DbTransaction tx,Dictionary<string,HashSet<string>> worked,string erpRider,string periodMonth,string runApp)
     {
         object? open=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'",
@@ -97,6 +165,82 @@ public static class SalSharedRiders
         object? cleared=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'",
             ("@erp",erpRider),("@pm",periodMonth));
         J.Need(cleared is not null and not DBNull,"المندوب عمل على أكثر من تطبيق هذا الشهر؛ موقوف حتى تكتمل كل التطبيقات ويُدمج (§40.5).",409);
+    }
+
+    /// <summary>M-0587 / M-0672: open dual approval to release a still-open hold before every app is in.</summary>
+    public static JsonObject RequestRelease(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string erpRider,string periodMonth,string reason)
+    {
+        J.Need(reason.Trim().Length is >2 and <=500,"سبب طلب فك الحجز مطلوب.");
+        AccessPolicy.Demand(actor,"pay.approve");
+        var hold=LoadOpenHold(c,tx,erpRider,periodMonth);
+        string companyId=CompanyForRiderMonth(c,tx,erpRider,periodMonth);
+        FinancialScopes.DemandSponsor(actor,companyId);
+        decimal amount=J.Money(hold.N("combinedNet"));
+        string periodKey=periodMonth.Length>=7?periodMonth[..7]:periodMonth;
+        var doc=SharedRiderConsolidation.Ensure(c,tx,erpRider,periodKey,companyId);
+        Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
+        string payloadHash=ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",erpRider),("period",periodKey),("reason",reason.Trim()));
+        var req=ApprovalsArea.OpenMoneyOutDual(c,tx,actor,"shared_rider_release",doc.S("id"),amount,payloadHash,
+            "اعتماد فك حجز مندوب مشترك","طلب فك حجز مندوب عمل مشترك — بانتظار اعتماد شخصين.",
+            new(){["rider"]=erpRider,["period"]=periodKey,["reason"]=reason.Trim(),["companyId"]=companyId,["sponsorId"]=companyId,["payloadHash"]=payloadHash,["holdId"]=hold.S("id")});
+        doc["releaseRequestedAt"]=DateTimeOffset.UtcNow.ToString("O");
+        doc["releaseRequestedBy"]=actor.Identity!.Name;
+        doc["releaseRequestId"]=req.S("id");
+        doc["releasePayloadHash"]=payloadHash;
+        Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
+        Store.Audit(c,tx,"sal.shared_rider_release_requested",hold.S("id"),actor.Identity!.Name!);
+        return req;
+    }
+
+    /// <summary>M-0587 / M-0672: after recorded dual decision, clear the open hold (exception path).</summary>
+    public static JsonObject Release(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string erpRider,string periodMonth,string reason)
+    {
+        J.Need(reason.Trim().Length is >2 and <=500,"سبب الإفراج مطلوب.");
+        var hold=LoadOpenHold(c,tx,erpRider,periodMonth);
+        string companyId=CompanyForRiderMonth(c,tx,erpRider,periodMonth);
+        string periodKey=periodMonth.Length>=7?periodMonth[..7]:periodMonth;
+        var doc=SharedRiderConsolidation.Ensure(c,tx,erpRider,periodKey,companyId);
+        decimal amount=J.Money(hold.N("combinedNet"));
+        string currentHash=ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",erpRider),("period",periodKey),("reason",reason.Trim()));
+        ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,actor,ApprovalsArea.DualSharedRiderRelease,doc.S("id"),currentHash);
+        string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
+        SchemaSql.Exec(c,tx,$"""
+            UPDATE {SchemaSql.Q(c,"sal","shared_rider_hold")}
+            SET status='cleared',updated_by=@by,updated_at=@at WHERE id=@id
+            """,("@by",actor.Identity!.Name!),("@at",now),("@id",hold.S("id")));
+        doc["released"]=true;doc["status"]="released";doc["releaseReason"]=reason.Trim();
+        doc["releasedBy"]=actor.Identity!.Name;doc["releasedAt"]=now;
+        Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
+        Store.Audit(c,tx,"sal.shared_rider_released",hold.S("id"),actor.Identity!.Name!);
+        return new(){["id"]=hold.S("id"),["status"]="cleared",["erpRiderId"]=erpRider,["periodMonth"]=periodMonth,["released"]=true};
+    }
+
+    static JsonObject LoadOpenHold(DbConnection c,DbTransaction tx,string erpRider,string periodMonth)
+    {
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        cmd.CommandText=$"SELECT id,combined_net,status FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'";
+        Param(cmd,"@erp",erpRider);Param(cmd,"@pm",periodMonth);
+        using var r=cmd.ExecuteReader();
+        J.Need(r.Read(),"لا حجز مفتوح لهذا المندوب والشهر.",404);
+        return new(){["id"]=r["id"].ToString()!,["combinedNet"]=Convert.ToDecimal(r["combined_net"]),["status"]=r["status"].ToString()!};
+    }
+
+    static string CompanyForRiderMonth(DbConnection c,DbTransaction tx,string erpRider,string periodMonth)
+    {
+        string sql=SchemaSql.IsSql(c)
+            ?$"""
+                SELECT TOP 1 pr.company_id FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
+                INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+                WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND pr.status<>4
+                """
+            :$"""
+                SELECT pr.company_id FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
+                INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+                WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND pr.status<>4 LIMIT 1
+                """;
+        object? company=SchemaSql.Scalar(c,tx,sql,("@erp",erpRider),("@pm",periodMonth));
+        J.Need(company is not null and not DBNull,"لا مسير لهذا المندوب في الشهر.",404);
+        return company!.ToString()!;
     }
 
     static void Param(DbCommand cmd,string name,object value){var p=cmd.CreateParameter();p.ParameterName=name;p.Value=value;cmd.Parameters.Add(p);}
