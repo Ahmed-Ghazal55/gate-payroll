@@ -1,5 +1,6 @@
 import { api, esc } from '../api';
 import { getLanguage, pickLang, t, type Language } from '../i18n';
+import { getSession, registerSensitiveSessionClear } from '../state';
 
 export interface EvaluationLabel {
   id: string;
@@ -84,6 +85,14 @@ export interface MobileEvaluationDraft {
 const drafts = new Map<string, MobileEvaluationDraft>();
 const schemas = new Map<string, EvaluationSchema>();
 
+function draftKey(riderIqama: string, roundToken: string): string {
+  const iqama = String(riderIqama || '').trim();
+  if (!iqama) {
+    throw new Error('evaluation draft requires authenticated rider iqama');
+  }
+  return `${iqama}::${roundToken}`;
+}
+
 const PLATFORM_LABELS: Record<string, Record<Language, string>> = {
   Jahez: { ar: 'جاهز', en: 'Jahez', ur: 'جاہز' },
   Keeta: { ar: 'كيتا', en: 'Keeta', ur: 'کیٹا' },
@@ -106,9 +115,11 @@ export function localizeApp(app: string, lang: Language = getLanguage()): string
 export function getOrInitDraft(
   token: string,
   schema: EvaluationSchema,
-  defaults?: { city?: string; phone?: string }
+  defaults?: { city?: string; phone?: string; riderIqama?: string }
 ): MobileEvaluationDraft {
-  let d = drafts.get(token);
+  const iqama = String(defaults?.riderIqama || getSession()?.iqama || '').trim();
+  const key = draftKey(iqama, token);
+  let d = drafts.get(key);
   if (!d) {
     const defaultCity =
       defaults?.city && schema.cities.includes(defaults.city)
@@ -130,7 +141,7 @@ export function getOrInitDraft(
       error: '',
       receipt: '',
     };
-    drafts.set(token, d);
+    drafts.set(key, d);
   }
   return d;
 }
@@ -147,6 +158,8 @@ export function clearEvaluationDrafts(): void {
   drafts.clear();
   schemas.clear();
 }
+
+registerSensitiveSessionClear(clearEvaluationDrafts);
 
 export function getCityStaffCards(schema: EvaluationSchema, city: string): EvaluationStaffCard[] {
   if (!city) return [];

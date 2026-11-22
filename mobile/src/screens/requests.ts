@@ -1,5 +1,6 @@
 import { api, esc, money } from '../api';
 import { t, pickLang, getLanguage, SALARY_BANKS } from '../i18n';
+import { getSession } from '../state';
 import {
   getOrInitDraft,
   setEvaluationSchemaCache,
@@ -263,7 +264,8 @@ function renderActiveCampaignsCard(formsCatalog: any): string {
             if (!evalSchema) return '';
             const draft = getOrInitDraft(c.token, evalSchema, {
               city: riderCity,
-              phone: riderPhone
+              phone: riderPhone,
+              riderIqama: getSession()?.iqama || ''
             });
             return `
               <div style="border-bottom:1px solid var(--line);padding:10px 0" data-eval-campaign="${esc(c.token)}">

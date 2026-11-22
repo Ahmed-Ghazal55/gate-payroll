@@ -352,6 +352,71 @@ describe('Statement, Debts, Notifications, and Requests Screens', () => {
     expect(htmlLeave).toContain('data-reply-req="sreq:leave1"');
   });
 
+  it('keys evaluation drafts by authenticated iqama and round and clears them on logout and identity change', async () => {
+    clearEvaluationDrafts();
+    const schema: EvaluationSchema = {
+      schema: 'evaluation-v1',
+      roundId: 'evround:syn-draft',
+      title: 'Draft isolation',
+      noticeAr: 'n',
+      noticeEn: 'n',
+      noticeUr: 'n',
+      cities: ['Synthetic City'],
+      apps: ['Ninja'],
+      staff: [],
+      staffRatingMin: 1,
+      staffRatingMax: 10,
+      appRatingMin: 1,
+      appRatingMax: 5,
+      staffDimensions: [],
+      staffReasons: [],
+      appReasons: [],
+      factors: [],
+      uploadsPolicyPending: true,
+      allowedActions: ['submit']
+    };
+
+    const riderA = getOrInitDraft('round-token-1', schema, {
+      city: 'Synthetic City',
+      riderIqama: '1111111111'
+    });
+    riderA.nationality = 'Secret notes for rider A';
+    riderA.staffAnswers['evstaff:x'] = {
+      reason: '',
+      ratings: {},
+      notes: 'private complaint draft',
+      complaint: true,
+      complaintDetails: 'do not leak'
+    };
+
+    const riderB = getOrInitDraft('round-token-1', schema, {
+      city: 'Synthetic City',
+      riderIqama: '2222222222'
+    });
+    expect(riderB.nationality).toBe('');
+    expect(riderB.staffAnswers['evstaff:x']).toBeUndefined();
+    expect(riderB).not.toBe(riderA);
+
+    const riderAAgain = getOrInitDraft('round-token-1', schema, {
+      riderIqama: '1111111111'
+    });
+    expect(riderAAgain.nationality).toBe('Secret notes for rider A');
+    expect(riderAAgain.staffAnswers['evstaff:x']?.complaintDetails).toBe('do not leak');
+
+    await setSession({ accessToken: 'tok-a', iqama: '1111111111', name: 'A' });
+    await setSession(null);
+    const afterLogout = getOrInitDraft('round-token-1', schema, { riderIqama: '1111111111' });
+    expect(afterLogout.nationality).toBe('');
+    expect(afterLogout.staffAnswers['evstaff:x']).toBeUndefined();
+
+    const beforeIdentity = getOrInitDraft('round-token-1', schema, { riderIqama: '1111111111' });
+    beforeIdentity.nationality = 'before identity change';
+    await setSession({ accessToken: 'tok-a', iqama: '1111111111' });
+    await setSession({ accessToken: 'tok-b', iqama: '3333333333' });
+    const afterIdentity = getOrInitDraft('round-token-1', schema, { riderIqama: '1111111111' });
+    expect(afterIdentity.nationality).toBe('');
+  });
+
   it('renders 3-language 2-page evaluation survey in rider app with supervisor/app cards, nationality, and pending approval placeholder', async () => {
     clearEvaluationDrafts();
     const syntheticSchema: EvaluationSchema = {
@@ -409,7 +474,10 @@ describe('Statement, Debts, Notifications, and Requests Screens', () => {
       allowedActions: ['submit']
     };
 
-    const draft = getOrInitDraft('syntoken123', syntheticSchema, { city: 'Synthetic City' });
+    const draft = getOrInitDraft('syntoken123', syntheticSchema, {
+      city: 'Synthetic City',
+      riderIqama: '9999999999'
+    });
     draft.nationality = 'Synthetic Nationality';
     draft.workApps = ['Ninja'];
     draft.staffAnswers['evstaff:syn1'] = {
