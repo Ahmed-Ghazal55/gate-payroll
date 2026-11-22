@@ -253,6 +253,12 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/sal/pay-runs/{id}/debt-confirm` | Payroll.Api/SalDebtConfirm.cs:104 | see AccessPolicy + handler | web | keep |
 | POST | `/api/sal/pay-runs/{id}/debt-deductions/bulk-preview` | Payroll.Api/SalPayCalc.cs:258 | see AccessPolicy + handler | web | keep |
 | POST | `/api/sal/pay-runs/{id}/freeze-capture` | Payroll.Api/OpsSnapshotCapture.cs:113 | see AccessPolicy + handler | web | keep |
+| GET | `/api/sal/rider-requests` | Payroll.Api/SalRiderRequests.cs:436 | see AccessPolicy + handler | web | keep |
+| POST | `/api/sal/rider-requests` | Payroll.Api/SalRiderRequests.cs:439 | see AccessPolicy + handler | web | keep |
+| POST | `/api/sal/rider-requests/{id}/approve` | Payroll.Api/SalRiderRequests.cs:442 | see AccessPolicy + handler | web | keep |
+| POST | `/api/sal/rider-requests/{id}/reject` | Payroll.Api/SalRiderRequests.cs:445 | see AccessPolicy + handler | web | keep |
+| POST | `/api/sal/rider-requests/{id}/request-release` | Payroll.Api/SalRiderRequests.cs:448 | see AccessPolicy + handler | web | keep |
+| POST | `/api/sal/rider-requests/{id}/release` | Payroll.Api/SalRiderRequests.cs:451 | see AccessPolicy + handler | web | keep |
 | POST | `/api/sal/settlements/combine` | Payroll.Api/SalDistribution.cs:250 | see AccessPolicy + handler | web | keep |
 | POST | `/api/sal/simulations/{id}/discard` | Payroll.Api/SalSimulations.cs:233 | see AccessPolicy + handler | web | keep |
 | POST | `/api/sal/simulations/{id}/promote-real` | Payroll.Api/SalSimulations.cs:243 | see AccessPolicy + handler | web | keep |
@@ -358,6 +364,12 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/finance/opening/commit` | Payroll.Api/TreasuryEntries.cs:78 | treasury.opening | web | keep |
 | POST | `/api/finance/opening/preview` | Payroll.Api/TreasuryEntries.cs:64 | treasury.opening | web | keep |
 | POST | `/api/finance/vault-transfer` | Payroll.Api/FinancialCore.cs:673 | treasury.transfer | web | keep |
+| GET | `/api/sal/bank-files` | Payroll.Api/SalBankFiles.cs:544 | see AccessPolicy + handler | web | keep |
+| GET | `/api/sal/bank-files/{id}` | Payroll.Api/SalBankFiles.cs:547 | see AccessPolicy + handler | web | keep |
+| POST | `/api/sal/bank-files` | Payroll.Api/SalBankFiles.cs:550 | see AccessPolicy + handler | web | keep |
+| GET | `/api/sal/bank-files/{id}/export` | Payroll.Api/SalBankFiles.cs:553 | see AccessPolicy + handler | web | keep |
+| POST | `/api/sal/bank-files/{id}/request-mark-sent` | Payroll.Api/SalBankFiles.cs:559 | see AccessPolicy + handler | web | keep |
+| POST | `/api/sal/bank-files/{id}/mark-sent` | Payroll.Api/SalBankFiles.cs:562 | see AccessPolicy + handler | web | keep |
 
 ## المحاسبة والتقارير
 

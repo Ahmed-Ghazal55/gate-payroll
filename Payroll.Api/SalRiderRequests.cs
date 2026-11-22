@@ -409,6 +409,7 @@ public static class SalRiderRequests
     /// or a shared_rider_hold released via individual_transfer.</summary>
     public static bool HasActiveBankBlockingHold(DbConnection c,DbTransaction? tx,string erpRiderId,string periodMonth,string appCode)
     {
+        if(!Guid.TryParse(erpRiderId,out _))return false;
         if(!SchemaSql.TableExists(c,tx,"sal","rider_request"))return false;
         EnsureColumns(c,tx);
         string app=appCode is "" or "all"?"all":PayPlatforms.For(appCode).App;

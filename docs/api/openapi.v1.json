@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:37923/"
+      "url": "http://127.0.0.1:44955/"
     }
   ],
   "paths": {
@@ -26584,6 +26584,2064 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/rider-requests": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "List salary hold and deduction requests and shared-rider holds",
+        "parameters": [
+          {
+            "name": "kind",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "requestType",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "appCode",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "periodMonth",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "erpRiderId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "tab",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "summary",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "erpRiderId",
+                          "companyId",
+                          "periodMonth",
+                          "status",
+                          "allowedActions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "requestType": {
+                            "type": "string"
+                          },
+                          "typeLabelAr": {
+                            "type": "string"
+                          },
+                          "erpRiderId": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "periodMonth": {
+                            "type": "string"
+                          },
+                          "appCode": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "combinedNet": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "statusCode": {
+                            "type": "number"
+                          },
+                          "statusLabelAr": {
+                            "type": "string"
+                          },
+                          "reasonCode": {
+                            "type": "string"
+                          },
+                          "note": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "requestedBy": {
+                            "type": "string"
+                          },
+                          "requestedAt": {
+                            "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "approvedAt": {
+                            "type": "string"
+                          },
+                          "releaseMode": {
+                            "type": "string"
+                          },
+                          "releasedBy": {
+                            "type": "string"
+                          },
+                          "releasedAt": {
+                            "type": "string"
+                          },
+                          "payRunRiderId": {
+                            "type": "string"
+                          },
+                          "awaitedApps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "receivedApps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "released": {
+                            "type": "boolean"
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "summary": {
+                      "type": "object"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Create a salary hold or deduction request",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "erpRiderId",
+                    "companyId",
+                    "periodMonth",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "requestType": {
+                      "type": "string"
+                    },
+                    "typeLabelAr": {
+                      "type": "string"
+                    },
+                    "erpRiderId": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "appCode": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "combinedNet": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "statusCode": {
+                      "type": "number"
+                    },
+                    "statusLabelAr": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "requestedBy": {
+                      "type": "string"
+                    },
+                    "requestedAt": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    },
+                    "releaseMode": {
+                      "type": "string"
+                    },
+                    "releasedBy": {
+                      "type": "string"
+                    },
+                    "releasedAt": {
+                      "type": "string"
+                    },
+                    "payRunRiderId": {
+                      "type": "string"
+                    },
+                    "awaitedApps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "receivedApps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "released": {
+                      "type": "boolean"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/rider-requests/{id}/approve": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Confirm and approve a salary hold or deduction request",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/JsonObject"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "erpRiderId",
+                    "companyId",
+                    "periodMonth",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "requestType": {
+                      "type": "string"
+                    },
+                    "typeLabelAr": {
+                      "type": "string"
+                    },
+                    "erpRiderId": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "appCode": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "combinedNet": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "statusCode": {
+                      "type": "number"
+                    },
+                    "statusLabelAr": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "requestedBy": {
+                      "type": "string"
+                    },
+                    "requestedAt": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    },
+                    "releaseMode": {
+                      "type": "string"
+                    },
+                    "releasedBy": {
+                      "type": "string"
+                    },
+                    "releasedAt": {
+                      "type": "string"
+                    },
+                    "payRunRiderId": {
+                      "type": "string"
+                    },
+                    "awaitedApps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "receivedApps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "released": {
+                      "type": "boolean"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/rider-requests/{id}/reject": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Reject a salary hold or deduction request",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "erpRiderId",
+                    "companyId",
+                    "periodMonth",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "requestType": {
+                      "type": "string"
+                    },
+                    "typeLabelAr": {
+                      "type": "string"
+                    },
+                    "erpRiderId": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "appCode": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "combinedNet": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "statusCode": {
+                      "type": "number"
+                    },
+                    "statusLabelAr": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "requestedBy": {
+                      "type": "string"
+                    },
+                    "requestedAt": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    },
+                    "releaseMode": {
+                      "type": "string"
+                    },
+                    "releasedBy": {
+                      "type": "string"
+                    },
+                    "releasedAt": {
+                      "type": "string"
+                    },
+                    "payRunRiderId": {
+                      "type": "string"
+                    },
+                    "awaitedApps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "receivedApps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "released": {
+                      "type": "boolean"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/rider-requests/{id}/request-release": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Open two-person approval to release a held rider salary with releaseMode",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/rider-requests/{id}/release": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Release a held rider salary after recorded two-person approval bound to releaseMode and payload hash",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "erpRiderId",
+                    "companyId",
+                    "periodMonth",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "requestType": {
+                      "type": "string"
+                    },
+                    "typeLabelAr": {
+                      "type": "string"
+                    },
+                    "erpRiderId": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "appCode": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "combinedNet": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "statusCode": {
+                      "type": "number"
+                    },
+                    "statusLabelAr": {
+                      "type": "string"
+                    },
+                    "reasonCode": {
+                      "type": "string"
+                    },
+                    "note": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "requestedBy": {
+                      "type": "string"
+                    },
+                    "requestedAt": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    },
+                    "releaseMode": {
+                      "type": "string"
+                    },
+                    "releasedBy": {
+                      "type": "string"
+                    },
+                    "releasedAt": {
+                      "type": "string"
+                    },
+                    "payRunRiderId": {
+                      "type": "string"
+                    },
+                    "awaitedApps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "receivedApps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "released": {
+                      "type": "boolean"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/bank-files": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "List salary bank files",
+        "parameters": [
+          {
+            "name": "periodMonth",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "periodMonth",
+                          "issuanceChoice",
+                          "sheetShape",
+                          "payingCompanyId",
+                          "payingRegistrationId",
+                          "payingBankId",
+                          "status",
+                          "totalAmount",
+                          "lines",
+                          "sheetRows",
+                          "allowedActions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "periodMonth": {
+                            "type": "string"
+                          },
+                          "issuanceChoice": {
+                            "type": "string"
+                          },
+                          "sheetShape": {
+                            "type": "string"
+                          },
+                          "scopeCompanyId": {
+                            "type": "string"
+                          },
+                          "scopeRegistrationId": {
+                            "type": "string"
+                          },
+                          "payingCompanyId": {
+                            "type": "string"
+                          },
+                          "payingRegistrationId": {
+                            "type": "string"
+                          },
+                          "payingBankId": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "statusCode": {
+                            "type": "number"
+                          },
+                          "fileHash": {
+                            "type": "string"
+                          },
+                          "fileContentHash": {
+                            "type": "string"
+                          },
+                          "runMode": {
+                            "type": "number"
+                          },
+                          "payoutBlocked": {
+                            "type": "boolean"
+                          },
+                          "doNotSend": {
+                            "type": "boolean"
+                          },
+                          "payoutLabel": {
+                            "type": "string"
+                          },
+                          "currencyCode": {
+                            "type": "string"
+                          },
+                          "totalAmount": {
+                            "type": "number"
+                          },
+                          "lineCount": {
+                            "type": "number"
+                          },
+                          "riderCount": {
+                            "type": "number"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "approvedAt": {
+                            "type": "string"
+                          },
+                          "sentBy": {
+                            "type": "string"
+                          },
+                          "sentAt": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "lines": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "payRunRiderId",
+                                "payableId",
+                                "companyId",
+                                "registrationId",
+                                "erpRiderId",
+                                "iqama",
+                                "iban",
+                                "bankShortCode",
+                                "amount",
+                                "status"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "payRunRiderId": {
+                                  "type": "string"
+                                },
+                                "payableId": {
+                                  "type": "string"
+                                },
+                                "companyId": {
+                                  "type": "string"
+                                },
+                                "registrationId": {
+                                  "type": "string"
+                                },
+                                "paymentId": {
+                                  "type": "string"
+                                },
+                                "allocationId": {
+                                  "type": "string"
+                                },
+                                "erpRiderId": {
+                                  "type": "string"
+                                },
+                                "appCode": {
+                                  "type": "string"
+                                },
+                                "iqama": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "iban": {
+                                  "type": "string"
+                                },
+                                "bank": {
+                                  "type": "string"
+                                },
+                                "bankShortCode": {
+                                  "type": "string"
+                                },
+                                "bankNameAr": {
+                                  "type": "string"
+                                },
+                                "address": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                },
+                                "status": {
+                                  "type": "string"
+                                }
+                              }
+                            }
+                          },
+                          "sheetRows": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "erpRiderId",
+                                "bank",
+                                "bankShortCode",
+                                "iban",
+                                "amount",
+                                "iqama",
+                                "name"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "erpRiderId": {
+                                  "type": "string"
+                                },
+                                "bank": {
+                                  "type": "string"
+                                },
+                                "bankShortCode": {
+                                  "type": "string"
+                                },
+                                "bankNameAr": {
+                                  "type": "string"
+                                },
+                                "iban": {
+                                  "type": "string"
+                                },
+                                "amount": {
+                                  "type": "number"
+                                },
+                                "notes": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "iqama": {
+                                  "type": "string"
+                                },
+                                "address": {
+                                  "type": "string"
+                                },
+                                "apps": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "excludedRows": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          },
+                          "settlements": {
+                            "type": "array",
+                            "items": {
+                              "type": "object"
+                            }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Build a salary bank file and reserve eligible payables",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "periodMonth",
+                    "issuanceChoice",
+                    "sheetShape",
+                    "payingCompanyId",
+                    "payingRegistrationId",
+                    "payingBankId",
+                    "status",
+                    "totalAmount",
+                    "lines",
+                    "sheetRows",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "issuanceChoice": {
+                      "type": "string"
+                    },
+                    "sheetShape": {
+                      "type": "string"
+                    },
+                    "scopeCompanyId": {
+                      "type": "string"
+                    },
+                    "scopeRegistrationId": {
+                      "type": "string"
+                    },
+                    "payingCompanyId": {
+                      "type": "string"
+                    },
+                    "payingRegistrationId": {
+                      "type": "string"
+                    },
+                    "payingBankId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "statusCode": {
+                      "type": "number"
+                    },
+                    "fileHash": {
+                      "type": "string"
+                    },
+                    "fileContentHash": {
+                      "type": "string"
+                    },
+                    "runMode": {
+                      "type": "number"
+                    },
+                    "payoutBlocked": {
+                      "type": "boolean"
+                    },
+                    "doNotSend": {
+                      "type": "boolean"
+                    },
+                    "payoutLabel": {
+                      "type": "string"
+                    },
+                    "currencyCode": {
+                      "type": "string"
+                    },
+                    "totalAmount": {
+                      "type": "number"
+                    },
+                    "lineCount": {
+                      "type": "number"
+                    },
+                    "riderCount": {
+                      "type": "number"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    },
+                    "sentBy": {
+                      "type": "string"
+                    },
+                    "sentAt": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "payRunRiderId",
+                          "payableId",
+                          "companyId",
+                          "registrationId",
+                          "erpRiderId",
+                          "iqama",
+                          "iban",
+                          "bankShortCode",
+                          "amount",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "payRunRiderId": {
+                            "type": "string"
+                          },
+                          "payableId": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "registrationId": {
+                            "type": "string"
+                          },
+                          "paymentId": {
+                            "type": "string"
+                          },
+                          "allocationId": {
+                            "type": "string"
+                          },
+                          "erpRiderId": {
+                            "type": "string"
+                          },
+                          "appCode": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "iban": {
+                            "type": "string"
+                          },
+                          "bank": {
+                            "type": "string"
+                          },
+                          "bankShortCode": {
+                            "type": "string"
+                          },
+                          "bankNameAr": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "sheetRows": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "erpRiderId",
+                          "bank",
+                          "bankShortCode",
+                          "iban",
+                          "amount",
+                          "iqama",
+                          "name"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "erpRiderId": {
+                            "type": "string"
+                          },
+                          "bank": {
+                            "type": "string"
+                          },
+                          "bankShortCode": {
+                            "type": "string"
+                          },
+                          "bankNameAr": {
+                            "type": "string"
+                          },
+                          "iban": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "notes": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "apps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "excludedRows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "settlements": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/bank-files/{id}": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Read salary bank file details and lines",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "periodMonth",
+                    "issuanceChoice",
+                    "sheetShape",
+                    "payingCompanyId",
+                    "payingRegistrationId",
+                    "payingBankId",
+                    "status",
+                    "totalAmount",
+                    "lines",
+                    "sheetRows",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "issuanceChoice": {
+                      "type": "string"
+                    },
+                    "sheetShape": {
+                      "type": "string"
+                    },
+                    "scopeCompanyId": {
+                      "type": "string"
+                    },
+                    "scopeRegistrationId": {
+                      "type": "string"
+                    },
+                    "payingCompanyId": {
+                      "type": "string"
+                    },
+                    "payingRegistrationId": {
+                      "type": "string"
+                    },
+                    "payingBankId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "statusCode": {
+                      "type": "number"
+                    },
+                    "fileHash": {
+                      "type": "string"
+                    },
+                    "fileContentHash": {
+                      "type": "string"
+                    },
+                    "runMode": {
+                      "type": "number"
+                    },
+                    "payoutBlocked": {
+                      "type": "boolean"
+                    },
+                    "doNotSend": {
+                      "type": "boolean"
+                    },
+                    "payoutLabel": {
+                      "type": "string"
+                    },
+                    "currencyCode": {
+                      "type": "string"
+                    },
+                    "totalAmount": {
+                      "type": "number"
+                    },
+                    "lineCount": {
+                      "type": "number"
+                    },
+                    "riderCount": {
+                      "type": "number"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    },
+                    "sentBy": {
+                      "type": "string"
+                    },
+                    "sentAt": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "payRunRiderId",
+                          "payableId",
+                          "companyId",
+                          "registrationId",
+                          "erpRiderId",
+                          "iqama",
+                          "iban",
+                          "bankShortCode",
+                          "amount",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "payRunRiderId": {
+                            "type": "string"
+                          },
+                          "payableId": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "registrationId": {
+                            "type": "string"
+                          },
+                          "paymentId": {
+                            "type": "string"
+                          },
+                          "allocationId": {
+                            "type": "string"
+                          },
+                          "erpRiderId": {
+                            "type": "string"
+                          },
+                          "appCode": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "iban": {
+                            "type": "string"
+                          },
+                          "bank": {
+                            "type": "string"
+                          },
+                          "bankShortCode": {
+                            "type": "string"
+                          },
+                          "bankNameAr": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "sheetRows": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "erpRiderId",
+                          "bank",
+                          "bankShortCode",
+                          "iban",
+                          "amount",
+                          "iqama",
+                          "name"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "erpRiderId": {
+                            "type": "string"
+                          },
+                          "bank": {
+                            "type": "string"
+                          },
+                          "bankShortCode": {
+                            "type": "string"
+                          },
+                          "bankNameAr": {
+                            "type": "string"
+                          },
+                          "iban": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "notes": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "apps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "excludedRows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "settlements": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/bank-files/{id}/export": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Export salary bank file as bulk CSV or Excel",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "format",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/bank-files/{id}/request-mark-sent": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Open two-person approval to mark a salary bank file sent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/JsonObject"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/bank-files/{id}/mark-sent": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Mark salary bank file sent after recorded two-person approval and post payout journals",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/JsonObject"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "periodMonth",
+                    "issuanceChoice",
+                    "sheetShape",
+                    "payingCompanyId",
+                    "payingRegistrationId",
+                    "payingBankId",
+                    "status",
+                    "totalAmount",
+                    "lines",
+                    "sheetRows",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "issuanceChoice": {
+                      "type": "string"
+                    },
+                    "sheetShape": {
+                      "type": "string"
+                    },
+                    "scopeCompanyId": {
+                      "type": "string"
+                    },
+                    "scopeRegistrationId": {
+                      "type": "string"
+                    },
+                    "payingCompanyId": {
+                      "type": "string"
+                    },
+                    "payingRegistrationId": {
+                      "type": "string"
+                    },
+                    "payingBankId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "statusCode": {
+                      "type": "number"
+                    },
+                    "fileHash": {
+                      "type": "string"
+                    },
+                    "fileContentHash": {
+                      "type": "string"
+                    },
+                    "runMode": {
+                      "type": "number"
+                    },
+                    "payoutBlocked": {
+                      "type": "boolean"
+                    },
+                    "doNotSend": {
+                      "type": "boolean"
+                    },
+                    "payoutLabel": {
+                      "type": "string"
+                    },
+                    "currencyCode": {
+                      "type": "string"
+                    },
+                    "totalAmount": {
+                      "type": "number"
+                    },
+                    "lineCount": {
+                      "type": "number"
+                    },
+                    "riderCount": {
+                      "type": "number"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    },
+                    "sentBy": {
+                      "type": "string"
+                    },
+                    "sentAt": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "payRunRiderId",
+                          "payableId",
+                          "companyId",
+                          "registrationId",
+                          "erpRiderId",
+                          "iqama",
+                          "iban",
+                          "bankShortCode",
+                          "amount",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "payRunRiderId": {
+                            "type": "string"
+                          },
+                          "payableId": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "registrationId": {
+                            "type": "string"
+                          },
+                          "paymentId": {
+                            "type": "string"
+                          },
+                          "allocationId": {
+                            "type": "string"
+                          },
+                          "erpRiderId": {
+                            "type": "string"
+                          },
+                          "appCode": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "iban": {
+                            "type": "string"
+                          },
+                          "bank": {
+                            "type": "string"
+                          },
+                          "bankShortCode": {
+                            "type": "string"
+                          },
+                          "bankNameAr": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "sheetRows": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "erpRiderId",
+                          "bank",
+                          "bankShortCode",
+                          "iban",
+                          "amount",
+                          "iqama",
+                          "name"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "erpRiderId": {
+                            "type": "string"
+                          },
+                          "bank": {
+                            "type": "string"
+                          },
+                          "bankShortCode": {
+                            "type": "string"
+                          },
+                          "bankNameAr": {
+                            "type": "string"
+                          },
+                          "iban": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "notes": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "address": {
+                            "type": "string"
+                          },
+                          "apps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "excludedRows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "settlements": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }

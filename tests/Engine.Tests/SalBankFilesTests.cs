@@ -470,4 +470,113 @@ public sealed class SalBankFilesTests
         _=bankB1;
         tx.Commit();
     }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void CombinedSheetPaidByCompanyA_PostsInterCompanySettlementJournals_AndSettlesBothCompanies_ExactSar(bool sqlServer)
+    {
+        // U-W2-17c worked example: two companies A (BW, riders net 350 + 250 = 600 SAR) and B (EX, riders net 150 + 250 = 400 SAR),
+        // one combined sheet (1000 SAR) paid by Company A's bank (111201).
+        // MarkSent posts:
+        // - Company A own payout: Dr 212103 600 / Cr 111201 600
+        // - Company A inter-company payer journals: Dr 112702 (EX) 400 / Cr 111201 400
+        // - Company B inter-company entitlement journals: Dr 212103 400 / Cr 112701 (BW) 400
+        // - Both companies' 212103 payable liability closes to 0 SAR; Company A bank 111201 credited 1000 SAR total.
+        using var c=Open(sqlServer);
+        string compA=SeedCompany(c,"BW");
+        string regA=SeedRegistration(c,compA,"1010000401");
+        string bankA=SeedBank(c,compA,regA,"111201");
+
+        string compB=SeedCompany(c,"EX");
+        string regB=SeedRegistration(c,compB,"1010000501");
+
+        var maker=Actor(MoneySchemaFixture.Id());
+        var checker=Actor(MoneySchemaFixture.Id());
+        using var tx=c.BeginTransaction();
+        EnsurePeriod(c,tx,compA);
+        EnsurePeriod(c,tx,compB);
+
+        string rajhiIban=MakeIban("80","000000000000001234");
+        string snbIban=MakeIban("10","000000000000005678");
+        string inmaIban=MakeIban("05","000000000000009012");
+
+        string rA1=MoneySchemaFixture.Id(),rA2=MoneySchemaFixture.Id();
+        string rB1=MoneySchemaFixture.Id(),rB2=MoneySchemaFixture.Id();
+        SeedRiderDoc(c,tx,rA1,"2000000301","مندوب أ١",rajhiIban,regA);
+        SeedRiderDoc(c,tx,rA2,"2000000302","مندوب أ٢",snbIban,regA);
+        SeedRiderDoc(c,tx,rB1,"2000000401","مندوب ب١",inmaIban,regB);
+        SeedRiderDoc(c,tx,rB2,"2000000402","مندوب ب٢",rajhiIban,regB);
+
+        // Company A run: 350 + 250 = 600 SAR
+        string runA=FrozenRun(c,tx,maker,compA,"ninja",rA1,customize:(f,acc)=>
+            f.Rows["assignment"].Add(new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=acc,["actualRiderProfileId"]=rA2,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-31",["appCode"]="ninja"}));
+        SalEvidence.Gross(c,tx,runA,rA1,350m);
+        SalEvidence.Gross(c,tx,runA,rA2,250m);
+        var calcA=SalPayCalc.Calculate(c,tx,maker,runA,new JsonObject{["riders"]=new JsonArray(new JsonObject{["erpRiderId"]=rA1},new JsonObject{["erpRiderId"]=rA2})});
+        string prA1=calcA["riders"]![0]!["id"]!.GetValue<string>();
+        string prA2=calcA["riders"]![1]!["id"]!.GetValue<string>();
+        SalDebtConfirm.Confirm(c,tx,maker,runA,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=prA1,["amount"]=0},new JsonObject{["payRunRiderId"]=prA2,["amount"]=0})});
+        SalSalaryApprove.Approve(c,tx,checker,runA,new JsonObject{["payRunRiderIds"]=new JsonArray(prA1,prA2)});
+
+        // Company B run: 150 + 250 = 400 SAR
+        string runB=FrozenRun(c,tx,maker,compB,"ninja",rB1,customize:(f,acc)=>
+            f.Rows["assignment"].Add(new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=acc,["actualRiderProfileId"]=rB2,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-31",["appCode"]="ninja"}));
+        SalEvidence.Gross(c,tx,runB,rB1,150m);
+        SalEvidence.Gross(c,tx,runB,rB2,250m);
+        var calcB=SalPayCalc.Calculate(c,tx,maker,runB,new JsonObject{["riders"]=new JsonArray(new JsonObject{["erpRiderId"]=rB1},new JsonObject{["erpRiderId"]=rB2})});
+        string prB1=calcB["riders"]![0]!["id"]!.GetValue<string>();
+        string prB2=calcB["riders"]![1]!["id"]!.GetValue<string>();
+        SalDebtConfirm.Confirm(c,tx,maker,runB,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=prB1,["amount"]=0},new JsonObject{["payRunRiderId"]=prB2,["amount"]=0})});
+        SalSalaryApprove.Approve(c,tx,checker,runB,new JsonObject{["payRunRiderIds"]=new JsonArray(prB1,prB2)});
+
+        // Build one combined sheet paid by Company A's bank
+        var built=SalBankFiles.Build(c,tx,maker,new JsonObject
+        {
+            ["periodMonth"]="2026-10-01",
+            ["issuanceChoice"]="combined",
+            ["payingBankId"]=bankA
+        });
+        string fileId=built.S("id");
+        Assert.AreEqual(1000m,built.N("totalAmount"));
+        Assert.AreEqual(2,built["settlements"]!.AsArray().Count);
+        Assert.AreEqual(400m,built["settlements"]!.AsArray().OfType<JsonObject>().Sum(s=>s.N("amount")));
+
+        // Dual approval and MarkSent
+        var req=SalBankFiles.RequestMarkSent(c,tx,maker,fileId);
+        ApprovalsArea.Decide(c,tx,checker,req.S("id"),new JsonObject{["decision"]="approve",["note"]="موافقة إرسال ملف موحد"});
+        var sent=SalBankFiles.MarkSent(c,tx,checker,fileId);
+        Assert.AreEqual("sent",sent.S("status"));
+
+        var settlements=sent["settlements"]!.AsArray().OfType<JsonObject>().ToList();
+        Assert.AreEqual(2,settlements.Count);
+        Assert.IsTrue(settlements.All(s=>s.S("status")=="posted"&&s.S("payerJournalId")!=""&&s.S("entitlementJournalId")!=""));
+        Assert.AreEqual(400m,settlements.Sum(s=>s.N("amount")));
+
+        // Verify Company A journals:
+        // 1. Dr 212103 = 600 (own riders)
+        Assert.AreEqual(600m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,
+            "SELECT COALESCE(SUM(debit),0) FROM fin_journal_line WHERE company_id=@c AND account_id=(SELECT id FROM fin_account WHERE code='212103') AND journal_id IN (SELECT id FROM fin_journal WHERE purpose='bank_payroll_payout')",("@c",compA))));
+        // 2. Dr 112702 (due from EX) = 400 (B's riders' net)
+        Assert.AreEqual(400m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,
+            "SELECT COALESCE(SUM(debit),0) FROM fin_journal_line WHERE company_id=@c AND account_id=(SELECT id FROM fin_account WHERE code='112702') AND journal_id IN (SELECT id FROM fin_journal WHERE purpose='bank_inter_company')",("@c",compA))));
+        // 3. Total Cr 111201 (Company A's paying bank) = 600 + 400 = 1000
+        Assert.AreEqual(1000m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,
+            "SELECT COALESCE(SUM(credit),0) FROM fin_journal_line WHERE company_id=@c AND account_id=(SELECT id FROM fin_account WHERE code='111201') AND journal_id IN (SELECT id FROM fin_journal WHERE purpose IN ('bank_payroll_payout','bank_inter_company'))",("@c",compA))));
+
+        // Verify Company B journals:
+        // 1. Dr 212103 = 400 (B's riders' net settled)
+        Assert.AreEqual(400m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,
+            "SELECT COALESCE(SUM(debit),0) FROM fin_journal_line WHERE company_id=@c AND account_id=(SELECT id FROM fin_account WHERE code='212103') AND journal_id IN (SELECT id FROM fin_journal WHERE purpose='bank_inter_company')",("@c",compB))));
+        // 2. Cr 112701 (due to BW) = 400
+        Assert.AreEqual(400m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,
+            "SELECT COALESCE(SUM(credit),0) FROM fin_journal_line WHERE company_id=@c AND account_id=(SELECT id FROM fin_account WHERE code='112701') AND journal_id IN (SELECT id FROM fin_journal WHERE purpose='bank_inter_company')",("@c",compB))));
+
+        // Verify both companies' 212103 net liability is 0 (accrued 600 - paid 600 = 0; accrued 400 - settled 400 = 0)
+        Assert.AreEqual(0m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,
+            "SELECT COALESCE(SUM(credit-debit),0) FROM fin_journal_line WHERE company_id=@c AND account_id=(SELECT id FROM fin_account WHERE code='212103')",("@c",compA))));
+        Assert.AreEqual(0m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,
+            "SELECT COALESCE(SUM(credit-debit),0) FROM fin_journal_line WHERE company_id=@c AND account_id=(SELECT id FROM fin_account WHERE code='212103')",("@c",compB))));
+        tx.Commit();
+    }
 }

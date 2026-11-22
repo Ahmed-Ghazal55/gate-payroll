@@ -16217,6 +16217,882 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sal/rider-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List salary hold and deduction requests and shared-rider holds */
+        get: {
+            parameters: {
+                query?: {
+                    kind?: string;
+                    requestType?: string;
+                    appCode?: string;
+                    app?: string;
+                    periodMonth?: string;
+                    period?: string;
+                    companyId?: string;
+                    status?: string;
+                    erpRiderId?: string;
+                    tab?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                kind?: string;
+                                requestType?: string;
+                                typeLabelAr?: string;
+                                erpRiderId: string;
+                                companyId: string;
+                                periodMonth: string;
+                                appCode?: string;
+                                amount?: number;
+                                combinedNet?: number;
+                                status: string;
+                                statusCode?: number;
+                                statusLabelAr?: string;
+                                reasonCode?: string;
+                                note?: string;
+                                source?: string;
+                                requestedBy?: string;
+                                requestedAt?: string;
+                                approvedBy?: string;
+                                approvedAt?: string;
+                                releaseMode?: string;
+                                releasedBy?: string;
+                                releasedAt?: string;
+                                payRunRiderId?: string;
+                                awaitedApps?: string[];
+                                receivedApps?: string[];
+                                released?: boolean;
+                                allowedActions: string[];
+                            }[];
+                            total: number;
+                            summary: Record<string, never>;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a salary hold or deduction request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            requestType?: string;
+                            typeLabelAr?: string;
+                            erpRiderId: string;
+                            companyId: string;
+                            periodMonth: string;
+                            appCode?: string;
+                            amount?: number;
+                            combinedNet?: number;
+                            status: string;
+                            statusCode?: number;
+                            statusLabelAr?: string;
+                            reasonCode?: string;
+                            note?: string;
+                            source?: string;
+                            requestedBy?: string;
+                            requestedAt?: string;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            releaseMode?: string;
+                            releasedBy?: string;
+                            releasedAt?: string;
+                            payRunRiderId?: string;
+                            awaitedApps?: string[];
+                            receivedApps?: string[];
+                            released?: boolean;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/rider-requests/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm and approve a salary hold or deduction request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            requestType?: string;
+                            typeLabelAr?: string;
+                            erpRiderId: string;
+                            companyId: string;
+                            periodMonth: string;
+                            appCode?: string;
+                            amount?: number;
+                            combinedNet?: number;
+                            status: string;
+                            statusCode?: number;
+                            statusLabelAr?: string;
+                            reasonCode?: string;
+                            note?: string;
+                            source?: string;
+                            requestedBy?: string;
+                            requestedAt?: string;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            releaseMode?: string;
+                            releasedBy?: string;
+                            releasedAt?: string;
+                            payRunRiderId?: string;
+                            awaitedApps?: string[];
+                            receivedApps?: string[];
+                            released?: boolean;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/rider-requests/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a salary hold or deduction request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            requestType?: string;
+                            typeLabelAr?: string;
+                            erpRiderId: string;
+                            companyId: string;
+                            periodMonth: string;
+                            appCode?: string;
+                            amount?: number;
+                            combinedNet?: number;
+                            status: string;
+                            statusCode?: number;
+                            statusLabelAr?: string;
+                            reasonCode?: string;
+                            note?: string;
+                            source?: string;
+                            requestedBy?: string;
+                            requestedAt?: string;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            releaseMode?: string;
+                            releasedBy?: string;
+                            releasedAt?: string;
+                            payRunRiderId?: string;
+                            awaitedApps?: string[];
+                            receivedApps?: string[];
+                            released?: boolean;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/rider-requests/{id}/request-release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open two-person approval to release a held rider salary with releaseMode */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/rider-requests/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Release a held rider salary after recorded two-person approval bound to releaseMode and payload hash */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            requestType?: string;
+                            typeLabelAr?: string;
+                            erpRiderId: string;
+                            companyId: string;
+                            periodMonth: string;
+                            appCode?: string;
+                            amount?: number;
+                            combinedNet?: number;
+                            status: string;
+                            statusCode?: number;
+                            statusLabelAr?: string;
+                            reasonCode?: string;
+                            note?: string;
+                            source?: string;
+                            requestedBy?: string;
+                            requestedAt?: string;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            releaseMode?: string;
+                            releasedBy?: string;
+                            releasedAt?: string;
+                            payRunRiderId?: string;
+                            awaitedApps?: string[];
+                            receivedApps?: string[];
+                            released?: boolean;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/bank-files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List salary bank files */
+        get: {
+            parameters: {
+                query?: {
+                    periodMonth?: string;
+                    period?: string;
+                    companyId?: string;
+                    status?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                periodMonth: string;
+                                issuanceChoice: string;
+                                sheetShape: string;
+                                scopeCompanyId?: string;
+                                scopeRegistrationId?: string;
+                                payingCompanyId: string;
+                                payingRegistrationId: string;
+                                payingBankId: string;
+                                status: string;
+                                statusCode?: number;
+                                fileHash?: string;
+                                fileContentHash?: string;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                doNotSend?: boolean;
+                                payoutLabel?: string;
+                                currencyCode?: string;
+                                totalAmount: number;
+                                lineCount?: number;
+                                riderCount?: number;
+                                approvedBy?: string;
+                                approvedAt?: string;
+                                sentBy?: string;
+                                sentAt?: string;
+                                createdBy?: string;
+                                createdAt?: string;
+                                lines: {
+                                    id: string;
+                                    payRunRiderId: string;
+                                    payableId: string;
+                                    companyId: string;
+                                    registrationId: string;
+                                    paymentId?: string;
+                                    allocationId?: string;
+                                    erpRiderId: string;
+                                    appCode?: string;
+                                    iqama: string;
+                                    name?: string;
+                                    iban: string;
+                                    bank?: string;
+                                    bankShortCode: string;
+                                    bankNameAr?: string;
+                                    address?: string;
+                                    amount: number;
+                                    status: string;
+                                }[];
+                                sheetRows: {
+                                    erpRiderId: string;
+                                    bank: string;
+                                    bankShortCode: string;
+                                    bankNameAr?: string;
+                                    iban: string;
+                                    amount: number;
+                                    notes?: string;
+                                    name: string;
+                                    iqama: string;
+                                    address?: string;
+                                    apps?: string[];
+                                }[];
+                                excludedRows?: Record<string, never>[];
+                                settlements?: Record<string, never>[];
+                                allowedActions: string[];
+                            }[];
+                            total: number;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Build a salary bank file and reserve eligible payables */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            periodMonth: string;
+                            issuanceChoice: string;
+                            sheetShape: string;
+                            scopeCompanyId?: string;
+                            scopeRegistrationId?: string;
+                            payingCompanyId: string;
+                            payingRegistrationId: string;
+                            payingBankId: string;
+                            status: string;
+                            statusCode?: number;
+                            fileHash?: string;
+                            fileContentHash?: string;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            doNotSend?: boolean;
+                            payoutLabel?: string;
+                            currencyCode?: string;
+                            totalAmount: number;
+                            lineCount?: number;
+                            riderCount?: number;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            sentBy?: string;
+                            sentAt?: string;
+                            createdBy?: string;
+                            createdAt?: string;
+                            lines: {
+                                id: string;
+                                payRunRiderId: string;
+                                payableId: string;
+                                companyId: string;
+                                registrationId: string;
+                                paymentId?: string;
+                                allocationId?: string;
+                                erpRiderId: string;
+                                appCode?: string;
+                                iqama: string;
+                                name?: string;
+                                iban: string;
+                                bank?: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                address?: string;
+                                amount: number;
+                                status: string;
+                            }[];
+                            sheetRows: {
+                                erpRiderId: string;
+                                bank: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                iban: string;
+                                amount: number;
+                                notes?: string;
+                                name: string;
+                                iqama: string;
+                                address?: string;
+                                apps?: string[];
+                            }[];
+                            excludedRows?: Record<string, never>[];
+                            settlements?: Record<string, never>[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/bank-files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read salary bank file details and lines */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            periodMonth: string;
+                            issuanceChoice: string;
+                            sheetShape: string;
+                            scopeCompanyId?: string;
+                            scopeRegistrationId?: string;
+                            payingCompanyId: string;
+                            payingRegistrationId: string;
+                            payingBankId: string;
+                            status: string;
+                            statusCode?: number;
+                            fileHash?: string;
+                            fileContentHash?: string;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            doNotSend?: boolean;
+                            payoutLabel?: string;
+                            currencyCode?: string;
+                            totalAmount: number;
+                            lineCount?: number;
+                            riderCount?: number;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            sentBy?: string;
+                            sentAt?: string;
+                            createdBy?: string;
+                            createdAt?: string;
+                            lines: {
+                                id: string;
+                                payRunRiderId: string;
+                                payableId: string;
+                                companyId: string;
+                                registrationId: string;
+                                paymentId?: string;
+                                allocationId?: string;
+                                erpRiderId: string;
+                                appCode?: string;
+                                iqama: string;
+                                name?: string;
+                                iban: string;
+                                bank?: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                address?: string;
+                                amount: number;
+                                status: string;
+                            }[];
+                            sheetRows: {
+                                erpRiderId: string;
+                                bank: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                iban: string;
+                                amount: number;
+                                notes?: string;
+                                name: string;
+                                iqama: string;
+                                address?: string;
+                                apps?: string[];
+                            }[];
+                            excludedRows?: Record<string, never>[];
+                            settlements?: Record<string, never>[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/bank-files/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export salary bank file as bulk CSV or Excel */
+        get: {
+            parameters: {
+                query?: {
+                    format?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/bank-files/{id}/request-mark-sent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open two-person approval to mark a salary bank file sent */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/bank-files/{id}/mark-sent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark salary bank file sent after recorded two-person approval and post payout journals */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            periodMonth: string;
+                            issuanceChoice: string;
+                            sheetShape: string;
+                            scopeCompanyId?: string;
+                            scopeRegistrationId?: string;
+                            payingCompanyId: string;
+                            payingRegistrationId: string;
+                            payingBankId: string;
+                            status: string;
+                            statusCode?: number;
+                            fileHash?: string;
+                            fileContentHash?: string;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            doNotSend?: boolean;
+                            payoutLabel?: string;
+                            currencyCode?: string;
+                            totalAmount: number;
+                            lineCount?: number;
+                            riderCount?: number;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            sentBy?: string;
+                            sentAt?: string;
+                            createdBy?: string;
+                            createdAt?: string;
+                            lines: {
+                                id: string;
+                                payRunRiderId: string;
+                                payableId: string;
+                                companyId: string;
+                                registrationId: string;
+                                paymentId?: string;
+                                allocationId?: string;
+                                erpRiderId: string;
+                                appCode?: string;
+                                iqama: string;
+                                name?: string;
+                                iban: string;
+                                bank?: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                address?: string;
+                                amount: number;
+                                status: string;
+                            }[];
+                            sheetRows: {
+                                erpRiderId: string;
+                                bank: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                iban: string;
+                                amount: number;
+                                notes?: string;
+                                name: string;
+                                iqama: string;
+                                address?: string;
+                                apps?: string[];
+                            }[];
+                            excludedRows?: Record<string, never>[];
+                            settlements?: Record<string, never>[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/system/maintenance/rider-indexes": {
         parameters: {
             query?: never;
