@@ -53,6 +53,8 @@ public static class SalSalaryApprove
             // RWC4a1 New HIGH: post entitlement and recoveries separately so −30 does not leave orphan 212103 credit.
             PostEntitlementAccrual(c,tx,actor,run,rider);
             PostPersonalRecoveries(c,tx,actor,run,rider);
+            // RWC4m2: reverse shared L1 duplicates once per cleared hold even when payable boost is 0.
+            PostSharedDuplicatesOnce(c,tx,actor,run,rider);
             if(net<0&&!keetaIneligible)
                 negDebt=CreateNegativeCarryover(c,tx,actor,run,rider,now);
             payableId=CreatePayable(c,tx,actor,run,rider,now);
@@ -142,8 +144,6 @@ public static class SalSalaryApprove
         decimal appNet=J.Money(Math.Max(0,rider.N("salaryNet")));
         decimal netPay=CombinedPayableAmount(c,tx,run,rider,appNet);
         if(netPay<=0)return null;
-        decimal boost=J.Money(netPay-appNet);
-        if(boost>0)PostSharedDeductionOnce(c,tx,actor,run,rider,boost);
         string payableId=SchemaSql.GuidText(SchemaSql.NewId());
         Exec(c,tx,$"""
             INSERT INTO {SchemaSql.Q(c,"pay","payable")}
@@ -189,62 +189,56 @@ public static class SalSalaryApprove
         return J.Money(Math.Min(appNet,Math.Max(0,remaining)));
     }
 
-    /// <summary>Credit 212103 for the shared-L1 add-back so liability matches the boosted payable (§40.5 once).
-    /// RWC4a3 New HIGH: reverse each duplicate shared deduction against its own account (not one lumped account).</summary>
-    static void PostSharedDeductionOnce(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider,decimal boost)
+    /// <summary>RWC4m2 / §40.5: reverse each duplicate shared L1 against its own account once per cleared hold,
+    /// independent of payable boost (combined 0 still needs the add-back on 212103).</summary>
+    static void PostSharedDuplicatesOnce(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider)
     {
+        object? holdIdObj=SchemaSql.Scalar(c,tx,$"""
+            SELECT id FROM {SchemaSql.Q(c,"sal","shared_rider_hold")}
+            WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'
+            """,("@erp",rider.S("erpRiderId")),("@pm",run.S("periodMonth")));
+        if(holdIdObj is null or DBNull)return;
+        string holdId=holdIdObj.ToString()!;
         var parts=SharedDuplicateParts(c,tx,rider.S("erpRiderId"),run.S("periodMonth"));
-        if(parts.Count==0)
-        {
-            // Fallback: split boost across this rider's shared L1 lines by amount/account.
-            using var cmd=c.CreateCommand();cmd.Transaction=tx;
-            cmd.CommandText=$"""
-                SELECT item_code,amount,account_code FROM {SchemaSql.Q(c,"sal","pay_run_item")}
-                WHERE pay_run_rider_id=@r AND amount>0 AND stage_code='level1' AND item_code IN ('fuel','vehicle','housing')
-                ORDER BY line_no
-                """;
-            Add(cmd,"@r",rider.S("id"));
-            using var r=cmd.ExecuteReader();
-            while(r.Read())
-                parts.Add((r["item_code"].ToString()!,Convert.ToDecimal(r["amount"]),r["account_code"].ToString() is {Length:>0} a?a:"112511"));
-            r.Close();
-        }
+        if(parts.Count==0)return;
         Guid company=Guid.Parse(run.S("companyId"));
         Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
         Guid payableAcc=AccountId(c,tx,"212103");
-        decimal remaining=boost;
+        int i=0;
         foreach(var part in parts)
         {
-            if(remaining<=0)break;
-            decimal take=J.Money(Math.Min(part.Amount,remaining));
+            decimal take=J.Money(part.Amount);
             if(take<=0)continue;
             string accCode=part.Account is {Length:>0}?part.Account:"112511";
+            Guid sourceId=StableSharedOnceSource(holdId,part.Code,accCode,i++);
+            // Idempotent across apps: first approval posts; later apps must not rewrite lines with a different app_code.
+            object? already=SchemaSql.Scalar(c,tx,$"""
+                SELECT 1 FROM {SchemaSql.Q(c,"fin","journal")}
+                WHERE source_type='sal_pay_run_rider' AND source_id=@sid AND company_id=@c AND purpose='salary_shared_once' AND status=2
+                """,("@sid",SchemaSql.GuidText(sourceId)),("@c",run.S("companyId")));
+            if(already is not null and not DBNull)continue;
             Guid recoveryAcc=AccountId(c,tx,accCode);
             JournalPosting.Post(c,tx,new JournalPosting.Draft(
                 company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
                 DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
-                "sal_pay_run_rider",SchemaSql.NewId(),"salary_shared_once",(byte)run.N("runMode"),run.B("payoutBlocked"),
+                "sal_pay_run_rider",sourceId,"salary_shared_once",(byte)run.N("runMode"),run.B("payoutBlocked"),
                 actor.Identity!.Name!,
                 [
                     new(recoveryAcc,SchemaOrgCostCentre.NoneId,run.S("app"),take,0m,"خصم مشترك مرة واحدة"),
                     new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,take,"خصم مشترك مرة واحدة")
                 ]));
-            remaining=J.Money(remaining-take);
         }
-        if(remaining>0)
-        {
-            // Any leftover boost (rounding / missing line) still lands on fuel receivable so liability matches payable.
-            Guid recoveryAcc=AccountId(c,tx,"112511");
-            JournalPosting.Post(c,tx,new JournalPosting.Draft(
-                company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
-                DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
-                "sal_pay_run_rider",SchemaSql.NewId(),"salary_shared_once",(byte)run.N("runMode"),run.B("payoutBlocked"),
-                actor.Identity!.Name!,
-                [
-                    new(recoveryAcc,SchemaOrgCostCentre.NoneId,run.S("app"),remaining,0m,"خصم مشترك مرة واحدة"),
-                    new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,remaining,"خصم مشترك مرة واحدة")
-                ]));
-        }
+    }
+
+    /// <summary>Stable source id so a second app approval is idempotent (UQ fin_journal source).</summary>
+    static Guid StableSharedOnceSource(string holdId,string code,string account,int index)
+    {
+        var hash=System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes($"salary_shared_once|{holdId}|{code}|{account}|{index}"));
+        Span<byte> g=stackalloc byte[16];
+        hash.AsSpan(0,16).CopyTo(g);
+        g[6]=(byte)((g[6]&0x0F)|0x40);
+        g[8]=(byte)((g[8]&0x3F)|0x80);
+        return new Guid(g);
     }
 
     /// <summary>Same duplicate detection as SalSharedRiders.ConsolidateIfComplete: second+ occurrence of each shared code, with its account.</summary>
@@ -291,9 +285,10 @@ public static class SalSalaryApprove
     {
         decimal settled=0;
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        // RWC4m2 H12: company-cost lines (affects_net=0) must not settle against salary payable.
         cmd.CommandText=$"""
             SELECT debt_id,amount,account_code FROM {SchemaSql.Q(c,"sal","pay_run_item")}
-            WHERE pay_run_rider_id=@r AND amount>0 AND debt_id IS NOT NULL AND item_code<>'old_debt_instalment'
+            WHERE pay_run_rider_id=@r AND amount>0 AND affects_net=1 AND debt_id IS NOT NULL AND item_code<>'old_debt_instalment'
             """;
         Add(cmd,"@r",rider.S("id"));
         using var r=cmd.ExecuteReader();
@@ -377,15 +372,23 @@ public static class SalSalaryApprove
         return true;
     }
 
-    /// <summary>Cleared shared hold: debt only for the combined shortfall remaining this period; otherwise the app shortfall.</summary>
+    /// <summary>Cleared shared hold: debt only for the combined shortfall remaining this period; otherwise the app shortfall.
+    /// RWC4m2 H11: exception release leaves apps pending — keep standalone −salary_net carryover (combined_net may still be 0).</summary>
     static decimal CombinedCarryoverAmount(DbConnection c,DbTransaction tx,JsonObject run,JsonObject rider,decimal appShort)
     {
-        object? hold=SchemaSql.Scalar(c,tx,$"""
-            SELECT combined_net FROM {SchemaSql.Q(c,"sal","shared_rider_hold")}
+        object? holdIdObj=SchemaSql.Scalar(c,tx,$"""
+            SELECT id FROM {SchemaSql.Q(c,"sal","shared_rider_hold")}
             WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'
             """,("@erp",rider.S("erpRiderId")),("@pm",run.S("periodMonth")));
-        if(hold is null or DBNull)return appShort;
-        decimal combined=J.Money(Convert.ToDecimal(hold));
+        if(holdIdObj is null or DBNull)return appShort;
+        string holdId=holdIdObj.ToString()!;
+        long pendingHoldApps=Convert.ToInt64(SchemaSql.Scalar(c,tx,$"""
+            SELECT COUNT(*) FROM {SchemaSql.Q(c,"sal","shared_rider_hold_app")} WHERE hold_id=@h AND received=0
+            """,("@h",holdId))??0L);
+        if(pendingHoldApps>0)return appShort;
+        decimal combined=J.Money(Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"""
+            SELECT combined_net FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE id=@id
+            """,("@id",holdId))??0m));
         decimal need=J.Money(Math.Max(0m,-combined));
         if(need<=0)return 0m;
         decimal already=Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"""
