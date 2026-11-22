@@ -54,10 +54,6 @@ public static class SchemaDebt
             CONSTRAINT FK_debt_import_batch FOREIGN KEY(import_batch_id,company_id,period_month) REFERENCES {SchemaSql.Q(c,"debt","import_batch")}(id,company_id,period_month) ON DELETE NO ACTION,
             CONSTRAINT FK_debt_import_line_debt FOREIGN KEY(debt_id,company_id) REFERENCES {d}(id,company_id) ON DELETE NO ACTION
             """);
-        SchemaMoneyGuard.Retain(c,tx,"debt","import_line","o.import_batch_id=NEW.import_batch_id AND (o.line_no=NEW.line_no OR o.source_row=NEW.source_row)");
-        SchemaMoneyGuard.Rule(c,tx,"debt","import_line","TR_debt_import_line_frozen",
-            n=>$"EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_batch")} b WHERE b.id={n}.import_batch_id AND b.status>=3)",
-            (o,n)=>$"{n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"id","import_batch_id","company_id","period_month")}) OR EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_batch")} b WHERE b.id={o}.import_batch_id AND b.status>=3)");
         SchemaSql.EnsureMonthIndex(c,tx,"debt","import_line");
         SchemaSql.CreateIndexIfMissing(c,tx,"debt","import_line","IX_debt_import_batch","import_batch_id,company_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"debt","import_line","IX_debt_import_line_debt","debt_id,company_id");
@@ -73,9 +69,19 @@ public static class SchemaDebt
         SchemaMoneyRegister.BusinessKey(c,tx,"debt","debt_movement",n=>SchemaMoneyRegister.Join(c,$"{n}.source_type",SchemaMoneyRegister.IdString(c,$"{n}.source_id")));
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"debt","debt_movement","UQ_debt_disb_payment","payment_id","source_type='new_disbursement' AND payment_id IS NOT NULL");
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"debt","debt_movement","UQ_debt_carryover_rider","pay_run_rider_id","source_type='carryover_112507' AND pay_run_rider_id IS NOT NULL");
+        // Restore stashed children BEFORE movement/balance guards so approved imports and settled history reload.
+        RestoreSqliteDebtChildStashes(c,tx);
+        EnsureImportLineGuards(c,tx);
         EnsureMovementRules(c,tx);
         EnsureBalance(c,tx);
-        RestoreSqliteDebtChildStashes(c,tx);
+    }
+
+    static void EnsureImportLineGuards(DbConnection c,DbTransaction? tx)
+    {
+        SchemaMoneyGuard.Retain(c,tx,"debt","import_line","o.import_batch_id=NEW.import_batch_id AND (o.line_no=NEW.line_no OR o.source_row=NEW.source_row)");
+        SchemaMoneyGuard.Rule(c,tx,"debt","import_line","TR_debt_import_line_frozen",
+            n=>$"EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_batch")} b WHERE b.id={n}.import_batch_id AND b.status>=3)",
+            (o,n)=>$"{n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"id","import_batch_id","company_id","period_month")}) OR EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_batch")} b WHERE b.id={o}.import_batch_id AND b.status>=3)");
     }
 
     internal static string DateInMonth(DbConnection c,string column)=>SchemaSql.IsSql(c)?$"{column}>=period_month AND {column}<DATEADD(month,1,period_month)":$"date({column}) IS NOT NULL AND {column}=date({column}) AND {column}>=period_month AND {column}<date(period_month,'+1 month')";
@@ -220,7 +226,9 @@ public static class SchemaDebt
     static void RestoreSqliteDebtChildStashes(DbConnection c,DbTransaction? tx)
     {
         if(SchemaSql.IsSql(c))return;
-        string[] children=["debt_debt_movement","debt_import_line","debt_collection","debt_waiver","debt_disbursement"];
+        // Source documents before movements (import_line/collection/waiver/disbursement → debt_movement).
+        string[] children=["debt_import_line","debt_collection","debt_waiver","debt_disbursement","debt_debt_movement"];
+        bool restored=false;
         foreach(string child in children)
         {
             string stash=child+"__stash";
@@ -237,10 +245,31 @@ public static class SchemaDebt
             using(var reader=cmd.ExecuteReader())
                 while(reader.Read())tableCols.Add(reader.GetString(0));
             var cols=stashCols.Where(tableCols.Contains).ToArray();
+            // Drop table triggers so approved/settled history can reload before guards are re-enabled.
+            var triggerNames=new List<string>();
+            using(var cmd=Store.Command(c,tx,"SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name=@t",("@t",child)))
+            using(var reader=cmd.ExecuteReader())
+                while(reader.Read())triggerNames.Add(reader.GetString(0));
+            foreach(string name in triggerNames)
+                SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS "+name);
             if(cols.Length>0)
                 SchemaSql.Exec(c,tx,$"INSERT OR IGNORE INTO {child}({string.Join(",",cols)}) SELECT {string.Join(",",cols)} FROM {stash}");
             SchemaSql.Exec(c,tx,"DROP TABLE IF EXISTS "+stash);
+            restored=true;
         }
+        if(!restored)return;
+        // Re-install document/movement guards that were dropped for the reload.
+        foreach(string table in new[]{"collection","disbursement","waiver"})
+        {
+            var frozen=new List<string>{"company_id","period_month","amount","reason","debt_id"};
+            if(table=="disbursement")frozen.Add("payment_id");
+            if(table=="waiver")frozen.Add("expense_account_code");
+            SchemaMoneyRegister.Workflow(c,tx,"debt",table,frozen.ToArray());
+            SchemaMoneyRegister.Immutable(c,tx,"debt",table,"company_id","period_month");
+        }
+        SchemaMoneyGuard.Retain(c,tx,"debt","debt_movement","o.source_type=NEW.source_type AND o.source_id=NEW.source_id");
+        SchemaMoneyRegister.Immutable(c,tx,"debt","debt_movement","period_month","debt_id","company_id","occurred_on","amount","source_type","source_id","journal_id","payment_id","pay_run_rider_id","pay_run_period_month","run_mode","payout_blocked","generation");
+        SchemaMoneyRegister.BusinessKey(c,tx,"debt","debt_movement",n=>SchemaMoneyRegister.Join(c,$"{n}.source_type",SchemaMoneyRegister.IdString(c,$"{n}.source_id")));
     }
 
     static void EnsureBalance(DbConnection c,DbTransaction? tx)
