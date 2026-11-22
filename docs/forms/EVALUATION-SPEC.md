@@ -1,7 +1,7 @@
 # Supervisors and platforms evaluation — spec (Ghazal, 2026-11-22)
 
 Status: design agreed, NOT built. Branch `fix/cascading-column-filters` (already holds: cascading filters + per-form responses table, commits 6dfd25b, 09fe0f1, b5e0186).
-Waiting on Ghazal: supervisor list (city → supervisor names). Names go into the DB via an admin screen, never into code files.
+Staff list RECEIVED 2026-11-22 (via planner). Kept outside the repo as seed data: shared notes folder `evaluation-staff-seed.json`. Names go into the DB via the admin screen, never into code files or commits.
 
 ## Why a special form type
 The forms builder lacks: pages, 1–10/star ratings, image/voice upload, city-driven lists, per-item repeated questions, complaint flag. So: one new form type "تقييم المشرفين والمنصات", built once, reused per round.
@@ -17,6 +17,14 @@ The forms builder lacks: pages, 1–10/star ratings, image/voice upload, city-dr
 ## Start of form
 - Fixed notice: ratings and complaints are confidential, reviewed by management only; supervisors never see names or answers.
 - Pick work city → filters supervisors. Platforms: ALL our platforms shown by default.
+
+## Staff cards (update 2026-11-22)
+- Cards cover staff, not only field supervisors: grouped by city → department (HR, finance & accounts, operations, platform follow-up teams per app, vehicles & movement & housing, Egypt office support/call centre).
+- ONE card per person even when they hold several roles or teams; the card lists all roles; placed under each relevant city/department/app filter.
+- Excluded (no cards): accounts manager, top management (2), and the finance reviewer with no rider contact. Keep an `excluded` flag in the staff list, not deletion.
+- Ghazal's own card: role text to be derived from his role report (HTML in Downloads); do NOT show his reporting line in the UI.
+- Before seeding, compare with Omar's ERP system users page (read only) for missing staff (people may be in the list but not in the system, not the reverse).
+- Rider also records NATIONALITY (for matching staff to nationalities and for analysis/charts).
 
 ## Page 1 — supervisors (one card per supervisor of the chosen city, one by one, no "rate all")
 - Every card MUST be answered: either rate, or pick a reason: «لم أتعامل معه / لا أعرفه / لم أعمل في منصته».
