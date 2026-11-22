@@ -1,10 +1,45 @@
 export type EvalLanguage = 'ar' | 'en' | 'ur';
 
-export const NATIONALITY_SUGGESTIONS: Record<EvalLanguage, string[]> = {
-  ar: ['سعودي', 'مصري', 'يمني', 'سوداني', 'باكستاني', 'هندي', 'بنغلاديشي', 'سوري', 'أردني', 'فلبيني'],
-  en: ['Saudi', 'Egyptian', 'Yemeni', 'Sudanese', 'Pakistani', 'Indian', 'Bangladeshi', 'Syrian', 'Jordanian', 'Filipino'],
-  ur: ['سعودی', 'مصری', 'یمنی', 'سوڈانی', 'پاکستانی', 'بھارتی', 'بنگلہ دیشی', 'شامی', 'اردنی', 'فلپائنی'],
+export const NATIONALITY_IDS = [
+  'saudi',
+  'egyptian',
+  'yemeni',
+  'sudanese',
+  'pakistani',
+  'indian',
+  'bangladeshi',
+  'syrian',
+  'jordanian',
+  'filipino',
+] as const;
+
+export const NATIONALITY_LABELS: Record<(typeof NATIONALITY_IDS)[number], Record<EvalLanguage, string>> = {
+  saudi: { ar: 'سعودي', en: 'Saudi', ur: 'سعودی' },
+  egyptian: { ar: 'مصري', en: 'Egyptian', ur: 'مصری' },
+  yemeni: { ar: 'يمني', en: 'Yemeni', ur: 'یمنی' },
+  sudanese: { ar: 'سوداني', en: 'Sudanese', ur: 'سوڈانی' },
+  pakistani: { ar: 'باكستاني', en: 'Pakistani', ur: 'پاکستانی' },
+  indian: { ar: 'هندي', en: 'Indian', ur: 'بھارتی' },
+  bangladeshi: { ar: 'بنغلاديشي', en: 'Bangladeshi', ur: 'بنگلہ دیشی' },
+  syrian: { ar: 'سوري', en: 'Syrian', ur: 'شامی' },
+  jordanian: { ar: 'أردني', en: 'Jordanian', ur: 'اردنی' },
+  filipino: { ar: 'فلبيني', en: 'Filipino', ur: 'فلپائنی' },
 };
+
+export const NATIONALITY_SUGGESTIONS: Record<EvalLanguage, string[]> = {
+  ar: NATIONALITY_IDS.map((id) => NATIONALITY_LABELS[id].ar),
+  en: NATIONALITY_IDS.map((id) => NATIONALITY_LABELS[id].en),
+  ur: NATIONALITY_IDS.map((id) => NATIONALITY_LABELS[id].ur),
+};
+
+export function nationalityIdFromLabel(raw: string): string {
+  const value = String(raw || '').trim();
+  for (const id of NATIONALITY_IDS) {
+    const labels = NATIONALITY_LABELS[id];
+    if (value === id || value === labels.ar || value === labels.en || value === labels.ur) return id;
+  }
+  return value;
+}
 
 export const PLATFORM_NAMES: Record<string, Record<EvalLanguage, string>> = {
   Jahez: { ar: 'جاهز', en: 'Jahez', ur: 'جاہز' },

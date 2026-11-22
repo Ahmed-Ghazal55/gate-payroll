@@ -2424,16 +2424,48 @@ export const api = {
       `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/responses?${q.toString()}`
     );
   },
-  getEvaluationStatistics: (roundId: string) =>
-    handleRequest<EvaluationStatisticsResponse>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics`
-    ),
+  getEvaluationStatistics: (
+    roundId: string,
+    filters?: { city?: string; nationalityId?: string }
+  ) => {
+    const qs = new URLSearchParams();
+    if (filters?.city) qs.set('city', filters.city);
+    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return handleRequest<EvaluationStatisticsResponse>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics${suffix}`
+    );
+  },
   getEvaluationStatisticsByDimension: (
     roundId: string,
-    dimension: 'city' | 'app' | 'supervisor' | 'nationality' | 'factors' | 'trend'
+    dimension: 'city' | 'app' | 'supervisor' | 'nationality' | 'factors' | 'trend',
+    filters?: { city?: string; nationalityId?: string }
+  ) => {
+    const qs = new URLSearchParams();
+    if (filters?.city) qs.set('city', filters.city);
+    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return handleRequest<EvaluationDimensionStatisticsResponse>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics/${encodeURIComponent(dimension)}${suffix}`
+    );
+  },
+  editPublicEvaluation: (token: string, payload: Record<string, unknown>) =>
+    handleRequest<PublicEvaluationSubmitResponse>(
+      `/public/evaluations/${encodeURIComponent(token)}`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    ),
+  editRiderMobileEvaluation: (
+    token: string,
+    payload: Record<string, unknown>,
+    accessToken?: string
   ) =>
-    handleRequest<EvaluationDimensionStatisticsResponse>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics/${encodeURIComponent(dimension)}`
+    handleRequest<RiderMobileEvaluationSubmitResponse>(
+      `/rider-mobile/evaluations/${encodeURIComponent(token)}`,
+      {
+        method: 'PUT',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: JSON.stringify(payload),
+      }
     ),
   exportEvaluationWorkbook: (roundId: string) =>
     handleRequest<Blob>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/export`),

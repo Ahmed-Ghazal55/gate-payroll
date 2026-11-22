@@ -171,8 +171,12 @@ export function EvaluationsTab() {
     if (!canViewEvaluations || !selectedRound) return;
     setResponsesLoading(true);
     try {
+      const statsFilters = {
+        city: cityFilter !== 'ALL' ? cityFilter : undefined,
+        nationalityId: nationalityFilter !== 'ALL' ? nationalityFilter : undefined,
+      };
       const [loadedStats, loadedResponses] = await Promise.all([
-        api.getEvaluationStatistics(selectedRound.id),
+        api.getEvaluationStatistics(selectedRound.id, statsFilters),
         api.getEvaluationResponses(selectedRound.id, {
           page: responsesPage,
           pageSize: responsesPageSize,
@@ -195,6 +199,8 @@ export function EvaluationsTab() {
     responsesPageSize,
     responsesServerQuery.filtersParam,
     responsesServerQuery.sortParam,
+    cityFilter,
+    nationalityFilter,
     toast,
   ]);
 
@@ -211,11 +217,15 @@ export function EvaluationsTab() {
       setDimensionItems(null);
       return;
     }
+    const statsFilters = {
+      city: cityFilter !== 'ALL' ? cityFilter : undefined,
+      nationalityId: nationalityFilter !== 'ALL' ? nationalityFilter : undefined,
+    };
     api
-      .getEvaluationStatisticsByDimension(selectedRound.id, dimensionFocus)
+      .getEvaluationStatisticsByDimension(selectedRound.id, dimensionFocus, statsFilters)
       .then((res) => setDimensionItems(res.items || []))
       .catch(() => setDimensionItems(null));
-  }, [canViewEvaluations, selectedRound, dimensionFocus]);
+  }, [canViewEvaluations, selectedRound, dimensionFocus, cityFilter, nationalityFilter]);
 
   if (!canViewEvaluations) {
     return (
@@ -1461,6 +1471,7 @@ export function EvaluationsTab() {
               loading={loading || responsesLoading}
               getRowId={(r) => r.id}
               syncUrl={false}
+              exportable={canExportEvaluations}
               exportFilename="ملخص_تقييم_المشرفين"
               emptyTitle="لا توجد بطاقات مشرفين في هذه الجولة"
               emptyDescription="استورد بطاقات الموظفين وأنشئ جولة تقييم لعرض الملخص."
@@ -1515,6 +1526,7 @@ export function EvaluationsTab() {
                 loading={loading}
                 getRowId={(s) => s.id}
                 syncUrl={false}
+                exportable={canExportEvaluations}
                 exportFilename="دليل_بطاقات_تقييم_الموظفين"
               />
             </section>

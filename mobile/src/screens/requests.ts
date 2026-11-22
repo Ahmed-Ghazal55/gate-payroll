@@ -1,13 +1,7 @@
 import { api, esc, money } from '../api';
+import { API_BASE } from '../config';
 import { t, pickLang, getLanguage, SALARY_BANKS } from '../i18n';
 import { getSession } from '../state';
-import {
-  getOrInitDraft,
-  setEvaluationSchemaCache,
-  getEvaluationSchemaCache,
-  renderEvaluationSurveyHtml,
-  type EvaluationSchema
-} from './evaluation';
 
 export type RequestTypeKey =
   | 'advance'
@@ -260,20 +254,22 @@ function renderActiveCampaignsCard(formsCatalog: any): string {
                 </div>
               `;
             }
-            const evalSchema = getEvaluationSchemaCache(c.token);
-            if (!evalSchema) return '';
-            const draft = getOrInitDraft(c.token, evalSchema, {
-              city: riderCity,
-              phone: riderPhone,
-              riderIqama: getSession()?.iqama || ''
-            });
+            // Open the server-hosted survey so installed apps get schema updates without an APK rebuild.
+            const hosted =
+              (typeof c.hostedUrl === 'string' && c.hostedUrl) ||
+              `${API_BASE}/rider-form.html?evaluation=${encodeURIComponent(c.token)}`;
+            const session = getSession();
+            const openUrl =
+              session?.accessToken
+                ? `${hosted}${hosted.includes('?') ? '&' : '?'}riderSession=${encodeURIComponent(session.accessToken)}`
+                : hosted;
             return `
               <div style="border-bottom:1px solid var(--line);padding:10px 0" data-eval-campaign="${esc(c.token)}">
                 <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
                   <strong>📋 ${esc(title)}</strong>
                   <span class="tag warn">${esc(t('evalTitle'))}</span>
                 </div>
-                ${renderEvaluationSurveyHtml(evalSchema, draft)}
+                <a class="small good" href="${esc(openUrl)}" target="_blank" rel="noopener" data-eval-hosted="${esc(c.token)}">${esc(t('evalOpenHosted') || 'فتح نموذج التقييم')}</a>
               </div>
             `;
           }
@@ -353,15 +349,6 @@ export async function renderRequestsHtml(selectedType: RequestTypeKey = 'advance
   let formsCatalog: any = null;
   try {
     formsCatalog = await api('/api/rider-mobile/forms');
-    const active: any[] = formsCatalog?.activeCampaigns || [];
-    for (const c of active) {
-      if (c.schema === 'evaluation-v1' && !c.alreadySubmitted && c.token && !getEvaluationSchemaCache(c.token)) {
-        try {
-          const schema = await api<EvaluationSchema>('/api/rider-mobile/evaluations/' + encodeURIComponent(c.token));
-          setEvaluationSchemaCache(c.token, schema);
-        } catch {}
-      }
-    }
   } catch {}
 
   const advanceBusy = list.some(

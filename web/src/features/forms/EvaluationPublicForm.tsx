@@ -7,12 +7,14 @@ import {
 } from '../../lib/api';
 import {
   NATIONALITY_SUGGESTIONS,
+  nationalityIdFromLabel,
   PLATFORM_NAMES,
   normalizeEvalDigits,
   localizedLabel,
   platformDisplayName,
   type EvalLanguage,
 } from './evaluation-helpers';
+import { ApiError } from '../../lib/api';
 
 export {
   NATIONALITY_SUGGESTIONS,
@@ -77,7 +79,7 @@ const FORM_COPY: Record<EvalLanguage, Record<string, string>> = {
     unansweredApps: 'أجب عن جميع بطاقات المنصات قبل الإرسال.',
     missingIdentity: 'أكمل رقم الإقامة (10 أرقام)، الاسم، مدينة العمل، الجنسية، ومنصة عمل واحدة على الأقل.',
     missingComplaint: 'اكتب تفاصيل الشكوى السرية (5 أحرف على الأقل) لكل بطاقة فعّلت فيها الشكوى.',
-    uploadsPending: 'ملاحظة: إرفاق الصور والملاحظات الصوتية ينتظر اعتماد سياسة الاحتفاظ؛ يمكنك كتابة كل التفاصيل نصيًا.',
+    uploadsPending: 'لكل بطاقة: صورتان كحد أقصى + تسجيل صوتي حتى 60 ثانية. الصور تُصغَّر على الجهاز. حجم الرد كاملًا حتى 6 ميجابايت.',
     answeredBadge: '✓ مكتملة',
     pendingBadge: 'مطلوب الإجابة',
     rolesLabel: 'المهام والأدوار',
@@ -85,6 +87,11 @@ const FORM_COPY: Record<EvalLanguage, Record<string, string>> = {
     recordedTitle: 'تم تسجيل تقييمك السري بنجاح',
     receiptLabel: 'رقم الإيصال والمتابعة',
     appSessionVerified: 'تم التحقق من رقم الإقامة تلقائيًا من جلستك في التطبيق',
+    err_already_submitted: 'سبق إرسال هذا الرد؛ يمكنك تعديله إن كانت الجولة مفتوحة.',
+    err_invalid_request: 'بيانات غير صالحة. راجع الحقول وأعد المحاولة.',
+    err_rate_limited: 'محاولات كثيرة؛ حاول بعد قليل.',
+    err_conflict: 'تعارض مع حالة الجولة الحالية.',
+    err_forbidden: 'هذا الإجراء غير مسموح.',
   },
   en: {
     brand: 'Al Bawaba',
@@ -124,7 +131,7 @@ const FORM_COPY: Record<EvalLanguage, Record<string, string>> = {
     unansweredApps: 'Please answer every platform card before submitting.',
     missingIdentity: 'Complete your 10-digit Iqama, full name, work city, nationality, and at least one work platform.',
     missingComplaint: 'Enter confidential complaint details (at least 5 characters) for every complaint card.',
-    uploadsPending: 'Note: Image and voice attachments await retention policy approval; please write full details in text.',
+    uploadsPending: 'Per card: up to 2 images + 1 voice note (≤60 s). Images are shrunk on the phone. Whole reply ≤ 6 MB.',
     answeredBadge: '✓ Answered',
     pendingBadge: 'Required',
     rolesLabel: 'Roles',
@@ -132,6 +139,11 @@ const FORM_COPY: Record<EvalLanguage, Record<string, string>> = {
     recordedTitle: 'Your confidential evaluation has been recorded',
     receiptLabel: 'Receipt number',
     appSessionVerified: 'Iqama verified automatically from your active app session',
+    err_already_submitted: 'This reply was already submitted; you may edit it while the round is open.',
+    err_invalid_request: 'Invalid data. Check the fields and try again.',
+    err_rate_limited: 'Too many attempts; try again shortly.',
+    err_conflict: 'Conflicts with the current round status.',
+    err_forbidden: 'This action is not allowed.',
   },
   ur: {
     brand: 'البوابہ',
@@ -171,7 +183,7 @@ const FORM_COPY: Record<EvalLanguage, Record<string, string>> = {
     unansweredApps: 'جمع کرنے سے پہلے تمام پلیٹ فارم کارڈز کا جواب دیں۔',
     missingIdentity: 'اپنا 10 ہندسوں کا اقامہ، پورا نام، کام کا شہر، قومیت اور کم از کم ایک پلیٹ فارم مکمل کریں۔',
     missingComplaint: 'جس کارڈ پر شکایت منتخب کی ہے اس کی تفصیل (کم از کم 5 حروف) درج کریں۔',
-    uploadsPending: 'نوٹ: تصاویر اور صوتی نوٹس محفوظ رکھنے کی پالیسی کی منظوری کے منتظر ہیں؛ تفصیل تحریری طور پر لکھیں۔',
+    uploadsPending: 'ہر کارڈ: زیادہ سے زیادہ 2 تصاویر + 1 صوتی نوٹ (≤60 سیکنڈ)۔ تصاویر فون پر چھوٹی ہوتی ہیں۔ پورا جواب ≤ 6 MB۔',
     answeredBadge: '✓ مکمل',
     pendingBadge: 'جواب لازمی',
     rolesLabel: 'ذمہ داریاں',
@@ -179,6 +191,11 @@ const FORM_COPY: Record<EvalLanguage, Record<string, string>> = {
     recordedTitle: 'آپ کی خفیہ درجہ بندی محفوظ ہو گئی',
     receiptLabel: 'رسید نمبر',
     appSessionVerified: 'آپ کے فعال ایپ سیشن سے اقامہ نمبر خودکار درج کیا گیا ہے',
+    err_already_submitted: 'یہ جواب پہلے جمع ہو چکا ہے؛ جولہ کھلی ہو تو ترمیم ممکن ہے۔',
+    err_invalid_request: 'غلط ڈیٹا۔ خانے چیک کر کے دوبارہ کوشش کریں۔',
+    err_rate_limited: 'زیادہ کوششیں؛ تھوڑی دیر بعد دوبارہ کوشش کریں۔',
+    err_conflict: 'موجودہ جولہ کی حالت سے تعارض۔',
+    err_forbidden: 'یہ عمل اجازت نہیں رکھتا۔',
   },
 };
 
@@ -219,6 +236,17 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
       if (savedLang === 'ar' || savedLang === 'en' || savedLang === 'ur') {
         setLang(savedLang);
       }
+      const params = new URLSearchParams(window.location.search);
+      const riderSession = params.get('riderSession');
+      if (riderSession) {
+        setSessionToken(riderSession);
+        try {
+          sessionStorage.setItem(
+            'gate_rider_mob',
+            JSON.stringify({ accessToken: riderSession })
+          );
+        } catch {}
+      }
       const rawSess =
         sessionStorage.getItem('gate_rider_mob') || localStorage.getItem('gate_rider_mob');
       if (rawSess) {
@@ -226,13 +254,14 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
           iqama?: string;
           name?: string;
           accessToken?: string;
+          token?: string;
         };
         if (parsed.iqama && /^[0-9]{10}$/.test(parsed.iqama)) {
           setIqama(parsed.iqama);
           setSessionLockedIqama(true);
         }
         if (parsed.name) setName(parsed.name);
-        if (parsed.accessToken) setSessionToken(parsed.accessToken);
+        if (parsed.accessToken || parsed.token) setSessionToken(parsed.accessToken || parsed.token);
       }
     } catch {}
   }, []);
@@ -398,7 +427,7 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
       iqama: normalizeEvalDigits(iqama),
       name: name.trim(),
       city,
-      nationality: nationality.trim(),
+      nationality: nationalityIdFromLabel(nationality.trim()),
       phone: phone.trim(),
       workApps,
       staffAnswers: cityStaff.map((s) => {
@@ -441,8 +470,23 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
           ? await api.submitRiderMobileEvaluation(token, payload, sessionToken)
           : await api.submitPublicEvaluation(token, payload);
       setReceipt(res.receipt);
-    } catch (err: any) {
-      setFormError(err?.message || t('unavailable'));
+    } catch (err: unknown) {
+      const code = err instanceof ApiError ? err.code : undefined;
+      const mapped =
+        code === 'already_submitted'
+          ? t('err_already_submitted')
+          : code === 'rate_limited'
+          ? t('err_rate_limited')
+          : code === 'conflict'
+          ? t('err_conflict')
+          : code === 'forbidden'
+          ? t('err_forbidden')
+          : code === 'invalid_request' || code === 'invalid_field' || code === 'cards_incomplete'
+          ? t('err_invalid_request')
+          : err instanceof Error
+          ? err.message
+          : t('unavailable');
+      setFormError(mapped);
     } finally {
       setSubmitting(false);
     }
