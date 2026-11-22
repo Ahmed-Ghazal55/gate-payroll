@@ -286,7 +286,7 @@ public static class DebtLedger
         amount=J.Money(amount);J.Need(amount>0,"مبلغ التحصيل مطلوب.",400);
         string cashCode=AccountCode(c,tx,cashAccountId);
         J.Need(MoneyWriteGuards.IsBankOrCashAccountCode(cashCode),"التحصيل فقط إلى صندوق أو بنك لنفس الشركة.",400);
-        DemandCashVaultScope(actor,cashCode);
+        DemandCashVaultScope(actor,cashCode,companyId);
         Guid receivable=AccountId(c,tx,ReceivableForCategory(LoadCategory(c,tx,debtId)));
         decimal locked=SchemaDebt.LockDebt(c,tx,SchemaSql.GuidText(debtId));
         J.Need(locked>=amount,"المبلغ يتجاوز الرصيد.",400);
@@ -502,7 +502,7 @@ public static class DebtLedger
             ("@at",now),("@ref",entityRef),("@diff",diffShort),("@bc",bulkCount),("@h",fileHash),("@u",userId));
     }
 
-    static void DemandCashVaultScope(ClaimsPrincipal actor,string cashCode)
+    static void DemandCashVaultScope(ClaimsPrincipal actor,string cashCode,Guid companyId)
     {
         if(AccessPolicy.Administrator(actor))return;
         bool isVault=FinancialCore.ChartOfAccounts.Any(a=>a.IsVault&&string.Equals(a.Code,cashCode,StringComparison.OrdinalIgnoreCase));
@@ -511,8 +511,20 @@ public static class DebtLedger
             J.Need(actor.HasClaim("finance.accountCodes",cashCode),"الحساب المالي خارج النطاق المسند للمستخدم.",403);
             return;
         }
-        // Numeric CoA cash/bank: require at least one assigned vault (accountCodes). AllCompanies / journals-only is not enough (RWD1c M5).
-        J.Need(actor.FindAll("finance.accountCodes").Any(),"الحساب المالي خارج النطاق المسند للمستخدم.",403);
+        // Numeric target cash/bank: require an assigned vault that maps to this account (and matches company when known).
+        string companyText=SchemaSql.GuidText(companyId);
+        bool companyIsSponsor=FinancialCore.Sponsors.Any(s=>string.Equals(s.Id,companyText,StringComparison.OrdinalIgnoreCase));
+        bool matched=actor.FindAll("finance.accountCodes").Any(claim=>
+        {
+            string vault=claim.Value;
+            if(!FinanceViews.VaultMapsToTarget(vault,cashCode))return false;
+            var acc=FinancialCore.ChartOfAccounts.FirstOrDefault(a=>a.IsVault&&string.Equals(a.Code,vault,StringComparison.OrdinalIgnoreCase));
+            if(acc==null)return false;
+            if(companyIsSponsor&&acc.DefaultSponsorId!=null)
+                return string.Equals(acc.DefaultSponsorId,companyText,StringComparison.OrdinalIgnoreCase);
+            return true;
+        });
+        J.Need(matched,"الحساب المالي خارج النطاق المسند للمستخدم.",403);
     }
 
     static string AccountCode(DbConnection c,DbTransaction tx,Guid accountId)=>

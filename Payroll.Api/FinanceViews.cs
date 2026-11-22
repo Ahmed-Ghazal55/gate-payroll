@@ -10,6 +10,9 @@ public static class FinanceViews
     public static JsonObject TargetChart()=>Resource.Clone();
     public static IEnumerable<JsonObject> Accounts=>Resource["accounts"]!.AsArray().OfType<JsonObject>();
     private static readonly Dictionary<string,JsonObject> Mappings=Resource["mapping"]!.AsArray().OfType<JsonObject>().ToDictionary(x=>x.S("currentCode"));
+    /// <summary>True when a current-chart vault code maps to the given target cash/bank code.</summary>
+    public static bool VaultMapsToTarget(string vaultCode,string targetCode)=>
+        Mappings.TryGetValue(vaultCode,out var rule)&&rule["targetCodes"]!.AsArray().Any(t=>string.Equals(t!.ToString(),targetCode,StringComparison.OrdinalIgnoreCase));
     public static bool Posted(JsonObject journal)=>journal.S("status","posted")=="posted";
     public static (string From,string To) Periods(string? from,string? to)
     {
