@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:42471/"
+      "url": "http://127.0.0.1:40405/"
     }
   ],
   "paths": {
@@ -1292,6 +1292,63 @@
             }
           }
         }
+      },
+      "put": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Edit public evaluation reply with receipt",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "receipt",
+                    "allowedActions",
+                    "editPolicyPending"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "receipt": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
       }
     },
     "/api/rider-mobile/evaluations": {
@@ -1328,6 +1385,100 @@
                       "schema": {
                         "type": "string"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/evaluations/{token}/launch": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Issue one-time hosted evaluation launch URL",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "url"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/evaluations/{token}/session": {
+      "post": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Exchange one-time launch code for survey-scoped session",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "accessToken",
+                    "iqama",
+                    "expiresAt"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
                     }
                   }
                 }
@@ -1652,6 +1803,63 @@
           "Riders"
         ],
         "summary": "Submit evaluation reply as signed-in rider",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "receipt",
+                    "allowedActions",
+                    "editPolicyPending"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "receipt": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Edit evaluation reply as signed-in rider",
         "parameters": [
           {
             "name": "token",
@@ -29217,10 +29425,33 @@
                                 "overall": {
                                   "type": "number"
                                 },
-                                "factors": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
+                                "factorRatings": {
+                                  "type": "object",
+                                  "properties": {
+                                    "orderVolume": {
+                                      "type": "number"
+                                    },
+                                    "fairPay": {
+                                      "type": "number"
+                                    },
+                                    "workingHours": {
+                                      "type": "number"
+                                    },
+                                    "shiftTimes": {
+                                      "type": "number"
+                                    },
+                                    "flexibility": {
+                                      "type": "number"
+                                    },
+                                    "customerService": {
+                                      "type": "number"
+                                    },
+                                    "appProblems": {
+                                      "type": "number"
+                                    },
+                                    "worthIt": {
+                                      "type": "number"
+                                    }
                                   }
                                 },
                                 "notes": {
@@ -29278,10 +29509,33 @@
                                 "overall": {
                                   "type": "number"
                                 },
-                                "factors": {
-                                  "type": "array",
-                                  "items": {
-                                    "type": "string"
+                                "factorRatings": {
+                                  "type": "object",
+                                  "properties": {
+                                    "orderVolume": {
+                                      "type": "number"
+                                    },
+                                    "fairPay": {
+                                      "type": "number"
+                                    },
+                                    "workingHours": {
+                                      "type": "number"
+                                    },
+                                    "shiftTimes": {
+                                      "type": "number"
+                                    },
+                                    "flexibility": {
+                                      "type": "number"
+                                    },
+                                    "customerService": {
+                                      "type": "number"
+                                    },
+                                    "appProblems": {
+                                      "type": "number"
+                                    },
+                                    "worthIt": {
+                                      "type": "number"
+                                    }
                                   }
                                 },
                                 "notes": {
@@ -29339,6 +29593,20 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -29354,7 +29622,7 @@
                     "byApp",
                     "bySupervisor",
                     "byNationality",
-                    "commonFactors",
+                    "factorAverages",
                     "dailyTrend"
                   ],
                   "type": "object",
@@ -29833,7 +30101,7 @@
                         }
                       }
                     },
-                    "commonFactors": {
+                    "factorAverages": {
                       "type": "array",
                       "items": {
                         "required": [
@@ -30097,6 +30365,20 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -30262,6 +30544,148 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/attachments/{attachmentId}": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Play or download an evaluation attachment",
+        "parameters": [
+          {
+            "name": "attachmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "title",
+                    "status",
+                    "sharingToken",
+                    "staff",
+                    "cities",
+                    "apps",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "sharingToken": {
+                      "type": "string"
+                    },
+                    "staff": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "name",
+                          "cities",
+                          "departments",
+                          "roles",
+                          "apps"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "cities": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "departments": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "roles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "apps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "excluded": {
+                            "type": "boolean"
+                          },
+                          "pendingRoleApproval": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "schemaVersion": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -33798,12 +34222,13 @@
           }
         }
       },
-      "AnonymousTypeOfstringAndstringAndstringAndstring": {
+      "AnonymousTypeOfstringAndstringAndstringAndstringAndstring": {
         "required": [
           "id",
           "title",
           "token",
-          "schema"
+          "schema",
+          "hostedUrl"
         ],
         "type": "object",
         "properties": {
@@ -33830,44 +34255,8 @@
               "null",
               "string"
             ]
-          }
-        }
-      },
-      "AnonymousTypeOfstringAndstringAndstringAndstringAndstring": {
-        "required": [
-          "iqama",
-          "scope",
-          "code",
-          "expiresAt",
-          "url"
-        ],
-        "type": "object",
-        "properties": {
-          "iqama": {
-            "type": [
-              "null",
-              "string"
-            ]
           },
-          "scope": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "code": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "expiresAt": {
-            "type": [
-              "null",
-              "string"
-            ]
-          },
-          "url": {
+          "hostedUrl": {
             "type": [
               "null",
               "string"

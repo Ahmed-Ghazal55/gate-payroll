@@ -1264,7 +1264,37 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        /** Edit public evaluation reply with receipt */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            receipt: string;
+                            allowedActions: string[];
+                            editPolicyPending: boolean;
+                        };
+                    };
+                };
+            };
+        };
         /** Submit public evaluation reply */
         post: {
             parameters: {
@@ -1337,6 +1367,92 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/rider-mobile/evaluations/{token}/launch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue one-time hosted evaluation launch URL */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            url: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/public/evaluations/{token}/session": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Exchange one-time launch code for survey-scoped session */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            accessToken: string;
+                            iqama: string;
+                            expiresAt: string;
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -1439,7 +1555,37 @@ export interface paths {
                 };
             };
         };
-        put?: never;
+        /** Edit evaluation reply as signed-in rider */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    token: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            receipt: string;
+                            allowedActions: string[];
+                            editPolicyPending: boolean;
+                        };
+                    };
+                };
+            };
+        };
         /** Submit evaluation reply as signed-in rider */
         post: {
             parameters: {
@@ -17834,7 +17980,14 @@ export interface paths {
                                     };
                                     overall?: number;
                                     factorRatings?: {
-                                        [key: string]: number;
+                                        orderVolume?: number;
+                                        fairPay?: number;
+                                        workingHours?: number;
+                                        shiftTimes?: number;
+                                        flexibility?: number;
+                                        customerService?: number;
+                                        appProblems?: number;
+                                        worthIt?: number;
                                     };
                                     notes?: string;
                                     complaint?: boolean;
@@ -17854,7 +18007,14 @@ export interface paths {
                                     };
                                     overall?: number;
                                     factorRatings?: {
-                                        [key: string]: number;
+                                        orderVolume?: number;
+                                        fairPay?: number;
+                                        workingHours?: number;
+                                        shiftTimes?: number;
+                                        flexibility?: number;
+                                        customerService?: number;
+                                        appProblems?: number;
+                                        worthIt?: number;
                                     };
                                     notes?: string;
                                     complaint?: boolean;
@@ -17889,7 +18049,10 @@ export interface paths {
         /** Evaluation statistics for charts */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    city?: string;
+                    nationalityId?: string;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -18092,7 +18255,10 @@ export interface paths {
         /** Evaluation statistics by dimension */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    city?: string;
+                    nationalityId?: string;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -18176,6 +18342,68 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/attachments/{attachmentId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Play or download an evaluation attachment */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    attachmentId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            title: string;
+                            status: string;
+                            kind?: string;
+                            schema?: string;
+                            sharingToken: string;
+                            staff: {
+                                id: string;
+                                name: string;
+                                cities: string[];
+                                departments: string[];
+                                roles: string[];
+                                apps: string[];
+                                active?: boolean;
+                                excluded?: boolean;
+                                pendingRoleApproval?: boolean;
+                            }[];
+                            cities: string[];
+                            apps: string[];
+                            createdAt?: string;
+                            updatedAt?: string;
+                            schemaVersion?: number;
+                            allowedActions: string[];
+                        };
+                    };
                 };
             };
         };
@@ -20013,18 +20241,12 @@ export interface components {
             /** Format: int32 */
             orphanDebts: number | string;
         };
-        AnonymousTypeOfstringAndstringAndstringAndstring: {
+        AnonymousTypeOfstringAndstringAndstringAndstringAndstring: {
             id: null | string;
             title: null | string;
             token: null | string;
             schema: null | string;
-        };
-        AnonymousTypeOfstringAndstringAndstringAndstringAndstring: {
-            iqama: null | string;
-            scope: null | string;
-            code: null | string;
-            expiresAt: null | string;
-            url: null | string;
+            hostedUrl: null | string;
         };
         AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndbooleanAndbooleanAndbooleanAndstringAndstringAndintAndintAndintAndintAndintAndstring: {
             projectId: null | string;
