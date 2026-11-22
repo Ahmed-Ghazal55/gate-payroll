@@ -192,6 +192,7 @@ MudadApi.Map(api,store);
 SalPayCalc.Map(api,store);
 SalDebtConfirm.Map(api,store);
 SalSalaryApprove.Map(api,store);
+SalRiderRequests.Map(api,store);
 RiderIndexMaintenance.Map(api, store, app.Configuration, app.Services.GetRequiredService<ILoggerFactory>());
 FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);TreasurySummary.Map(api,store);
 TreasuryEntries.Map(api,store);

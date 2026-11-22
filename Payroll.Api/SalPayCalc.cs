@@ -48,7 +48,13 @@ public static class SalPayCalc
 
             decimal level1Personal=0,companyOperating=0;
             var l1Items=new List<JsonObject>();
-            foreach(var item in (src["level1"] as JsonArray??[]).OfType<JsonObject>())
+            var l1Inputs=(src["level1"] as JsonArray??[]).OfType<JsonObject>().ToList();
+            foreach(var req in SalRiderRequests.ApprovedDeductionRequests(c,tx,run.S("companyId"),erpRider,run.S("periodMonth"),run.S("app")))
+            {
+                if(l1Inputs.Any(i=>i.S("requestId")==req.Id))continue;
+                l1Inputs.Add(new JsonObject{["itemCode"]="supervisor_deduction",["amount"]=req.Amount,["accountCode"]="112505",["operating"]=false,["requestId"]=req.Id,["reasonCode"]=req.ReasonCode});
+            }
+            foreach(var item in l1Inputs)
             {
                 decimal amount=J.Money(item.N("amount"));
                 J.Need(amount>=0,"مبلغ المستوى 1 لا يكون سالباً.",400);

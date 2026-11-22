@@ -167,11 +167,12 @@ public static class SalSharedRiders
         J.Need(cleared is not null and not DBNull,"المندوب عمل على أكثر من تطبيق هذا الشهر؛ موقوف حتى تكتمل كل التطبيقات ويُدمج (§40.5).",409);
     }
 
-    /// <summary>M-0587 / M-0672: open dual approval to release a still-open hold before every app is in.</summary>
-    public static JsonObject RequestRelease(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string erpRider,string periodMonth,string reason)
+    /// <summary>M-0587 / M-0672 / U-W2-16: open dual approval to release a still-open hold before every app is in.</summary>
+    public static JsonObject RequestRelease(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string erpRider,string periodMonth,string reason,string? releaseMode=null)
     {
         J.Need(reason.Trim().Length is >2 and <=500,"سبب طلب فك الحجز مطلوب.");
         AccessPolicy.Demand(actor,"pay.approve");
+        string? normMode=string.IsNullOrWhiteSpace(releaseMode)?null:SalRiderRequests.NormalizeReleaseMode(releaseMode);
         var hold=LoadOpenHold(c,tx,erpRider,periodMonth);
         string companyId=CompanyForRiderMonth(c,tx,erpRider,periodMonth);
         FinancialScopes.DemandSponsor(actor,companyId);
@@ -179,50 +180,78 @@ public static class SalSharedRiders
         string periodKey=periodMonth.Length>=7?periodMonth[..7]:periodMonth;
         var doc=SharedRiderConsolidation.Ensure(c,tx,erpRider,periodKey,companyId);
         Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
-        string payloadHash=ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",erpRider),("period",periodKey),("reason",reason.Trim()));
+        string payloadHash=normMode is null
+            ?ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",erpRider),("period",periodKey),("reason",reason.Trim()))
+            :ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",erpRider),("period",periodKey),("reason",reason.Trim()),("releaseMode",normMode));
+        var payload=new JsonObject{["rider"]=erpRider,["period"]=periodKey,["reason"]=reason.Trim(),["companyId"]=companyId,["sponsorId"]=companyId,["payloadHash"]=payloadHash,["holdId"]=hold.S("id")};
+        if(normMode is not null)payload["releaseMode"]=normMode;
         var req=ApprovalsArea.OpenMoneyOutDual(c,tx,actor,"shared_rider_release",doc.S("id"),amount,payloadHash,
-            "اعتماد فك حجز مندوب مشترك","طلب فك حجز مندوب عمل مشترك — بانتظار اعتماد شخصين.",
-            new(){["rider"]=erpRider,["period"]=periodKey,["reason"]=reason.Trim(),["companyId"]=companyId,["sponsorId"]=companyId,["payloadHash"]=payloadHash,["holdId"]=hold.S("id")});
+            "اعتماد فك حجز مندوب مشترك","طلب فك حجز مندوب عمل مشترك — بانتظار اعتماد شخصين.",payload);
         doc["releaseRequestedAt"]=DateTimeOffset.UtcNow.ToString("O");
         doc["releaseRequestedBy"]=actor.Identity!.Name;
         doc["releaseRequestId"]=req.S("id");
         doc["releasePayloadHash"]=payloadHash;
+        if(normMode is not null)doc["releaseMode"]=normMode;
         Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
         Store.Audit(c,tx,"sal.shared_rider_release_requested",hold.S("id"),actor.Identity!.Name!);
         return req;
     }
 
-    /// <summary>M-0587 / M-0672: after recorded dual decision, clear the open hold (exception path).</summary>
-    public static JsonObject Release(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string erpRider,string periodMonth,string reason)
+    /// <summary>M-0587 / M-0672 / U-W2-16: after recorded dual decision, clear the open hold (exception path).</summary>
+    public static JsonObject Release(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string erpRider,string periodMonth,string reason,string? releaseMode=null)
     {
         J.Need(reason.Trim().Length is >2 and <=500,"سبب الإفراج مطلوب.");
+        string? normMode=string.IsNullOrWhiteSpace(releaseMode)?null:SalRiderRequests.NormalizeReleaseMode(releaseMode);
         var hold=LoadOpenHold(c,tx,erpRider,periodMonth);
         string companyId=CompanyForRiderMonth(c,tx,erpRider,periodMonth);
         string periodKey=periodMonth.Length>=7?periodMonth[..7]:periodMonth;
         var doc=SharedRiderConsolidation.Ensure(c,tx,erpRider,periodKey,companyId);
         decimal amount=J.Money(hold.N("combinedNet"));
-        string currentHash=ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",erpRider),("period",periodKey),("reason",reason.Trim()));
+        string currentHash=normMode is null&&string.IsNullOrWhiteSpace(doc.S("releaseMode"))
+            ?ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",erpRider),("period",periodKey),("reason",reason.Trim()))
+            :ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",erpRider),("period",periodKey),("reason",reason.Trim()),("releaseMode",normMode??""));
         ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,actor,ApprovalsArea.DualSharedRiderRelease,doc.S("id"),currentHash);
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
+        SalRiderRequests.Ensure(c,tx);
         SchemaSql.Exec(c,tx,$"""
             UPDATE {SchemaSql.Q(c,"sal","shared_rider_hold")}
-            SET status='cleared',updated_by=@by,updated_at=@at WHERE id=@id
-            """,("@by",actor.Identity!.Name!),("@at",now),("@id",hold.S("id")));
+            SET status='cleared',release_mode=@mode,released_by=@by,released_at=@at,release_reason=@reason,updated_by=@by,updated_at=@at WHERE id=@id
+            """,("@mode",(object?)normMode??DBNull.Value),("@by",actor.Identity!.Name!),("@at",now),("@reason",reason.Trim()),("@id",hold.S("id")));
         doc["released"]=true;doc["status"]="released";doc["releaseReason"]=reason.Trim();
+        if(normMode is not null)doc["releaseMode"]=normMode;
         doc["releasedBy"]=actor.Identity!.Name;doc["releasedAt"]=now;
         Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
         Store.Audit(c,tx,"sal.shared_rider_released",hold.S("id"),actor.Identity!.Name!);
-        return new(){["id"]=hold.S("id"),["status"]="cleared",["erpRiderId"]=erpRider,["periodMonth"]=periodMonth,["released"]=true};
+        return new(){["id"]=hold.S("id"),["status"]="cleared",["erpRiderId"]=erpRider,["periodMonth"]=periodMonth,["released"]=true,["releaseMode"]=normMode??""};
     }
 
     static JsonObject LoadOpenHold(DbConnection c,DbTransaction tx,string erpRider,string periodMonth)
     {
-        using var cmd=c.CreateCommand();cmd.Transaction=tx;
-        cmd.CommandText=$"SELECT id,combined_net,status FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'";
-        Param(cmd,"@erp",erpRider);Param(cmd,"@pm",periodMonth);
-        using var r=cmd.ExecuteReader();
-        J.Need(r.Read(),"لا حجز مفتوح لهذا المندوب والشهر.",404);
-        return new(){["id"]=r["id"].ToString()!,["combinedNet"]=Convert.ToDecimal(r["combined_net"]),["status"]=r["status"].ToString()!};
+        string id;
+        decimal combined;
+        string status;
+        using(var cmd=c.CreateCommand())
+        {
+            cmd.Transaction=tx;
+            cmd.CommandText=$"SELECT id,combined_net,status FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'";
+            Param(cmd,"@erp",erpRider);Param(cmd,"@pm",periodMonth);
+            using var r=cmd.ExecuteReader();
+            J.Need(r.Read(),"لا حجز مفتوح لهذا المندوب والشهر.",404);
+            id=r["id"].ToString()!;
+            combined=Convert.ToDecimal(r["combined_net"]);
+            status=r["status"].ToString()!;
+        }
+        if(combined==0m)
+        {
+            object? live=SchemaSql.Scalar(c,tx,$"""
+                SELECT COALESCE(SUM(r.salary_net),0) FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
+                INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+                WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND pr.status<>4
+                """,("@erp",erpRider),("@pm",periodMonth));
+            if(live is not null and not DBNull)
+                combined=J.Money(Math.Max(0m,Convert.ToDecimal(live)));
+        }
+        return new(){["id"]=id,["combinedNet"]=combined,["status"]=status};
     }
 
     static string CompanyForRiderMonth(DbConnection c,DbTransaction tx,string erpRider,string periodMonth)
