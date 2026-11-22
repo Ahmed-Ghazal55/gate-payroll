@@ -8,6 +8,13 @@ import { renderStatementHtml } from '../screens/statement';
 import { renderDebtsHtml } from '../screens/debts';
 import { renderNotificationsHtml } from '../screens/notifications';
 import { renderRequestsHtml } from '../screens/requests';
+import {
+  getOrInitDraft,
+  clearEvaluationDrafts,
+  renderEvaluationSurveyHtml,
+  buildEvaluationPayload,
+  type EvaluationSchema
+} from '../screens/evaluation';
 
 describe('Notification Link Routing & Deep Links', () => {
   it('routes requests, ask, and in-app form links to requests tab', () => {
@@ -343,6 +350,123 @@ describe('Statement, Debts, Notifications, and Requests Screens', () => {
     expect(htmlLeave).toContain('تم إرسال طلب الإجازة السنوية');
     expect(htmlLeave).toContain('متى موعد العودة المؤكد؟');
     expect(htmlLeave).toContain('data-reply-req="sreq:leave1"');
+  });
+
+  it('renders 3-language 2-page evaluation survey in rider app with supervisor/app cards, nationality, and pending approval placeholder', async () => {
+    clearEvaluationDrafts();
+    const syntheticSchema: EvaluationSchema = {
+      schema: 'evaluation-v1',
+      roundId: 'evround:syn1',
+      title: 'جولة تقييم تجريبية',
+      noticeAr: 'التقييمات والشكاوى سرية وتراجعها الإدارة فقط.',
+      noticeEn: 'Ratings and complaints are confidential and reviewed by management only.',
+      noticeUr: 'درجہ بندی اور شکایات خفیہ ہیں اور صرف انتظامیہ دیکھ سکتی ہے۔',
+      cities: ['Synthetic City'],
+      apps: ['Ninja', 'Keeta'],
+      staff: [
+        {
+          id: 'evstaff:syn1',
+          name: 'Synthetic Staff Member',
+          cities: ['Synthetic City'],
+          departments: ['Operations'],
+          roles: ['Field Lead'],
+          apps: ['Ninja'],
+          active: true
+        },
+        {
+          id: 'evstaff:syn2',
+          name: 'Synthetic Pending Role Lead',
+          cities: ['Synthetic City'],
+          departments: ['Platform Follow-up'],
+          roles: ['بانتظار موافقة غزال'],
+          apps: ['Keeta'],
+          active: true,
+          pendingRoleApproval: true
+        }
+      ],
+      staffRatingMin: 1,
+      staffRatingMax: 10,
+      appRatingMin: 1,
+      appRatingMax: 5,
+      staffDimensions: [
+        { id: 'professional', labelAr: 'المستوى الفني والمهني', labelEn: 'Professional level', labelUr: 'پیشہ ورانہ سطح' },
+        { id: 'treatment', labelAr: 'الاحترام وطريقة التعامل', labelEn: 'Respect and manner', labelUr: 'احترام اور رویہ' },
+        { id: 'support', labelAr: 'الدعم المقدم', labelEn: 'Support given', labelUr: 'فراہم کردہ تعاون' },
+        { id: 'responseSpeed', labelAr: 'سرعة الاستجابة', labelEn: 'Response speed', labelUr: 'جواب دینے کی رفتار' },
+        { id: 'problemSolving', labelAr: 'حل المشكلات وتسهيل العمل', labelEn: 'Problem solving', labelUr: 'مسائل کا حل' }
+      ],
+      staffReasons: [
+        { id: 'not_dealt', labelAr: 'لم أتعامل معه', labelEn: 'Never dealt with this person', labelUr: 'ان سے کبھی معاملہ نہیں ہوا' }
+      ],
+      appReasons: [
+        { id: 'not_worked', labelAr: 'لم أعمل عليها', labelEn: 'Did not work on this platform', labelUr: 'اس پلیٹ فارم پر کام نہیں کیا' }
+      ],
+      factors: [
+        { id: 'orderVolume', labelAr: 'عدد الطلبات', labelEn: 'Order volume', labelUr: 'آرڈرز کی تعداد' },
+        { id: 'fairPay', labelAr: 'عدالة احتساب الأجر', labelEn: 'Fair pay calculation', labelUr: 'اجرت کا منصفانہ حساب' }
+      ],
+      uploadsPolicyPending: true,
+      allowedActions: ['submit']
+    };
+
+    const draft = getOrInitDraft('syntoken123', syntheticSchema, { city: 'Synthetic City' });
+    draft.nationality = 'Synthetic Nationality';
+    draft.workApps = ['Ninja'];
+    draft.staffAnswers['evstaff:syn1'] = {
+      reason: '',
+      ratings: { professional: 9, treatment: 8, support: 9, responseSpeed: 8, problemSolving: 9 },
+      notes: 'Synthetic note',
+      complaint: true,
+      complaintDetails: 'Synthetic confidential complaint details'
+    };
+    draft.staffAnswers['evstaff:syn2'] = {
+      reason: 'not_dealt',
+      ratings: {},
+      notes: '',
+      complaint: false,
+      complaintDetails: ''
+    };
+    draft.appAnswers['Ninja'] = {
+      reason: '',
+      overall: 4,
+      factors: ['orderVolume', 'fairPay'],
+      notes: 'Synthetic app note'
+    };
+    draft.appAnswers['Keeta'] = {
+      reason: 'not_worked',
+      overall: 0,
+      factors: [],
+      notes: ''
+    };
+
+    setLanguage('ar');
+    const page1Ar = renderEvaluationSurveyHtml(syntheticSchema, draft);
+    expect(page1Ar).toContain('التقييمات والشكاوى سرية');
+    expect(page1Ar).toContain('Synthetic Staff Member');
+    expect(page1Ar).toContain('بانتظار موافقة غزال');
+    expect(page1Ar).toContain('2 / 2');
+
+    setLanguage('en');
+    const page1En = renderEvaluationSurveyHtml(syntheticSchema, draft);
+    expect(page1En).toContain('Ratings and complaints are confidential');
+    expect(page1En).toContain('Professional level');
+
+    setLanguage('ur');
+    const page1Ur = renderEvaluationSurveyHtml(syntheticSchema, draft);
+    expect(page1Ur).toContain('درجہ بندی اور شکایات خفیہ ہیں');
+    expect(page1Ur).toContain('پیشہ ورانہ سطح');
+
+    draft.page = 2;
+    setLanguage('ar');
+    const page2Ar = renderEvaluationSurveyHtml(syntheticSchema, draft);
+    expect(page2Ar).toContain('data-eval-page="2"');
+    expect(page2Ar).toContain('عدد الطلبات');
+    expect(page2Ar).toContain('عدالة احتساب الأجر');
+
+    const payload = buildEvaluationPayload(syntheticSchema, draft);
+    expect(payload.nationality).toBe('Synthetic Nationality');
+    expect((payload.staffAnswers as any[]).length).toBe(2);
+    expect((payload.appAnswers as any[]).length).toBe(2);
   });
 });
 

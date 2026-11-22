@@ -3,6 +3,7 @@ import { getSession, setSession, setActiveFcmToken } from '../state';
 import { renderStatementHtml } from './statement';
 import { renderNotificationsHtml } from './notifications';
 import { renderRequestsHtml, type RequestTypeKey } from './requests';
+import { bindEvaluationSurveyEvents } from './evaluation';
 import { renderDebtsHtml } from './debts';
 import { renderDevicesHtml } from './devices';
 import { getLanguage, setLanguage, applyDirection, t, validateSaudiIban, type Language } from '../i18n';
@@ -186,6 +187,7 @@ export class PortalController {
     }
 
     this.bindTabEvents();
+    bindEvaluationSurveyEvents(this.root, () => this.renderTabContent());
   }
 
   private bindTabEvents() {
