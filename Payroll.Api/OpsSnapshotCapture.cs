@@ -26,7 +26,7 @@ public static class OpsSnapshotCapture
         ["fuel"]=["id","erpRiderId","liters","totalInclVat","amount","month","fuelCardId","plateNumber","effectiveFrom","effectiveTo","monthOnly"],
         ["vehicle"]=["id","assetNumber","plateNumberAr","vehicleType","sponsorId","actualRiderProfileId","erpRiderId","effectiveFrom","effectiveTo"],
         ["scheme"]=["id","erpRiderId","schemeCode","source"],
-        ["eligibility"]=["id","erpRiderId","eligible","source"],
+        ["eligibility"]=["id","erpRiderId","eligible","needsReview","expectedStatus","reason","source"],
         ["keeta_invoice_row"]=["id","erpPlatformAccountId","gross","deductions","orders"],
         ["hs_ops"]=["id","erpPlatformAccountId","orders","workDate"],
         ["hs_wallet"]=["id","erpRiderId","balance","asOf","fundingType","amount","eventType","offsetsTopup"],
