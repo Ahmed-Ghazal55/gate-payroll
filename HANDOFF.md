@@ -2,14 +2,18 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Cursor 2026-11-23 14:47 |
+| Current writer | (none) |
 | Branch | `trial/local-2026-11-23` |
-| Updated | 2026-11-23 by Cursor (TRIAL1 integration merges) |
+| Updated | 2026-11-23 by Cursor (TRIAL1 tests + report) |
 | Live | unchanged (no push/deploy; local trial only) |
-| Next | Run build/tests/sqltest; write TRIAL1 report |
+| Next | Planner: local try (invoices / pay cycle / balances); never push until Ghazal backup + «دمج» |
 
 ## Goal now
-TRIAL1: local integration of W2/W3 branches for Ghazal to try invoices, pay cycle, balances. Never push / never main / never live DB.
+TRIAL1 done locally: all W1/W2/W3 trial branches are ancestors of HEAD; build/web/sqltest green. Report: `~/.cache/agents-runs/cursor-TRIAL1-report.md`.
+
+## Done (TRIAL1)
+- Merges through `feat/w3-screens-pay`; contracts regenerated (`4bcdfe3`); integration fix (`d9d40ca`).
+- Verify: `dotnet build` OK; Engine without SQL 1109 pass / 2 SQL-required fails / 277 skip; web build OK; web unit **166/166**; sqltest **Failed:0 Passed:1388**.
 
 ## Done (W3AC)
 - `POST /api/sal/simulations` create (AccessPolicy + OpenAPI + contract) with create/duplicate tests.
