@@ -102,7 +102,9 @@ public static class TreasuryBankStatementsApi
             decimal abs=J.Money(Math.Abs(amount));
             DateOnly occurred=ParseDay(line.S("occurredOn"));
             string reference=line.S("reference").Trim();
-            // Unambiguous only: amount + date window (±3 days) + reference; ties stay unmatched.
+            // Blank reference never auto-matches (would steal the journal line from a later referenced row).
+            if(reference==""){unmatched.Add(line.S("id"));continue;}
+            // Unambiguous only: amount + date window (±3 days) + exact reference; ties stay unmatched.
             string sidePred=amount>0?"jl.debit=@amt":"jl.credit=@amt";
             string sql=$"""
                 SELECT jl.id FROM {SchemaSql.Q(c,"fin","journal_line")} jl
@@ -111,9 +113,7 @@ public static class TreasuryBankStatementsApi
                   AND {sidePred}
                   AND j.journal_date BETWEEN @from AND @to
                   AND NOT EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"treasury","bank_match")} m WHERE m.journal_line_id=jl.id AND m.status=1)
-                  AND (
-                    @ref='' OR jl.narration_ar=@ref OR j.voucher_no=@ref OR j.narration_ar=@ref
-                  )
+                  AND (jl.narration_ar=@ref OR j.voucher_no=@ref OR j.narration_ar=@ref)
                 ORDER BY jl.line_no
                 """;
             var candidates=new List<string>();
@@ -198,7 +198,7 @@ public static class TreasuryBankStatementsApi
             .WithTags("Banks and treasury").WithSummary("Approve bank recon adjustment and post journal");
     }
 
-    static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id)
+    public static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id)
     {
         AccessPolicy.Demand(actor,"treasury.view");
         using var cmd=Store.Command(c,tx,$"""
@@ -208,11 +208,12 @@ public static class TreasuryBankStatementsApi
         using var r=cmd.ExecuteReader();
         J.Need(r.Read(),"كشف البنك غير موجود.",404);
         string companyId=r["company_id"].ToString()!;
+        string bankAccountId=r["bank_account_id"].ToString()!;
         FinancialScopes.DemandSponsor(actor,companyId);
         var doc=new JsonObject
         {
             ["id"]=r["id"].ToString(),["companyId"]=companyId,["registrationId"]=r["registration_id"].ToString(),
-            ["bankAccountId"]=r["bank_account_id"].ToString(),
+            ["bankAccountId"]=bankAccountId,
             ["periodMonth"]=DateOnlyText(r["period_month"]),
             ["openingBalance"]=J.Money(Convert.ToDecimal(r["opening_balance"],CultureInfo.InvariantCulture)),
             ["closingBalance"]=J.Money(Convert.ToDecimal(r["closing_balance"],CultureInfo.InvariantCulture)),
@@ -221,6 +222,10 @@ public static class TreasuryBankStatementsApi
             ["createdBy"]=r["created_by"] is DBNull?"":r["created_by"].ToString()
         };
         r.Close();
+        string chartAccountId;
+        using(var cmdAcc=Store.Command(c,tx,$"SELECT account_id FROM {SchemaSql.Q(c,"treasury","bank_account")} WHERE id=@id",("@id",bankAccountId)))
+            chartAccountId=cmdAcc.ExecuteScalar()?.ToString()??throw new ApiError("حساب الدليل البنكي غير موجود.",409);
+        DemandTreasuryAccount(actor,companyId,chartAccountId,c,tx!);
         var lines=new JsonArray();
         using var lineCmd=Store.Command(c,tx,$"""
             SELECT l.id,l.line_no,l.occurred_on,l.amount,l.reference,
