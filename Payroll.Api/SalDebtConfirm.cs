@@ -27,6 +27,12 @@ public static class SalDebtConfirm
             var rider=LoadRider(c,tx,payRunId,riderId);
             J.Need(rider.S("debtConfirmStatus")=="pending","تم تأكيد دين هذا المندوب مسبقاً.",409);
             J.Need(string.IsNullOrEmpty(rider.S("salaryApprovedAt")),"لا تأكيد دين بعد اعتماد الراتب.",409);
+            // RWC4a3F §40.6: open shared hold — cap must wait for combined_net.
+            object? openHold=SchemaSql.Scalar(c,tx,$"""
+                SELECT 1 FROM {SchemaSql.Q(c,"sal","shared_rider_hold")}
+                WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'
+                """,("@erp",rider.S("erpRiderId")),("@pm",run.S("periodMonth")));
+            J.Need(openHold is null or DBNull,"مندوب عمل مشترك معلّق؛ أكمل الدمج قبل تأكيد الدين.",409);
             decimal net=rider.N("salaryNet");
 
             var allocations=(row["allocations"] as JsonArray??[]).OfType<JsonObject>().ToList();

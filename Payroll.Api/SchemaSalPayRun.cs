@@ -55,7 +55,7 @@ public static class SchemaSalPayRun
             CONSTRAINT CK_sal_rider_debt CHECK (debt_confirm_status IN ('pending','confirmed','deferred') AND (debt_confirm_status<>'deferred' OR old_debt_instalment=0)),
             CONSTRAINT CK_sal_rider_approval CHECK (salary_approved_at IS NULL OR debt_confirm_status IN ('confirmed','deferred')),
             CONSTRAINT CK_sal_rider_flags CHECK (bank_eligible IN (0,1) AND keeta_ineligible IN (0,1) AND protected_salary IN (0,1) AND run_mode IN (0,1)),
-            CONSTRAINT CK_sal_rider_bank CHECK (bank_eligible=0 OR (run_mode=0 AND salary_approved_at IS NOT NULL AND debt_confirm_status IN ('confirmed','deferred') AND payable_id IS NOT NULL AND salary_net>0)),
+            CONSTRAINT CK_sal_rider_bank CHECK (bank_eligible=0 OR (run_mode=0 AND salary_approved_at IS NOT NULL AND debt_confirm_status IN ('confirmed','deferred') AND payable_id IS NOT NULL)),
             CONSTRAINT FK_sal_rider_run FOREIGN KEY (pay_run_id,company_id,period_month,run_mode) REFERENCES {run}(id,company_id,period_month,run_mode) ON DELETE NO ACTION,
             CONSTRAINT FK_sal_rider_payable FOREIGN KEY (payable_id,company_id,period_month) REFERENCES {SchemaSql.Q(c,"pay","payable")}(id,company_id,period_month) ON DELETE NO ACTION
             """);

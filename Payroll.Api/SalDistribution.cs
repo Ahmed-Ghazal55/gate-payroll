@@ -294,11 +294,13 @@ public static class SalDistribution
 
     static List<JsonObject> ApplyResidual(List<JsonObject> raw,decimal target)
     {
+        // RWC4a3F / §40.1: Σ parts = item exactly; only a rounding halala (≤ 0.01 × rows) may land on the last bearer.
         decimal sum=raw.Sum(r=>J.Money(r.N("amount")));
         var rows=raw.Select(r=>r.DeepClone()!.AsObject()).ToList();
         if(sum==target)return rows;
         J.Need(sum<=target,"مجموع التوزيع يتجاوز قيمة البند.",409);
         decimal residual=J.Money(target-sum);
+        J.Need(residual<=J.Money(0.01m*rows.Count),"مجموع التوزيع أقل من قيمة البند بأكثر من هللة التقريب.",409);
         rows[^1]["amount"]=J.Money(rows[^1].N("amount")+residual);
         return rows;
     }

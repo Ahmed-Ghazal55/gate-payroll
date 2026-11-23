@@ -386,7 +386,9 @@ public static class SalSalaryApprove
             Guid company=Guid.Parse(run.S("companyId"));
             Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
             Guid payableAcc=AccountId(c,tx,"212103");
-            Guid debtAcc=AccountId(c,tx,row.Account is {Length:>0}?row.Account:"112507");
+            // RWC4a3F H12: always credit the debt control account from category (ignore caller item account).
+            string ctrl=DebtControlAccount(c,tx,row.DebtId);
+            Guid debtAcc=AccountId(c,tx,ctrl);
             var journal=JournalPosting.Post(c,tx,new JournalPosting.Draft(
                 company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
                 DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
@@ -577,6 +579,14 @@ public static class SalSalaryApprove
             ("@c",companyId),("@pm",month));
         J.Need(id is not null && id is not DBNull,"الفترة المحاسبية غير مفتوحة لهذا الشهر.",409);
         return Guid.Parse(id!.ToString()!);
+    }
+
+    static string DebtControlAccount(DbConnection c,DbTransaction tx,string debtId)
+    {
+        object? cat=SchemaSql.Scalar(c,tx,$"SELECT category FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",debtId));
+        string category=cat is null or DBNull?"":cat.ToString()!;
+        var hit=ConfigLists.DefaultDeductions.FirstOrDefault(d=>string.Equals(d.Category,category,StringComparison.OrdinalIgnoreCase));
+        return string.IsNullOrEmpty(hit.Account)?"112505":hit.Account;
     }
 
     static Guid AccountId(DbConnection c,DbTransaction tx,string code)

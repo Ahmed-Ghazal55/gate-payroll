@@ -736,7 +736,19 @@ public static class SalPayCalc
     {
         var apps=SalSharedRiders.AppsFor(worked,erpRider,run.S("app"));
         if(apps.Count<=1)return;
+        DemandSameCompanyShared(c,tx,erpRider,run.S("periodMonth"),run.S("companyId"));
         SalSharedRiders.OpenHold(c,tx,erpRider,run.S("periodMonth"),apps,PayPlatforms.For(run.S("app")).App);
+    }
+
+    /// <summary>RWC4a3F / M-0678: until inter-company consolidation exists, reject multi-app holds across companies.</summary>
+    static void DemandSameCompanyShared(DbConnection c,DbTransaction tx,string erpRider,string periodMonth,string companyId)
+    {
+        object? other=SchemaSql.Scalar(c,tx,$"""
+            SELECT 1 FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+            WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND pr.status<>4 AND pr.run_mode=0 AND pr.company_id<>@c
+            """,("@erp",erpRider),("@pm",periodMonth),("@c",companyId));
+        J.Need(other is null or DBNull,"دمج مندوب مشترك عبر شركتين غير مسموح حتى تُكتب قاعدة التسوية بين الشركات.",409);
     }
 
     /// <summary>Rebuild L1 (incl. mudad) then cap L2 by remaining positive net — exact: 100−50 L1, L2 min(80,50)=50 → 0.</summary>
