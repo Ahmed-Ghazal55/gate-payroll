@@ -32,6 +32,10 @@ describe('EV1 evaluation survey and admin results screens', () => {
       '/api/forms/evaluations/rounds/{id}/responses',
       '/api/forms/evaluations/rounds/{id}/statistics',
       '/api/forms/evaluations/rounds/{id}/statistics/{dimension}',
+      '/api/forms/evaluations/rounds/{id}/scorecards/supervisors',
+      '/api/forms/evaluations/rounds/{id}/scorecards/apps',
+      '/api/forms/evaluations/rounds/{id}/scorecards/heatmap',
+      '/api/forms/evaluations/rounds/{id}/scorecards/city-app',
       '/api/public/evaluations/{token}',
       '/api/rider-mobile/evaluations',
       '/api/rider-mobile/evaluations/{token}',
@@ -41,6 +45,30 @@ describe('EV1 evaluation survey and admin results screens', () => {
         `expected api.ts to derive type from contract route ${route}`
       );
     }
+  });
+
+  it('renders KPI1 scorecards with Arabic labels, drill-down, confidence note and Excel export hooks', () => {
+    const panel = readWeb('src/features/forms/EvaluationScorecardsPanel.tsx');
+    const adminTab = readWeb('src/features/forms/EvaluationsTab.tsx');
+    const apiTs = readWeb('src/lib/api.ts');
+    assert.match(adminTab, /EvaluationScorecardsPanel/);
+    assert.match(adminTab, /handleScorecardDrillDown/);
+    assert.match(panel, /eval-scorecards-panel/);
+    assert.match(panel, /eval-scorecard-confidence-note/);
+    assert.match(panel, /بطاقة أداء المشرف \/ الموظف/);
+    assert.match(panel, /بطاقة أداء المنصة/);
+    assert.match(panel, /خريطة حرارية: مشرف × بُعد/);
+    assert.match(panel, /مصفوفة المدينة × المنصة/);
+    assert.match(panel, /عينة صغيرة/);
+    assert.match(panel, /exportEvaluationScorecard/);
+    assert.match(panel, /eval-export-scorecard-supervisors/);
+    assert.match(panel, /eval-export-scorecard-apps/);
+    assert.match(panel, /eval-export-scorecard-heatmap/);
+    assert.match(panel, /eval-export-scorecard-city-app/);
+    assert.match(panel, /eval-heatmap-table/);
+    assert.match(panel, /eval-city-app-matrix/);
+    assert.match(apiTs, /getEvaluationSupervisorScorecard/);
+    assert.match(apiTs, /exportEvaluationScorecard/);
   });
 
   it('supports 3 languages (ar/en/ur), nationality, 5 staff dimensions (1-10), 1-5 app stars, factors, complaints, and pending role placeholder across web, RiderForm, and mobile', () => {

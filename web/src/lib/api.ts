@@ -178,11 +178,23 @@ export type EvaluationReplyCard = EvaluationReplyItem['staffAnswers'][number];
 export type EvaluationStatisticsResponse = ApiResp<'/api/forms/evaluations/rounds/{id}/statistics'>;
 export type EvaluationDimensionStatisticsResponse = ApiResp<'/api/forms/evaluations/rounds/{id}/statistics/{dimension}'>;
 export type EvaluationBucketItem = EvaluationStatisticsResponse['byCity'][number];
+export type EvaluationSupervisorScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/supervisors'>;
+export type EvaluationAppScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/apps'>;
+export type EvaluationHeatmapScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/heatmap'>;
+export type EvaluationCityAppScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/city-app'>;
 export type PublicEvaluationSchema = ApiResp<'/api/public/evaluations/{token}'>;
 export type PublicEvaluationSubmitResponse = ApiResp<'/api/public/evaluations/{token}', 'post'>;
 export type RiderMobileEvaluationsList = ApiResp<'/api/rider-mobile/evaluations'>;
 export type RiderMobileEvaluationSchema = ApiResp<'/api/rider-mobile/evaluations/{token}'>;
 export type RiderMobileEvaluationSubmitResponse = ApiResp<'/api/rider-mobile/evaluations/{token}', 'post'>;
+
+export type EvaluationScorecardFilters = {
+  city?: string;
+  app?: string;
+  department?: string;
+  supervisorId?: string;
+  nationalityId?: string;
+};
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
 
@@ -2469,6 +2481,70 @@ export const api = {
     ),
   exportEvaluationWorkbook: (roundId: string) =>
     handleRequest<Blob>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/export`),
+  getEvaluationSupervisorScorecard: (roundId: string, filters?: EvaluationScorecardFilters) => {
+    const qs = new URLSearchParams();
+    if (filters?.city) qs.set('city', filters.city);
+    if (filters?.app) qs.set('app', filters.app);
+    if (filters?.department) qs.set('department', filters.department);
+    if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
+    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return handleRequest<EvaluationSupervisorScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/supervisors${suffix}`
+    );
+  },
+  getEvaluationAppScorecard: (roundId: string, filters?: EvaluationScorecardFilters) => {
+    const qs = new URLSearchParams();
+    if (filters?.city) qs.set('city', filters.city);
+    if (filters?.app) qs.set('app', filters.app);
+    if (filters?.department) qs.set('department', filters.department);
+    if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
+    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return handleRequest<EvaluationAppScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/apps${suffix}`
+    );
+  },
+  getEvaluationHeatmapScorecard: (roundId: string, filters?: EvaluationScorecardFilters) => {
+    const qs = new URLSearchParams();
+    if (filters?.city) qs.set('city', filters.city);
+    if (filters?.app) qs.set('app', filters.app);
+    if (filters?.department) qs.set('department', filters.department);
+    if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
+    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return handleRequest<EvaluationHeatmapScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/heatmap${suffix}`
+    );
+  },
+  getEvaluationCityAppScorecard: (roundId: string, filters?: EvaluationScorecardFilters) => {
+    const qs = new URLSearchParams();
+    if (filters?.city) qs.set('city', filters.city);
+    if (filters?.app) qs.set('app', filters.app);
+    if (filters?.department) qs.set('department', filters.department);
+    if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
+    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return handleRequest<EvaluationCityAppScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/city-app${suffix}`
+    );
+  },
+  exportEvaluationScorecard: (
+    roundId: string,
+    kind: 'supervisors' | 'apps' | 'heatmap' | 'city-app',
+    filters?: EvaluationScorecardFilters
+  ) => {
+    const qs = new URLSearchParams();
+    if (filters?.city) qs.set('city', filters.city);
+    if (filters?.app) qs.set('app', filters.app);
+    if (filters?.department) qs.set('department', filters.department);
+    if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
+    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return handleRequest<Blob>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/${encodeURIComponent(kind)}/export${suffix}`
+    );
+  },
   getPublicEvaluationSchema: (token: string, city?: string) => {
     const qs = city ? `?city=${encodeURIComponent(city)}` : '';
     return handleRequest<PublicEvaluationSchema>(

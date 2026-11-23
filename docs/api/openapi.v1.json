@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:40405/"
+      "url": "http://127.0.0.1:46093/"
     }
   ],
   "paths": {
@@ -30536,6 +30536,836 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}/scorecards/supervisors": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Per-supervisor evaluation scorecard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "department",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supervisorId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "roundId",
+                    "totalResponses",
+                    "confidenceNoteAr",
+                    "items",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "roundId": {
+                      "type": "string"
+                    },
+                    "totalResponses": {
+                      "type": "number"
+                    },
+                    "confidenceNoteAr": {
+                      "type": "string"
+                    },
+                    "labelsAr": {
+                      "type": "object"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "staffId",
+                          "name",
+                          "replyCount",
+                          "lowSample",
+                          "identityVisible",
+                          "dimensions",
+                          "drillDown"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "staffId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "department": {
+                            "type": "string"
+                          },
+                          "replyCount": {
+                            "type": "number"
+                          },
+                          "complaintCount": {
+                            "type": "number"
+                          },
+                          "complaintRate": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "rankInDepartment": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "changeVsPrevious": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "lowSample": {
+                            "type": "boolean"
+                          },
+                          "identityVisible": {
+                            "type": "boolean"
+                          },
+                          "dimensions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "drillDown": {
+                            "required": [
+                              "target"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "target": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "string"
+                              },
+                              "app": {
+                                "type": "string"
+                              },
+                              "department": {
+                                "type": "string"
+                              },
+                              "supervisorId": {
+                                "type": "string"
+                              },
+                              "nationalityId": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}/scorecards/apps": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Per-app evaluation scorecard",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "department",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supervisorId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "roundId",
+                    "totalResponses",
+                    "confidenceNoteAr",
+                    "items",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "roundId": {
+                      "type": "string"
+                    },
+                    "totalResponses": {
+                      "type": "number"
+                    },
+                    "confidenceNoteAr": {
+                      "type": "string"
+                    },
+                    "labelsAr": {
+                      "type": "object"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "app",
+                          "replyCount",
+                          "distribution",
+                          "topFactors",
+                          "bottomFactors",
+                          "lowSample",
+                          "identityVisible",
+                          "drillDown"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "app": {
+                            "type": "string"
+                          },
+                          "replyCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "netScore": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "distribution": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "stars",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "stars": {
+                                  "type": "number"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "topFactors": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "bottomFactors": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "lowSample": {
+                            "type": "boolean"
+                          },
+                          "identityVisible": {
+                            "type": "boolean"
+                          },
+                          "drillDown": {
+                            "required": [
+                              "target"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "target": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "string"
+                              },
+                              "app": {
+                                "type": "string"
+                              },
+                              "department": {
+                                "type": "string"
+                              },
+                              "supervisorId": {
+                                "type": "string"
+                              },
+                              "nationalityId": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}/scorecards/heatmap": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Supervisor × dimension heatmap",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "department",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supervisorId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "roundId",
+                    "totalResponses",
+                    "dimensions",
+                    "confidenceNoteAr",
+                    "cells",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "roundId": {
+                      "type": "string"
+                    },
+                    "totalResponses": {
+                      "type": "number"
+                    },
+                    "dimensions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "confidenceNoteAr": {
+                      "type": "string"
+                    },
+                    "labelsAr": {
+                      "type": "object"
+                    },
+                    "cells": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "staffId",
+                          "dimension",
+                          "replyCount",
+                          "lowSample",
+                          "identityVisible",
+                          "drillDown"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "staffId": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "dimension": {
+                            "type": "string"
+                          },
+                          "replyCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "lowSample": {
+                            "type": "boolean"
+                          },
+                          "identityVisible": {
+                            "type": "boolean"
+                          },
+                          "drillDown": {
+                            "required": [
+                              "target"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "target": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "string"
+                              },
+                              "app": {
+                                "type": "string"
+                              },
+                              "department": {
+                                "type": "string"
+                              },
+                              "supervisorId": {
+                                "type": "string"
+                              },
+                              "nationalityId": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}/scorecards/city-app": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "City × app evaluation matrix",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "department",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supervisorId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "roundId",
+                    "totalResponses",
+                    "cities",
+                    "apps",
+                    "confidenceNoteAr",
+                    "cells",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "roundId": {
+                      "type": "string"
+                    },
+                    "totalResponses": {
+                      "type": "number"
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "confidenceNoteAr": {
+                      "type": "string"
+                    },
+                    "labelsAr": {
+                      "type": "object"
+                    },
+                    "cells": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "city",
+                          "app",
+                          "replyCount",
+                          "lowSample",
+                          "identityVisible",
+                          "drillDown"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "city": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "replyCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "lowSample": {
+                            "type": "boolean"
+                          },
+                          "identityVisible": {
+                            "type": "boolean"
+                          },
+                          "drillDown": {
+                            "required": [
+                              "target"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "target": {
+                                "type": "string"
+                              },
+                              "city": {
+                                "type": "string"
+                              },
+                              "app": {
+                                "type": "string"
+                              },
+                              "department": {
+                                "type": "string"
+                              },
+                              "supervisorId": {
+                                "type": "string"
+                              },
+                              "nationalityId": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}/scorecards/{kind}/export": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Export an evaluation scorecard workbook",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "kind",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "department",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supervisorId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nationalityId",
+            "in": "query",
             "schema": {
               "type": "string"
             }

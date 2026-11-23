@@ -18353,6 +18353,341 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forms/evaluations/rounds/{id}/scorecards/supervisors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-supervisor evaluation scorecard */
+        get: {
+            parameters: {
+                query?: {
+                    city?: string;
+                    app?: string;
+                    department?: string;
+                    supervisorId?: string;
+                    nationalityId?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            roundId: string;
+                            totalResponses: number;
+                            confidenceNoteAr: string;
+                            labelsAr?: Record<string, never>;
+                            items: {
+                                staffId: string;
+                                name: string;
+                                department?: string;
+                                replyCount: number;
+                                complaintCount?: number;
+                                complaintRate?: null | number;
+                                average?: null | number;
+                                rankInDepartment?: null | number;
+                                changeVsPrevious?: null | number;
+                                lowSample: boolean;
+                                identityVisible: boolean;
+                                dimensions: {
+                                    key: string;
+                                    count: number;
+                                    average?: null | number;
+                                }[];
+                                drillDown: {
+                                    target: string;
+                                    city?: string;
+                                    app?: string;
+                                    department?: string;
+                                    supervisorId?: string;
+                                    nationalityId?: string;
+                                };
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds/{id}/scorecards/apps": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Per-app evaluation scorecard */
+        get: {
+            parameters: {
+                query?: {
+                    city?: string;
+                    app?: string;
+                    department?: string;
+                    supervisorId?: string;
+                    nationalityId?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            roundId: string;
+                            totalResponses: number;
+                            confidenceNoteAr: string;
+                            labelsAr?: Record<string, never>;
+                            items: {
+                                app: string;
+                                replyCount: number;
+                                average?: null | number;
+                                netScore?: null | number;
+                                distribution: {
+                                    stars: number;
+                                    count: number;
+                                }[];
+                                topFactors: {
+                                    key: string;
+                                    count: number;
+                                    average?: null | number;
+                                }[];
+                                bottomFactors: {
+                                    key: string;
+                                    count: number;
+                                    average?: null | number;
+                                }[];
+                                lowSample: boolean;
+                                identityVisible: boolean;
+                                drillDown: {
+                                    target: string;
+                                    city?: string;
+                                    app?: string;
+                                    department?: string;
+                                    supervisorId?: string;
+                                    nationalityId?: string;
+                                };
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds/{id}/scorecards/heatmap": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Supervisor × dimension heatmap */
+        get: {
+            parameters: {
+                query?: {
+                    city?: string;
+                    app?: string;
+                    department?: string;
+                    supervisorId?: string;
+                    nationalityId?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            roundId: string;
+                            totalResponses: number;
+                            dimensions: string[];
+                            confidenceNoteAr: string;
+                            labelsAr?: Record<string, never>;
+                            cells: {
+                                staffId: string;
+                                name?: string;
+                                dimension: string;
+                                replyCount: number;
+                                average?: null | number;
+                                lowSample: boolean;
+                                identityVisible: boolean;
+                                drillDown: {
+                                    target: string;
+                                    city?: string;
+                                    app?: string;
+                                    department?: string;
+                                    supervisorId?: string;
+                                    nationalityId?: string;
+                                };
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds/{id}/scorecards/city-app": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** City × app evaluation matrix */
+        get: {
+            parameters: {
+                query?: {
+                    city?: string;
+                    app?: string;
+                    department?: string;
+                    supervisorId?: string;
+                    nationalityId?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            roundId: string;
+                            totalResponses: number;
+                            cities: string[];
+                            apps: string[];
+                            confidenceNoteAr: string;
+                            labelsAr?: Record<string, never>;
+                            cells: {
+                                city: string;
+                                app: string;
+                                replyCount: number;
+                                average?: null | number;
+                                lowSample: boolean;
+                                identityVisible: boolean;
+                                drillDown: {
+                                    target: string;
+                                    city?: string;
+                                    app?: string;
+                                    department?: string;
+                                    supervisorId?: string;
+                                    nationalityId?: string;
+                                };
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds/{id}/scorecards/{kind}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export an evaluation scorecard workbook */
+        get: {
+            parameters: {
+                query?: {
+                    city?: string;
+                    app?: string;
+                    department?: string;
+                    supervisorId?: string;
+                    nationalityId?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                    kind: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forms/evaluations/attachments/{attachmentId}": {
         parameters: {
             query?: never;
