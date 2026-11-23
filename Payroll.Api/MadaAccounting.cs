@@ -24,16 +24,14 @@ public static class MadaAccounting
     public static JsonObject Approve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id){_=c;_=tx;_=actor;_=id;throw new ApiError(AdjustmentsGone,410);}
     public static JsonObject PayInternet(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject request,JsonObject input)
     {
-        AccessPolicy.Demand(actor,"advances.payout");string company=FinancialCore.ResolveSponsor(request.S("companyId")).Id,fulfilment=request.Required("fulfilment"),vault=request.S("vaultCode",request.S("vault"));FinancialScopes.DemandSponsor(actor,company);
-        J.Need(fulfilment is "cash" or "bank" or "recharge_card","طريقة تسليم النت غير صالحة.");J.Need(request.S("approvedBy")!=""&&request.S("status")=="approved","طلب معتمد مطلوب.");J.Need(AccessPolicy.Independent(actor,request.S("requestedBy"),"advance.payout",c,tx,request,scope:AccessPolicy.ScopePayApprovals),"صاحب الطلب لا يصرفه.",403);
+        AccessPolicy.Demand(actor,"advances.payout");string fulfilment=request.Required("fulfilment");
+        // RWP7a3: legacy card payout bypassed the new Mada wallet register — cards go through /payments/mada/cards/issue.
+        if(fulfilment=="recharge_card")throw new ApiError("صرف كارت الشحن عبر المسار القديم موقف؛ استخدم المدفوعات ← إصدار كروت مدى.",410);
+        string company=FinancialCore.ResolveSponsor(request.S("companyId")).Id,vault=request.S("vaultCode",request.S("vault"));FinancialScopes.DemandSponsor(actor,company);
+        J.Need(fulfilment is "cash" or "bank","طريقة تسليم النت غير صالحة.");J.Need(request.S("approvedBy")!=""&&request.S("status")=="approved","طلب معتمد مطلوب.");J.Need(AccessPolicy.Independent(actor,request.S("requestedBy"),"advance.payout",c,tx,request,scope:AccessPolicy.ScopePayApprovals),"صاحب الطلب لا يصرفه.",403);
         J.Need(input.Required("reference").Length is >2 and <=120,"مرجع الصرف غير صالح.");decimal amount=request.N("amount");J.Need(amount>0&&amount==J.Money(amount)&&request.N("monthlyInstallment")>0&&request.N("monthlyInstallment")<=amount,"مبلغ السلفة أو القسط غير صالح.");string period=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM");Open(c,tx,company,period);
         var rider=Store.Get(c,request.S("riderIqama"),"rider",tx)??throw new ApiError("المندوب غير موجود.");FinancialScopes.DemandRider(actor,rider);J.Need(RiderCompany(rider)==company,"شركة المندوب لا تطابق السلفة.");
         string funding,legacy="";decimal available;
-        if(fulfilment=="recharge_card")
-        {
-            J.Need(vault=="MADA"&&request.S("networkCode")!=""&&request.S("packageCode")!="","مكنةMADAوالشبكة والباقة المعتمدتان مطلوبون.");funding="112404";available=Balance(c,tx,company,funding);
-        }
-        else
         {
             var bank=FinancialCore.ValidateVaultForOperation(vault,"InternetAdvance","disbursement");J.Need(bank.DefaultSponsorId==company&&(fulfilment=="cash"?bank.VaultKind=="MainInternal":bank.VaultKind=="Bank"),"خزنة الصرف لا تطابق طريقة التسليم والشركة.");FinancialScopes.DemandAccount(actor,vault);legacy=vault;
             if(fulfilment=="bank"){funding=Bank(actor,company,input.Required("bankAccountCode"));available=Balance(c,tx,company,funding);}

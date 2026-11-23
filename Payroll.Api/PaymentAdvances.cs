@@ -18,9 +18,13 @@ public static class PaymentAdvances
         string companyId=PaymentsEngine.Id(input.Required("companyId"));
         string platform=PaymentDocuments.DemandPlatformAttribution(c,tx,actor,companyId,employee,account);
         DemandNoOpenAdvance(c,tx,actor,iqama,employee,input.S("idempotencyKey"),companyId);
-        decimal amount=PaymentsEngine.Money(input,"amount");string fulfilment=input.S("fulfilment",type);J.Need(type!="internet"||fulfilment is "cash" or "bank" or "recharge_card","طريقة تسليم سلفة الإنترنت غير صالحة.");
+        decimal amount=PaymentsEngine.Money(input,"amount");string fulfilment=input.S("fulfilment",type);
+        // BR §25.9: recharge_card is only for internet advances (never cash/bank/hs).
+        if(type=="internet")J.Need(fulfilment is "cash" or "bank" or "recharge_card","طريقة تسليم سلفة الإنترنت غير صالحة.",409);
+        else J.Need(fulfilment is "cash" or "bank"||fulfilment==type,"كارت الشحن مسموح لسلفة الإنترنت فقط.",409);
         if(fulfilment=="recharge_card")
         {
+            J.Need(type=="internet","كارت الشحن مسموح لسلفة الإنترنت فقط.",409);
             string network=input.Required("networkCode");var package=ConfigLists.Current(c,tx,"recharge_packages",input.Required("packageCode"))??throw new ApiError("الباقة غير معتمدة.");
             J.Need(ConfigLists.Current(c,tx,"recharge_networks",network)!=null&&package["values"].S("network")==network&&package["values"].N("price")==amount,"الباقة والشبكة والسعر غير متطابقة.");
         }
@@ -67,8 +71,8 @@ public static class PaymentAdvances
     {
         string type=doc.S("type");var meta=doc["metadata"]!.AsObject();decimal amount=type is "advance" or "hs_topup"?payment.N("amount"):meta.N("riderShare");
         if(type is not ("advance" or "hs_topup" or "hr_fee" or "traffic_violation")||amount<=0)return;
-        // A mixed bearer request must settle as one voucher to keep its rider/company split exact.
-        if(type is "hr_fee" or "traffic_violation")J.Need(payment.N("amount")==doc.N("amount"),"طلب توزيع الرسوم يصرف كاملًا للحفاظ على حصة المندوب.",409);
+        // One full voucher: partial advances would each create a debt with the full monthly instalment (RWP7a3).
+        if(type is "hr_fee" or "traffic_violation" or "advance" or "hs_topup")J.Need(payment.N("amount")==doc.N("amount"),"السلفة وشحن المحفظة ورسوم التوزيع تُصرف كاملة في سند واحد.",409);
         string debt=PaymentsEngine.MoneyId(),company=doc.S("companyId"),employee=PaymentsEngine.Id(meta.Required("erpEmployeeId"));
         string category=type switch{"hs_topup"=>"HsWalletTopUp","hr_fee"=>meta.Required("category"),"traffic_violation"=>"TrafficFine",_=>meta.S("advanceType") switch{"internet"=>"InternetAdvance","cash"=>"CashAdvance",_=>"BankAdvance"}};
         SchemaSql.Exec(c,tx,$"INSERT INTO {SchemaSql.Q(c,"debt","debt")}(id,erp_rider_id,company_id,category,principal,instalment,created_by) VALUES(@id,@r,@c,@cat,@amount,@inst,@by)",("@id",debt),("@r",employee),("@c",company),("@cat",category),("@amount",amount),("@inst",meta.N("monthlyInstallment")>0?meta.N("monthlyInstallment"):(object)DBNull.Value),("@by",PaymentsEngine.Me(actor)));
@@ -86,6 +90,10 @@ public static class PaymentAdvances
     internal static void RecordCardWalletWithdrawal(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject doc,JsonObject payment,Guid journal)
     {
         var meta=doc["metadata"]!.AsObject();
+        string bank=PaymentsEngine.AccountCode(c,tx,payment.S("bankAccountId"));
+        // Any credit to 112404 must write a Mada wallet movement (BR §25.9); never skip for non-internet.
+        if(bank=="112404")
+            J.Need(doc.S("type")=="advance"&&meta.S("advanceType")=="internet"&&meta.S("fulfilment")=="recharge_card","صرف مدى يتطلب سلفة إنترنت بكارت شحن وحركة محفظة.",409);
         if(doc.S("type")!="advance"||meta.S("advanceType")!="internet"||meta.S("fulfilment")!="recharge_card")return;
         string account=PaymentsEngine.Account(c,tx,"112404").ToString("D");
         JsonObject? wallet=null;string kind="";

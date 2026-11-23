@@ -14,7 +14,8 @@ public static partial class PaymentsEngine
     }
     internal static void DemandBank(ClaimsPrincipal actor,DbConnection c,DbTransaction tx,string code,JsonObject doc)
     {
-        bool card=doc.S("type")=="advance"&&doc["metadata"].S("fulfilment")=="recharge_card";
+        // BR §25.9: 112404 only when advanceType=internet and fulfilment=recharge_card.
+        bool card=doc.S("type")=="advance"&&doc["metadata"].S("advanceType")=="internet"&&doc["metadata"].S("fulfilment")=="recharge_card";
         J.Need(MoneyWriteGuards.IsBankOrCashAccountCode(code)||card&&code=="112404","اختر حساب بنك أو صندوق صالح للصرف.",409);
         // Claims hold legacy vault codes (BANK.BW / MAIN.*); chart codes resolve through TargetAccount.
         J.Need(AccessPolicy.Administrator(actor)||FinancialScopes.TargetAccount(actor,doc.S("companyId"),code)||card&&code=="112404"&&FinancialScopes.Sponsor(actor,doc.S("companyId")),"حساب الصرف خارج نطاقك.",403);
@@ -28,6 +29,8 @@ public static partial class PaymentsEngine
         if(doc.S("type") is "advance" or "hs_topup")
         {
             var meta=doc["metadata"]!.AsObject();J.Need(code==meta.S("payoutAccountCode"),"حساب الصرف مختلف عن الحساب المعتمد للسلفة.",409);
+            // RWP7a3: one full voucher so a single debt keeps one monthly instalment (1000/250 example).
+            J.Need(amount==doc.N("amount"),"السلفة وشحن المحفظة تُصرف كاملة في سند واحد.",409);
             J.Need(!AccessPolicy.SamePerson(actor,doc.S("createdBy")),"صاحب طلب السلفة لا يطلب صرفها.",403);
             OrgDirectory.DemandResponsible(c,tx,actor,"advance.payout:"+PaymentAdvances.PayoutOp(code),doc);
         }

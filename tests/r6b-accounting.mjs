@@ -71,8 +71,9 @@ sys.stdout.buffer.write(out.getvalue())
  const goneBal=await call('checker','/api/finance/mada/balance?companyId='+company,undefined,410);assert.equal(goneBal.code,'gone');
  const dualReq=await call('checker','/api/advance-requests/synthetic-internet-request/request-payout',{});assert.equal(dualReq.status,'pending');assert.equal(dualReq.kind,'advance_payout');
  await call('dual',`/api/approvals/${dualReq.id}/decide`,{decision:'approve',note:'independent dual'});
- const internet=await call('checker','/api/advance-requests/synthetic-internet-request/payout',{reference:'SYNTHETIC-CARD-RECEIPT'});assert.equal(internet.status,'paid');assert.ok(internet.payoutVoucherNo.startsWith('PV-'));
- assert.ok(internet.debtId);
+ // RWP7a3: legacy recharge_card payout is gone — cards use /payments/mada/cards/issue.
+ const internetGone=await call('checker','/api/advance-requests/synthetic-internet-request/payout',{reference:'SYNTHETIC-CARD-RECEIPT'},410);
+ assert.equal(internetGone.code,'gone');
  const manual={companyId:company,date:'2026-10-20',reference:'SYNTHETIC-HTTP-MANUAL',description:'Synthetic manual operation',lines:[{accountCode:'512101',debit:25,credit:0},{accountCode:'212103',debit:0,credit:25}]};
  await call('anon','/api/finance/journals/manual',manual,401);
  const draft=await call('admin','/api/finance/journals/manual',manual);assert.ok(draft.voucherNo.startsWith('JV-2026-'));
