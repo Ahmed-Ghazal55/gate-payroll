@@ -151,7 +151,13 @@ export function JahezWorkspace() {
       setSelected(doc);
       load();
     } catch (err: unknown) {
-      toast(err instanceof ApiError ? err.message : 'تعذر البناء', 'danger');
+      const msg =
+        err instanceof ApiError
+          ? err.message
+          : err instanceof Error
+            ? err.message
+            : 'تعذر بناء تقرير المطابقة';
+      toast(msg || 'تعذر بناء تقرير المطابقة', 'danger');
     } finally {
       setBusy(false);
     }

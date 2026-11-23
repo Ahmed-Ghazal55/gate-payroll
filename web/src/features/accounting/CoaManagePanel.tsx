@@ -72,12 +72,20 @@ export function CoaManagePanel() {
   );
 
   const columns: ColumnDef<CoaRow>[] = [
-    { key: 'code', header: 'الرمز', render: (r) => <span className="num font-bold">{r.code}</span> },
-    { key: 'nameAr', header: 'الاسم', filterable: true, render: (r) => r.nameAr || '—' },
-    { key: 'nature', header: 'الطبيعة', filterable: true, render: (r) => r.nature || '—' },
+    {
+      key: 'code',
+      header: 'الرمز',
+      filterable: true,
+      filterType: 'text',
+      render: (r) => <span className="num font-bold">{r.code}</span>,
+    },
+    { key: 'nameAr', header: 'الاسم', filterable: true, filterType: 'text', render: (r) => r.nameAr || '—' },
+    { key: 'nature', header: 'الطبيعة', filterable: true, filterType: 'text', render: (r) => r.nature || '—' },
     {
       key: 'posting',
       header: 'ترحيل',
+      filterable: true,
+      filterType: 'text',
       render: (r) => (r.posting ? 'حساب ترحيل' : 'تجميعي'),
     },
     {

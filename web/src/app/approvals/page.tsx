@@ -261,7 +261,7 @@ function ApprovalsInner() {
     <div className="space-y-4">
       <PageHeader
         title="الاعتمادات"
-        description="صندوق اعتماد موحّد للسلف والإيقاف والخصم وتخفيض المديونية وطلبات صرف الأموال بشخصين."
+        description={`صندوق اعتماد موحّد للسلف والإيقاف والخصم وتخفيض المديونية وطلبات صرف الأموال بشخصين. ${MAKER_CHECKER_AR}`}
         moreActions={[{ label: 'تحديث', onClick: () => void load(), icon: <RefreshCw size={14} /> }]}
       />
 
@@ -301,7 +301,10 @@ function ApprovalsInner() {
       ) : error ? (
         <ErrorState message={error} onRetry={() => void load()} />
       ) : rows.length === 0 ? (
-        <EmptyState title="لا توجد طلبات بانتظار اعتمادك حاليًا" />
+        <EmptyState
+          title="لا توجد طلبات بانتظار اعتمادك حاليًا"
+          description={MAKER_CHECKER_AR}
+        />
       ) : (
         <DataTable columns={columns} data={rows} getRowId={(r) => r.id} />
       )}
