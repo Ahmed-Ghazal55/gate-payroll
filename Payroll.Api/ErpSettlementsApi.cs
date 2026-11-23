@@ -18,6 +18,9 @@ public static class ErpSettlementsApi
     /// <summary>Test seam for Omar live batches. Production leaves null and opens ErpReadonly.</summary>
     public static Func<DbConnection,DbTransaction?,string,string,string,string,LiveBatch>? LiveBatchProvider;
     public sealed record LiveBatch(IReadOnlyList<JsonObject> Items,DateTimeOffset SourceAsOf,string Source);
+    /// <summary>Jahez live = financial operations (not DailyOrders counts). Chefz = wallet settlements.</summary>
+    public static string LiveKindFor(string platform)=>platform=="chefz"?"chefz_settlement":"erp_jahez_operation";
+    public static int LivePageSkip(int page,int pageSize)=>checked(Math.Max(0,page-1)*pageSize);
 
     public static JsonObject Live(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string app,JsonObject query)
     {
@@ -95,7 +98,14 @@ public static class ErpSettlementsApi
             ??throw new ApiError("تسوية عمر غير موجودة.",404);
         J.Need(settlement.S("companyId")==companyId&&!settlement.B("sourceDeleted"),"التسوية خارج نطاق الشركة.",409);
         J.Need(InPeriod(settlement.S("periodFrom"),invoice.S("period")),"التسوية خارج فترة الفاتورة.",409);
-        // Platform account ids are Omar ERP ids, not CoA vault codes — company+platform scope already enforced.
+        var invoiceAccounts=Store.List(c,"platform_invoice_line",tx)
+            .Where(l=>l.S("invoiceId")==invoiceId)
+            .Select(l=>l.S("platformAccountId"))
+            .Where(a=>a!="")
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        string settleAccount=settlement.S("platformAccountId");
+        J.Need(settleAccount!=""&&invoiceAccounts.Contains(settleAccount),
+            "التسوية غير مربوطة بحساب منصة على الفاتورة؛ اختر تسوية حسابات الفاتورة فقط.",409);
 
         SchemaOperationCapture.Ensure(c,tx);
         DateOnly month=DateOnly.ParseExact(invoice.S("period")+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture);
@@ -300,8 +310,8 @@ public static class ErpSettlementsApi
         erp.Open();
         SourceReader.VerifyReadOnly(erp);
         DateTimeOffset asOf=DateTimeOffset.UtcNow;
-        // Live kinds in Payroll.Sync (Omar readers): chefz_settlement; Jahez day orders (no erp_jahez_operation live kind).
-        string kind=platform=="chefz"?"chefz_settlement":"jahez_daily_order";
+        // Live kinds: chefz_settlement; Jahez financial operations (erp_jahez_operation), not DailyOrders counts.
+        string kind=LiveKindFor(platform);
         if(!LiveOperationsQuery.HasKind(kind))
             throw new ApiError(platform=="chefz"?"قراءة تسويات شيفز المباشرة غير متاحة.":"قراءة عمليات جاهز المباشرة غير متاحة.",503);
         var sponsor=FinancialCore.FindSponsor(companyId);
@@ -313,7 +323,8 @@ public static class ErpSettlementsApi
         int page=1,size=LiveOperationsQuery.MaxPageSize;long seen=0;
         while(true)
         {
-            var request=new LiveOperationsQuery.PageRequest(page,size,"id","",0,size,"",
+            int skip=LivePageSkip(page,size);
+            var request=new LiveOperationsQuery.PageRequest(page,size,"id","",skip,size,"",
                 from.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),to.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),platform,"");
             var result=LiveOperationsQuery.Page(erp,kind,request,scope,FinancialCore.Sponsors);
             var projected=LiveOperationsSource.Project(result.Snapshot,FinancialCore.Sponsors,kind);
