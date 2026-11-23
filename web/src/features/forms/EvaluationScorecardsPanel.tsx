@@ -111,8 +111,12 @@ export function EvaluationScorecardsPanel({
     }
   };
 
-  const applyDrill = (raw: Record<string, unknown> | undefined) => {
-    if (!raw) return;
+  const applyDrill = (
+    raw: Record<string, unknown> | undefined,
+    identityVisible?: boolean
+  ) => {
+    // H2: never open the replies table when the server hid identity (n<3).
+    if (!raw || identityVisible === false) return;
     onDrillDown({
       target: String(raw.target || 'replies'),
       city: raw.city ? String(raw.city) : undefined,
@@ -124,15 +128,28 @@ export function EvaluationScorecardsPanel({
   };
 
   const heatmapStaff = useMemo(() => {
-    const map = new Map<string, { name: string; dims: Record<string, number | null>; low: boolean }>();
+    const map = new Map<
+      string,
+      {
+        name: string;
+        dims: Record<string, number | null>;
+        low: boolean;
+        identityVisible: boolean;
+        drillDown?: Record<string, unknown>;
+      }
+    >();
     for (const cell of heatmap?.cells || []) {
       const row = map.get(cell.staffId) || {
         name: cell.name || cell.staffId,
         dims: {},
         low: false,
+        identityVisible: cell.identityVisible !== false,
+        drillDown: cell.drillDown as Record<string, unknown> | undefined,
       };
       row.dims[cell.dimension] = cell.average ?? null;
       if (cell.lowSample) row.low = true;
+      if (cell.identityVisible === false) row.identityVisible = false;
+      if (cell.drillDown) row.drillDown = cell.drillDown as Record<string, unknown>;
       map.set(cell.staffId, row);
     }
     return [...map.entries()];
@@ -192,11 +209,14 @@ export function EvaluationScorecardsPanel({
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
           {(supervisors?.items || []).map((item) => (
             <button
-              key={item.staffId}
+              key={`${item.staffId}:${item.department || ''}`}
               type="button"
               data-testid={`eval-supervisor-scorecard-${item.staffId}`}
-              onClick={() => applyDrill(item.drillDown as Record<string, unknown>)}
-              className="text-start rounded-xl border border-[var(--line)] bg-[var(--bg)] p-3 space-y-2 hover:border-[var(--accent)] transition"
+              disabled={item.identityVisible === false || !item.drillDown}
+              onClick={() =>
+                applyDrill(item.drillDown as Record<string, unknown> | undefined, item.identityVisible)
+              }
+              className="text-start rounded-xl border border-[var(--line)] bg-[var(--bg)] p-3 space-y-2 hover:border-[var(--accent)] transition disabled:hover:border-[var(--line)] disabled:cursor-default"
             >
               <div className="flex items-start justify-between gap-2">
                 <div>
@@ -287,8 +307,11 @@ export function EvaluationScorecardsPanel({
                 key={item.app}
                 type="button"
                 data-testid={`eval-app-scorecard-${item.app}`}
-                onClick={() => applyDrill(item.drillDown as Record<string, unknown>)}
-                className="text-start rounded-xl border border-[var(--line)] bg-[var(--bg)] p-3 space-y-2 hover:border-[var(--accent)] transition"
+                disabled={item.identityVisible === false || !item.drillDown}
+                onClick={() =>
+                  applyDrill(item.drillDown as Record<string, unknown> | undefined, item.identityVisible)
+                }
+                className="text-start rounded-xl border border-[var(--line)] bg-[var(--bg)] p-3 space-y-2 hover:border-[var(--accent)] transition disabled:hover:border-[var(--line)] disabled:cursor-default"
               >
                 <div className="flex items-start justify-between gap-2">
                   <div className="text-sm font-bold">{platformDisplayName(item.app, 'ar')}</div>
@@ -405,8 +428,9 @@ export function EvaluationScorecardsPanel({
                 <div className="p-2" role="rowheader">
                   <button
                     type="button"
-                    className="font-bold text-[var(--ink)] hover:text-[var(--accent)]"
-                    onClick={() => onDrillDown({ target: 'replies', supervisorId: staffId })}
+                    className="font-bold text-[var(--ink)] hover:text-[var(--accent)] disabled:hover:text-[var(--ink)] disabled:cursor-default"
+                    disabled={!row.identityVisible || !row.drillDown}
+                    onClick={() => applyDrill(row.drillDown, row.identityVisible)}
                   >
                     {row.name}
                     {row.low ? (
@@ -421,8 +445,9 @@ export function EvaluationScorecardsPanel({
                     <div key={d} className="p-1" role="gridcell">
                       <button
                         type="button"
-                        onClick={() => onDrillDown({ target: 'replies', supervisorId: staffId })}
-                        className="w-full rounded-md px-1 py-2 num font-bold"
+                        disabled={!row.identityVisible || !row.drillDown}
+                        onClick={() => applyDrill(row.drillDown, row.identityVisible)}
+                        className="w-full rounded-md px-1 py-2 num font-bold disabled:cursor-default"
                         style={{
                           background: `color-mix(in srgb, var(--accent) ${intensity}%, var(--raised))`,
                         }}
@@ -496,16 +521,14 @@ export function EvaluationScorecardsPanel({
                       <button
                         type="button"
                         data-testid={`eval-city-app-cell-${city}-${platform}`}
+                        disabled={cell?.identityVisible === false || !cell?.drillDown}
                         onClick={() =>
                           applyDrill(
-                            (cell?.drillDown as Record<string, unknown>) || {
-                              target: 'replies',
-                              city,
-                              app: platform,
-                            }
+                            cell?.drillDown as Record<string, unknown> | undefined,
+                            cell?.identityVisible
                           )
                         }
-                        className="w-full rounded-md border border-[var(--line)] bg-[var(--bg)] px-1 py-2 hover:border-[var(--accent)]"
+                        className="w-full rounded-md border border-[var(--line)] bg-[var(--bg)] px-1 py-2 hover:border-[var(--accent)] disabled:hover:border-[var(--line)] disabled:cursor-default"
                       >
                         <div className="num font-black">{fmt(cell?.average)}</div>
                         <div className="text-[9px] text-[var(--muted)] num">

@@ -69,6 +69,12 @@ describe('EV1 evaluation survey and admin results screens', () => {
     assert.match(panel, /eval-city-app-matrix/);
     assert.match(apiTs, /getEvaluationSupervisorScorecard/);
     assert.match(apiTs, /exportEvaluationScorecard/);
+    assert.match(panel, /identityVisible === false/);
+    assert.match(panel, /disabled:cursor-default/);
+    assert.match(adminTab, /supervisorId: supervisorFilter/);
+    assert.match(adminTab, /department: departmentFilter/);
+    assert.match(apiTs, /supervisorId/);
+    assert.match(apiTs, /department/);
   });
 
   it('supports 3 languages (ar/en/ur), nationality, 5 staff dimensions (1-10), 1-5 app stars, factors, complaints, and pending role placeholder across web, RiderForm, and mobile', () => {

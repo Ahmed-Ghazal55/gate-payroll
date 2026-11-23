@@ -206,6 +206,9 @@ export function EvaluationsTab() {
           pageSize: responsesPageSize,
           filters: mergedFilters,
           sort: responsesServerQuery.sortParam,
+          // H3: scorecard drill-down lands on the same supervisor/department reply set.
+          supervisorId: supervisorFilter !== 'ALL' ? supervisorFilter : undefined,
+          department: departmentFilter !== 'ALL' ? departmentFilter : undefined,
         }),
       ]);
       setStats(loadedStats);
@@ -226,6 +229,8 @@ export function EvaluationsTab() {
     cityFilter,
     nationalityFilter,
     appFilter,
+    supervisorFilter,
+    departmentFilter,
     toast,
   ]);
 

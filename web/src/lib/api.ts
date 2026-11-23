@@ -2424,7 +2424,15 @@ export const api = {
     ),
   getEvaluationResponses: (
     roundId: string,
-    params?: { page?: number; pageSize?: number; q?: string; filters?: string; sort?: string }
+    params?: {
+      page?: number;
+      pageSize?: number;
+      q?: string;
+      filters?: string;
+      sort?: string;
+      supervisorId?: string;
+      department?: string;
+    }
   ) => {
     const q = new URLSearchParams();
     q.set('page', String(params?.page ?? 1));
@@ -2432,6 +2440,8 @@ export const api = {
     if (params?.q) q.set('q', params.q);
     if (params?.filters) q.set('filters', params.filters);
     if (params?.sort) q.set('sort', params.sort);
+    if (params?.supervisorId) q.set('supervisorId', params.supervisorId);
+    if (params?.department) q.set('department', params.department);
     return handleRequest<EvaluationResponsesPage>(
       `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/responses?${q.toString()}`
     );
