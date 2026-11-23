@@ -67,7 +67,7 @@ public sealed class TreasuryW2ApiTests
             SchemaSql.Exec(c,tx,$"""
                 INSERT INTO {SchemaSql.Q(c,"fin","period_balance")}
                 (id,company_id,period_id,period_month,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
-                VALUES(@id,@c,@p,'2026-11-01',@a,@cc,'none',@dim,0,100,0,100,{SchemaSql.NowLiteral(c)})
+                VALUES(@id,@c,@p,'2026-11-01',@a,@cc,'none',@dim,100,0,0,100,{SchemaSql.NowLiteral(c)})
                 """,
                 ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@c",company),("@p",SchemaSql.GuidText(periodId)),
                 ("@a",accountId),("@cc",SchemaSql.GuidText(SchemaOrgCostCentre.NoneId)),("@dim",dim));
@@ -179,6 +179,11 @@ public sealed class TreasuryW2ApiTests
                     ["id"]="syn-chefz-inv",["companyId"]=company,["platform"]="Chefz",["period"]="2026-11",
                     ["approvalStatus"]="approved",["status"]="approved"
                 },tx);
+                Store.Save(c,"platform_invoice_line",new()
+                {
+                    ["id"]="syn-chefz-inv-line",["invoiceId"]="syn-chefz-inv",["companyId"]=company,
+                    ["platformAccountId"]="syn-chefz-acc",["period"]="2026-11",["platform"]="Chefz"
+                },tx);
                 return true;
             });
             var live=f.Store.Read(c=>ErpSettlementsApi.Live(c,null,Maker,"chefz",new(){["companyId"]=company,["period"]="2026-11",["half"]="1"}));
@@ -223,13 +228,27 @@ public sealed class TreasuryW2ApiTests
             {
                 ["id"]="syn-ho-main",["companyId"]=company,["businessDate"]="2026-11-20",["date"]="2026-11-20",
                 ["status"]="confirmed",["statusCode"]="2",["vaultId"]="vault-main",["vaultCode"]="MAIN",
-                ["cashboxAmount"]=80,["bankAmount"]=0,["petroAppAmount"]=0
+                ["cashboxAmount"]=80,
+                ["moneyMovementSourceIds"]=new JsonArray("mv-syn-ho-main"),["bankAmount"]=0,["petroAppAmount"]=0
+            },tx);
+            Store.Save(c,"erp_money_movement",new()
+            {
+                ["id"]="mv-syn-ho-main",["erpSourceId"]="mv-syn-ho-main",["companyId"]=company,["occurredAt"]="2026-11-20T09:00:00Z",
+                ["fund"]="Cashbox",["fundCode"]="1",["purposeCode"]="Settlement",["directionCode"]="1",
+                ["amount"]=80,["vaultId"]="vault-main"
             },tx);
             Store.Save(c,"erp_cashbox_handover",new()
             {
                 ["id"]="syn-ho-togary",["companyId"]=company,["businessDate"]="2026-11-20",["date"]="2026-11-20",
                 ["status"]="confirmed",["statusCode"]="2",["vaultId"]="vault-togary",["vaultCode"]="togary-cash",
-                ["cashboxAmount"]=999,["bankAmount"]=0,["petroAppAmount"]=0
+                ["cashboxAmount"]=999,["bankAmount"]=0,["petroAppAmount"]=0,
+                ["moneyMovementSourceIds"]=new JsonArray("mv-syn-ho-togary")
+            },tx);
+            Store.Save(c,"erp_money_movement",new()
+            {
+                ["id"]="mv-syn-ho-togary",["erpSourceId"]="mv-syn-ho-togary",["companyId"]=company,["occurredAt"]="2026-11-20T09:00:00Z",
+                ["fund"]="Cashbox",["fundCode"]="1",["purposeCode"]="Settlement",["directionCode"]="1",
+                ["amount"]=999,["vaultId"]="vault-togary"
             },tx);
             return JahezReconciliation.OpenDay(c,tx,Maker,new(){["companyId"]=company,["businessDate"]="2026-11-20",["vaultCode"]="MAIN",["vaultId"]="vault-main"});
         });
@@ -250,7 +269,14 @@ public sealed class TreasuryW2ApiTests
             {
                 ["id"]="syn-ho-2",["companyId"]=company,["businessDate"]="2026-11-22",["date"]="2026-11-22",
                 ["status"]="confirmed",["statusCode"]="2",["vaultId"]="vault-main",["vaultCode"]="MAIN",
-                ["cashboxAmount"]=50,["bankAmount"]=0,["petroAppAmount"]=0
+                ["cashboxAmount"]=50,["bankAmount"]=0,["petroAppAmount"]=0,
+                ["moneyMovementSourceIds"]=new JsonArray("mv-syn-ho-2")
+            },tx);
+            Store.Save(c,"erp_money_movement",new()
+            {
+                ["id"]="mv-syn-ho-2",["erpSourceId"]="mv-syn-ho-2",["companyId"]=company,["occurredAt"]="2026-11-22T09:00:00Z",
+                ["fund"]="Cashbox",["fundCode"]="1",["purposeCode"]="Settlement",["directionCode"]="1",
+                ["amount"]=50,["vaultId"]="vault-main"
             },tx);
             var d=JahezReconciliation.OpenDay(c,tx,Maker,new(){["companyId"]=company,["businessDate"]="2026-11-22",["vaultCode"]="MAIN",["vaultId"]="vault-main"});
             JahezReconciliation.SubmitDay(c,tx,Maker,d.S("id"));
@@ -265,7 +291,14 @@ public sealed class TreasuryW2ApiTests
             {
                 ["id"]="syn-ho-togary-21",["companyId"]=company,["businessDate"]="2026-11-21",["date"]="2026-11-21",
                 ["status"]="confirmed",["statusCode"]="2",["vaultId"]="vault-togary",["vaultCode"]="togary-cash",
-                ["cashboxAmount"]=1,["bankAmount"]=0,["petroAppAmount"]=0
+                ["cashboxAmount"]=1,["bankAmount"]=0,["petroAppAmount"]=0,
+                ["moneyMovementSourceIds"]=new JsonArray("mv-syn-ho-togary-21")
+            },tx);
+            Store.Save(c,"erp_money_movement",new()
+            {
+                ["id"]="mv-syn-ho-togary-21",["erpSourceId"]="mv-syn-ho-togary-21",["companyId"]=company,["occurredAt"]="2026-11-21T09:00:00Z",
+                ["fund"]="Cashbox",["fundCode"]="1",["purposeCode"]="Settlement",["directionCode"]="1",
+                ["amount"]=1,["vaultId"]="vault-togary"
             },tx);
             return JahezReconciliation.OpenDay(c,tx,Maker,new(){["companyId"]=company,["businessDate"]="2026-11-21",["vaultCode"]="togary",["vaultId"]="vault-togary"});
         });
