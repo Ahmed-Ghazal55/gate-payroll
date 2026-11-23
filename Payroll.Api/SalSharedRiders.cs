@@ -69,12 +69,13 @@ public static class SalSharedRiders
         if(clearedHold is not null and not DBNull)
         {
             // RWC4a3 H11: consolidated hold — refresh combined_net from live rider nets after recalc.
+            // Exception-cleared holds may still have pending apps; mark this late app received.
+            SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","shared_rider_hold_app")} SET received=1 WHERE hold_id=@h AND app_code=@a",
+                ("@h",clearedHold.ToString()!),("@a",calculatingApp));
             long pendingAfter=Convert.ToInt64(SchemaSql.Scalar(c,tx,$"SELECT COUNT(*) FROM {SchemaSql.Q(c,"sal","shared_rider_hold_app")} WHERE hold_id=@h AND received=0",("@h",clearedHold.ToString()!))??0L);
             if(pendingAfter==0)
-            {
                 ConsolidateIfComplete(c,tx,clearedHold.ToString()!,erpRider,periodMonth);
-                return;
-            }
+            return;
         }
         object? existing=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'",
             ("@erp",erpRider),("@pm",periodMonth));
@@ -184,11 +185,11 @@ public static class SalSharedRiders
         var hold=LoadOpenHold(c,tx,erpRider,periodMonth);
         string companyId=CompanyForRiderMonth(c,tx,erpRider,periodMonth);
         FinancialScopes.DemandSponsor(actor,companyId);
-        decimal amount=J.Money(hold.N("combinedNet"));
         string periodKey=periodMonth.Length>=7?periodMonth[..7]:periodMonth;
         var doc=SharedRiderConsolidation.Ensure(c,tx,erpRider,periodKey,companyId);
         Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
-        string payloadHash=ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",erpRider),("period",periodKey),("reason",reason.Trim()));
+        // RWC4a3F: hash live nets so a post-decision recalc voids the dual approval.
+        var (amount,payloadHash)=ReleasePayload(c,tx,doc.S("id"),erpRider,periodMonth,reason);
         var req=ApprovalsArea.OpenMoneyOutDual(c,tx,actor,"shared_rider_release",doc.S("id"),amount,payloadHash,
             "اعتماد فك حجز مندوب مشترك","طلب فك حجز مندوب عمل مشترك — بانتظار اعتماد شخصين.",
             new(){["rider"]=erpRider,["period"]=periodKey,["reason"]=reason.Trim(),["companyId"]=companyId,["sponsorId"]=companyId,["payloadHash"]=payloadHash,["holdId"]=hold.S("id")});
@@ -209,8 +210,7 @@ public static class SalSharedRiders
         string companyId=CompanyForRiderMonth(c,tx,erpRider,periodMonth);
         string periodKey=periodMonth.Length>=7?periodMonth[..7]:periodMonth;
         var doc=SharedRiderConsolidation.Ensure(c,tx,erpRider,periodKey,companyId);
-        decimal amount=J.Money(hold.N("combinedNet"));
-        string currentHash=ApprovalsArea.PayloadContentHash(doc.S("id"),amount,("rider",erpRider),("period",periodKey),("reason",reason.Trim()));
+        var (amount,currentHash)=ReleasePayload(c,tx,doc.S("id"),erpRider,periodMonth,reason);
         ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,actor,ApprovalsArea.DualSharedRiderRelease,doc.S("id"),currentHash);
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
         SchemaSql.Exec(c,tx,$"""
@@ -222,6 +222,36 @@ public static class SalSharedRiders
         Store.Save(c,SharedRiderConsolidation.Kind,doc,tx);
         Store.Audit(c,tx,"sal.shared_rider_released",hold.S("id"),actor.Identity!.Name!);
         return new(){["id"]=hold.S("id"),["status"]="cleared",["erpRiderId"]=erpRider,["periodMonth"]=periodMonth,["released"]=true};
+    }
+
+    static (decimal Amount,string Hash) ReleasePayload(DbConnection c,DbTransaction tx,string docId,string erpRider,string periodMonth,string reason)
+    {
+        var parts=new List<(string App,string RiderId,decimal Net)>();
+        using(var cmd=c.CreateCommand())
+        {
+            cmd.Transaction=tx;
+            cmd.CommandText=$"""
+                SELECT pr.app_code,r.id,r.salary_net FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
+                INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+                WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND pr.status<>4 AND pr.run_mode=0
+                ORDER BY pr.app_code,r.id
+                """;
+            Param(cmd,"@erp",erpRider);Param(cmd,"@pm",periodMonth);
+            using var r=cmd.ExecuteReader();
+            while(r.Read())parts.Add((r["app_code"].ToString()!,r["id"].ToString()!,Convert.ToDecimal(r["salary_net"])));
+        }
+        decimal signed=J.Money(parts.Sum(p=>p.Net));
+        // Dual money-out amount must be ≥0; signed nets stay in the hash so a recalc voids the decision.
+        decimal amount=J.Money(Math.Abs(signed));
+        var extras=new List<(string,string)>{("rider",erpRider),("period",periodMonth.Length>=7?periodMonth[..7]:periodMonth),("reason",reason.Trim()),("signedNet",signed.ToString(CultureInfo.InvariantCulture))};
+        foreach(var p in parts)
+        {
+            extras.Add(("app",p.App));
+            extras.Add(("payRunRiderId",p.RiderId));
+            extras.Add(("salaryNet",p.Net.ToString(CultureInfo.InvariantCulture)));
+        }
+        string hash=ApprovalsArea.PayloadContentHash(docId,amount,extras.ToArray());
+        return (amount,hash);
     }
 
     static JsonObject LoadOpenHold(DbConnection c,DbTransaction tx,string erpRider,string periodMonth)
