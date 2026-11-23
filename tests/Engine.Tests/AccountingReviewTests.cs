@@ -160,16 +160,16 @@ public sealed class AccountingReviewTests
 
     [TestMethod] public void SharedCostFundingFromThirdCompanyHasExplicitBalancedClearing()
     {
-        WithStore(store=>{AccountingPostingTests.SeedCash(store,"BANK.EX",1000m);store.Write((c,tx)=>
-        {
-            var debt=new JsonObject{["id"]="split",["iqama"]="2000000001",["category"]="WorkPermit",["entryMode"]="Disbursement",["allocationMode"]="SharedSplit",
-                ["totalCostAmount"]=900m,["companyShareAmount"]=300m,["totalAmount"]=600m,["originSponsorId"]=Bw,["creditorSponsorId"]=Bw,
-                ["paymentVaultCode"]="BANK.EX",["sourceRef"]="split",["effectiveFrom"]="2026-10"};
-            Debts.PostCreationJournalIfNeeded(c,tx,debt,"review");
-            var journal=Store.Get(c,debt.S("journalEntryId"),"journal",tx)!;
-            Assert.IsTrue(journal["lines"]!.AsArray().OfType<JsonObject>().GroupBy(l=>l.S("sponsorId")).All(g=>g.Sum(l=>l.N("debit")-l.N("credit"))==0));
-            Assert.AreEqual(7,journal["lines"]!.AsArray().Count);return true;
-        });});
+        WithStore(store=>{AccountingPostingTests.SeedCash(store,"BANK.EX",1000m);
+            var err=Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>
+            {
+                var debt=new JsonObject{["id"]="split",["iqama"]="2000000001",["category"]="WorkPermit",["entryMode"]="Disbursement",["allocationMode"]="SharedSplit",
+                    ["totalCostAmount"]=900m,["companyShareAmount"]=300m,["totalAmount"]=600m,["originSponsorId"]=Bw,["creditorSponsorId"]=Bw,
+                    ["paymentVaultCode"]="BANK.EX",["sourceRef"]="split",["effectiveFrom"]="2026-10"};
+                Debts.PostCreationJournalIfNeeded(c,tx,debt,"review");return true;
+            }));
+            Assert.AreEqual(409,err.Status);Assert.IsTrue(err.Message.Contains("غير متاح",StringComparison.Ordinal));
+        });
     }
 
     [TestMethod] public void ReviewerAndOperationalRolesCannotUseUnrelatedFinanceRoutes()

@@ -27,11 +27,12 @@ public sealed class AccountingPostingTests
     }
     [TestMethod] public void DisbursementWithoutAvailableCashRollsBackDebtAndJournal()
     {
-        InStore(store=>{Assert.ThrowsExactly<ApiError>(()=>Create(store,Debt("no-funds")));Assert.AreEqual(0,store.Read(c=>Store.List(c,"debt").Count));Assert.AreEqual(0,store.Read(c=>Store.List(c,"journal").Count));});
+        // RWD1b H2: shared poster refuses Disbursement until the payment engine exists (Arabic 409).
+        InStore(store=>{var err=Assert.ThrowsExactly<ApiError>(()=>Create(store,Debt("no-funds")));Assert.AreEqual(409,err.Status);Assert.AreEqual(0,store.Read(c=>Store.List(c,"debt").Count));Assert.AreEqual(0,store.Read(c=>Store.List(c,"journal").Count));});
     }
     [TestMethod] public void CashDisbursementReducesFundsExactlyOnce()
     {
-        InStore(store=>{SeedCash(store,"MAIN.BW.DEBT",1000);var debt=Debt("advance");Create(store,debt);store.Write((c,tx)=>{Debts.PostCreationJournalIfNeeded(c,tx,Store.Get(c,"advance","debt",tx)!,"synthetic");return true;});Assert.AreEqual(400m,store.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.BW.DEBT")));Assert.AreEqual(2,store.Read(c=>Store.List(c,"journal").Count));});
+        InStore(store=>{SeedCash(store,"MAIN.BW.DEBT",1000);var err=Assert.ThrowsExactly<ApiError>(()=>Create(store,Debt("advance")));Assert.AreEqual(409,err.Status);Assert.IsTrue(err.Message.Contains("غير متاح",StringComparison.Ordinal));Assert.AreEqual(1000m,store.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.BW.DEBT")));});
     }
     [TestMethod] public void TransferredPlatformDebtCreatesPlatformLiabilityWithoutFictitiousCash()
     {
@@ -126,7 +127,8 @@ public sealed class AccountingPostingTests
     }
     [TestMethod] public void FutureInstallmentStartDoesNotPostTodaysDisbursementInFutureMonth()
     {
-        InStore(store=>{SeedCash(store,"MAIN.BW.DEBT",1000);var debt=Debt("future-start");debt["effectiveFrom"]=DateTime.UtcNow.AddMonths(3).ToString("yyyy-MM");Create(store,debt);store.Read(c=>{var posted=Store.Get(c,debt.S("journalEntryId"),"journal")!;Assert.AreEqual(DateTime.UtcNow.ToString("yyyy-MM"),posted.S("period"));Assert.AreNotEqual(debt.S("effectiveFrom"),posted.S("period"));return true;});});
+        InStore(store=>{SeedCash(store,"MAIN.BW.DEBT",1000);var debt=Debt("future-start");debt["effectiveFrom"]=DateTime.UtcNow.AddMonths(3).ToString("yyyy-MM");
+            var err=Assert.ThrowsExactly<ApiError>(()=>Create(store,debt));Assert.AreEqual(409,err.Status);Assert.AreEqual(0,store.Read(c=>Store.List(c,"journal").Count(j=>j.S("transactionType")=="debt_creation")));});
     }
     [TestMethod] public void IndependentBanksPayOnBehalfOnlyWithExplicitEvidenceAndBalancedIntercompanyLines()
     {

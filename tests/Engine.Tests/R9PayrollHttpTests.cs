@@ -48,13 +48,18 @@ public sealed class R9PayrollHttpTests
         for(int stage=1;stage<=6;stage++)await f.Request(f.Maker,path+"/advance",new(){["stage"]=stage});
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count(d=>d.S("category")=="NegativeSalaryCarryover")));
         await f.Request(f.Maker,path+"/review/"+Positive,new(){["action"]="adjust",["itemType"]="bonus",["amount"]=100,["reason"]="Synthetic bonus"});await f.Request(f.Maker,path+"/review/"+Positive,new(){["action"]="adjust",["itemType"]="correction",["amount"]=-200,["reason"]="Synthetic downward correction"});
+        // M-0670: edit/confirm debts before salary approval; approval refuses until confirm.
+        await f.Request(f.Maker,path+"/debt-deductions",new(){["action"]="edit",["rider"]=Positive,["key"]="debt:synthetic-r9-skip",["amount"]=0,["reason"]="Skip by agreement this month"});
+        await f.Request(f.Maker,path+"/debt-deductions",new(){["action"]="confirm-all"},403);
+        await f.Request(f.Checker,path+"/debt-deductions",new(){["action"]="confirm-all"});
         cycle=(await f.Request(f.Checker,path+"/advance",new(){["stage"]=7})).AsObject();Assert.AreEqual("partially_approved",cycle.S("status"));
-        var beforeDebt=(await f.Request(f.Maker,"/api/finance/bank-file/preview",new(){["sponsorId"]=company,["period"]="2026-10"})).AsObject();Assert.AreEqual(0,beforeDebt["rows"]!.AsArray().Count,"Payout waits for debt confirmation.");
-        await f.Request(f.Maker,path+"/review/"+Negative,new(){["action"]="approve",["reason"]="Accept final deficit after all adjustments"});cycle=(await f.Request(f.Checker,path+"/advance",new(){["stage"]=7})).AsObject();Assert.AreEqual("approved",cycle.S("status"));
+        Assert.AreEqual(9000m,f.Store.Read(c=>Store.Get(c,"synthetic-r9-debt","debt")!.N("remainingBalance")),"Confirmed instalment posts with salary approval.");
+        await f.Request(f.Maker,path+"/review/"+Negative,new(){["action"]="approve",["reason"]="Accept final deficit after all adjustments"});
+        // Negative rider also needs debt confirm (or deferred) before their salary approval.
+        await f.Request(f.Checker,path+"/debt-deductions",new(){["action"]="confirm-all"});
+        cycle=(await f.Request(f.Checker,path+"/advance",new(){["stage"]=7})).AsObject();Assert.AreEqual("approved",cycle.S("status"));
         var carry=f.Store.Read(c=>Store.List(c,"debt").Single(d=>d.S("category")=="NegativeSalaryCarryover"));Assert.AreEqual(32.95m,carry.N("remainingBalance"));Assert.AreEqual("112507",carry.S("receivableAccountCode"));
-        Assert.AreEqual(10000m,f.Store.Read(c=>Store.Get(c,"synthetic-r9-debt","debt")!.N("remainingBalance")));
-        await f.Request(f.Maker,path+"/debt-deductions",new(){["action"]="edit",["rider"]=Positive,["key"]="debt:synthetic-r9-skip",["amount"]=0,["reason"]="Skip by agreement this month"});await f.Request(f.Maker,path+"/debt-deductions",new(){["action"]="confirm-all"},403);
-        await f.Request(f.Checker,path+"/debt-deductions",new(){["action"]="confirm-all"});Assert.AreEqual(9000m,f.Store.Read(c=>Store.Get(c,"synthetic-r9-debt","debt")!.N("remainingBalance")));Assert.AreEqual(50m,f.Store.Read(c=>Store.Get(c,"synthetic-r9-skip","debt")!.N("remainingBalance")));
+        Assert.AreEqual(9000m,f.Store.Read(c=>Store.Get(c,"synthetic-r9-debt","debt")!.N("remainingBalance")));Assert.AreEqual(50m,f.Store.Read(c=>Store.Get(c,"synthetic-r9-skip","debt")!.N("remainingBalance")));
         var bank=(await f.Request(f.Maker,"/api/finance/bank-file/preview",new(){["sponsorId"]=company,["period"]="2026-10"})).AsObject();Assert.IsTrue(bank.B("canExport"));Assert.AreEqual(1,bank["rows"]!.AsArray().Count);Assert.AreEqual(5066.88m,bank["rows"]![0]!.N("amount"));
         using(var export=await f.Maker.PostAsJsonAsync("/api/finance/bank-file/export",new JsonObject{["sponsorId"]=company,["period"]="2026-10",["previewToken"]=bank.S("previewToken"),["rows"]=bank["rows"]!.DeepClone()})){Assert.AreEqual(HttpStatusCode.OK,export.StatusCode);StringAssert.Contains(await export.Content.ReadAsStringAsync(),"5066.88");}
         var journals=f.Store.Read(c=>Store.List(c,"journal").Where(j=>j.S("payCycleId")==id).ToList());foreach(var j in journals){Assert.AreEqual(j.N("totalDebit"),j.N("totalCredit"));Assert.IsTrue(j["lines"]!.AsArray().All(l=>l!.N("debit")>=0&&l.N("credit")>=0));}

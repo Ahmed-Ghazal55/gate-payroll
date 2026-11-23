@@ -739,8 +739,11 @@ public static class FinancialCore
         // 5-ج. تسليم وتصفير عهدة صندوق جاهز اليومية (Zero-Out EOD Handover) من خزائن جاهز (SUP.*) إلى الصندوق الداخلي الرئيسي (MAIN.*)
         // 6. كشف حساب المندوب أو الموظف الشامل 360 درجة (مدين / دائن / رصيد تراكمي متسلسل زمنياً بدقة / حسب السجل / مع القيود والرواتب)
         api.MapGet("/finance/statement/rider/{iqama}",(string iqama,string? sponsorId,HttpContext ctx)=>store.Read(c=>RiderStatements.Build(c,iqama,sponsorId,ctx.User))).WithTags("Banks and treasury").WithSummary("Read finance statement rider {iqama}");
-        api.MapGet("/finance/statement/rider/{iqama}/simple", (string iqama, string from, string to, string? sponsorId, HttpContext ctx) =>
-            store.Read(c => RiderStatements.BuildSimple(c, iqama, from, to, sponsorId, ctx.User))).WithTags("Banks and treasury").WithSummary("Read finance statement rider {iqama} simple");
+        api.MapGet("/finance/statement/rider/{iqama}/simple", (string iqama, string from, string to, string? sponsorId, string? lang, string? form, HttpContext ctx) =>
+            store.Read(c => string.Equals(form,"rider",StringComparison.OrdinalIgnoreCase)||!string.IsNullOrWhiteSpace(lang)
+                ? RiderStatements.BuildRiderFacing(c, iqama, from, to, sponsorId, lang??"ar", ctx.User)
+                : RiderStatements.BuildSimple(c, iqama, from, to, sponsorId, ctx.User)))
+            .WithTags("Banks and treasury").WithSummary("Read finance statement rider {iqama} simple (optional form=rider + lang=ar|en|ur)");
 
         // 7. Approvals list/decide moved to ApprovalsArea (U-W2-27). Notifications stay here.
         api.MapGet("/notifications/center", (string? tab, string? department,HttpContext ctx) => store.Read(c =>

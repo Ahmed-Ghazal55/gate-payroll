@@ -13,11 +13,54 @@ public static partial class PayCycles
     static void CreateCarry(DbConnection c,DbTransaction tx,JsonObject cycle,JsonObject row,ClaimsPrincipal actor)
     {
         J.Need(Blockers(row).Count==0,"العجز يحتاج حسم الحالة قبل ترحيله.");
-        string id="pay-carry:"+cycle.S("id")+":"+row.S("rider");decimal amount=-row.N("net");
-        J.Need(Store.Get(c,id,"debt",tx)==null,"دين العجز مسجل بالفعل.");
-        Store.Save(c,"debt",new(){["id"]=id,["iqama"]=row.S("rider"),["category"]="NegativeSalaryCarryover",["creditorSponsorId"]=cycle.S("companyId"),["receivableAccountCode"]="112507",["status"]="active",["totalAmount"]=amount,["remainingBalance"]=amount,["paidAmount"]=0,["monthlyInstallment"]=0,["effectiveFrom"]=DateTime.Parse(cycle.S("period")+"-01").AddMonths(1).ToString("yyyy-MM"),["sourceRef"]=cycle.S("id"),["createdBy"]=cycle.S("createdBy"),["approvedBy"]=actor.Identity!.Name,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")},tx);
-        row["carryDebtId"]=id;row["carryAmount"]=amount;
+        decimal amount=-row.N("net");
+        if(amount<=0){row["carryAmount"]=0;return;}
+        string riderKey=row.S("rider");string now=DateTimeOffset.UtcNow.ToString("O");
+        var periodMonth=DateOnly.Parse(cycle.S("period")+"-01");
+        Guid companyId=Guid.Parse(cycle.S("companyId"));
+        SchemaDebt.Ensure(c,tx);SchemaFinAccount.Ensure(c,tx);SchemaFinPeriod.Ensure(c,tx);SchemaFinJournal.Ensure(c,tx);
+        // W1 hr.company debts require an open period + ledger movement (RWD1b H7). Pre-cutover sponsor-only cycles keep the document carry.
+        object? openPeriod=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","accounting_period")} WHERE company_id=@c AND period_month=@m AND state=1",
+            ("@c",SchemaSql.GuidText(companyId)),("@m",periodMonth.ToString("yyyy-MM-01")));
+        object? hrCompany=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"hr","company")} WHERE id=@id",("@id",SchemaSql.GuidText(companyId)));
+        if(openPeriod is null or DBNull)
+        {
+            if(hrCompany is not null and not DBNull)
+                DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth); // throws 409
+            string legacyId="pay-carry:"+cycle.S("id")+":"+riderKey;
+            J.Need(Store.Get(c,legacyId,"debt",tx)==null,"دين العجز مسجل بالفعل.");
+            Store.Save(c,"debt",new(){["id"]=legacyId,["iqama"]=riderKey,["category"]="NegativeSalaryCarryover",["creditorSponsorId"]=cycle.S("companyId"),["receivableAccountCode"]="112507",["status"]="active",["totalAmount"]=amount,["remainingBalance"]=amount,["paidAmount"]=0,["monthlyInstallment"]=0,["effectiveFrom"]=periodMonth.AddMonths(1).ToString("yyyy-MM"),["sourceRef"]=cycle.S("id"),["createdBy"]=cycle.S("createdBy"),["approvedBy"]=actor.Identity!.Name,["createdAt"]=now},tx);
+            row["carryDebtId"]=legacyId;row["carryAmount"]=amount;return;
+        }
+        Guid periodId=openPeriod is Guid pg?pg:Guid.Parse(openPeriod!.ToString()!);
+        Guid debtId=SchemaSql.NewId();
+        Guid erpRider=Guid.TryParse(riderKey,out var rid)?rid:SchemaSql.NewId();
+        SchemaSql.Exec(c,tx,$"""
+            INSERT INTO {SchemaSql.Q(c,"debt","debt")}(id,erp_rider_id,company_id,category,principal,balance,instalment,status,created_by,created_at)
+            VALUES(@id,@r,@c,@cat,@amt,0,@inst,'open',@by,@at)
+            """,("@id",SchemaSql.GuidText(debtId)),("@r",SchemaSql.GuidText(erpRider)),("@c",SchemaSql.GuidText(companyId)),
+            ("@cat","NegativeSalaryCarryover"),("@amt",amount),("@inst",0m),("@by",actor.Identity!.Name!),("@at",now));
+        Guid recv=DebtLedger.AccountId(c,tx,"112507"),payable=DebtLedger.AccountId(c,tx,"212103");
+        var journal=JournalPosting.Post(c,tx,new JournalPosting.Draft(
+            companyId,periodId,periodMonth,periodMonth.AddDays(Math.Min(27,DateTime.UtcNow.Day)),
+            "pay_cycle",debtId,"debt_opening",0,false,actor.Identity!.Name!,
+            [
+                new(recv,SchemaOrgCostCentre.NoneId,cycle.S("app","ninja"),amount,0m,"عجز صافي مسير مرحّل"),
+                new(payable,SchemaOrgCostCentre.NoneId,cycle.S("app","ninja"),0m,amount,"عجز صافي مسير مرحّل")
+            ],NarrationAr:"ترحيل عجز الراتب عند الاعتماد النهائي"));
+        Guid movId=SchemaSql.NewId();
+        SchemaSql.Exec(c,tx,$"""
+            INSERT INTO {SchemaSql.Q(c,"debt","debt_movement")}
+            (id,period_month,debt_id,company_id,occurred_on,amount,source_type,source_id,journal_id,run_mode,payout_blocked,created_by,created_at)
+            VALUES(@id,@pm,@d,@c,@on,@amt,'carryover_doc',@sid,@j,0,0,@by,@at)
+            """,("@id",SchemaSql.GuidText(movId)),("@pm",periodMonth.ToString("yyyy-MM-01")),("@d",SchemaSql.GuidText(debtId)),
+            ("@c",SchemaSql.GuidText(companyId)),("@on",periodMonth.ToString("yyyy-MM-dd")),("@amt",amount),
+            ("@sid",SchemaSql.GuidText(debtId)),("@j",SchemaSql.GuidText(journal.JournalId)),("@by",actor.Identity!.Name!),("@at",now));
+        // W1 salary-linked carryover_112507 needs sal.pay_run_rider (feat/w2-money-core). Document cycles use carryover_doc.
+        Store.Save(c,"debt",new(){["id"]=SchemaSql.GuidText(debtId),["iqama"]=riderKey,["category"]="NegativeSalaryCarryover",["creditorSponsorId"]=cycle.S("companyId"),["receivableAccountCode"]="112507",["status"]="active",["totalAmount"]=amount,["remainingBalance"]=amount,["paidAmount"]=0,["monthlyInstallment"]=0,["effectiveFrom"]=periodMonth.AddMonths(1).ToString("yyyy-MM"),["sourceRef"]=cycle.S("id"),["createdBy"]=cycle.S("createdBy"),["approvedBy"]=actor.Identity!.Name,["createdAt"]=now},tx);
+        row["carryDebtId"]=SchemaSql.GuidText(debtId);row["carryAmount"]=amount;
     }
+    public static void CreateCarryForTests(DbConnection c,DbTransaction tx,JsonObject cycle,JsonObject row,ClaimsPrincipal actor)=>CreateCarry(c,tx,cycle,row,actor);
     static void SettleOperatingFuel(DbConnection c,DbTransaction tx,JsonObject cycle,JsonObject row,ClaimsPrincipal actor)
     {
         foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==row.S("rider")&&d.S("type")=="fuel_recovery"))
@@ -59,14 +102,25 @@ public static partial class PayCycles
         string account=PayPosting.DebtAccount(debt),company=FinancialCore.RequireDebtSponsor(debt).Id;
         return Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>Rows(j["lines"]).OfType<JsonObject>().Select(l=>(J:j,L:l))).Where(x=>x.L.S("debtId")==debt.S("id")&&x.L.S("sponsorId")==company&&FinanceViews.MapAccount(x.L,x.J,debt,null,null)==account).Sum(x=>x.L.N("debit")-x.L.N("credit"));
     }
-    static decimal DebtSelectionLimit(JsonObject row,JsonObject debt)=>J.Money(Math.Min(debt.N("remainingBalance"),Math.Max(0,row.N("salaryNet",row.N("net")))));
+    /// <summary>Edit/confirm cap: remaining and net, and ledger instalment when it is positive (RWD1d H7).</summary>
+    static decimal DebtSelectionLimit(DbConnection c,DbTransaction? tx,JsonObject row,JsonObject debt)
+    {
+        decimal rem=debt.N("remainingBalance"),net=Math.Max(0,row.N("salaryNet",row.N("net")));
+        decimal inst=DebtLedger.InstalmentForPayCycle(c,tx,debt);
+        decimal capped=inst>0?Math.Min(rem,inst):rem;
+        return J.Money(Math.Min(capped,net));
+    }
     static JsonArray ProposedDebtItems(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject cycle,JsonObject row)
     {
         decimal available=Math.Max(0,row.N("salaryNet",row.N("net")));var items=new JsonArray();
         foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==row.S("rider")&&d.S("type")=="debt").OrderBy(d=>d.N("phase")).ThenBy(d=>d.N("order")).ThenBy(d=>d.S("source"),StringComparer.Ordinal))
         {
             var debt=Store.Get(c,d.S("source"),"debt",tx)??throw new ApiError("مصدر الدين غير موجود.");FinancialScopes.DemandDebt(actor,debt);
-            decimal due=Math.Max(0,-d.N("computed")),max=J.Money(Math.Min(available,debt.N("remainingBalance"))),amount=row.S("debtDeductionStatus")=="confirmed"?-d.N("amount"):J.Money(Math.Min(max,d.N("requestedAmount",due)));
+            decimal due=Math.Max(0,-d.N("computed"));
+            decimal inst=DebtLedger.InstalmentForPayCycle(c,tx,debt);
+            decimal remCap=inst>0?Math.Min(debt.N("remainingBalance"),inst):debt.N("remainingBalance");
+            decimal max=J.Money(Math.Min(available,remCap));
+            decimal amount=row.S("debtDeductionStatus")=="confirmed"?-d.N("amount"):J.Money(Math.Min(max,d.N("requestedAmount",due)));
             items.Add(new JsonObject{["key"]=DeductionKey(d),["source"]=d.S("source"),["category"]=d.S("debtCategory"),["labelAr"]=d.S("labelAr"),["due"]=due,["max"]=max,["amount"]=amount,["remainingBalance"]=debt.N("remainingBalance"),["accountCode"]=d.S("accountCode")});available-=amount;
         }
         return items;
@@ -78,13 +132,15 @@ public static partial class PayCycles
         foreach(var row in Rows(cycle["riders"]).OfType<JsonObject>())
         {
             if(Store.Get(c,row.S("rider"),"rider",tx) is {} person)FinancialScopes.DemandRider(actor,person);
-            bool approved=row.S("salaryApprovedAt")!="",confirmed=row.S("debtDeductionStatus")=="confirmed";var actions=new JsonArray();
-            if(approved&&!confirmed&&cycle.S("status") is "approved" or "partially_approved")
+            // M-0670 / §32 / §40.6: instalment confirm BEFORE that rider's salary approval (feat/w2-money-core).
+            bool approved=row.S("salaryApprovedAt")!="",confirmed=row.S("debtDeductionStatus") is "confirmed" or "deferred";var actions=new JsonArray();
+            if(cycle.S("status") is not ("cancelled" or "reversed")&&!confirmed)
             {
-                if(AccessPolicy.Has(actor,"pay.manage"))actions.Add("edit");
+                if(!approved&&AccessPolicy.Has(actor,"pay.manage"))actions.Add("edit");
+                // Prefer confirm before salary; legacy also allows confirm after salaryApprovedAt until stage 8.
                 if(AccessPolicy.Has(actor,"pay.approve")&&AccessPolicy.IndependentForView(actor,row.S("debtSelectedBy",cycle.S("createdBy")),bypass)){actions.Add("confirm");pendingConfirm++;}
             }
-            rows.Add(new JsonObject{["rider"]=row.S("rider"),["salaryNet"]=row.N("salaryNet",row.N("net")),["status"]=confirmed?"confirmed":approved?"pending":"salary_pending",["items"]=ProposedDebtItems(c,tx,actor,cycle,row),["net"]=row.N("net"),["allowedActions"]=actions});
+            rows.Add(new JsonObject{["rider"]=row.S("rider"),["salaryNet"]=row.N("salaryNet",row.N("net")),["status"]=confirmed?"confirmed":approved?"approved_pending_confirm":"pending_confirm",["items"]=ProposedDebtItems(c,tx,actor,cycle,row),["net"]=row.N("net"),["allowedActions"]=actions});
         }
         if(pendingConfirm>0&&AccessPolicy.Has(actor,"pay.approve"))root.Add("confirm_debt_deductions_all");
         return new(){["cycleId"]=id,["stage"]=cycle.N("stage"),["status"]=cycle.S("debtDeductionStatus","salary_pending"),["allowedActions"]=root,["rows"]=rows};
@@ -93,21 +149,25 @@ public static partial class PayCycles
     {
         var cycle=Store.Get(c,id,Kind,tx)?.Clone()??throw new ApiError("الدورة غير موجودة.",404);string action=input.Required("action");
         J.Need(action is "edit" or "confirm" or "confirm-all","الإجراء edit أو confirm أو confirm-all.");Scope(actor,cycle,action=="edit"?"pay.manage":"pay.approve");Open(c,tx,cycle);
-        J.Need(cycle.S("status") is "approved" or "partially_approved","اعتمد الرواتب قبل استقطاع الديون.",409);
+        // M-0670: per rider, confirm BEFORE that rider's salary approval (feat/w2-money-core). Legacy post-approval confirm still accepted.
+        J.Need(cycle.S("status") is not ("cancelled" or "reversed"),"الدورة ملغاة أو معكوسة.",409);
         var rows=Rows(cycle["riders"]).OfType<JsonObject>().Where(r=>action=="confirm-all"||r.S("rider")==input.Required("rider")).ToList();J.Need(rows.Count>0,"المندوب ليس في الدورة.",404);
         if(action=="edit")
         {
-            var row=rows.Single();J.Need(row.S("salaryApprovedAt")!=""&&row.S("debtDeductionStatus")!="confirmed","القسط متاح بعد اعتماد الراتب وقبل تأكيد الخصم.",409);
+            var row=rows.Single();
+            J.Need(row.S("debtDeductionStatus") is not ("confirmed" or "deferred"),"القسط مؤكد أو مؤجّل.",409);
+            // Prefer edit before salary approval; allow legacy edit after salaryApprovedAt until confirm.
             var debt=Rows(cycle["deductions"]).OfType<JsonObject>().SingleOrDefault(d=>d.S("rider")==row.S("rider")&&d.S("type")=="debt"&&DeductionKey(d)==input.Required("key"))??throw new ApiError("القسط غير موجود.",404);
-            var source=Store.Get(c,debt.S("source"),"debt",tx)!;FinancialScopes.DemandDebt(actor,source);decimal amount=Money(input,"amount");J.Need(amount>=0&&amount<=DebtSelectionLimit(row,source),"الخصم من صفر إلى الأقل من الرصيد والصافي المتاح.");
+            var source=Store.Get(c,debt.S("source"),"debt",tx)!;FinancialScopes.DemandDebt(actor,source);decimal amount=Money(input,"amount");J.Need(amount>=0&&amount<=DebtSelectionLimit(c,tx,row,source),"الخصم من صفر إلى الأقل من الرصيد والصافي المتاح.",409);
             string reason=amount!=-debt.N("computed")?Reason(input):input.S("reason");if(row["debtSelectionHistory"] is not JsonArray)row["debtSelectionHistory"]=new JsonArray();row["debtSelectionHistory"]!.AsArray().Add(new JsonObject{["source"]=debt.S("source"),["from"]=debt.N("requestedAmount"),["to"]=amount,["reason"]=reason,["by"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O")});debt["requestedAmount"]=amount;debt["selectionReason"]=reason;row["debtSelectedBy"]=actor.Identity!.Name;row["debtSelectedAt"]=DateTimeOffset.UtcNow.ToString("O");
         }
         else
         {
-            if(action=="confirm")J.Need(rows.Single().S("salaryApprovedAt")!="","اعتمد راتب المندوب قبل تأكيد استقطاع ديونه.",409);
             var payables=Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>Rows(j["lines"]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("accountCode")=="212103").GroupBy(l=>l.S("iqama")).ToDictionary(g=>g.Key,g=>g.Sum(l=>l.N("credit")-l.N("debit")));
-            foreach(var row in rows.Where(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed"))
+            bool anyLegacyPost=false;
+            foreach(var row in rows.Where(r=>r.S("debtDeductionStatus") is not ("confirmed" or "deferred")))
             {
+                bool beforeSalary=row.S("salaryApprovedAt")=="";
                 J.Need(AccessPolicy.Independent(actor,row.S("debtSelectedBy",cycle.S("createdBy")),"pay.debt_confirm",c,tx,cycle,scope:AccessPolicy.ScopePayApprovals),"مؤكد الخصم غير من اختار القسط.",403);
                 var proposed=ProposedDebtItems(c,tx,actor,cycle,row);var payLines=new List<PayLine>();decimal total=0;
                 foreach(var item in proposed.OfType<JsonObject>())
@@ -116,17 +176,30 @@ public static partial class PayCycles
                     var source=Store.Get(c,d.S("source"),"debt",tx)!;var before=Rows(cycle["debtBefore"]).OfType<JsonObject>().Single(b=>b.S("id")==source.S("id"));
                     J.Need(JsonNode.DeepEquals(source,before),"تغير رصيد أو قسط الدين منذ المراجعة؛ أعد معاينة الاستقطاع.");
                     decimal amount=item.N("amount");d["amount"]=-amount;d["confirmedBy"]=actor.Identity!.Name;
-                    if(amount>0){payLines.Add(new("debt_installment","قسط معتمد بعد الراتب",-amount,d.S("source")));total+=amount;}
+                    if(amount>0){payLines.Add(new("debt_installment","قسط معتمد",-amount,d.S("source")));total+=amount;}
                 }
-                J.Need(total<=Math.Max(0,row.N("salaryNet")),"الاستقطاع يتجاوز الصافي الموجب.");
-                decimal payable=payables.GetValueOrDefault(row.S("rider"));
-                J.Need(total<=Math.Max(0,payable),"الصافي المتاح تغير بعد صرف أو تسوية؛ أعد المراجعة.");
-                cycle["debtDeductionApprovedBy"]=actor.Identity!.Name;Store.Save(c,Kind,cycle,tx);
-                Debts.Post(c,tx,new(row.S("rider"),cycle.S("period"),"pay_cycle",0,row.N("salaryNet"),row.N("salaryNet"),row.N("salaryNet"),0,0,payLines,[]),id,payCycle:true);
-                row["net"]=J.Money(Math.Max(0,row.N("salaryNet"))-total);row["closing"]=row.N("carried")+row.N("net");row["debtDeductionStatus"]="confirmed";row["debtConfirmedBy"]=actor.Identity!.Name;row["debtConfirmedAt"]=DateTimeOffset.UtcNow.ToString("O");
-                Phases(row,Lines(c,tx,id).Where(l=>l.S("rider")==row.S("rider")),Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==row.S("rider")));
+                J.Need(total<=Math.Max(0,row.N("salaryNet",row.N("net"))),"الاستقطاع يتجاوز الصافي الموجب.");
+                if(!beforeSalary)
+                {
+                    // Legacy: post movements after salary approval (stage 8).
+                    anyLegacyPost=true;
+                    decimal payable=payables.GetValueOrDefault(row.S("rider"));
+                    J.Need(total<=Math.Max(0,payable),"الصافي المتاح تغير بعد صرف أو تسوية؛ أعد المراجعة.");
+                    cycle["debtDeductionApprovedBy"]=actor.Identity!.Name;Store.Save(c,Kind,cycle,tx);
+                    if(total>0)Debts.Post(c,tx,new(row.S("rider"),cycle.S("period"),"pay_cycle",0,row.N("salaryNet"),row.N("salaryNet"),row.N("salaryNet"),0,0,payLines,[]),id,payCycle:true);
+                    row["net"]=J.Money(Math.Max(0,row.N("salaryNet"))-total);row["closing"]=row.N("carried")+row.N("net");
+                    Phases(row,Lines(c,tx,id).Where(l=>l.S("rider")==row.S("rider")),Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==row.S("rider")));
+                }
+                cycle["debtDeductionApprovedBy"]=actor.Identity!.Name;
+                row["debtDeductionStatus"]=total==0?"deferred":"confirmed";row["debtConfirmedBy"]=actor.Identity!.Name;row["debtConfirmedAt"]=DateTimeOffset.UtcNow.ToString("O");
+                row["oldDebtInstalment"]=total;
             }
-            if(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("debtDeductionStatus")=="confirmed")){cycle["stage"]=8;cycle["debtDeductionStatus"]="confirmed";}
+            if(Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("debtDeductionStatus") is "confirmed" or "deferred"||!Rows(cycle["deductions"]).OfType<JsonObject>().Any(d=>d.S("rider")==r.S("rider")&&d.S("type")=="debt")))
+            {
+                cycle["debtDeductionStatus"]="confirmed";
+                // Stage 8 only on the legacy post-salary confirm path.
+                if(anyLegacyPost||cycle.S("status") is "approved" or "partially_approved")cycle["stage"]=8;
+            }
             SnapshotDebtAfter(c,tx,cycle);
         }
         cycle["sourceFingerprint"]=Fingerprint(c,tx,cycle);Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.debt_"+action,id,actor.Identity!.Name!);return DebtDeductionsView(c,tx,actor,id);

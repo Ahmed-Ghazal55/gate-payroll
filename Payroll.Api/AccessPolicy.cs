@@ -105,15 +105,23 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/debts",StringComparison.Ordinal))
         {
             if(path.Contains("/reconcile-opening/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
+            if(path=="/api/debts/print"||path=="/api/debts/ageing")return method=="GET"&&Has(path.EndsWith("/print",StringComparison.Ordinal)?"debts.statement.print":"debts.view");
+            if(path=="/api/debts/import/template")return method=="GET"&&(Has("debts.import_opening")||Has("debts.create.administrative")||Has("debts.create.advance"));
             if(method=="GET")return Has("debts.view");
             if(path=="/api/debts")return method=="POST"&&Has(input==null?"invalid.permission":CategoryPermission(input.S("category")));
+            if(path=="/api/debts/disburse")return method=="POST"&&Has("debts.create.advance");
             // Opening balances post against equity: commit needs the treasury opening permission too.
             if(path.StartsWith("/api/debts/import-opening/",StringComparison.Ordinal))return method=="POST"&&Has("debts.import_opening")&&(!path.EndsWith("/commit",StringComparison.Ordinal)||Has("treasury.opening"));
+            if(path.StartsWith("/api/debts/import/reduce/",StringComparison.Ordinal))return method=="POST"&&Has("debts.create.administrative");
             if(path.StartsWith("/api/debts/bulk-collect/",StringComparison.Ordinal))return method=="POST"&&Has("debts.collect");
-            if(path.EndsWith("/collect",StringComparison.Ordinal))return method=="POST"&&Has("debts.collect")&&((input?.N("waivedAmount")??0)==0||Has("debts.waive"));
+            if(path.EndsWith("/collect",StringComparison.Ordinal)||path.EndsWith("/collect-ledger",StringComparison.Ordinal))return method=="POST"&&Has("debts.collect")&&((input?.N("waivedAmount")??0)==0||Has("debts.waive"));
+            if(path.EndsWith("/waive",StringComparison.Ordinal)||path.EndsWith("/absorb",StringComparison.Ordinal))return method=="POST"&&Has("debts.waive");
+            if(path.EndsWith("/reschedule",StringComparison.Ordinal))return method=="POST"&&Has("debts.reschedule");
             if(path.EndsWith("/transfer-sponsor",StringComparison.Ordinal))return method=="POST"&&Has("debts.transfer_sponsor");
             return method=="PUT"&&Has("debts.reschedule");
         }
+        if(path.StartsWith("/api/promissory-notes/",StringComparison.Ordinal)&&path.EndsWith("/link-debt",StringComparison.Ordinal))
+            return method=="POST"&&(Has("debts.create.administrative")||Has("debts.create.advance")||Has("debts.create.hr"));
         if(path=="/api/finance/mada/balance")return method=="GET"&&(Has("advances.payout")||Has("treasury.view"));
         if(path=="/api/finance/accounting-adjustments"||path.StartsWith("/api/finance/accounting-adjustments/",StringComparison.Ordinal))return method=="GET"?Has("finance.journal.create"):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
         if(path=="/api/finance/journals/manual"||path.StartsWith("/api/finance/journals/manual/",StringComparison.Ordinal))
@@ -213,7 +221,8 @@ public static partial class AccessPolicy
                 :method=="POST"&&(Has("mobile.broadcast")||Has("forms.review")||Has("mobile.complaints.confidential")||Has("riders.iban_data.approve_first")||Has("riders.iban_data.approve_second"));
         if(path=="/api/rider-mobile/statements/notify-period")return method=="POST"&&Has("mobile.broadcast");
         if(path.StartsWith("/api/rider-mobile/",StringComparison.Ordinal))return method=="GET"?Has("mobile.broadcast"):method=="POST"&&path=="/api/rider-mobile/broadcast"&&Has("mobile.broadcast");
-        if(path.StartsWith("/api/promissory-notes",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
+        if(path.StartsWith("/api/promissory-notes",StringComparison.Ordinal))
+            return (method=="GET"&&Has("debts.view"))||(method=="POST"&&(Has("debts.create.administrative")||Has("debts.create.advance")||Has("debts.create.hr")));
         if(path.StartsWith("/api/payroll",StringComparison.Ordinal))return method=="GET"?Has("payroll.view"):method=="POST"&&path=="/api/payroll/approve"&&Has("payroll.approve");
         if(path.StartsWith("/api/ledger",StringComparison.Ordinal))return method=="GET"&&Has("payroll.view");
         if(path.StartsWith("/api/payments/",StringComparison.Ordinal))return PaymentsApi.Allowed(user,method,path);
@@ -250,8 +259,8 @@ public static partial class AccessPolicy
         if(ApprovalsArea.RequiresDual(dual))Demand(actor,dual!);
         string name=actor.Identity?.Name??"";
         // BR §35 / M-0672: maker≠checker only for dedicated dual money-out / shared-rider codes.
-        // M-0667: SystemAdmin dual self-approval is audited inside Independent (badge system_admin).
-        if(ApprovalsArea.RequiresDual(dual))
+        // M-0667: SystemAdmin self-approval still goes through Independent so the monthly audit report records it.
+        if(ApprovalsArea.RequiresDual(dual)||actor.IsInRole("SystemAdmin"))
             J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request,scope:dual),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
         // Bypass lifts maker≠checker only — never department, rank, approval limit, or company/platform scope.
         if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))

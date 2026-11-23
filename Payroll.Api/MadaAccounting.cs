@@ -27,6 +27,8 @@ public static class MadaAccounting
         AccessPolicy.Demand(actor,"advances.payout");string fulfilment=request.Required("fulfilment");
         // RWP7a3: legacy card payout bypassed the new Mada wallet register — cards go through /payments/mada/cards/issue.
         if(fulfilment=="recharge_card")throw new ApiError("صرف كارت الشحن عبر المسار القديم موقف؛ استخدم المدفوعات ← إصدار كروت مدى.",410);
+        // RWD1b H2: Internet Disbursement cash/bank is cash-out; closed until payment-engine disbursement path.
+        DebtLedger.DemandDisburseAvailable();
         string company=FinancialCore.ResolveSponsor(request.S("companyId")).Id,vault=request.S("vaultCode",request.S("vault"));FinancialScopes.DemandSponsor(actor,company);
         J.Need(fulfilment is "cash" or "bank","طريقة تسليم النت غير صالحة.");J.Need(request.S("approvedBy")!=""&&request.S("status")=="approved","طلب معتمد مطلوب.");J.Need(AccessPolicy.Independent(actor,request.S("requestedBy"),"advance.payout",c,tx,request,scope:AccessPolicy.ScopePayApprovals),"صاحب الطلب لا يصرفه.",403);
         J.Need(input.Required("reference").Length is >2 and <=120,"مرجع الصرف غير صالح.");decimal amount=request.N("amount");J.Need(amount>0&&amount==J.Money(amount)&&request.N("monthlyInstallment")>0&&request.N("monthlyInstallment")<=amount,"مبلغ السلفة أو القسط غير صالح.");string period=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM");Open(c,tx,company,period);

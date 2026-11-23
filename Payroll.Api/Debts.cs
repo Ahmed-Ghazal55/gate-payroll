@@ -20,6 +20,67 @@ public static partial class Debts
     ];
 
     public static decimal PaidAmount(JsonObject debt)=>debt.N("paidAmount",Math.Max(0m,debt.N("totalAmount")-debt.N("remainingBalance")-debt.N("waivedAmount")));
+    public static void DemandDisburseAvailable()=>DebtLedger.DemandDisburseAvailable();
+    public static void DemandLegacyCollectWaiverClosed(decimal waived)=>
+        J.Need(waived<=0,"إعفاء التحصيل الفردي عبر الحساب القديم ٥٢٠٢ غير متاح؛ استخدم إعفاء المديونية (D11) على دفتر الديون.",409);
+    public static byte[] SourceFileHash(byte[] file)=>System.Security.Cryptography.SHA256.HashData(file);
+    public static byte[] SourceFileHashForTests(byte[] file)=>SourceFileHash(file);
+    static byte[] ResolveImportFileHash(JsonObject input,DbConnection? c=null,DbTransaction? tx=null,string? previewKind=null,string? actor=null,bool verifyPreview=true)
+    {
+        bool previewBound=input.S("fingerprint")!=""&&input["rows"] is JsonArray
+            &&(input.S("previewFileHash").Length==64||input.S("fileHash").Length==64);
+        if(!string.IsNullOrWhiteSpace(input.S("dataBase64")))
+        {
+            byte[] fromFile=SourceFileHash(FinancialImports.FileBytes(input));
+            string fromHex=Convert.ToHexString(fromFile);
+            string boundHex=input.S("previewFileHash");
+            if(boundHex.Length!=64)boundHex=input.S("fileHash");
+            // When a preview hash is bound, replacement bytes must equal it.
+            if(previewBound&&boundHex.Length==64)
+                J.Need(string.Equals(boundHex,fromHex,StringComparison.OrdinalIgnoreCase),"بصمة الملف المرفوع لا تطابق معاينة الملف؛ أعد المعاينة.",409);
+            // Bytes alone are unsigned; commit writers must always bind a verified preview fingerprint.
+            if(!verifyPreview)return fromFile;
+            J.Need(previewBound&&c!=null&&actor is {Length:>0},
+                "بصمة المعاينة مطلوبة؛ أعد المعاينة مع الملف.",400);
+            string kind=(previewKind is {Length:>0}?previewKind:"opening")+":"+fromHex;
+            using var own=tx==null?c!.BeginTransaction():null;
+            try
+            {
+                FinancialImports.Verify(c!,(tx??own)!,new JsonObject{["confirm"]=true,["fingerprint"]=input.S("fingerprint"),["rows"]=input["rows"]!.DeepClone()},kind,actor!);
+                own?.Commit();
+            }
+            catch{own?.Rollback();throw;}
+            return fromFile;
+        }
+        // Client-supplied hash alone is unsigned; accept only when bound to a verified preview fingerprint (kind includes hash).
+        string hex=input.S("fileHash");
+        J.Need(hex.Length==64,"بصمة ملف المصدر (fileHash) مطلوبة؛ أعد المعاينة مع الملف.",400);
+        string previewHash=input.S("previewFileHash");
+        string kindOnly=(previewKind is {Length:>0}?previewKind:"opening")+":"+hex;
+        J.Need(previewHash.Length==64&&string.Equals(previewHash,hex,StringComparison.OrdinalIgnoreCase)
+            &&c!=null&&actor is {Length:>0}
+            &&input.S("fingerprint")!=""&&input["rows"] is JsonArray,
+            "بصمة ملف المصدر غير مربوطة بالمعاينة؛ أعد رفع الملف أو المعاينة.",400);
+        try
+        {
+            if(verifyPreview)
+            {
+                using var own=tx==null?c!.BeginTransaction():null;
+                try
+                {
+                    FinancialImports.Verify(c!,(tx??own)!,new JsonObject{["confirm"]=true,["fingerprint"]=input.S("fingerprint"),["rows"]=input["rows"]!.DeepClone()},kindOnly,actor!);
+                    own?.Commit();
+                }
+                catch{own?.Rollback();throw;}
+            }
+            return Convert.FromHexString(hex);
+        }
+        catch(FormatException){throw new ApiError("بصمة ملف المصدر غير صالحة.",400);}
+    }
+    public static byte[] ResolveImportFileHashForTests(JsonObject input,DbConnection? c=null,DbTransaction? tx=null,string? previewKind=null,string? actor=null,bool verifyPreview=true)
+        =>ResolveImportFileHash(input,c,tx,previewKind,actor,verifyPreview);
+    public static void DemandOpeningVaultCreditClosed()=>
+        throw new ApiError("صرف مديونية جديدة عبر محرك المدفوعات غير متاح بعد؛ انتظر وحدة محرك المدفوعات.",409);
     public static decimal Amount(JsonObject input, string key)
     {
         J.Need(decimal.TryParse(input.S(key), NumberStyles.Number, CultureInfo.InvariantCulture, out var n) && n > 0 && n < 100000000 && n == J.Money(n), "قيمة مالية غير صالحة: " + key);
@@ -38,6 +99,8 @@ public static partial class Debts
     {
         if (!string.IsNullOrWhiteSpace(debt.S("journalEntryId"))) return;
 
+        string mode=debt.S("entryMode");
+        if(mode=="Disbursement")DemandDisburseAvailable();
         var cat = FinancialCore.ResolveCategory(debt.S("category"));
         string allocationMode = debt.S("allocationMode", "RiderFull");
         decimal totalCost = debt.N("totalCostAmount", debt.N("totalAmount"));
@@ -45,7 +108,6 @@ public static partial class Debts
         decimal riderShare = debt.N("totalAmount", totalCost - companyShare);
         string originSpId = debt.S("originSponsorId");
         string creditorSpId = debt.S("creditorSponsorId", originSpId);
-        string mode=debt.S("entryMode");
         J.Need(mode is "Disbursement" or "Accrual" or "OpeningBalance","الطلب القديم يحتاج تحديد نوع الحدث ومقابله قبل الترحيل.");
         J.Need(mode!="OpeningBalance"||companyShare==0,"الرصيد الافتتاحي ذمة على المندوب فقط؛ تحمل الشركة عن سنوات سابقة مقفل في حقوق الملكية ولا يُقيد مصروفًا في الفترة الحالية.");
         string vaultCode=debt.S("paymentVaultCode");
@@ -80,7 +142,6 @@ public static partial class Debts
             originSpId,
             creditorSpId
         );
-        if(mode=="Disbursement")debt["payoutVoucherNo"]=Vouchers.RecordPayout(c,tx,debt,journal,fundingSponsor,debt.S("payoutOdooVoucherNo")).S("voucherNo");
         debt["receivableAccountCode"]=receivCode;
         debt["postingPeriod"]=journal.S("period");
         debt["journalEntryId"] = journal.S("id");
@@ -128,6 +189,7 @@ public static partial class Debts
     }
     public static void Map(RouteGroupBuilder api, Store store)
     {
+        MapW2(api,store);
         // SQL filters + optional page/pageSize envelope. Without page, legacy callers still get a JSON array.
         api.MapGet("/debts", (HttpContext ctx) => store.Read(c => ListPaged(c, ctx.User, ctx.Request.Query)))
             .WithTags("Debts and advances").WithSummary("Read debts (array without page; paged envelope when page is set)");
@@ -203,16 +265,16 @@ public static partial class Debts
             J.Need(!Store.List(c, "debt", tx).Any(d => d.S("sourceRef") == reference), "مرجع الدين مسجل من قبل.");
 
             string mode=AccountingEvents.EntryMode(input,category);
+            if(mode=="Disbursement")DemandDisburseAvailable();
             if(mode=="OpeningBalance"){AccessPolicy.Demand(ctx.User,"treasury.opening");J.Need(input.B("openingReviewed"),"راجع مستند الرصيد الافتتاحي صراحة.");}
             var sponsorshipSp=FinancialCore.FindSponsor(input.S("sponsorshipSponsorId"))??FinancialCore.FindSponsor(rider!.S("sponsorId"))??FinancialCore.FindSponsor(rider.S("sponsor"));
             var creditorSp=FinancialCore.FindSponsor(input.S("creditorSponsorId"))??FinancialCore.FindSponsor(input.S("originSponsorId"))??sponsorshipSp??throw new ApiError("حدد السجل التجاري الدائن صراحة.");
             var originSp=FinancialCore.FindSponsor(input.S("originSponsorId"))??creditorSp;
             string recognition=AccountingEvents.RecognitionAccount(input,category,mode);
             J.Need(mode=="Disbursement"||input.S("paymentVaultCode")=="","الإثبات غير النقدي لا يختار صندوق صرف؛ حدد الحدث الصحيح.");
-            string vaultCode=mode=="Disbursement"?input.S("paymentVaultCode",FinancialCore.DefaultVaultForSponsor(originSp.Id,category=="BankAdvance"?"BANK":"MAIN",category)):"";
-            if(mode=="Disbursement")FinancialCore.ValidateVaultForOperation(vaultCode,category,"disbursement",input.S("platform"));
+            string vaultCode="";
             if(category=="PlatformTransferredDebt")J.Need(new[]{"Jahez","Keeta","HungerStation","Ninja","Other"}.Contains(input.S("platform")),"حدد المنصة التي أحالت الدين.");
-            bool requireMutualApproval=input.B("requireMutualApproval")||!AccessPolicy.Has(ctx.User,"treasury.disburse")||mode=="Disbursement"&&!AccessPolicy.Administrator(ctx.User);
+            bool requireMutualApproval=input.B("requireMutualApproval")||!AccessPolicy.Has(ctx.User,"treasury.disburse");
             string initiatingDept = AccessPolicy.Administrator(ctx.User)?input.S("initiatingDepartment",catMeta.Sector=="HR"?"HR":"FIN"):ctx.User.FindFirst("department")!.Value;
             string targetApprovalDept = initiatingDept == "FIN" ? "HR" : "FIN";
             string effectivePeriod = J.Period(input.S("effectiveFrom", DateTime.UtcNow.ToString("yyyy-MM")));
@@ -329,6 +391,7 @@ public static partial class Debts
 
             decimal collected = OptionalAmount(input, "collectedAmount", 0m);
             decimal waived = OptionalAmount(input, "waivedAmount", 0m);
+            DemandLegacyCollectWaiverClosed(waived);
             if(waived>0){AccessPolicy.Demand(ctx.User,"debts.waive");input.Required("waiverReason");}
             decimal totalReduction = J.Money(collected + waived);
             J.Need(totalReduction > 0, "أدخل مبلغ التحصيل أو مبلغ الإعفاء الإداري.");
@@ -354,10 +417,6 @@ public static partial class Debts
             if (collected > 0)
             {
                 lines.Add(FinancialCore.CreateJournalLine(vaultAcc.Code, collectionSp.Id, collected, 0m, $"قبض وتوريد نقدي/بنكي إلى ({vaultAcc.NameAr})", d.S("iqama"), id));
-            }
-            if (waived > 0)
-            {
-                lines.Add(FinancialCore.CreateJournalLine("5202", creditorSp.Id, waived, 0m, $"إعفاء وتنازل إداري معتمد عن جزء من المديونية ({input.S("waiverReason", "تسوية سداد")})", d.S("iqama"), id));
             }
             lines.Add(FinancialCore.CreateJournalLine(receivCode, creditorSp.Id, 0m, totalReduction, $"تخفيض الذمة المدينة للمندوب ({d.S("riderName")}) بالسداد/الإعفاء", d.S("iqama"), id));
 
@@ -534,13 +593,20 @@ public static partial class Debts
                     errors.Add($"الصف {i + 1}: {e.Message}");
                 }
             }
-            return new { filename, validCount = rows.Count, errorCount = errors.Count, rows, errors, fingerprint=errors.Count==0?FinancialImports.Issue(c,"bulk",rows,ctx.User.Identity!.Name!):"" };
+            string fileHash=Convert.ToHexString(SourceFileHash(bytes));
+            return new { filename, validCount = rows.Count, errorCount = errors.Count, rows, errors, fileHash, fingerprint=errors.Count==0?FinancialImports.Issue(c,"bulk:"+fileHash,rows,ctx.User.Identity!.Name!):"" };
         })).WithTags("Debts and advances").WithSummary("Submit debts bulk collect preview file");
 
         // اعتماد شيت التحصيل المجمع (سواء من جدول مباشر أو بعد قراءة ملف Excel/CSV)
         api.MapPost("/debts/bulk-collect/commit", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
-            FinancialImports.Verify(c,tx,input,"bulk",ctx.User.Identity!.Name!);
+            string bulkHash=input.S("fileHash");
+            J.Need(bulkHash.Length==64||!string.IsNullOrWhiteSpace(input.S("dataBase64")),"بصمة ملف المصدر (fileHash) مطلوبة من المعاينة.",400);
+            if(bulkHash.Length!=64&&!string.IsNullOrWhiteSpace(input.S("dataBase64")))
+                bulkHash=Convert.ToHexString(SourceFileHash(FinancialImports.FileBytes(input)));
+            input["fileHash"]=bulkHash;input["previewFileHash"]=bulkHash;
+            // Verify once before writes; audit hash after must not re-verify (signed state changes).
+            byte[] fileHash=ResolveImportFileHash(input,c,tx,"bulk",ctx.User.Identity!.Name!,verifyPreview:true);
             var items = input["rows"]?.AsArray() ?? throw new ApiError("أرسل صفوف التحصيل المجمع في الحقل rows.");
             J.Need(items.Count > 0 && items.Count <= 1000, "عدد صفوف التحصيل المجمع يجب أن يكون بين 1 و 1000 صف.");
 
@@ -600,8 +666,8 @@ public static partial class Debts
                     subIdx++;
 
                     var lines = new JsonArray();
+                    if (takeWaive > 0) throw new ApiError("إعفاء شيت التحصيل المجمع عبر مسار الدين المعتمد غير متاح بعد؛ استخدم إعفاء المديونية (D11) أو ارفض المبلغ المعفى.",409);
                     if (takeCollect > 0) lines.Add(FinancialCore.CreateJournalLine(vaultAcc.Code, collectionSp.Id, takeCollect, 0m, "تحصيل مجمع إلى الخزينة", iqama, d.S("id")));
-                    if (takeWaive > 0) lines.Add(FinancialCore.CreateJournalLine("5202", creditorSp.Id, takeWaive, 0m, "إعفاء إداري ضمن شيت التحصيل المجمع", iqama, d.S("id")));
                     lines.Add(FinancialCore.CreateJournalLine(receivCode, creditorSp.Id, 0m, takeTotal, "تخفيض ذمة مدينة ضمن شيت التحصيل المجمع", iqama, d.S("id")));
 
                     if (takeCollect > 0 && collectionSp.Id != creditorSp.Id)
@@ -653,7 +719,15 @@ public static partial class Debts
                 rowIdx++;
             }
 
-            Store.Audit(c, tx, "debt.bulk_collect", $"rows:{items.Count}", ctx.User.Identity!.Name!);
+            SchemaAuditNotify.Ensure(c,tx);
+            string userId=SchemaApprovals.EnsureAuthUserId(c,tx,ctx.User.Identity!.Name!);
+            SchemaSql.Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"audit","change_log")}
+                (id,occurred_on,occurred_at,action_code,entity_type,entity_ref,diff_short,source,bulk_count,file_hash,user_id,created_at)
+                VALUES(@id,@on,@at,'import','debt',@ref,@diff,'import',@bc,@h,@u,@at)
+                """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@on",DateTime.UtcNow.ToString("yyyy-MM-dd")),
+                ("@at",DateTimeOffset.UtcNow.ToString("O")),("@ref","bulk-collect"),("@diff","تحصيل مجمع"),
+                ("@bc",items.Count),("@h",fileHash),("@u",userId));
             return new
             {
                 processedRows = items.Count,
@@ -845,10 +919,12 @@ public static partial class Debts
             decimal totalDebits = J.Money(parsedList.Sum(x => x.N("remainingBalance") + x.N("companyShareAmount")));
             decimal totalCredits = totalDebits;
 
+            string fileHash=Convert.ToHexString(SourceFileHash(bytes));
             return new
             {
                 filename,
-                fingerprint=errors.Count==0?FinancialImports.Issue(c,"opening",validRows,ctx.User.Identity!.Name!):"",
+                fileHash,
+                fingerprint=errors.Count==0?FinancialImports.Issue(c,"opening:"+fileHash,validRows,ctx.User.Identity!.Name!):"",
                 validCount = validRows.Count,
                 errorCount = errors.Count,
                 newRidersToCreateCount = parsedList.Count(x => !x.B("riderExists")),
@@ -868,7 +944,13 @@ public static partial class Debts
 
         api.MapPost("/debts/import-opening/commit", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
         {
-            FinancialImports.Verify(c,tx,input,"opening",ctx.User.Identity!.Name!);
+            string openingHash=input.S("fileHash");
+            J.Need(openingHash.Length==64||!string.IsNullOrWhiteSpace(input.S("dataBase64")),"بصمة ملف المصدر (fileHash) مطلوبة من المعاينة.",400);
+            if(openingHash.Length!=64&&!string.IsNullOrWhiteSpace(input.S("dataBase64")))
+                openingHash=Convert.ToHexString(SourceFileHash(FinancialImports.FileBytes(input)));
+            input["fileHash"]=openingHash;input["previewFileHash"]=openingHash;
+            // Verify once before writes; audit hash after must not re-verify (signed state changes).
+            byte[] fileHash=ResolveImportFileHash(input,c,tx,"opening",ctx.User.Identity!.Name!,verifyPreview:true);
             var items = input["rows"]?.AsArray() ?? throw new ApiError("أرسل صفوف الاستيراد المعاينة في الحقل rows.");
             J.Need(items.Count > 0 && items.Count <= 2000, "عدد صفوف الاستيراد يجب أن يكون بين 1 و 2000 صف.");
 
@@ -909,22 +991,24 @@ public static partial class Debts
                 string debtorType = r.S("debtorType", "Rider");
                 string entryMode = r.S("entryMode", "OpeningBalance");
                 string allocationMode = r.S("allocationMode", "RiderFull");
+                J.Need(entryMode=="OpeningBalance","استيراد الافتتاح يقبل أرصدة افتتاحية فقط؛ التخفيض عبر مسار الدين، والصرف عبر محرك المدفوعات.",409);
 
                 decimal totalAmount = J.Money(r.N("totalAmount"));
                 decimal priorPaid = J.Money(r.N("priorPaidAmount"));
                 decimal remaining = J.Money(totalAmount - priorPaid);
                 decimal companyShare = J.Money(r.N("companyShareAmount"));
                 decimal installment = J.Money(r.N("monthlyInstallment", Math.Min(remaining > 0 ? remaining : 1m, 500m)));
-                J.Need(entryMode!="OpeningBalance"||companyShare==0&&allocationMode!="CompanyFull","الرصيد الافتتاحي ذمة على المندوب فقط؛ تحمل الشركة عن سنوات سابقة مقفل في حقوق الملكية ولا يُقيد مصروفًا في الفترة الحالية.");
+                J.Need(companyShare==0&&allocationMode!="CompanyFull","الرصيد الافتتاحي ذمة على المندوب فقط؛ تحمل الشركة عن سنوات سابقة مقفل في حقوق الملكية ولا يُقيد مصروفًا في الفترة الحالية.");
                 string effectiveFrom = J.Period(r.S("effectiveFrom", DateTime.UtcNow.ToString("yyyy-MM")));
                 string sourceRef = r.Required("sourceRef");
                 J.Need(!Store.List(c,"debt",tx).Any(d=>d.S("sourceRef")==sourceRef),"مرجع الدين مكرر؛ أعد المعاينة.");
 
                 string receivCode = debtorType == "Employee" ? "1220" : catMeta.ReceivableAccountCode;
                 string expCode = catMeta.ExpenseAccountCode;
-                string contraCode = r.S("contraAccountCode", entryMode == "OpeningBalance" ? "3101" : FinancialCore.DefaultVaultForSponsor(creditorSp.Id, "MAIN", catMeta.Code));
-                var contraAcc = contraCode == "3101" ? FinancialCore.ResolveAccount("3101") : FinancialCore.ValidateVaultForOperation(contraCode, catMeta.Code, "disbursement");
-                if(contraCode!="3101"){J.Need(catCode is not ("PlatformTransferredDebt" or "NegativeSalaryCarryover"),"المديونية المرحلة ليست صرفًا نقديًا.");FinancialScopes.DemandAccount(ctx.User,contraCode);AccountingEvents.DemandAvailable(c,tx,contraCode,remaining+companyShare);}
+                string contraCode = r.S("contraAccountCode", "3101");
+                J.Need(contraCode is "3101" or "331301","رصيد الافتتاح يقابل حقوق الملكية فقط؛ أي دائن صندوق/بنك مغلق حتى محرك المدفوعات.",409);
+                if(contraCode!="3101"&&contraCode!="331301")DemandOpeningVaultCreditClosed();
+                var contraAcc = FinancialCore.ResolveAccount(contraCode=="3101"?"3101":contraCode);
 
                 string debtId = Guid.NewGuid().ToString("N");
                 var lines = new JsonArray();
@@ -996,7 +1080,15 @@ public static partial class Debts
                 totalCompanyExpenseImported = J.Money(totalCompanyExpenseImported + companyShare);
             }
 
-            Store.Audit(c, tx, "debt.opening_imported", $"rows:{items.Count},rem:{totalRemainingImported}", ctx.User.Identity!.Name!);
+            SchemaAuditNotify.Ensure(c,tx);
+            string userId=SchemaApprovals.EnsureAuthUserId(c,tx,ctx.User.Identity!.Name!);
+            SchemaSql.Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"audit","change_log")}
+                (id,occurred_on,occurred_at,action_code,entity_type,entity_ref,diff_short,source,bulk_count,file_hash,user_id,created_at)
+                VALUES(@id,@on,@at,'import','debt',@ref,@diff,'import',@bc,@h,@u,@at)
+                """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@on",DateTime.UtcNow.ToString("yyyy-MM-dd")),
+                ("@at",DateTimeOffset.UtcNow.ToString("O")),("@ref","opening-import"),
+                ("@diff",$"rows:{items.Count},rem:{totalRemainingImported}"),("@bc",items.Count),("@h",fileHash),("@u",userId));
             return new
             {
                 importedCount = createdDebts.Count,
@@ -1020,6 +1112,13 @@ public static partial class Debts
             J.Need(!Store.List(c,"ledger",tx).Any(l=>l.S("kind")=="debt_installment"&&l.S("debtId")==line.Source&&l.S("period")==result.Period&&!reversed.Contains(l.S("id"))),"قسط الفترة مرحل بالفعل.");
             if(payCycle)key+=":"+runId;
             J.Need(Store.Get(c,key,"ledger",tx)==null,"مرجع القسط موجود بالفعل.");
+
+            // W1 ledger debt: movement + journal own the balance; document remainingBalance mirrors it.
+            if(Guid.TryParse(line.Source,out var debtGuid)&&SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtGuid)))!=null)
+            {
+                PostLedgerInstalment(c,tx,d,debtGuid,amount,result,runId,key,accountingRun);
+                continue;
+            }
 
             d["paidAmount"] = J.Money(PaidAmount(d) + amount);
             d["remainingBalance"] = J.Money(d.N("remainingBalance") - amount);
@@ -1071,5 +1170,47 @@ public static partial class Debts
                 ["createdAt"] = DateTimeOffset.UtcNow.ToString("O")
             }, tx);
         }
+    }
+
+    static void PostLedgerInstalment(DbConnection c,DbTransaction tx,JsonObject d,Guid debtId,decimal amount,PayrollResult result,string runId,string key,JsonObject? accountingRun)
+    {
+        object? companyObj=SchemaSql.Scalar(c,tx,$"SELECT company_id FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)));
+        J.Need(companyObj!=null,"المديونية غير موجودة في دفتر الديون.",404);
+        Guid companyId=companyObj is Guid g?g:Guid.Parse(companyObj!.ToString()!);
+        var periodMonth=DateOnly.Parse(result.Period+"-01");
+        Guid periodId=DebtLedger.RequireOpenPeriod(c,tx,companyId,periodMonth);
+        decimal locked=SchemaDebt.LockDebt(c,tx,SchemaSql.GuidText(debtId));
+        J.Need(locked>=amount,"تغير رصيد الدين في الدفتر؛ أعد المعاينة.",409);
+        Guid sourceId=SchemaSql.NewId();
+        Guid recv=DebtLedger.AccountId(c,tx,DebtLedger.ReceivableForCategory(d.S("category","CashAdvance")));
+        Guid payable=DebtLedger.AccountId(c,tx,"212103");
+        var journal=JournalPosting.Post(c,tx,new JournalPosting.Draft(
+            companyId,periodId,periodMonth,periodMonth.AddDays(Math.Min(27,DateTime.UtcNow.Day)),
+            "pay_cycle",sourceId,"debt_payroll_instalment",0,false,"payroll_engine",
+            [
+                new(payable,SchemaOrgCostCentre.NoneId,"none",amount,0m,"قسط مديونية من المسير"),
+                new(recv,SchemaOrgCostCentre.NoneId,"none",0m,amount,"تخفيض ذمة المندوب")
+            ],NarrationAr:"استقطاع قسط مديونية من المسير"));
+        SchemaSql.Exec(c,tx,$"""
+            INSERT INTO {SchemaSql.Q(c,"debt","debt_movement")}
+            (id,period_month,debt_id,company_id,occurred_on,amount,source_type,source_id,journal_id,run_mode,payout_blocked,created_by,created_at)
+            VALUES(@id,@pm,@d,@c,@on,@amt,'payroll_instalment',@sid,@j,0,0,@by,@at)
+            """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pm",periodMonth.ToString("yyyy-MM-01")),("@d",SchemaSql.GuidText(debtId)),
+            ("@c",SchemaSql.GuidText(companyId)),("@on",periodMonth.ToString("yyyy-MM-dd")),("@amt",-amount),
+            ("@sid",SchemaSql.GuidText(sourceId)),("@j",SchemaSql.GuidText(journal.JournalId)),("@by","payroll_engine"),
+            ("@at",DateTimeOffset.UtcNow.ToString("O")));
+        decimal balance=Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"SELECT balance FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id",("@id",SchemaSql.GuidText(debtId)))!);
+        d["paidAmount"]=J.Money(PaidAmount(d)+amount);
+        d["remainingBalance"]=balance;
+        if(balance==0)d["status"]="settled";
+        d["lastDeductionPeriod"]=result.Period;
+        Store.Save(c,"debt",d,tx);
+        Store.Save(c,"ledger",new()
+        {
+            ["id"]=key,["iqama"]=result.Iqama,["period"]=result.Period,["amount"]=-amount,["kind"]="debt_installment",
+            ["sponsorId"]=accountingRun?.S("sponsorId")??"",["accountingVersion"]=accountingRun?.N("accountingVersion")??0,
+            ["debtId"]=d.S("id"),["sourceRef"]=runId,["journalEntryId"]=SchemaSql.GuidText(journal.JournalId),
+            ["createdAt"]=DateTimeOffset.UtcNow.ToString("O")
+        },tx);
     }
 }

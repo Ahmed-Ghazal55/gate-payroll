@@ -60,9 +60,12 @@ public sealed class MadaAccountingTests
         Topup(f.Store,250);
         Assert.AreEqual(250m,f.Store.Read(c=>MadaAccounting.Balance(c,null,Company,"112404")));Assert.AreEqual(750m,f.Store.Read(c=>MadaAccounting.Balance(c,null,Company,"111201")));Assert.AreEqual(0m,f.Store.Read(c=>MadaAccounting.Balance(c,null,FinancialCore.Sponsors[1].Id,"112404")));
         // RWP7a3: legacy recharge_card payout is gone (410); cards use /payments/mada/cards/issue.
+        // RWD1b: after refusal, machine balance / debts / request status stay unchanged.
         var request=Request(f.Store);ApprovePayoutDual(f.Store,request.S("id"));
         var gone=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Custodian,request.S("id"),new(){["reference"]="SYNTHETIC-CARD-RECEIPT"})));
         Assert.AreEqual(410,gone.Status);Assert.AreEqual(250m,f.Store.Read(c=>MadaAccounting.Balance(c,null,Company,"112404")));
+        Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
+        Assert.AreEqual("approved",f.Store.Read(c=>Store.Get(c,request.S("id"),AdvanceRequests.Kind))!.S("status"));
     }
     [TestMethod]
     public void InsufficientMachineFundsLeaveApprovedRequestAndEveryBalanceUnchanged()
@@ -78,18 +81,22 @@ public sealed class MadaAccountingTests
         foreach(string method in new[]{"cash","bank"})
         {
             using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);if(method=="cash")f.Store.Write((c,tx)=>FinancialCore.PostJournal(c,tx,"synthetic_cash_opening","Synthetic",Date[..7],"SYNTHETIC-CASH",new JsonArray(FinancialCore.CreateJournalLine("MAIN.BW.DEBT",Company,200,0),FinancialCore.CreateJournalLine("3101",Company,0,200)),"synthetic-maker"));
-            var request=Request(f.Store,fulfilment:method,vault:method=="cash"?"MAIN.BW.DEBT":"BANK.BW");ApprovePayoutDual(f.Store,request.S("id"));var paid=f.Store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Custodian,request.S("id"),new(){["reference"]="SYNTHETIC-INTERNET-RECEIPT",["bankAccountCode"]="111201"}));var journal=f.Store.Read(c=>Store.Get(c,paid.S("journalEntryId"),"journal"))!;Assert.AreEqual("112503",journal["lines"]![0]!.S("accountCode"));Assert.AreEqual(method=="cash"?"111101":"111201",journal["lines"]![1]!.S("accountCode"));Assert.AreEqual(0m,f.Store.Read(c=>MadaAccounting.Balance(c,null,Company,"112404")));
-            if(method=="cash")Assert.AreEqual(100m,f.Store.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.BW.DEBT")));
+            var request=Request(f.Store,fulfilment:method,vault:method=="cash"?"MAIN.BW.DEBT":"BANK.BW");ApprovePayoutDual(f.Store,request.S("id"));
+            // RWD1b H2: PayOut blocked; cash/bank vaults and machine balance unchanged.
+            var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Custodian,request.S("id"),new(){["reference"]="SYNTHETIC-INTERNET-RECEIPT",["bankAccountCode"]="111201"})));
+            Assert.AreEqual(409,err.Status);Assert.IsTrue(err.Message.Contains("غير متاح",StringComparison.Ordinal));
+            Assert.AreEqual(0m,f.Store.Read(c=>MadaAccounting.Balance(c,null,Company,"112404")));
+            if(method=="cash")Assert.AreEqual(200m,f.Store.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.BW.DEBT")));
         }
     }
     [TestMethod]
     public void ConcurrentMachinePayoutsCannotSpendTheSameBalanceAcrossStores()
     {
-        using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);Topup(f.Store,150);var one=Request(f.Store,"synthetic-one");var two=Request(f.Store,"synthetic-two");ApprovePayoutDual(f.Store,one.S("id"));ApprovePayoutDual(f.Store,two.S("id"));
-        // RWP7a3: both legacy card payouts return 410; machine balance stays funded.
-        Assert.AreEqual(410,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Custodian,one.S("id"),new(){["reference"]="SYNTHETIC-one"}))).Status);
-        Assert.AreEqual(410,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Custodian,two.S("id"),new(){["reference"]="SYNTHETIC-two"}))).Status);
-        Assert.AreEqual(150m,f.Store.Read(c=>MadaAccounting.Balance(c,null,Company,"112404")));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
+        using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);Topup(f.Store,150);var one=Request(f.Store,"synthetic-one");var two=Request(f.Store,"synthetic-two");ApprovePayoutDual(f.Store,one.S("id"));ApprovePayoutDual(f.Store,two.S("id"));var other=new Store(f.Store.DirectoryPath);
+        // RWP7a3 + RWD1b: legacy card PayOut refuses (410) even across concurrent stores; balance/debts unchanged.
+        bool Pay(Store store,string id){try{store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Custodian,id,new(){["reference"]="SYNTHETIC-"+id}));return true;}catch(ApiError e)when(e.Status is 409 or 410){return false;}}
+        var tasks=new[]{Task.Run(()=>Pay(f.Store,one.S("id"))),Task.Run(()=>Pay(other,two.S("id")))};Task.WaitAll(tasks);
+        Assert.AreEqual(0,tasks.Count(t=>t.Result));Assert.AreEqual(150m,f.Store.Read(c=>MadaAccounting.Balance(c,null,Company,"112404")));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
     }
     [TestMethod]
     public void MissingAssignmentWrongCompanyAndClosedPeriodRefusePayoutAndTopup()

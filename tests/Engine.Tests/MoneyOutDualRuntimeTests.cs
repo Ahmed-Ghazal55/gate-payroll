@@ -103,8 +103,9 @@ public sealed class MoneyOutDualRuntimeTests
         Assert.AreEqual("advance-payout:"+reqId,opened.S("referenceId"));
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,custodian,reqId,new(){["reference"]="SYN-ADV-PAY"}))).Status);
         f.Store.Write((c,tx)=>ApprovalsArea.Decide(c,tx,Checker,opened.S("id"),new(){["decision"]="approve",["note"]="independent checker"}));
-        var paid=f.Store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,custodian,reqId,new(){["reference"]="SYN-ADV-PAY"}));
-        Assert.AreEqual("paid",paid.S("status"));
+        // RWD1b H2: even after dual approval, Disbursement posting stays closed until the payment engine.
+        var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,custodian,reqId,new(){["reference"]="SYN-ADV-PAY"})));
+        Assert.AreEqual(409,err.Status);Assert.IsTrue(err.Message.Contains("غير متاح",StringComparison.Ordinal));
     }
 
     [TestMethod]

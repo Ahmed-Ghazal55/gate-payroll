@@ -85,7 +85,7 @@ try{
  let policy=await req('/api/policies',{name:'Approved pay',kind:'approved_pay',platform:'all',effectiveFrom:'2026-10',config:{}});await req(`/api/policies/${policy.id}/approve`,{});
  await req('/api/riders',{...rider,policyId:policy.id});
  await seedWorkRows(req,[{sourceRef:'enterprise-row',iqama:iq,name:'Synthetic Rider',accountId:'1234567890123456',from:'2026-10-01',to:'2026-10-31',orders:1,riderPay:500,isValid:true,platform:'Keeta',period:'2026-10'}]);
- const debt=await req('/api/debts',{iqama:iq,category:'Advance',creditorSponsorId:'BW',totalAmount:600,monthlyInstallment:400,sourceRef:'agreed-advance',agreementReviewed:true,effectiveFrom:'2026-10'});
+ const debt=await req('/api/debts',{iqama:iq,category:'Advance',entryMode:'OpeningBalance',creditorSponsorId:'BW',totalAmount:600,monthlyInstallment:400,sourceRef:'agreed-advance',agreementReviewed:true,effectiveFrom:'2026-10',openingReviewed:true});
  let pay=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(pay.payable,100);assert.equal((await req('/api/debts'))[0].remainingBalance,600);
  await put('/api/debts/'+debt.id,{monthlyInstallment:200,agreementReviewed:true});await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:pay.fingerprint},400);
  pay=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(pay.payable,300);await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:pay.fingerprint});await req('/api/payroll/approve',{sponsorId:'BW',iqama:iq,period:'2026-10',fingerprint:pay.fingerprint},400);
@@ -109,13 +109,15 @@ try{
  await req('/api/promissory-notes',{iqama:iq,noteNumber:'NFZ-1',amount:5000},400); // Dormant by default
 
  // 1. Create HR Service (WorkPermit) with SharedSplit: totalCost 9600, companyShare 4600 -> riderShare 5000 on BW
- const wpDebt=await req('/api/debts',{iqama:iq,category:'WorkPermit',allocationMode:'SharedSplit',totalCostAmount:9600,companyShareAmount:4600,monthlyInstallment:1000,creditorSponsorId:'BW',entryMode:'Disbursement',paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'HR-WP-001',agreementReviewed:true,effectiveFrom:'2026-10'});
+ await req('/api/debts',{iqama:iq,category:'WorkPermit',allocationMode:'SharedSplit',totalCostAmount:9600,companyShareAmount:4600,monthlyInstallment:1000,creditorSponsorId:'BW',entryMode:'Disbursement',paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'HR-WP-DISBURSE-BLOCKED',agreementReviewed:true,effectiveFrom:'2026-10'},409);
+ const wpDebt=await req('/api/debts',{iqama:iq,category:'WorkPermit',allocationMode:'SharedSplit',totalCostAmount:9600,companyShareAmount:4600,monthlyInstallment:1000,creditorSponsorId:'BW',entryMode:'Accrual',sourceRef:'HR-WP-001',agreementReviewed:true,effectiveFrom:'2026-10'});
  assert.equal(wpDebt.totalAmount,5000);assert.equal(wpDebt.companyShareAmount,4600);assert.equal(wpDebt.remainingBalance,5000);assert.ok(wpDebt.journalNumber);
 
- // 2. Collect 1500 cash into Express internal cashbox (MAIN.EX.SET) + 500 Administrative Waiver (5202) -> auto Inter-CR clearing (1310)
- const colRes=await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:1500,waivedAmount:500,targetVaultCode:'MAIN.EX.DEBT',receiptRef:'RCV-EX-001',waiverReason:'Early settlement discount'});
- assert.equal(colRes.debt.remainingBalance,3000);assert.equal(colRes.debt.paidAmount,1500);assert.equal(colRes.debt.waivedAmount,500);
- assert.equal(colRes.journal.totalDebit,3500);assert.equal(colRes.journal.totalCredit,3500); // 1500 MAIN.EX.SET + 500 Waiver 5202 + 1500 InterCompany 1310 = 3500
+ // 2. RWD1b New HIGH: waive-on-collect via 5202 is closed; cash collect 2000 only (Inter-CR clearing 1310).
+ await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:1500,waivedAmount:500,targetVaultCode:'MAIN.EX.DEBT',receiptRef:'RCV-EX-WAIVE-BLOCKED',waiverReason:'Early settlement discount'},409);
+ const colRes=await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:2000,waivedAmount:0,targetVaultCode:'MAIN.EX.DEBT',receiptRef:'RCV-EX-001'});
+ assert.equal(colRes.debt.remainingBalance,3000);assert.equal(colRes.debt.paidAmount,2000);assert.equal(colRes.debt.waivedAmount,0);
+ assert.equal(colRes.journal.totalDebit,4000);assert.equal(colRes.journal.totalCredit,4000); // 2000 MAIN.EX.DEBT + 2000 InterCompany 1310
 
  // 3. Purchase/Transfer remaining 3000 debt from AlBawaba (BW) to Express Gate (EX)
  const trRes=await req(`/api/debts/${wpDebt.id}/transfer-sponsor`,{newCreditorSponsorId:'EX',settlementMode:'intercompany',expectedCreditorSponsorId:'BW',expectedRemainingBalance:3000,transferRef:'TRN-BW-EX-01'});
@@ -131,8 +133,10 @@ try{
 
  // 5. Bulk Collection Commit & Rider 360 Statement
  const bulkCsv=`iqama,riderName,collectedAmount,waivedAmount,targetVaultCode,receiptRef,notes\r\n${iq},Synthetic Rider,650,0,MAIN.EX.DEBT,BLK-001,test\r\n`;
- const bulkPreview=await req('/api/debts/bulk-collect/preview-file',{filename:'bulk.csv',dataBase64:Buffer.from(bulkCsv).toString('base64')});assert.equal(bulkPreview.errorCount,0);
- const bulkInput={rows:bulkPreview.rows,fingerprint:bulkPreview.fingerprint,confirm:true};
+ const bulkBytes=Buffer.from(bulkCsv);const bulkB64=bulkBytes.toString('base64');
+ const bulkPreview=await req('/api/debts/bulk-collect/preview-file',{filename:'bulk.csv',dataBase64:bulkB64});assert.equal(bulkPreview.errorCount,0);
+ // RWD1b H8: commit must carry source-file hash (dataBase64 or fileHash), not preview token alone.
+ const bulkInput={rows:bulkPreview.rows,fingerprint:bulkPreview.fingerprint,confirm:true,dataBase64:bulkB64,filename:'bulk.csv'};
  const bulkRes=await req('/api/debts/bulk-collect/commit',bulkInput);
  await req('/api/debts/bulk-collect/commit',bulkInput,409);
  assert.equal(bulkRes.totalCollectedBatch,650);
@@ -162,10 +166,11 @@ try{
 
  // 8. Opening Balance Debt Import Sheet (Preview Statement + Commit) & Rider Mobile Portal (/rider-app)
  const obCsv='iqama,riderName,debtorType,category,creditorSponsor,entryMode,allocationMode,totalAmount,priorPaidAmount,companyShareAmount,monthlyInstallment,effectiveFrom,contraAccountCode,sourceRef,notes\r\n2491234567,Opening Balance Rider,Rider,Advance,BW,OpeningBalance,RiderFull,3500,500,0,500,2026-10,3101,OB-TEST-01,Opening balance advance\r\n';
- const obPrev=await req('/api/debts/import-opening/preview',{filename:'opening.csv',dataBase64:Buffer.from(obCsv).toString('base64')});
+ const obB64=Buffer.from(obCsv).toString('base64');
+ const obPrev=await req('/api/debts/import-opening/preview',{filename:'opening.csv',dataBase64:obB64});
  assert.equal(obPrev.validCount,1);assert.equal(obPrev.errorCount,0);assert.equal(obPrev.totalOpeningRemaining,3000);assert.equal(obPrev.isBalanced,true);
  assert.equal(obPrev.summaryBySponsor.length,1);assert.equal(obPrev.summaryByCategory.length,1);
- const openingInput={rows:obPrev.rows,fingerprint:obPrev.fingerprint,confirm:true};
+ const openingInput={rows:obPrev.rows,fingerprint:obPrev.fingerprint,confirm:true,dataBase64:obB64,filename:'opening.csv'};
  const tampered=structuredClone(openingInput);tampered.rows[0].totalAmount=-300;
  await req('/api/debts/import-opening/commit',tampered,409);
  const obCommit=await req('/api/debts/import-opening/commit',openingInput);
@@ -192,11 +197,11 @@ try{
  // 9. Treasury & Chart of Accounts Hierarchy + Jahez Box Financial Isolation + Operation-Specific Account Filtering
  // 9.a: Reject using Jahez Cashbox (SUP.*), Jahez Fee Account (*.FEE), or PetroApp (PETRO.*) in HR Requests or Advances
  await req('/api/debts',{iqama:iq,category:'WorkPermit',totalAmount:9600,monthlyInstallment:1000,paymentVaultCode:'SUP.BW.SET',sourceRef:'BAD-HR-SUP',agreementReviewed:true},400);
- await req('/api/debts',{iqama:iq,category:'Advance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'SUP.BW.SET',sourceRef:'BAD-ADV-SUP',agreementReviewed:true},400);
+ await req('/api/debts',{iqama:iq,category:'Advance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'SUP.BW.SET',sourceRef:'BAD-ADV-SUP',agreementReviewed:true},409);
  await req('/api/debts',{iqama:iq,category:'WorkPermit',totalAmount:9600,monthlyInstallment:1000,paymentVaultCode:'MAIN.BW.FEE',sourceRef:'BAD-HR-FEE',agreementReviewed:true},400);
  await req('/api/debts',{iqama:iq,category:'WorkPermit',totalAmount:9600,monthlyInstallment:1000,paymentVaultCode:'PETRO.BW',sourceRef:'BAD-HR-PETRO',agreementReviewed:true},400);
- await req('/api/debts',{iqama:iq,category:'CashAdvance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'BANK.BW',sourceRef:'BAD-CASH-BANK',agreementReviewed:true},400);
- await req('/api/debts',{iqama:iq,category:'BankAdvance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'BAD-BANK-MAIN',agreementReviewed:true},400);
+ await req('/api/debts',{iqama:iq,category:'CashAdvance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'BANK.BW',sourceRef:'BAD-CASH-BANK',agreementReviewed:true},409);
+ await req('/api/debts',{iqama:iq,category:'BankAdvance',totalAmount:1000,monthlyInstallment:500,paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'BAD-BANK-MAIN',agreementReviewed:true},409);
  // Reject collecting an HR debt into Jahez Cashbox or Fee account or PetroApp
  await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:100,targetVaultCode:'SUP.EX.SET',receiptRef:'BAD-COL-SUP'},400);
  await req(`/api/debts/${wpDebt.id}/collect`,{collectedAmount:100,targetVaultCode:'MAIN.EX.FEE',receiptRef:'BAD-COL-FEE'},400);
@@ -222,7 +227,7 @@ try{
  assert.equal(coaAfter.find(a=>a.code==='1113').netBalance,200); // Parent group 1113 rolls up MAIN.*.FEE
 
  // 9.d: CompanyFull HR Order appears in Rider 360 Statement without increasing rider debt balance
- await req('/api/debts',{iqama:iq,category:'MedicalInsurance',allocationMode:'CompanyFull',totalCostAmount:1000,creditorSponsorId:'BW',entryMode:'Disbursement',paymentVaultCode:'MAIN.BW.DEBT',sourceRef:'HR-MED-COMP',agreementReviewed:true});
+ await req('/api/debts',{iqama:iq,category:'MedicalInsurance',allocationMode:'CompanyFull',totalCostAmount:1000,creditorSponsorId:'BW',entryMode:'Accrual',sourceRef:'HR-MED-COMP',agreementReviewed:true});
  const stUpdated=await req(`/api/finance/statement/rider/${iq}`);
  assert.ok(stUpdated.statementLines.some(l=>l.type==='company_borne_service'&&l.companyBorneAmount===1000&&l.debit===0));
  assert.ok(stUpdated.journalEntries.length>=4);

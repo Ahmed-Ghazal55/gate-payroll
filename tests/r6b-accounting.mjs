@@ -72,6 +72,7 @@ sys.stdout.buffer.write(out.getvalue())
  const dualReq=await call('checker','/api/advance-requests/synthetic-internet-request/request-payout',{});assert.equal(dualReq.status,'pending');assert.equal(dualReq.kind,'advance_payout');
  await call('dual',`/api/approvals/${dualReq.id}/decide`,{decision:'approve',note:'independent dual'});
  // RWP7a3: legacy recharge_card payout is gone — cards use /payments/mada/cards/issue.
+ // (mada balance route itself is already gone/410 above; machine balance stays in unit tests)
  const internetGone=await call('checker','/api/advance-requests/synthetic-internet-request/payout',{reference:'SYNTHETIC-CARD-RECEIPT'},410);
  assert.equal(internetGone.code,'gone');
  const manual={companyId:company,date:'2026-10-20',reference:'SYNTHETIC-HTTP-MANUAL',description:'Synthetic manual operation',lines:[{accountCode:'512101',debit:25,credit:0},{accountCode:'212103',debit:0,credit:25}]};

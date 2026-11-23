@@ -49,8 +49,8 @@ public sealed class ApprovalExceptionTests
             for(int stage=1;stage<=6;stage++){int next=stage;f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,actor,id,new(){["stage"]=next}));}
             f.Store.Write((c,tx)=>PayCycles.ReviewAll(c,tx,actor,id));
             Assert.IsTrue(f.Store.Read(c=>PayCycles.View(c,null,actor,Store.Get(c,id,PayCycles.Kind)!))["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve_salaries"));
-            f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,actor,id,new(){["stage"]=7}));
-            var final=f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,actor,id,new(){["stage"]=8}));Assert.AreEqual(8m,final.N("stage"));Assert.IsTrue(final.B("selfApprovedException"));
+            f.Store.Write((c,tx)=>PayCycles.DebtDeductionsAct(c,tx,actor,id,new(){["action"]="confirm-all"}));
+            var final=f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,actor,id,new(){["stage"]=7}));Assert.AreEqual("approved",final.S("status"));Assert.IsTrue(final.B("selfApprovedException"));
             Assert.IsTrue(f.Store.Read(c=>Store.List(c,"journal").All(j=>j.N("totalDebit")==j.N("totalCredit"))));
             var settings=f.Draft("pay_terms","ninja",PayFixture.Terms());settings["createdBy"]="ghazal";
             Assert.IsTrue(f.Store.Read(c=>PaySettings.WithActions(actor,settings,c)["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve")));

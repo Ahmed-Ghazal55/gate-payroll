@@ -21,6 +21,10 @@ public static partial class Debts
         if(open&&AccessPolicy.Has(actor,"debts.collect"))actions.Add("collect");
         else if(open&&!AccessPolicy.Has(actor,"debts.collect"))blockers.Add("صلاحية تحصيل الدين مطلوبة.");
 
+        if(open&&AccessPolicy.Has(actor,"debts.waive")){actions.Add("waive");actions.Add("absorb");}
+        if(open&&AccessPolicy.Has(actor,"debts.reschedule"))actions.Add("reschedule");
+        if(AccessPolicy.Has(actor,"debts.statement.print"))actions.Add("print");
+
         if(open&&debt.S("category")!="PlatformTransferredDebt"&&AccessPolicy.Has(actor,"debts.transfer_sponsor"))
             actions.Add("transfer_sponsor");
 

@@ -131,8 +131,9 @@ public static partial class PayCycles
                 FinancialScopes.DemandDebt(actor,debt);J.Need(FinancialCore.RequireDebtSponsor(debt).Id==company,"قسط على سجل آخر يحتاج مقاصة مستقلة.");string account=PayPosting.DebtAccount(debt);var dp=ConfigLists.Phase(c,tx,debt.S("category"));
                 // §40.4 stage-4 sources are month-created operational debts; NegativeSalaryCarryover stays stage 8 (§40.6 instalment / confirm).
                 bool thisMonth=debt.S("effectiveFrom")==period&&debt.S("category")!="NegativeSalaryCarryover";
-                // M4: this-month takes full remaining (still capped by available); old debts keep the instalment.
-                decimal amount=J.Money(thisMonth||(debt.S("category")=="FuelOverage"&&debt.S("effectiveFrom")==period&&group.Any(l=>l.B("ineligibleKeetaSalary")))?debt.N("remainingBalance"):Math.Min(debt.N("remainingBalance"),debt.N("monthlyInstallment")));
+                // M4: this-month takes full remaining (still capped by available); old debts keep the ledger instalment (RWD1c H7).
+                decimal instalment=DebtLedger.InstalmentForPayCycle(c,tx,debt);
+                decimal amount=J.Money(thisMonth||(debt.S("category")=="FuelOverage"&&debt.S("effectiveFrom")==period&&group.Any(l=>l.B("ineligibleKeetaSalary")))?debt.N("remainingBalance"):Math.Min(debt.N("remainingBalance"),instalment));
                 if(thisMonth)
                 {
                     decimal take=J.Money(Math.Min(amount,Math.Max(0,available)));
@@ -242,10 +243,24 @@ public static partial class PayCycles
         foreach(var row in batch)
         {
             J.Need(IndependentReview(actor,row,c,tx,cycle),"يلزم مراجع مستقل.",403);
+            // M-0670 / §32 / §40.6: instalment confirm or defer BEFORE final salary approval (same order as feat/w2-money-core).
+            bool hasDebt=Rows(cycle["deductions"]).OfType<JsonObject>().Any(d=>d.S("rider")==row.S("rider")&&d.S("type")=="debt");
+            J.Need(!hasDebt||row.S("debtDeductionStatus") is "confirmed" or "deferred","أكد استقطاع الدين أو أجّله قبل الاعتماد النهائي للراتب.",409);
             if(row.N("net")<0)CreateCarry(c,tx,cycle,row,actor);
             SettleOperatingFuel(c,tx,cycle,row,actor);
             SettleStage4(c,tx,cycle,row,actor);
-            row["salaryNet"]=row.N("net");row["salaryApprovedAt"]=now;row["salaryApprovedBy"]=actor.Identity!.Name;row["debtDeductionStatus"]="pending";
+            // Apply confirmed instalment to net at approval (movement was deferred until here only for legacy store debts via Debts.Post).
+            decimal take=row.N("oldDebtInstalment");
+            if(take>0)
+            {
+                var payLines=Rows(cycle["deductions"]).OfType<JsonObject>()
+                    .Where(d=>d.S("rider")==row.S("rider")&&d.S("type")=="debt"&&-d.N("amount")>0)
+                    .Select(d=>new PayLine("debt_installment","قسط معتمد قبل الاعتماد",d.N("amount"),d.S("source"))).ToList();
+                Debts.Post(c,tx,new(row.S("rider"),cycle.S("period"),"pay_cycle",0,row.N("net"),row.N("net"),row.N("net"),0,0,payLines,[]),cycle.S("id"),payCycle:true);
+                row["net"]=J.Money(Math.Max(0,row.N("net"))-take);row["closing"]=row.N("carried")+row.N("net");
+            }
+            row["salaryNet"]=row.N("net");row["salaryApprovedAt"]=now;row["salaryApprovedBy"]=actor.Identity!.Name;
+            if(row.S("debtDeductionStatus")=="")row["debtDeductionStatus"]=hasDebt?"confirmed":"deferred";
         }
         Store.Save(c,Kind,cycle,tx);
         var journal=PostEarnings(c,tx,cycle,actor,batch.Select(r=>r.S("rider")).ToHashSet(),first);if(first)cycle["journalEntryId"]=journal.S("id");
@@ -257,6 +272,10 @@ public static partial class PayCycles
                 decimal carry=-row.N("salaryNet");row["net"]=0;row["phase3"]=row.N("phase3")+carry;row["closing"]=row.N("carried");
                 Rows(cycle["deductions"]).Add(new JsonObject{["rider"]=row.S("rider"),["category"]="NegativeSalaryCarryover",["amount"]=carry,["type"]="carryover",["source"]=row.S("carryDebtId"),["accountCode"]="112507",["phase"]=3,["order"]=100,["labelAr"]="ترحيل العجز عند الاعتماد النهائي"});
             }
+            // U-W2-21 / X10: freeze short rider statement at final salary approval (no Omar live-read later).
+            string period=cycle.S("period");
+            var facing=RiderStatements.BuildRiderFacing(c,row.S("rider"),period,period,null,"ar",actor,tx);
+            RiderStatements.SaveApprovalSnapshot(c,tx,row.S("rider"),period,period,null,actor,facing);
         }
         bool complete=Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!="");
         cycle["status"]=complete?"approved":"partially_approved";cycle["debtDeductionStatus"]="pending";

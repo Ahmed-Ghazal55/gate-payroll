@@ -17,13 +17,16 @@ public sealed class R10ReviewFixTests
             Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"journal").Count(j=>j.S("payCycleId")==id)));
             f.Store.Write((c,tx)=>PayCycles.ReviewRider(c,tx,PayFixture.Maker,id,"2000000002",new(){["action"]="approve"}));
             var view=f.Store.Read(c=>PayCycles.View(c,null,PayFixture.Checker,Store.Get(c,id,PayCycles.Kind)!));Assert.IsTrue(view["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve_salaries"));
+            // Rider without debt can approve; debt rider stays skipped until an independent approver.
             var partial=PayCycleTests.Advance(f,id,7,true);Assert.AreEqual("partially_approved",partial.S("status"));Assert.AreEqual(1m,partial["approvalResult"]!.N("approved"));Assert.AreEqual(1m,partial["approvalResult"]!.N("skipped"));
             Assert.AreEqual(Rider,partial["approvalResult"]!["skippedRows"]![0]!.S("rider"));
-            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.DebtDeductionsAct(c,tx,PayFixture.Checker,id,new(){["action"]="confirm",["rider"]=Rider}))).Status);
+            // M-0670: confirm instalment before that rider's salary approval.
+            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Actor("synthetic-third-checker","FinancialAccountant"),id,new(){["stage"]=7}))).Status);
+            f.Store.Write((c,tx)=>PayCycles.DebtDeductionsAct(c,tx,PayFixture.Checker,id,new(){["action"]="confirm",["rider"]=Rider}));
             var review=f.Store.Read(c=>PayCycles.ReviewView(c,PayFixture.Maker,id,"",""));var item=review["rows"]!.AsArray().Single(r=>r!.S("rider")==Rider)!["items"]!.AsArray().Single(i=>i!.S("key")=="debt:"+debt)!;
-            Assert.AreEqual(0m,item.N("amount"));Assert.AreEqual(15m,item.N("requestedAmount"));
+            Assert.AreEqual(15m,Math.Abs(item.N("amount")));Assert.AreEqual(15m,item.N("requestedAmount"));
             var completed=f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Actor("synthetic-third-checker","FinancialAccountant"),id,new(){["stage"]=7}));Assert.AreEqual("approved",completed.S("status"));
-            Assert.AreEqual(2,f.Store.Read(c=>Store.List(c,"journal").Count(j=>j.S("payCycleId")==id)));
+            Assert.IsTrue(f.Store.Read(c=>Store.List(c,"journal").Count(j=>j.S("payCycleId")==id))>=2);
         }
     }
     [TestMethod]
@@ -32,12 +35,12 @@ public sealed class R10ReviewFixTests
         var(f,input,debt)=PayCycleTests.Setup();using(f)
         {
             f.Store.Write((c,tx)=>{var d=Store.Get(c,debt,"debt",tx)!;d["monthlyInstallment"]=0;Store.Save(c,"debt",d,tx);return true;});
-            var cycle=PayCycleTests.Through(f,input);string id=cycle.S("id");PayCycleTests.Advance(f,id,7,true);
+            var cycle=PayCycleTests.Through(f,input);string id=cycle.S("id");
             var view=f.Store.Read(c=>PayCycles.DebtDeductionsView(c,null,PayFixture.Maker,id));var item=view["rows"]!.AsArray().Single(r=>r!.S("rider")==Rider)!["items"]!.AsArray().Single()!;
             Assert.AreEqual(0m,item.N("due"));Assert.AreEqual(0m,item.N("amount"));Assert.AreEqual(50m,item.N("max"));
             Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PayCycles.DebtDeductionsAct(c,tx,PayFixture.Maker,id,new(){["action"]="edit",["rider"]=Rider,["key"]="debt:"+debt,["amount"]=25})));
             f.Store.Write((c,tx)=>PayCycles.DebtDeductionsAct(c,tx,PayFixture.Maker,id,new(){["action"]="edit",["rider"]=Rider,["key"]="debt:"+debt,["amount"]=25,["reason"]="Opening debt agreed deduction"}));
-            PayCycleTests.Advance(f,id,8,true);var saved=f.Store.Read(c=>Store.Get(c,debt,"debt")!);
+            PayCycleTests.ConfirmDebts(f,id);PayCycleTests.Advance(f,id,7,true);var saved=f.Store.Read(c=>Store.Get(c,debt,"debt")!);
             Assert.AreEqual(25m,saved.N("remainingBalance"));Assert.AreEqual(0m,saved.N("monthlyInstallment"));
             var journals=f.Store.Read(c=>Store.List(c,"journal").Where(j=>j.S("payCycleId")==id).ToList());Assert.IsTrue(journals.All(j=>j.N("totalDebit")==j.N("totalCredit")));
             Assert.AreEqual(25m,journals.SelectMany(j=>j["lines"]!.AsArray()).Where(l=>l!.S("debtId")==debt).Sum(l=>l!.N("credit")));

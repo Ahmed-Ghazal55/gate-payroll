@@ -17,12 +17,14 @@ public static class SchemaDebt
             id {g} NOT NULL, erp_rider_id {g} NOT NULL, company_id {g} NOT NULL,
             category {SchemaSql.Varchar(c,40)} NOT NULL, principal {m} NOT NULL CHECK(principal>=0),
             balance {m} NOT NULL DEFAULT 0 CHECK(balance>=0), instalment {m} NULL CHECK(instalment>=0),
-            status {SchemaSql.Varchar(c,12)} NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','waived','cancelled','transferred')),
+            status {SchemaSql.Varchar(c,12)} NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','waived','absorbed','cancelled','transferred')),
+            platform {SchemaSql.Varchar(c,20)} NULL,
             promissory_flag {SchemaSql.Bit(c)} NOT NULL DEFAULT 0 CHECK(promissory_flag IN (0,1)),
             {SchemaSql.MoneyAuditCols(c)}, CONSTRAINT PK_debt_debt {SchemaSql.PrimaryKey(c)}(id),
             CONSTRAINT UQ_debt_company UNIQUE(id,company_id),
             CONSTRAINT FK_debt_company FOREIGN KEY(company_id) REFERENCES {company}(id) ON DELETE NO ACTION
             """);
+        EnsureDebtPlatformColumn(c,tx);
         SchemaSql.EnsureTable(c,tx,"debt","debt_movement",$"""
             id {g} NOT NULL, period_month {SchemaSql.Date(c)} NOT NULL, debt_id {g} NOT NULL, company_id {g} NOT NULL,
             occurred_on {SchemaSql.Date(c)} NOT NULL, amount {m} NOT NULL CHECK(amount<>0),
@@ -55,10 +57,6 @@ public static class SchemaDebt
             CONSTRAINT FK_debt_import_batch FOREIGN KEY(import_batch_id,company_id,period_month) REFERENCES {SchemaSql.Q(c,"debt","import_batch")}(id,company_id,period_month) ON DELETE NO ACTION,
             CONSTRAINT FK_debt_import_line_debt FOREIGN KEY(debt_id,company_id) REFERENCES {d}(id,company_id) ON DELETE NO ACTION
             """);
-        SchemaMoneyGuard.Retain(c,tx,"debt","import_line","o.import_batch_id=NEW.import_batch_id AND (o.line_no=NEW.line_no OR o.source_row=NEW.source_row)");
-        SchemaMoneyGuard.Rule(c,tx,"debt","import_line","TR_debt_import_line_frozen",
-            n=>$"EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_batch")} b WHERE b.id={n}.import_batch_id AND b.status>=3)",
-            (o,n)=>$"{n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"id","import_batch_id","company_id","period_month")}) OR EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_batch")} b WHERE b.id={o}.import_batch_id AND b.status>=3)");
         SchemaSql.EnsureMonthIndex(c,tx,"debt","import_line");
         SchemaSql.CreateIndexIfMissing(c,tx,"debt","import_line","IX_debt_import_batch","import_batch_id,company_id,period_month");
         SchemaSql.CreateIndexIfMissing(c,tx,"debt","import_line","IX_debt_import_line_debt","debt_id,company_id");
@@ -74,8 +72,19 @@ public static class SchemaDebt
         SchemaMoneyRegister.BusinessKey(c,tx,"debt","debt_movement",n=>SchemaMoneyRegister.Join(c,$"{n}.source_type",SchemaMoneyRegister.IdString(c,$"{n}.source_id")));
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"debt","debt_movement","UQ_debt_disb_payment","payment_id","source_type='new_disbursement' AND payment_id IS NOT NULL");
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"debt","debt_movement","UQ_debt_carryover_rider","pay_run_rider_id","source_type='carryover_112507' AND pay_run_rider_id IS NOT NULL");
+        // Restore stashed children BEFORE movement/balance guards so approved imports and settled history reload.
+        RestoreSqliteDebtChildStashes(c,tx);
+        EnsureImportLineGuards(c,tx);
         EnsureMovementRules(c,tx);
         EnsureBalance(c,tx);
+    }
+
+    static void EnsureImportLineGuards(DbConnection c,DbTransaction? tx)
+    {
+        SchemaMoneyGuard.Retain(c,tx,"debt","import_line","o.import_batch_id=NEW.import_batch_id AND (o.line_no=NEW.line_no OR o.source_row=NEW.source_row)");
+        SchemaMoneyGuard.Rule(c,tx,"debt","import_line","TR_debt_import_line_frozen",
+            n=>$"EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_batch")} b WHERE b.id={n}.import_batch_id AND b.status>=3)",
+            (o,n)=>$"{n}.id IS NULL OR ({SchemaMoneyGuard.Changed(c,n,o,"id","import_batch_id","company_id","period_month")}) OR EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_batch")} b WHERE b.id={o}.import_batch_id AND b.status>=3)");
     }
 
     internal static string DateInMonth(DbConnection c,string column)=>SchemaSql.IsSql(c)?$"{column}>=period_month AND {column}<DATEADD(month,1,period_month)":$"date({column}) IS NOT NULL AND {column}=date({column}) AND {column}>=period_month AND {column}<date(period_month,'+1 month')";
@@ -140,9 +149,138 @@ public static class SchemaDebt
                       WHERE m.source_type='carryover_112507' AND m.pay_run_period_month=r.period_month AND ox.erp_rider_id=r.erp_rider_id AND m.pay_run_rider_id<>{n}.pay_run_rider_id),0)=-h.combined_net))))))
             OR ({n}.source_type='new_disbursement' AND ({n}.amount<=0 OR NOT EXISTS(SELECT 1 FROM {p} p WHERE p.id={n}.payment_id AND p.company_id={n}.company_id AND p.status=2 AND p.run_mode=0 AND p.payout_blocked=0 AND p.amount={n}.amount)))
             """);
-        foreach(var (kind,table,sign) in new[]{("collection","collection",-1),("waiver","waiver",-1),("new_disbursement","disbursement",1)})
-            SchemaMoneyGuard.Rule(c,tx,"debt","debt_movement","TR_debt_source_"+table,n=>$"{n}.source_type='{kind}' AND NOT EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt",table)} s WHERE s.id={n}.source_id AND s.debt_id={n}.debt_id AND s.company_id={n}.company_id AND s.period_month={n}.period_month AND s.status=3 AND s.run_mode=0 AND {n}.amount=s.amount*({sign}){(table=="disbursement"?$" AND s.payment_id={n}.payment_id":"")})");
+        foreach(var (kind,table,sign) in new[]{("collection","collection",-1),("waiver","waiver",-1),("absorption","waiver",-1),("new_disbursement","disbursement",1)})
+            SchemaMoneyGuard.Rule(c,tx,"debt","debt_movement","TR_debt_source_"+(kind=="absorption"?"absorption":table),n=>$"{n}.source_type='{kind}' AND NOT EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt",table)} s WHERE s.id={n}.source_id AND s.debt_id={n}.debt_id AND s.company_id={n}.company_id AND s.period_month={n}.period_month AND s.status=3 AND s.run_mode=0 AND {n}.amount=s.amount*({sign}){(table=="disbursement"?$" AND s.payment_id={n}.payment_id":"")})");
         SchemaMoneyGuard.Rule(c,tx,"debt","debt_movement","TR_debt_source_import",n=>$"{n}.source_type='import' AND NOT EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"debt","import_line")} l JOIN {SchemaSql.Q(c,"debt","import_batch")} b ON b.id=l.import_batch_id WHERE l.id={n}.source_id AND l.debt_id={n}.debt_id AND l.company_id={n}.company_id AND l.period_month={n}.period_month AND l.amount={n}.amount AND b.status=3 AND b.run_mode=0 AND (b.import_kind='reduce' AND l.amount<0 OR b.import_kind IN ('opening','add') AND l.amount>0))");
+    }
+
+    static void EnsureDebtPlatformColumn(DbConnection c,DbTransaction? tx)
+    {
+        if(SchemaSql.IsSql(c))
+        {
+            SchemaSql.Exec(c,tx,$"""
+                IF COL_LENGTH(N'debt.debt',N'platform') IS NULL ALTER TABLE {SchemaSql.Q(c,"debt","debt")} ADD platform {SchemaSql.Varchar(c,20)} NULL;
+                """);
+            // Drop named, column-bound, AND table-level (parent_column_id=0) status CHECKs that omit absorbed.
+            SchemaSql.Exec(c,tx,$"""
+                DECLARE @sql nvarchar(max)=N'';
+                SELECT @sql=@sql+N'ALTER TABLE {SchemaSql.Q(c,"debt","debt")} DROP CONSTRAINT '+QUOTENAME(cc.name)+N';'
+                FROM sys.check_constraints cc
+                LEFT JOIN sys.columns col ON col.object_id=cc.parent_object_id AND col.column_id=cc.parent_column_id AND col.name=N'status'
+                WHERE cc.parent_object_id=OBJECT_ID(N'debt.debt')
+                  AND (
+                    cc.name=N'CK_debt_debt_status'
+                    OR (col.name=N'status' AND cc.definition NOT LIKE N'%absorbed%')
+                    OR (cc.parent_column_id=0 AND cc.definition LIKE N'%status%' AND cc.definition NOT LIKE N'%absorbed%')
+                  );
+                IF LEN(@sql)>0 EXEC sp_executesql @sql;
+                IF NOT EXISTS(SELECT 1 FROM sys.check_constraints WHERE parent_object_id=OBJECT_ID(N'debt.debt') AND name=N'CK_debt_debt_status')
+                  ALTER TABLE {SchemaSql.Q(c,"debt","debt")} ADD CONSTRAINT CK_debt_debt_status CHECK (status IN ('open','settled','waived','absorbed','cancelled','transferred'));
+                """);
+            return;
+        }
+        object? cols=SchemaSql.Scalar(c,tx,"SELECT COUNT(1) FROM pragma_table_info('debt_debt') WHERE name='platform'");
+        if(Convert.ToInt64(cols!)==0)
+            SchemaSql.Exec(c,tx,"ALTER TABLE debt_debt ADD COLUMN platform TEXT NULL");
+        // SQLite cannot ALTER CHECK; rebuild when an older unnamed status constraint lacks absorbed.
+        object? ddl=SchemaSql.Scalar(c,tx,"SELECT sql FROM sqlite_master WHERE type='table' AND name='debt_debt'");
+        string sql=ddl?.ToString()??"";
+        if(sql!=""&&sql.Contains("CHECK",StringComparison.OrdinalIgnoreCase)&&!sql.Contains("'absorbed'",StringComparison.Ordinal))
+            RebuildSqliteDebtStatus(c,tx);
+    }
+
+    static void RebuildSqliteDebtStatus(DbConnection c,DbTransaction? tx)
+    {
+        // Child FKs block DROP; foreign_keys=OFF is ignored mid-transaction.
+        // Stash+drop children, rebuild debt, leave *__stash for RestoreSqliteDebtChildStashes after Ensure recreates tables.
+        if(tx==null)SchemaSql.Exec(c,tx,"PRAGMA foreign_keys=OFF");
+        SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_debt_no_delete");
+        SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_debt_no_replace");
+        SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_balance_INSERT");
+        SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS TR_debt_balance_UPDATE");
+        string[] children=["debt_debt_movement","debt_import_line","debt_collection","debt_waiver","debt_disbursement"];
+        foreach(string child in children)
+        {
+            object? exists=SchemaSql.Scalar(c,tx,"SELECT 1 FROM sqlite_master WHERE type='table' AND name=@n",("@n",child));
+            if(exists==null)continue;
+            string stash=child+"__stash";
+            SchemaSql.Exec(c,tx,"DROP TABLE IF EXISTS "+stash);
+            SchemaSql.Exec(c,tx,"CREATE TABLE "+stash+" AS SELECT * FROM "+child);
+            SchemaSql.Exec(c,tx,"DROP TABLE "+child);
+        }
+        SchemaSql.Exec(c,tx,"""
+            CREATE TABLE debt_debt__absorbed(
+              id TEXT NOT NULL, erp_rider_id TEXT NOT NULL, company_id TEXT NOT NULL,
+              category TEXT NOT NULL, principal REAL NOT NULL CHECK(principal>=0),
+              balance REAL NOT NULL DEFAULT 0 CHECK(balance>=0), instalment REAL NULL CHECK(instalment>=0),
+              status TEXT NOT NULL DEFAULT 'open' CHECK(status IN ('open','settled','waived','absorbed','cancelled','transferred')),
+              platform TEXT NULL,
+              promissory_flag INTEGER NOT NULL DEFAULT 0 CHECK(promissory_flag IN (0,1)),
+              created_by TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL DEFAULT '',
+              row_version BLOB, CONSTRAINT PK_debt_debt_abs PRIMARY KEY(id),
+              CONSTRAINT UQ_debt_company_abs UNIQUE(id,company_id)
+            );
+            """);
+        var names=new List<string>();
+        using(var cmd=Store.Command(c,tx,"SELECT name FROM pragma_table_info('debt_debt')"))
+        using(var reader=cmd.ExecuteReader())
+            while(reader.Read())names.Add(reader.GetString(0));
+        string[] want=["id","erp_rider_id","company_id","category","principal","balance","instalment","status","platform","promissory_flag","created_by","created_at","row_version"];
+        var present=want.Where(names.Contains).ToArray();
+        string debtCols=string.Join(",",present);
+        SchemaSql.Exec(c,tx,$"INSERT INTO debt_debt__absorbed({debtCols}) SELECT {debtCols} FROM debt_debt");
+        SchemaSql.Exec(c,tx,"DROP TABLE debt_debt");
+        SchemaSql.Exec(c,tx,"ALTER TABLE debt_debt__absorbed RENAME TO debt_debt");
+        if(tx==null)SchemaSql.Exec(c,tx,"PRAGMA foreign_keys=ON");
+    }
+
+    static void RestoreSqliteDebtChildStashes(DbConnection c,DbTransaction? tx)
+    {
+        if(SchemaSql.IsSql(c))return;
+        // Source documents before movements (import_line/collection/waiver/disbursement → debt_movement).
+        string[] children=["debt_import_line","debt_collection","debt_waiver","debt_disbursement","debt_debt_movement"];
+        bool restored=false;
+        foreach(string child in children)
+        {
+            string stash=child+"__stash";
+            object? stashExists=SchemaSql.Scalar(c,tx,"SELECT 1 FROM sqlite_master WHERE type='table' AND name=@n",("@n",stash));
+            if(stashExists==null)continue;
+            object? tableExists=SchemaSql.Scalar(c,tx,"SELECT 1 FROM sqlite_master WHERE type='table' AND name=@n",("@n",child));
+            if(tableExists==null){SchemaSql.Exec(c,tx,"DROP TABLE IF EXISTS "+stash);continue;}
+            var stashCols=new List<string>();
+            using(var cmd=Store.Command(c,tx,"SELECT name FROM pragma_table_info('"+stash.Replace("'","''")+"')"))
+            using(var reader=cmd.ExecuteReader())
+                while(reader.Read())stashCols.Add(reader.GetString(0));
+            var tableCols=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            using(var cmd=Store.Command(c,tx,"SELECT name FROM pragma_table_info('"+child.Replace("'","''")+"')"))
+            using(var reader=cmd.ExecuteReader())
+                while(reader.Read())tableCols.Add(reader.GetString(0));
+            var cols=stashCols.Where(tableCols.Contains).ToArray();
+            // Drop table triggers so approved/settled history can reload before guards are re-enabled.
+            var triggerNames=new List<string>();
+            using(var cmd=Store.Command(c,tx,"SELECT name FROM sqlite_master WHERE type='trigger' AND tbl_name=@t",("@t",child)))
+            using(var reader=cmd.ExecuteReader())
+                while(reader.Read())triggerNames.Add(reader.GetString(0));
+            foreach(string name in triggerNames)
+                SchemaSql.Exec(c,tx,"DROP TRIGGER IF EXISTS "+name);
+            if(cols.Length>0)
+                SchemaSql.Exec(c,tx,$"INSERT OR IGNORE INTO {child}({string.Join(",",cols)}) SELECT {string.Join(",",cols)} FROM {stash}");
+            SchemaSql.Exec(c,tx,"DROP TABLE IF EXISTS "+stash);
+            restored=true;
+        }
+        if(!restored)return;
+        // Re-install document/movement guards that were dropped for the reload.
+        foreach(string table in new[]{"collection","disbursement","waiver"})
+        {
+            var frozen=new List<string>{"company_id","period_month","amount","reason","debt_id"};
+            if(table=="disbursement")frozen.Add("payment_id");
+            if(table=="waiver")frozen.Add("expense_account_code");
+            SchemaMoneyRegister.Workflow(c,tx,"debt",table,frozen.ToArray());
+            SchemaMoneyRegister.Immutable(c,tx,"debt",table,"company_id","period_month");
+        }
+        SchemaMoneyGuard.Retain(c,tx,"debt","debt_movement","o.source_type=NEW.source_type AND o.source_id=NEW.source_id");
+        SchemaMoneyRegister.Immutable(c,tx,"debt","debt_movement","period_month","debt_id","company_id","occurred_on","amount","source_type","source_id","journal_id","payment_id","pay_run_rider_id","pay_run_period_month","run_mode","payout_blocked","generation");
+        SchemaMoneyRegister.BusinessKey(c,tx,"debt","debt_movement",n=>SchemaMoneyRegister.Join(c,$"{n}.source_type",SchemaMoneyRegister.IdString(c,$"{n}.source_id")));
     }
 
     static void EnsureBalance(DbConnection c,DbTransaction? tx)
