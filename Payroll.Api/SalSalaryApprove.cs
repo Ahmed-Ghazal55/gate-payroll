@@ -232,11 +232,12 @@ public static class SalSalaryApprove
             """,("@id",payableId),("@src",rider.S("id")),("@c",run.S("companyId")),("@erp",rider.S("erpRiderId")),
             ("@amt",netPay),("@pm",run.S("periodMonth")),("@by",actor.Identity!.Name!),("@at",now));
 
+        bool blockedByHold=SalRiderRequests.HasActiveBankBlockingHold(c,tx,rider.S("erpRiderId"),run.S("periodMonth"),run.S("app"));
         Exec(c,tx,$"""
             UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}
-            SET payable_id=@p,bank_eligible=CASE WHEN run_mode=0 AND @pb=0 THEN 1 ELSE 0 END,updated_by=@by,updated_at=@at
+            SET payable_id=@p,bank_eligible=CASE WHEN run_mode=0 AND @pb=0 AND @held=0 THEN 1 ELSE 0 END,updated_by=@by,updated_at=@at
             WHERE id=@id
-            """,("@p",payableId),("@pb",run.B("payoutBlocked")?1:0),("@by",actor.Identity!.Name!),("@at",now),("@id",rider.S("id")));
+            """,("@p",payableId),("@pb",run.B("payoutBlocked")?1:0),("@held",blockedByHold?1:0),("@by",actor.Identity!.Name!),("@at",now),("@id",rider.S("id")));
         return payableId;
     }
 

@@ -195,9 +195,29 @@ public static partial class AccessPolicy
             if(method=="POST"&&path.Contains("/lines",StringComparison.Ordinal))return Has("salaries.mudad.edit");
             return method=="POST"&&Has("people.mudad.manage");
         }
-        // U-W2-12/13/15 money capture + distribution + pay-run calc/approve; U-W2-18 Chefz freeze.
+        // U-W2-12/13/15/16/17/18 money capture + distribution + pay-run + rider requests + bank files + Chefz freeze.
         if(path.StartsWith("/api/sal/",StringComparison.Ordinal))
         {
+            if(path.StartsWith("/api/sal/rider-requests",StringComparison.Ordinal))
+            {
+                if(method=="GET")return Has("pay.view")||Has("salaries.hold.request")||Has("salaries.hold.approve")||Has("salaries.hold.release")||Has("salaries.deduction.request")||Has("salaries.deduction.approve")||Has("advances.request")||Has("advances.review");
+                if(method!="POST")return false;
+                if(path.EndsWith("/release",StringComparison.Ordinal)||path.EndsWith("/request-release",StringComparison.Ordinal))
+                    return Has("salaries.hold.release")||Has("pay.approve")||Has(ApprovalsArea.DualSharedRiderRelease);
+                if(path.EndsWith("/approve",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal))
+                    return Has("salaries.hold.approve")||Has("salaries.deduction.approve")||Has("advances.review")||Has("pay.approve");
+                return Has("salaries.hold.request")||Has("salaries.deduction.request")||Has("salaries.hold.approve")||Has("salaries.deduction.approve")||Has("advances.request")||Has("pay.manage");
+            }
+            if(path.StartsWith("/api/sal/bank-files",StringComparison.Ordinal))
+            {
+                if(method=="GET")return Has("finance.bankfile.export")||Has("salaries.bankfile.mark_sent")||Has("pay.view");
+                if(method!="POST")return false;
+                if(path.EndsWith("/mark-sent",StringComparison.Ordinal))
+                    return (Has("salaries.bankfile.mark_sent")||Has("finance.bankfile.export"))&&Has(ApprovalsArea.DualBankFile);
+                if(path.EndsWith("/request-mark-sent",StringComparison.Ordinal))
+                    return Has("salaries.bankfile.mark_sent")||Has("finance.bankfile.export")||Has(ApprovalsArea.DualBankFile);
+                return Has("finance.bankfile.export");
+            }
             if(method=="GET")return Has("pay.view");
             if(method=="POST"&&(path.EndsWith("/approve-salary",StringComparison.Ordinal)||path.EndsWith("/approve",StringComparison.Ordinal)
                 ||path.EndsWith("/freeze",StringComparison.Ordinal)||path.Contains("/debt-confirm",StringComparison.Ordinal)))
