@@ -107,4 +107,73 @@ public sealed class Auth2faApiTests
             Assert.IsTrue(store.Read(c=>Auth2faApi.LoginBlocked(c,store.DirectoryPath,u)));
         });
     }
+
+    [TestMethod]
+    public void VerifiedLogin_WithoutCode_Challenges_WithTotp_IssuesFullSession()
+    {
+        WithStore(store=>
+        {
+            var accountant=SeedUser(store,"acct2fa","Accountant");
+            var actor=UserAccess.Principal(accountant);
+            var setup=store.Write((c,tx)=>Auth2faApi.Setup(c,tx,store.DirectoryPath,actor,new()));
+            string secret=setup.S("secret");
+            Assert.AreEqual(32,secret.Length);
+            store.Write((c,tx)=>Auth2faApi.Verify(c,tx,store.DirectoryPath,actor,new(){["code"]=Auth2faApi.ComputeTotp(secret,DateTimeOffset.UtcNow)}));
+
+            var challenge=store.Write((c,tx)=>Auth2faApi.CompletePasswordLogin(c,tx,store.DirectoryPath,accountant,code:null));
+            Assert.AreEqual("challenge",challenge.S("mode"));
+            Assert.IsTrue(challenge.B("requiresTwoFactor"));
+            Assert.AreEqual(0,(challenge["sessionClaims"] as JsonArray)?.Count??0);
+
+            string otp=Auth2faApi.ComputeTotp(secret,DateTimeOffset.UtcNow);
+            var full=store.Write((c,tx)=>Auth2faApi.CompletePasswordLogin(c,tx,store.DirectoryPath,accountant,otp));
+            Assert.AreEqual("full",full.S("mode"));
+            Assert.IsFalse(full.B("requiresTwoFactor"));
+            Assert.IsFalse(full.B("enrollmentOnly"));
+            Assert.AreEqual(1,(full["sessionClaims"] as JsonArray)!.Count(n=>n?.ToString()=="full"));
+        });
+    }
+
+    [TestMethod]
+    public void PastDeadline_Login_IssuesEnrollmentOnly_BlocksBusinessApis()
+    {
+        WithStore(store=>
+        {
+            var u=SeedUser(store,"latefin","FinancialManager");
+            store.Write((c,tx)=>{Auth2faApi.EnsureDeadline(c,tx,"latefin",DateTimeOffset.UtcNow.AddDays(-1));return true;});
+            var gate=store.Write((c,tx)=>Auth2faApi.CompletePasswordLogin(c,tx,store.DirectoryPath,u,code:null));
+            Assert.AreEqual("enrollment",gate.S("mode"));
+            Assert.IsTrue(gate.B("enrollmentOnly"));
+            var enrollment=Auth2faApi.EnrollmentPrincipal(u);
+            Assert.IsTrue(AccessPolicy.Allowed(enrollment,"POST","/api/auth/2fa/setup"));
+            Assert.IsTrue(AccessPolicy.Allowed(enrollment,"POST","/api/auth/2fa/verify"));
+            Assert.IsFalse(AccessPolicy.Allowed(enrollment,"GET","/api/approvals"));
+            Assert.IsFalse(AccessPolicy.Allowed(enrollment,"GET","/api/accounting/chart"));
+            Assert.IsFalse(AccessPolicy.Allowed(enrollment,"POST","/api/auth/2fa/reset"));
+        });
+    }
+
+    [TestMethod]
+    public void EditedRoleTemplate_UsersManage_RequiresTwoFactor_ExactPerm()
+    {
+        WithStore(store=>
+        {
+            store.Write((c,tx)=>
+            {
+                Store.Save(c,UserAccess.RolePermissionsKind,new()
+                {
+                    ["id"]="Reviewer",
+                    ["permissions"]=new JsonArray("forms.view","users.manage"),
+                    ["updatedBy"]="test"
+                },tx);
+                return true;
+            });
+            var u=SeedUser(store,"rev2fa","Reviewer");
+            Assert.IsFalse(Auth2faApi.RequiresTwoFactor(u)); // customPermissions empty, role not finance
+            Assert.IsTrue(store.Read(c=>Auth2faApi.RequiresTwoFactor(c,null,u)));
+            var withRole=store.Read(c=>UserAccess.WithRole(c,null,u));
+            Assert.IsTrue(UserAccess.EffectivePermissions(withRole).Contains("users.manage"));
+            Assert.AreEqual(2,UserAccess.EffectivePermissions(withRole).Length);
+        });
+    }
 }

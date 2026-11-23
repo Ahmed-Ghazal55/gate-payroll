@@ -567,6 +567,14 @@ public static class UserAccess
         if (u == null || !Roles.Contains(Role(u)) || Status(u) != "active" || (context.Principal!.FindFirst("securityVersion") is { } version && version.Value != u.S("securityVersion")))
         { context.RejectPrincipal(); await context.HttpContext.SignOutAsync(); return; }
         // Upgrade legacy administrator cookies without invalidating a working production session.
+        // Keep enrollment-only sessions until 2FA is verified (past the 14-day window).
+        if(context.Principal!.HasClaim(Auth2faApi.EnrollmentClaim,"true")
+           &&store.Read(c=>Auth2faApi.LoginBlocked(c,store.DirectoryPath,u)))
+        {
+            context.ReplacePrincipal(Auth2faApi.EnrollmentPrincipal(u));
+            context.ShouldRenew=false;
+            return;
+        }
         context.ReplacePrincipal(store.Read(c=>Principal(WithRole(c,null,u))));
         context.ShouldRenew = false;
     }

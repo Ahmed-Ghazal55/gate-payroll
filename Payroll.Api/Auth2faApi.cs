@@ -4,6 +4,7 @@ using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Authentication.Cookies;
 namespace Payroll;
 
 /// <summary>U-W2-38: TOTP setup/verify/backup + 14-day finance window (G7, X24). Secret encrypted; never logged; never returned after setup.</summary>
@@ -28,8 +29,81 @@ public static class Auth2faApi
     {
         string role=UserAccess.Role(user);
         if(FinanceRoles.Contains(role))return true;
+        // Prefer effective permissions (role template + grants); fall back to direct grants only.
+        if(user[UserAccess.RoleBaseline] is JsonArray||user["customPermissions"] is JsonArray)
+            return UserAccess.EffectivePermissions(user).Any(p=>string.Equals(p,"users.manage",StringComparison.OrdinalIgnoreCase));
         var custom=user["customPermissions"] as JsonArray??[];
         return custom.Any(n=>string.Equals(n?.ToString(),"users.manage",StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static bool RequiresTwoFactor(DbConnection c,DbTransaction? tx,JsonObject user)
+        =>RequiresTwoFactor(UserAccess.WithRole(c,tx,user));
+
+    public const string EnrollmentClaim="enrollmentOnly";
+
+    public static ClaimsPrincipal EnrollmentPrincipal(JsonObject u)
+    {
+        var claims=new List<Claim>
+        {
+            new(ClaimTypes.NameIdentifier,u.S("id")),
+            new(ClaimTypes.Name,u.S("username")),
+            new(ClaimTypes.Role,UserAccess.Role(u)),
+            new("securityVersion",u.S("securityVersion")),
+            new(EnrollmentClaim,"true")
+        };
+        return new(new ClaimsIdentity(claims,CookieAuthenticationDefaults.AuthenticationScheme));
+    }
+
+    public static bool IsEnrollmentOnly(ClaimsPrincipal actor)
+        =>actor.HasClaim(EnrollmentClaim,"true");
+
+    /// <summary>Password already verified. Modes: full | challenge | enrollment.</summary>
+    public static JsonObject CompletePasswordLogin(DbConnection c,DbTransaction tx,string dataDir,JsonObject user,string? code)
+    {
+        var withRole=UserAccess.WithRole(c,tx,user);
+        if(!RequiresTwoFactor(withRole))
+            return LoginSession("full",enrollmentOnly:false,challenge:false);
+        StartWindowIfNeeded(c,tx,withRole);
+        string userId=SchemaApprovals.EnsureAuthUserId(c,tx,user.S("username"));
+        var row=Load(c,tx,userId);
+        if(row?.VerifiedAt!=null)
+        {
+            if(string.IsNullOrWhiteSpace(code))
+                return new()
+                {
+                    ["mode"]="challenge",
+                    ["requiresTwoFactor"]=true,
+                    ["enrollmentOnly"]=false,
+                    ["sessionClaims"]=new JsonArray(),
+                    ["messageAr"]="أدخل رمز التحقق الثنائي أو رمزاً احتياطياً."
+                };
+            J.Need(ValidateLoginFactor(c,tx,dataDir,userId,row.Value,code.Trim()),"رمز التحقق غير صحيح.",401);
+            return LoginSession("full",enrollmentOnly:false,challenge:false);
+        }
+        bool pastDeadline=row!=null&&DateTimeOffset.UtcNow>row.Value.Deadline.ToUniversalTime();
+        if(pastDeadline)
+            return LoginSession("enrollment",enrollmentOnly:true,challenge:false);
+        return LoginSession("full",enrollmentOnly:false,challenge:false);
+    }
+
+    static JsonObject LoginSession(string mode,bool enrollmentOnly,bool challenge)=>new()
+    {
+        ["mode"]=mode,
+        ["requiresTwoFactor"]=challenge||mode=="challenge",
+        ["enrollmentOnly"]=enrollmentOnly,
+        ["sessionClaims"]=mode=="full"?new JsonArray("full"):mode=="enrollment"?new JsonArray("enrollment"):new JsonArray()
+    };
+
+    static bool ValidateLoginFactor(DbConnection c,DbTransaction tx,string dataDir,string userId,
+        (string? Id,byte[]? Encrypted,DateTimeOffset? VerifiedAt,DateTimeOffset Deadline) row,string code)
+    {
+        try
+        {
+            string secret=DecryptSecret(dataDir,row.Encrypted!);
+            if(TotpMatches(secret,code,DateTimeOffset.UtcNow))return true;
+        }
+        catch{/* try backup */}
+        return TryConsumeBackup(c,tx,userId,code);
     }
 
     public static byte[] ProtectKey(string dataDir)
@@ -150,7 +224,9 @@ public static class Auth2faApi
 
     public static bool LoginBlocked(DbConnection c,string dataDir,JsonObject user)
     {
-        if(!RequiresTwoFactor(user))return false;
+        // Past-deadline users get an enrollment-only session; hard block is no longer used at login.
+        // Kept for tests that assert the deadline state (verified=false and past deadline).
+        if(!RequiresTwoFactor(c,null,user)&&!RequiresTwoFactor(user))return false;
         try
         {
             object? id=SchemaSql.Scalar(c,null,$"SELECT id FROM {SchemaSql.Q(c,"auth","user")} WHERE username=@u OR username=@n",
@@ -167,7 +243,7 @@ public static class Auth2faApi
 
     public static void StartWindowIfNeeded(DbConnection c,DbTransaction tx,JsonObject user)
     {
-        if(!RequiresTwoFactor(user))return;
+        if(!RequiresTwoFactor(UserAccess.WithRole(c,tx,user))&&!RequiresTwoFactor(user))return;
         string userId=SchemaApprovals.EnsureAuthUserId(c,tx,user.S("username"));
         if(Load(c,tx,userId)!=null)return;
         SchemaSql.Exec(c,tx,$"""
