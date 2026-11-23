@@ -4,9 +4,10 @@ namespace Payroll;
 // Additive indexes only: row JSON and existing financial indexes remain untouched.
 public static class ErpDataIndexes
 {
-    public static void Ensure(DbConnection c)
+    public static void Ensure(DbConnection c,DbTransaction? tx=null)
     {
         using var cmd=c.CreateCommand();
+        cmd.Transaction=tx;
         cmd.CommandText=c is Microsoft.Data.Sqlite.SqliteConnection ? """
             CREATE INDEX IF NOT EXISTS ix_erp_source ON records(kind,json_extract(body,'$.erpSourceId')) WHERE json_extract(body,'$.erpSourceId') IS NOT NULL;
             CREATE INDEX IF NOT EXISTS ix_erp_company ON records(kind,coalesce(json_extract(body,'$.companyId'),json_extract(body,'$.sponsorId')));
