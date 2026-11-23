@@ -193,6 +193,7 @@ public static class SalPayCalc
                 ["schemeType"]=scheme,["level1Total"]=level1Personal,["companyOperatingTotal"]=companyOperating,
                 ["netAfterLevel1"]=netAfterL1,["level2Total"]=level2Total,["salaryNet"]=salaryNet,
                 ["oldDebtInstalment"]=proposedDebt,["keetaIneligible"]=keetaIneligible,
+                ["eligibilityNeedsReview"]=src.B("eligibilityNeedsReview"),
                 ["createsNegativeDebt"]=createsNegativeDebt,["personalResidualDebt"]=residualPersonal,
                 ["mudadAmount"]=mudadAmount
             });
@@ -673,10 +674,21 @@ public static class SalPayCalc
         var elig=eligibility.FirstOrDefault(s=>RiderMatch(s,erpRider));
         if(elig!=null)
         {
-            bool frozenIneligible=!elig.B("eligible");
-            if(src.ContainsKey("keetaIneligible")&&src.B("keetaIneligible")!=frozenIneligible)
-                throw new ApiError("حالة أهلية كيتا في الطلب تتعارض مع التجميد.",409);
-            src["keetaIneligible"]=frozenIneligible;
+            // U-W2-11b / D19: Omar NotValid is expected-only (needs review); do not auto-charge §22.9.2.
+            if(elig.B("needsReview"))
+            {
+                src["eligibilityNeedsReview"]=true;
+                src["eligibilityReason"]=elig.S("reason");
+                src["eligibilityExpectedStatus"]=elig.S("expectedStatus");
+                if(!src.ContainsKey("keetaIneligible"))src["keetaIneligible"]=false;
+            }
+            else
+            {
+                bool frozenIneligible=!elig.B("eligible");
+                if(src.ContainsKey("keetaIneligible")&&src.B("keetaIneligible")!=frozenIneligible)
+                    throw new ApiError("حالة أهلية كيتا في الطلب تتعارض مع التجميد.",409);
+                src["keetaIneligible"]=frozenIneligible;
+            }
         }
         if(string.Equals(app,"chefz",StringComparison.OrdinalIgnoreCase))
         {

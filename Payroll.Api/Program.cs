@@ -188,6 +188,8 @@ ApprovalsArea.Map(api,store);
 SalSimulations.Map(api,store);
 OpsSnapshotCapture.Map(api,store);
 SalDistribution.Map(api,store);
+SalPlatformInvoice.Map(api,store);
+KeetaViewsCapture.Map(api,store);
 MudadApi.Map(api,store);
 SalPayCalc.Map(api,store);
 SalDebtConfirm.Map(api,store);

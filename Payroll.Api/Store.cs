@@ -80,6 +80,8 @@ public sealed partial class Store
             SchemaPayAllocation.Ensure(conn,tx);
             SchemaSalInvoice.Ensure(conn,tx);
             SchemaSalDistribution.Ensure(conn,tx);
+            SchemaOpsPlatformAccount.Ensure(conn,tx);
+            SchemaKeetaHwm.Ensure(conn,tx);
             SchemaSalPayRun.Ensure(conn,tx);
             SchemaHrMudad.Ensure(conn,tx);
             SchemaSalMudad.Ensure(conn,tx);

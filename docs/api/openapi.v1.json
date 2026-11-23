@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:37923/"
+      "url": "http://127.0.0.1:19551/"
     }
   ],
   "paths": {
@@ -119,7 +119,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -137,7 +137,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -360,7 +360,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -1199,7 +1199,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -2502,7 +2502,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3055,7 +3055,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3408,7 +3408,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3477,7 +3477,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3563,7 +3563,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3649,7 +3649,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -3735,7 +3735,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -12038,7 +12038,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -20458,7 +20458,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -20476,7 +20476,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -20494,7 +20494,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -20512,7 +20512,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -20530,7 +20530,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -26272,6 +26272,296 @@
         }
       }
     },
+    "/api/sal/platform-invoices": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Upload a money-schema platform invoice (Keeta first); partner totals on company",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "app",
+                    "companyId",
+                    "gross",
+                    "deductions",
+                    "net",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "app": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "cityCode": {
+                      "type": "string"
+                    },
+                    "periodFrom": {
+                      "type": "string"
+                    },
+                    "periodTo": {
+                      "type": "string"
+                    },
+                    "periodMonth": {
+                      "type": "string"
+                    },
+                    "gross": {
+                      "type": "number"
+                    },
+                    "deductions": {
+                      "type": "number"
+                    },
+                    "net": {
+                      "type": "number"
+                    },
+                    "status": {
+                      "type": "number"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "partnerTotals": {
+                      "type": "object"
+                    },
+                    "ownerSnapshot": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/platform-invoices/{id}/approve": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Approve invoice totals and feed sal.distribution from account lines",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/JsonObject"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "number"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    },
+                    "distribution": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/keeta/hwm": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Read Keeta view high-water marks",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "views",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "views": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "viewName",
+                          "lastRevision"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "viewName": {
+                            "type": "string"
+                          },
+                          "lastRevision": {
+                            "type": "number"
+                          },
+                          "lastSnapshotId": {
+                            "type": "string"
+                          },
+                          "lastCreatedAt": {
+                            "type": "string"
+                          },
+                          "advancedAt": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/keeta/hwm/advance": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Advance a Keeta view high-water mark without full re-scan",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "viewName",
+                    "lastRevision",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "viewName": {
+                      "type": "string"
+                    },
+                    "lastRevision": {
+                      "type": "number"
+                    },
+                    "lastSnapshotId": {
+                      "type": "string"
+                    },
+                    "lastCreatedAt": {
+                      "type": "string"
+                    },
+                    "advancedAt": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/mudad": {
       "get": {
         "tags": [
@@ -27847,7 +28137,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -28831,7 +29121,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -30230,7 +30520,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -30412,7 +30702,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": {}
+                "schema": { }
               }
             }
           }
@@ -32348,7 +32638,7 @@
               "string"
             ]
           },
-          "snapshot": {},
+          "snapshot": { },
           "checkpoint": {
             "$ref": "#/components/schemas/JsonElement"
           },
@@ -33471,8 +33761,8 @@
       "JsonArray": {
         "type": "array"
       },
-      "JsonElement": {},
-      "JsonNode": {},
+      "JsonElement": { },
+      "JsonNode": { },
       "JsonObject": {
         "type": "object"
       },
