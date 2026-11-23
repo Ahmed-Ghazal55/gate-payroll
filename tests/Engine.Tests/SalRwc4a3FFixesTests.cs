@@ -33,7 +33,6 @@ public sealed class SalRwc4a3FFixesTests
         SchemaSalPayRun.Ensure(c);SchemaHrMudad.Ensure(c);SchemaSalMudad.Ensure(c);SchemaDebt.Ensure(c);
         SchemaOperationCapture.Ensure(c);SchemaSalStatement.Ensure(c);SchemaFinPeriodBalance.Ensure(c);
         SchemaAuthCatalog.Ensure(c);SchemaApprovals.Ensure(c);
-        SchemaBankFile.Ensure(c);
         return c;
     }
 
