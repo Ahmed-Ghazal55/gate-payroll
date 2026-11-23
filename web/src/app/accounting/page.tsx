@@ -48,7 +48,6 @@ import { api } from '../../lib/api';
 import { formatSar } from '../../lib/money';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
 import { CoaManagePanel } from '../../features/accounting/CoaManagePanel';
-import { AccountingAdjustmentsPanel } from '../../features/accounting/AccountingAdjustmentsPanel';
 import { paginateFilteredRows } from '../../features/accounting/trial-balance-paging';
 import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
 import { canShowImportStep, TREASURY_OPENING_IMPORT } from '../../features/imports/import-steps';
@@ -718,10 +717,6 @@ function AccountingPageContent() {
         <div className="space-y-4">
           <CoaManagePanel />
         </div>
-      )}
-
-      {activeTab === 'adjustments' && (
-        <AccountingAdjustmentsPanel companies={companies} />
       )}
 
       {/* ======================================================== */}

@@ -54,7 +54,6 @@ export const TREASURY_TABS = [
   'vaults',
   'advance_payouts',
   'bank_file',
-  'extras',
 ] as const;
 export type TreasuryTab = (typeof TREASURY_TABS)[number];
 
@@ -68,7 +67,6 @@ export const TREASURY_TAB_LABELS: Record<TreasuryTab, string> = {
   vaults: 'أرصدة الخزينة (1110-1140)',
   advance_payouts: 'صرف السلف المعتمدة',
   bank_file: 'ملف صرف الرواتب البنكي',
-  extras: 'مدا والتزامات وتوزيع قديم',
 };
 
 export const ACCOUNTING_TABS = [
@@ -82,7 +80,6 @@ export const ACCOUNTING_TABS = [
   'cost_centres',
   'app_profitability',
   'reports',
-  'adjustments',
 ] as const;
 export type AccountingTab = (typeof ACCOUNTING_TABS)[number];
 
@@ -97,7 +94,6 @@ export const ACCOUNTING_TAB_LABELS: Record<AccountingTab, string> = {
   cost_centres: 'مراكز التكلفة والمدن',
   app_profitability: 'ربحية التطبيقات',
   reports: 'التقارير',
-  adjustments: 'تسويات مدا والراتب',
 };
 
 /** One-time toast when a removed tab redirects (U-W3-27 / U-W3-28). */

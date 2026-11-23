@@ -6,7 +6,7 @@
 | Branch | `trial/local-2026-11-23` |
 | Updated | 2026-11-23 by Cursor (TRIAL1 integration merges) |
 | Live | unchanged (no push/deploy; local trial only) |
-| Next | Merge remaining W2/W3 into trial branch; regenerate contracts; sqltest |
+| Next | Run build/tests/sqltest; write TRIAL1 report |
 
 ## Goal now
 TRIAL1: local integration of W2/W3 branches for Ghazal to try invoices, pay cycle, balances. Never push / never main / never live DB.

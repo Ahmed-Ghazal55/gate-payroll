@@ -31,7 +31,8 @@ public sealed class SystemAdminMigrationTests
         // M-0672: non-dual approvals allow same actor; maker≠checker applies only to dedicated dual codes.
         var request=new JsonObject{["id"]="synthetic-sysadmin-request",["kind"]="generic",["status"]="pending",["requestedBy"]="synthetic-sysadmin",["targetDepartment"]="MGT",["requiredRankLevel"]=1,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};
         f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(actor,request,new(),c:c,tx:tx);Store.Save(c,"approval_request",request,tx);return true;});
-        Assert.IsFalse(request.B("selfApprovedException"));
+        // M-0667: SystemAdmin self-approval is always audited (even for non-dual kinds).
+        Assert.IsTrue(request.B("selfApprovedException"));
         // Dual money-out: SystemAdmin may self-approve with an audited exception badge (M-0667 / M-0672).
         f.Store.Write((c,tx)=>{
             var dual=new JsonObject{["id"]="synthetic-sysadmin-dual",["kind"]="payment_out",["status"]="pending",["requestedBy"]="synthetic-sysadmin",["targetDepartment"]="MGT",["requiredRankLevel"]=1,["dualPermission"]=ApprovalsArea.DualPaymentOut,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};

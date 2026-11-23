@@ -178,7 +178,10 @@ export type PaymentGenericListResponse = ApiResp<'/api/payments/suppliers'>;
 export type PaymentDueCalendarResponse = ApiResp<'/api/payments/due-calendar'>;
 export type PaymentWalletListResponse = ApiResp<'/api/payments/fuel-wallets'>;
 export type PaymentWalletReconcileResponse = ApiResp<'/api/payments/fuel-wallets/{id}/reconcile', 'post'>;
-export type PaymentRecurringListResponse = ApiResp<'/api/payments/recurring-payees'>;
+export type PaymentRecurringListResponse = ApiResp<'/api/payments/recurring-payees'> & {
+  /** org.cost_centre options for payee / one-off forms (when the list payload includes them). */
+  costCentres?: Array<Record<string, unknown>>;
+};
 export type PaymentRecurringRunResponse = ApiResp<'/api/payments/recurring-runs/{id}'>;
 export type FinanceCoaResponse = ApiResp<'/api/finance/coa'>;
 
@@ -2590,13 +2593,6 @@ export const api = {
   },
   createPaymentAdvance: (input: Record<string, unknown>) =>
     handleRequest<PaymentDocumentDetail>('/payments/advances', {
-      method: 'POST',
-      body: JSON.stringify(input),
-    }),
-  getFinanceCoa: (inactive = false) =>
-    handleRequest<FinanceCoaResponse>(`/finance/coa${inactive ? '?inactive=true' : ''}`),
-  createFinanceCoaAccount: (input: Record<string, unknown>) =>
-    handleRequest<FinanceCoaResponse>('/finance/coa', {
       method: 'POST',
       body: JSON.stringify(input),
     }),

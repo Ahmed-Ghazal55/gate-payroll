@@ -168,7 +168,7 @@ export function RecurringPayeesWorkspace({
       ]);
       setCompanies(c);
       setPayees(p.items || []);
-      setCostCentres(p.costCentres || []);
+      setCostCentres((p as { costCentres?: Array<Record<string, unknown>> }).costCentres || []);
       setRuns(r.items || []);
       if (!form.companyId && c[0]) setForm((f) => ({ ...f, companyId: String(c[0].id || '') }));
       if (!oneOff.companyId && c[0]) setOneOff((f) => ({ ...f, companyId: String(c[0].id || '') }));
@@ -526,7 +526,7 @@ export function RecurringPayeesWorkspace({
   const voucherPanel =
     vouchers.length > 0 ? (
       <div className="space-y-2">
-        <h3 className="text-sm font-medium">سندات الصرف (vouchers)</h3>
+        <h3 className="text-sm font-medium">سندات الصرف</h3>
         <DataTable
           data={vouchers}
           columns={[

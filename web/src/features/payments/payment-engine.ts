@@ -8,7 +8,7 @@ export async function loadPostableAccounts(): Promise<{
   canCreate: boolean;
 }> {
   try {
-    const res = (await api.getFinanceCoa(false)) as unknown as {
+    const res = (await api.getFinanceCoa()) as unknown as {
       items?: Array<Record<string, unknown>>;
       allowedActions?: string[];
     };

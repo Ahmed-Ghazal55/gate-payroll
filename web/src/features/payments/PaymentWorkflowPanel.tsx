@@ -666,7 +666,7 @@ export function AddCoaAccountDialog({
     e.preventDefault();
     setBusy(true);
     try {
-      await api.createFinanceCoaAccount({
+      await api.createFinanceCoa({
         parentCode: parentCode.trim(),
         code: code.trim(),
         nameAr: nameAr.trim(),
