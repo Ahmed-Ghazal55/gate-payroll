@@ -102,8 +102,8 @@ public static class JahezReconciliation
         RefuseDuplicateActive(c,tx,doc.S("companyId"),doc.S("period"),doc.S("id"));
         // BR §37: maker-checker for Jahez reconciliation (submitter and creator); §35 bypass via Independent.
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("submittedBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"treasury.jahez.receive",c,tx,"jahez.reconciliation_approved",doc);
-        J.Need(AccessPolicy.Independent(actor,doc.S("submittedBy"),"jahez.reconciliation_approved.submittedBy",c,tx,doc,scope:AccessPolicy.ScopeInvoiceApprovals),"لا يجوز اعتماد تقرير قدّمته؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
-        J.Need(AccessPolicy.Independent(actor,doc.S("createdBy"),"jahez.reconciliation_approved.createdBy",c,tx,doc,scope:AccessPolicy.ScopeInvoiceApprovals),"لا يجوز اعتماد تقرير أنشأته؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
+        J.Need(AccessPolicy.Independent(actor,doc.S("submittedBy"),"jahez.reconciliation_approved.submittedBy",c,tx,doc,scope:AccessPolicy.ScopeTreasuryJahez),"لا يجوز اعتماد تقرير قدّمته؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
+        J.Need(AccessPolicy.Independent(actor,doc.S("createdBy"),"jahez.reconciliation_approved.createdBy",c,tx,doc,scope:AccessPolicy.ScopeTreasuryJahez),"لا يجوز اعتماد تقرير أنشأته؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
         decimal variance=doc["totals"]!.AsObject().N("variance");
         J.Need(variance==0||doc.S("varianceDecision").Length>=3,"فرق المطابقة يحتاج قرارًا مكتوبًا قبل الاعتماد.");
         var ids=new JsonArray();string period=doc.S("period"),company=doc.S("companyId"),actorName=actor.Identity!.Name!;
@@ -129,8 +129,9 @@ public static class JahezReconciliation
         DateOnly periodMonth=new(businessDate.Year,businessDate.Month,1);
         byte version=(byte)(input.ContainsKey("versionNo")?(int)PayValues.Number(input,"versionNo",3):3);
         J.Need(version is 2 or 3,"إصدار المطابقة 2 أو 3 فقط.");
+        string vaultId=input.Required("vaultId").Trim();
+        J.Need(vaultId!="","معرّف الخزنة مطلوب؛ المطابقة بالاسم ممنوعة.",400);
         string vaultCode=input.S("vaultCode").Trim();
-        string vaultId=input.S("vaultId").Trim();
         bool togaryRun=IsTogaryVault(vaultCode)||TreasuryBalancesApi.IsTogary(sponsor.Code,sponsor.ShortNameAr,sponsor.Id);
         if(togaryRun&&vaultCode=="")vaultCode="togary";
         // One open/approved day per company+date+version (UQ_treasury_jahez_recon_day).
@@ -198,6 +199,7 @@ public static class JahezReconciliation
         DemandDayWrite(actor);var doc=LoadDay(c,tx,actor,id);
         J.Need(doc.S("status")=="draft","تشغيل اليوم ليس مسودة.");
         RefuseIfWaitingHandover(c,tx,doc);
+        RefuseIfUnresolvedPurpose(c,tx,doc);
         SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"treasury","jahez_recon_run")} SET status=2,updated_at={SchemaSql.NowLiteral(c)} WHERE id=@id",("@id",id));
         doc["status"]="pending_approval";doc["submittedBy"]=actor.Identity!.Name;doc["submittedAt"]=DateTimeOffset.UtcNow.ToString("O");
         doc["allowedActions"]=new JsonArray("approve","variance");
@@ -225,31 +227,57 @@ public static class JahezReconciliation
         var doc=LoadDay(c,tx,actor,id);
         J.Need(doc.S("status")=="pending_approval","تشغيل اليوم بانتظار الاعتماد.");
         RefuseIfWaitingHandover(c,tx,doc);
+        RefuseIfUnresolvedPurpose(c,tx,doc);
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("submittedBy",doc.S("createdBy")),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"treasury.jahez.receive",c,tx,"jahez.day_approved",doc);
-        J.Need(AccessPolicy.Independent(actor,doc.S("submittedBy",doc.S("createdBy")),"jahez.day_approved",c,tx,doc,scope:AccessPolicy.ScopeInvoiceApprovals),
+        J.Need(AccessPolicy.Independent(actor,doc.S("submittedBy",doc.S("createdBy")),"jahez.day_approved",c,tx,doc,scope:AccessPolicy.ScopeTreasuryJahez),
             "لا يجوز اعتماد يوم قدّمته؛ يلزم مراجع مستقل.",403);
-        J.Need(AccessPolicy.Independent(actor,doc.S("createdBy"),"jahez.day_approved.createdBy",c,tx,doc,scope:AccessPolicy.ScopeInvoiceApprovals),
+        J.Need(AccessPolicy.Independent(actor,doc.S("createdBy"),"jahez.day_approved.createdBy",c,tx,doc,scope:AccessPolicy.ScopeTreasuryJahez),
             "لا يجوز اعتماد يوم أنشأته؛ يلزم مراجع مستقل.",403);
-        decimal transferDiff=doc.N("transferDiff");
-        J.Need(transferDiff==0||doc.S("varianceDecision").Length>=3,"فرق التحويل يحتاج قرارًا مكتوبًا قبل اعتماد اليوم.");
 
         string company=doc.S("companyId");
         DateOnly businessDate=ParseDay(doc.S("businessDate"));
         DateOnly periodMonth=ParsePeriodMonth(doc.S("periodMonth"));
         Guid runId=Guid.Parse(id);
         string actorName=actor.Identity!.Name!;
-        decimal clearingAmt=J.Money(Math.Max(0,doc.N("handedAmount")));
-        decimal transferAmt=J.Money(Math.Max(0,doc.N("omarTransferAmount")));
+        string vaultId=doc.S("vaultId"),vaultCode=doc.S("vaultCode");
+        bool togaryRun=doc.B("isAlTogary");
+        // Recompute from confirmed source at approval (ignore amounts stored at open).
+        var lines=BuildDayLines(c,tx,company,businessDate,vaultId,vaultCode,togaryRun);
+        decimal clearingAmt=J.Money(lines.Where(l=>l.S("lineKind")=="cash").Sum(l=>l.N("handedAmount")));
+        decimal transferAmt=OmarTransferAmount(c,tx,company,businessDate,vaultId,vaultCode,togaryRun);
+        doc["handedAmount"]=clearingAmt;doc["handedCashAmount"]=clearingAmt;
+        doc["handedBankAmount"]=J.Money(lines.Where(l=>l.S("lineKind")=="bank").Sum(l=>l.N("handedAmount")));
+        doc["handedExternalAmount"]=J.Money(lines.Where(l=>l.S("lineKind")=="external").Sum(l=>l.N("handedAmount")));
+        doc["omarTransferAmount"]=transferAmt;doc["transferDiff"]=J.Money(transferAmt-clearingAmt);
+        J.Need(doc.N("transferDiff")==0||doc.S("varianceDecision").Length>=3,"فرق التحويل يحتاج قرارًا مكتوبًا قبل اعتماد اليوم.");
+
         var ids=new JsonArray();
+        string clearingJournal="",transferJournal="";
         if(clearingAmt>0)
         {
-            var jid=PostDayJournal(c,tx,company,periodMonth,businessDate,runId,"jahez_recon_clearing","مقاصة جاهز يومية",Clearing,Receivable,clearingAmt,actorName);
-            if(jid!="")ids.Add(jid);
+            clearingJournal=PostDayJournal(c,tx,company,periodMonth,businessDate,runId,"jahez_recon_clearing","مقاصة جاهز يومية",Clearing,Receivable,clearingAmt,actorName);
+            if(clearingJournal!="")ids.Add(clearingJournal);
         }
         if(transferAmt>0)
         {
-            var jid=PostDayJournal(c,tx,company,periodMonth,businessDate,runId,"jahez_recon_transfer","تحويل تسوية جاهز يومية",SettlementBank,Receivable,transferAmt,actorName);
-            if(jid!="")ids.Add(jid);
+            transferJournal=PostDayJournal(c,tx,company,periodMonth,businessDate,runId,"jahez_recon_transfer","تحويل تسوية جاهز يومية",SettlementBank,Receivable,transferAmt,actorName);
+            if(transferJournal!="")ids.Add(transferJournal);
+        }
+        else if(transferAmt<0)
+        {
+            // Net payment out: opposite accounts (Dr receivable / Cr settlement bank).
+            transferJournal=PostDayJournal(c,tx,company,periodMonth,businessDate,runId,"jahez_recon_transfer","صرف تسوية جاهز يومية",Receivable,SettlementBank,J.Money(-transferAmt),actorName);
+            if(transferJournal!="")ids.Add(transferJournal);
+        }
+        foreach(var line in lines)
+        {
+            string kind=line.S("lineKind");
+            string jid=kind=="cash"?clearingJournal:kind is "bank" or "transfer"?transferJournal:"";
+            if(jid=="")continue;
+            SchemaSql.Exec(c,tx,$"""
+                UPDATE {SchemaSql.Q(c,"treasury","jahez_recon_line")}
+                SET journal_id=@j WHERE recon_run_id=@r AND erp_vault_id=@v
+                """,("@j",jid),("@r",id),("@v",line.S("erpVaultId")));
         }
 
         string approverId=SchemaSql.GuidText(SchemaSql.NewId());
@@ -267,23 +295,36 @@ public static class JahezReconciliation
         return doc;
     }
 
-    /// <summary>After approval: reverse immutable first journals and post corrected entries (T9).</summary>
+    /// <summary>After approval: reverse immutable first journals and post corrected entries from source totals (T9). Caller amounts ignored; maker ≠ checker.</summary>
     public static JsonObject CorrectDay(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
         DemandDayWrite(actor);SchemaFinJournal.Ensure(c,tx);SchemaFinPeriodBalance.Ensure(c,tx);
         var doc=LoadDay(c,tx,actor,id);
         J.Need(doc.S("status")=="approved","تشغيل اليوم غير معتمد.");
         J.Need(doc.B("firstJournalsImmutable"),"اليوم ليس بقيد أولي ثابت.",409);
+        // Correction dual-control is vs the approver (creator may correct after an independent approve).
+        J.Need(AccessPolicy.Independent(actor,doc.S("approvedBy",doc.S("createdBy")),"jahez.day_corrected",c,tx,doc,scope:AccessPolicy.ScopeTreasuryJahez),
+            "لا يجوز تصحيح يوم اعتمدته؛ يلزم مراجع مستقل.",403);
         var prior=doc["journalEntryIds"]!.AsArray().OfType<JsonValue>().Select(v=>v.ToString()).Where(s=>!string.IsNullOrWhiteSpace(s)).ToList();
         J.Need(prior.Count>0,"لا قيود أولية لعكسها.",409);
+        J.Need(!input.ContainsKey("clearingAmount")&&!input.ContainsKey("transferAmount"),
+            "مبالغ التصحيح من المصدر فقط؛ لا تُقبل إجماليات من المستخدم.",400);
 
         string company=doc.S("companyId");
         DateOnly businessDate=ParseDay(doc.S("businessDate"));
         DateOnly periodMonth=ParsePeriodMonth(doc.S("periodMonth"));
         Guid runId=Guid.Parse(id);
         string actorName=actor.Identity!.Name!;
-        decimal clearingAmt=input.ContainsKey("clearingAmount")?J.Money(PayValues.Number(input,"clearingAmount")):J.Money(Math.Max(0,doc.N("handedAmount")));
-        decimal transferAmt=input.ContainsKey("transferAmount")?J.Money(PayValues.Number(input,"transferAmount")):J.Money(Math.Max(0,doc.N("omarTransferAmount")));
+        // Recalculate from confirmed handover + bank settlement movements (ignore caller totals).
+        string vaultId=doc.S("vaultId"),vaultCode=doc.S("vaultCode");
+        bool togaryRun=doc.B("isAlTogary");
+        var lines=BuildDayLines(c,tx,company,businessDate,vaultId,vaultCode,togaryRun);
+        decimal clearingAmt=J.Money(lines.Sum(l=>l.N("handedCashAmount")));
+        decimal transferAmt=OmarTransferAmount(c,tx,company,businessDate,vaultId,vaultCode,togaryRun);
+        doc["handedAmount"]=clearingAmt;doc["handedCashAmount"]=clearingAmt;
+        doc["handedBankAmount"]=J.Money(lines.Sum(l=>l.N("handedBankAmount")));
+        doc["handedExternalAmount"]=J.Money(lines.Sum(l=>l.N("handedExternalAmount")));
+        doc["omarTransferAmount"]=transferAmt;doc["transferDiff"]=J.Money(transferAmt-clearingAmt);
 
         var reversed=new JsonArray();
         foreach(var jid in prior)
@@ -300,6 +341,11 @@ public static class JahezReconciliation
         if(transferAmt>0)
         {
             var jid=PostDayJournal(c,tx,company,periodMonth,businessDate,runId,"jahez_recon_transfer_correct","تصحيح تحويل تسوية جاهز يومية",SettlementBank,Receivable,transferAmt,actorName);
+            if(jid!="")corrected.Add(jid);
+        }
+        else if(transferAmt<0)
+        {
+            var jid=PostDayJournal(c,tx,company,periodMonth,businessDate,runId,"jahez_recon_transfer_correct","تصحيح صرف تسوية جاهز يومية",Receivable,SettlementBank,J.Money(-transferAmt),actorName);
             if(jid!="")corrected.Add(jid);
         }
 
@@ -338,6 +384,9 @@ public static class JahezReconciliation
     static bool InScope(DbConnection c,DbTransaction tx,JsonObject row,string companyId)
     {
         if(row.S("companyId")==companyId||row.S("sponsorId")==companyId)return true;
+        // Real Omar cashbox handover contract projects companyIds=[...] (no companyId).
+        if(row["companyIds"] is JsonArray ids&&ids.OfType<JsonValue>().Any(v=>string.Equals(v.ToString(),companyId,StringComparison.OrdinalIgnoreCase)))
+            return true;
         string account=row.S("accountId",row.S("platformAccountId"));if(account=="")return false;
         var acc=Store.Get(c,account,"platform_account",tx);return acc!=null&&acc.S("companyId")==companyId;
     }
@@ -373,65 +422,154 @@ public static class JahezReconciliation
     static bool ConfirmHandoverExists(DbConnection c,DbTransaction tx,string companyId,DateOnly day,string vaultId,string vaultCode,bool togaryRun)=>
         Store.List(c,"erp_cashbox_handover",tx)
             .Where(h=>InScope(c,tx,h,companyId)&&HandoverDay(h,day)&&IsConfirmedHandover(h))
-            .Any(h=>VaultMatches(h,vaultId,vaultCode,togaryRun));
+            .Any(h=>VaultMatches(c,tx,h,vaultId,vaultCode,togaryRun));
     static void RefuseIfWaitingHandover(DbConnection c,DbTransaction tx,JsonObject doc)
     {
         DateOnly day=ParseDay(doc.S("businessDate"));
         bool hasConfirmed=ConfirmHandoverExists(c,tx,doc.S("companyId"),day,doc.S("vaultId"),doc.S("vaultCode"),doc.B("isAlTogary"));
         J.Need(hasConfirmed,"لا يُعتمد يوم بانتظار تسليم عهدة مؤكد.",409);
     }
+    static void RefuseIfUnresolvedPurpose(DbConnection c,DbTransaction tx,JsonObject doc)
+    {
+        DateOnly day=ParseDay(doc.S("businessDate"));
+        var lines=BuildDayLines(c,tx,doc.S("companyId"),day,doc.S("vaultId"),doc.S("vaultCode"),doc.B("isAlTogary"));
+        J.Need(!lines.Any(l=>l.B("unresolvedPurpose")),
+            "تسليم بلا صندوق وغرض على الحركة لا يُرحَّل نقدًا للشركة؛ أبقِ المبلغ في السجل الخارجي وامنع اعتماد اليوم.",409);
+    }
     static List<JsonObject> BuildDayLines(DbConnection c,DbTransaction tx,string companyId,DateOnly day,string vaultId,string vaultCode,bool togaryRun)
     {
         var lines=new List<JsonObject>();
         foreach(var h in Store.List(c,"erp_cashbox_handover",tx)
                     .Where(r=>InScope(c,tx,r,companyId)&&HandoverDay(r,day)&&IsConfirmedHandover(r))
-                    .Where(r=>VaultMatches(r,vaultId,vaultCode,togaryRun)))
+                    .Where(r=>VaultMatches(c,tx,r,vaultId,vaultCode,togaryRun)))
         {
-            decimal cash=J.Money(h.N("cashboxAmount"));
-            decimal bank=J.Money(h.N("bankAmount"));
-            decimal external=J.Money(h.N("petroAppAmount"));
-            lines.Add(new()
-            {
-                ["erpVaultId"]=VaultGuid(h.S("vaultId",h.S("vaultCode",h.S("cashboxCode","MAIN")))),
-                ["erpHandoverId"]=AsGuidOrEmpty(h.S("erpSourceId",h.S("id"))),
-                ["expectedAmount"]=cash,
-                ["handedAmount"]=cash,
-                ["handedCashAmount"]=cash,
-                ["handedBankAmount"]=bank,
-                ["handedExternalAmount"]=external
-            });
+            var split=SplitHandoverByPurpose(c,tx,h,companyId);
+            string handoverKey=h.S("erpSourceId",h.S("id"));
+            string handoverGuid=AsGuidOrEmpty(handoverKey);
+            if(split.Cash>0)
+                lines.Add(ComponentLine(VaultGuid($"cash:{handoverKey}"),handoverGuid,"cash",split.Cash,unresolved:false));
+            if(split.Bank>0)
+                lines.Add(ComponentLine(VaultGuid($"bank-ho:{handoverKey}"),handoverGuid,"bank",split.Bank,unresolved:false));
+            if(split.External>0)
+                lines.Add(ComponentLine(VaultGuid($"ext:{handoverKey}"),handoverGuid,"external",split.External,unresolved:split.Unresolved));
         }
+        decimal transfer=OmarTransferAmount(c,tx,companyId,day,vaultId,vaultCode,togaryRun);
+        // Omar bank settlement is its own line (not handover bank cash); stamp uses transfer journal.
+        if(transfer!=0)
+            lines.Add(ComponentLine(VaultGuid($"xfer:{vaultId}:{day:yyyy-MM-dd}"),"","transfer",J.Money(Math.Abs(transfer)),unresolved:false));
         return lines;
+    }
+    static JsonObject ComponentLine(string erpVaultId,string handoverGuid,string kind,decimal amount,bool unresolved)=>
+        new()
+        {
+            ["erpVaultId"]=erpVaultId,
+            ["erpHandoverId"]=handoverGuid,
+            ["lineKind"]=kind,
+            ["expectedAmount"]=amount,
+            ["handedAmount"]=amount,
+            ["handedCashAmount"]=kind=="cash"?amount:0m,
+            ["handedBankAmount"]=kind=="bank"?amount:0m,
+            ["handedExternalAmount"]=kind=="external"?amount:0m,
+            ["unresolvedPurpose"]=unresolved
+        };
+    /// <summary>M-0676 / Omar Fund+Purpose: Settlement+Cashbox → company cash; Settlement+Bank → bank;
+    /// AccountFee / Fuel / PetroApp → external owner register (never company clearing).</summary>
+    static (decimal Cash,decimal Bank,decimal External,bool Unresolved) SplitHandoverByPurpose(DbConnection c,DbTransaction tx,JsonObject handover,string companyId)
+    {
+        var moveIds=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if(handover["moneyMovementSourceIds"] is JsonArray arr)
+            foreach(var n in arr.OfType<JsonValue>())
+            {
+                string id=n.ToString()??"";
+                if(id!="")moveIds.Add(id);
+            }
+        var moves=Store.List(c,"erp_money_movement",tx)
+            .Where(m=>InScope(c,tx,m,companyId))
+            .Where(m=>moveIds.Count==0
+                ?string.Equals(m.S("handoverId",m.S("cashboxHandoverId")),handover.S("erpSourceId",handover.S("id")),StringComparison.OrdinalIgnoreCase)
+                :moveIds.Contains(m.S("erpSourceId",m.S("id"))))
+            .ToList();
+        if(moves.Count>0)
+        {
+            decimal cash=0,bank=0,external=0;
+            foreach(var m in moves)
+            {
+                decimal amt=J.Money(m.N("amount"));
+                string fund=NormalizeFund(m);
+                string purpose=NormalizePurpose(m);
+                if(purpose is "AccountFee" or "AccountFeeRefund"||fund=="PetroApp"||purpose=="Fuel")
+                    external=J.Money(external+amt);
+                else if(fund=="Bank"&&purpose=="Settlement")
+                    bank=J.Money(bank+amt);
+                else if(fund=="Cashbox"&&purpose=="Settlement")
+                    cash=J.Money(cash+amt);
+                else
+                    external=J.Money(external+amt); // unresolved purpose/ownership stays out of company cash
+            }
+            return (cash,bank,external,false);
+        }
+        // No fund/purpose on movements: post no company cash; keep aggregates on the external register and block the day.
+        decimal externalOnly=J.Money(handover.N("cashboxAmount")+handover.N("bankAmount")+handover.N("petroAppAmount"));
+        return (0m,0m,externalOnly,externalOnly>0);
     }
     static decimal OmarTransferAmount(DbConnection c,DbTransaction tx,string companyId,DateOnly day,string vaultId,string vaultCode,bool togaryRun)=>
         J.Money(Store.List(c,"erp_money_movement",tx)
-            .Where(r=>InScope(c,tx,r,companyId)&&InRange(r.S("occurredAt"),day,day)&&IsBankTransferMovement(r))
-            .Where(r=>VaultMatches(r,vaultId,vaultCode,togaryRun))
-            .Sum(r=>r.N("amount")));
-    static bool IsBankTransferMovement(JsonObject row)
+            .Where(r=>InScope(c,tx,r,companyId)&&InRange(r.S("occurredAt"),day,day)&&IsBankSettlementMovement(r))
+            .Where(r=>VaultMatches(c,tx,r,vaultId,vaultCode,togaryRun))
+            .Sum(SignedBankSettlementAmount));
+    static bool IsBankSettlementMovement(JsonObject row)=>
+        NormalizeFund(row)=="Bank"&&NormalizePurpose(row)=="Settlement";
+    static decimal SignedBankSettlementAmount(JsonObject row)
     {
-        string fund=row.S("fund"),fundCode=row.S("fundCode"),purpose=row.S("purposeCode");
-        return fund is "Bank" or "3"||fundCode is "3"
-            ||fund.Contains("Bank",StringComparison.OrdinalIgnoreCase)
-            ||purpose.Contains("Settlement",StringComparison.OrdinalIgnoreCase);
+        decimal amt=J.Money(row.N("amount"));
+        string dir=row.S("directionCode",row.S("direction"));
+        if(dir is "2" or "Disbursement")return J.Money(-amt);
+        return amt; // Receipt / 1 / default
     }
-    static bool VaultMatches(JsonObject row,string vaultId,string vaultCode,bool togaryRun)
+    static string NormalizeFund(JsonObject row)
     {
-        string rowVaultId=row.S("vaultId");
-        string code=row.S("vaultCode",row.S("cashboxCode",row.S("fund")));
-        bool rowTogary=IsTogaryVault(code);
-        if(togaryRun)
+        string fund=row.S("fund",row.S("fundCode"));
+        return fund switch
         {
-            if(vaultId!="")
-                return string.Equals(rowVaultId,vaultId,StringComparison.OrdinalIgnoreCase);
-            return rowTogary||IsTogaryVault(code);
-        }
-        if(rowTogary)return false;
-        if(vaultId!="")
+            "1" or "Cashbox"=>"Cashbox",
+            "2" or "PetroApp"=>"PetroApp",
+            "3" or "Bank"=>"Bank",
+            _=>fund
+        };
+    }
+    static string NormalizePurpose(JsonObject row)
+    {
+        string purpose=row.S("purposeCode",row.S("purpose"));
+        return purpose switch
+        {
+            "1" or "Settlement"=>"Settlement",
+            "2" or "Fuel"=>"Fuel",
+            "3" or "AccountFee"=>"AccountFee",
+            "4" or "TransferredDebtRepayment"=>"TransferredDebtRepayment",
+            "5" or "AccountFeeRefund"=>"AccountFeeRefund",
+            _=>purpose
+        };
+    }
+    static bool VaultMatches(DbConnection c,DbTransaction tx,JsonObject row,string vaultId,string vaultCode,bool togaryRun)
+    {
+        // vaultId is required on OpenDay; name/contains matching is forbidden.
+        string rowVaultId=row.S("vaultId");
+        if(rowVaultId!="")
             return string.Equals(rowVaultId,vaultId,StringComparison.OrdinalIgnoreCase);
-        if(vaultCode!="")
-            return string.Equals(code,vaultCode,StringComparison.OrdinalIgnoreCase);
-        return true;
+        _=vaultCode;_=togaryRun;
+        // Untied Omar handover: include only when a linked movement owns this vault.
+        string handoverKey=row.S("erpSourceId",row.S("id"));
+        var moveIds=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        if(row["moneyMovementSourceIds"] is JsonArray arr)
+            foreach(var n in arr.OfType<JsonValue>())
+            {
+                string id=n.ToString()??"";
+                if(id!="")moveIds.Add(id);
+            }
+        return Store.List(c,"erp_money_movement",tx).Any(m=>
+            (moveIds.Count>0?moveIds.Contains(m.S("erpSourceId",m.S("id")))
+                :string.Equals(m.S("handoverId",m.S("cashboxHandoverId")),handoverKey,StringComparison.OrdinalIgnoreCase))
+            &&string.Equals(m.S("vaultId"),vaultId,StringComparison.OrdinalIgnoreCase));
     }
     static bool IsTogaryVault(string? text)=>!string.IsNullOrWhiteSpace(text)&&(text.Contains("togary",StringComparison.OrdinalIgnoreCase)||text.Contains("تجار",StringComparison.Ordinal)||text.Contains("التجارية",StringComparison.Ordinal));
     static string VaultGuid(string vaultCode)

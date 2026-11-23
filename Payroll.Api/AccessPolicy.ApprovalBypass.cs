@@ -8,19 +8,25 @@ public static partial class AccessPolicy
 {
     public const string BypassPermission="approval.bypass_maker_checker",BypassGrantKind="approval_bypass_grant";
     public const string ScopePayApprovals="pay_approvals",ScopeInvoiceApprovals="invoice_approvals";
+    /// <summary>Jahez day/report dual control — invoice and pay grants do not cover (M-0677 / BR §35).</summary>
+    public const string ScopeTreasuryJahez="treasury_jahez";
+    /// <summary>Vault-count dual control — pay grants do not cover.</summary>
+    public const string ScopeTreasuryVaultCount="treasury_vault_count";
     public static bool ScopeCovers(string? grantScope,string? needed)
     {
         // WC1H: no wildcard — empty needed never matches; only an explicit matching scope returns true.
         if(string.IsNullOrWhiteSpace(needed)||string.IsNullOrWhiteSpace(grantScope))return false;
         if(string.Equals(grantScope,needed,StringComparison.OrdinalIgnoreCase))return true;
-        // M-0677 / answers: pay approvals (+ invoice on every platform) — not shared-rider or Jahez.
+        // M-0677 / answers: pay approvals (+ invoice on every platform) — not shared-rider or Jahez / vault count.
         // W1 seed scope is pay.approvals; API grant scope is pay_approvals.
         if((string.Equals(grantScope,ScopePayApprovals,StringComparison.OrdinalIgnoreCase)
             ||string.Equals(grantScope,"pay.approvals",StringComparison.OrdinalIgnoreCase))
            &&needed is ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or "pay.approve" or "approvals.decide")
             return true;
         if(string.Equals(grantScope,ScopeInvoiceApprovals,StringComparison.OrdinalIgnoreCase)
-           &&needed.Contains("invoice",StringComparison.OrdinalIgnoreCase))
+           &&needed.Contains("invoice",StringComparison.OrdinalIgnoreCase)
+           &&!needed.Contains("jahez",StringComparison.OrdinalIgnoreCase)
+           &&!needed.Contains("treasury",StringComparison.OrdinalIgnoreCase))
             return true;
         return false;
     }
@@ -75,7 +81,8 @@ public static partial class AccessPolicy
         J.Need(DateOnly.TryParseExact(toRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var to)&&to>=from&&to<=Today().AddDays(365),"تاريخ النهاية غير صالح.");
         J.Need(reason.Length is >=3 and <=500&&!reason.Any(char.IsControl),"سبب المنح مطلوب من 3 إلى 500 حرف.");
         string scope=input.S("scope",ScopePayApprovals).Trim();
-        J.Need(scope is ScopePayApprovals or ScopeInvoiceApprovals or ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or ApprovalsArea.DualSharedRiderRelease
+        J.Need(scope is ScopePayApprovals or ScopeInvoiceApprovals or ScopeTreasuryJahez or ScopeTreasuryVaultCount
+            or ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or ApprovalsArea.DualSharedRiderRelease
             ||scope.StartsWith("approvals.dual.",StringComparison.Ordinal),"نطاق منح التجاوز غير صالح.");
         var grant=new JsonObject
         {
