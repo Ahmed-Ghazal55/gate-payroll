@@ -1,12 +1,13 @@
 'use client';
 
-import { ScreenShell } from '../../../components/ui/ScreenShell';
+import React, { Suspense } from 'react';
+import { HrRequestsWorkspace } from '../../../features/payments/HrRequestsWorkspace';
+import { Skeleton } from '../../../components/ui/EmptyState';
 
 export default function Page() {
   return (
-    <ScreenShell
-      title="طلبات الموارد البشرية والخصومات"
-      description="قسم المدفوعات والمشتريات — المسار جاهز من شجرة التنقل."
-    />
+    <Suspense fallback={<Skeleton className="h-44 w-full" />}>
+      <HrRequestsWorkspace />
+    </Suspense>
   );
 }

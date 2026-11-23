@@ -1,12 +1,13 @@
 'use client';
 
-import { ScreenShell } from '../../../components/ui/ScreenShell';
+import React, { Suspense } from 'react';
+import { TrafficViolationsWorkspace } from '../../../features/payments/TrafficViolationsWorkspace';
+import { Skeleton } from '../../../components/ui/EmptyState';
 
 export default function Page() {
   return (
-    <ScreenShell
-      title="سداد المخالفات المرورية"
-      description="قسم المدفوعات والمشتريات — المسار جاهز من شجرة التنقل."
-    />
+    <Suspense fallback={<Skeleton className="h-44 w-full" />}>
+      <TrafficViolationsWorkspace />
+    </Suspense>
   );
 }

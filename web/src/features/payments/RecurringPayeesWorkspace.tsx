@@ -577,7 +577,7 @@ export function RecurringPayeesWorkspace({
   return (
     <div className="space-y-4">
       <PageHeader
-        title="مدفوعات دورية"
+        title="المدفوعات الدورية"
         description="مستفيدون اختياريون خارج المسير (تجربة خارج الكفالة / مكتب مصر) عبر محرك المدفوعات."
         primaryAction={{
           label: 'تحديث',
@@ -1030,7 +1030,7 @@ export function RecurringPayeesWorkspace({
               />
               {canDisburse && Number(run.status) === 1 && (
                 <div className="grid gap-2 max-w-xl border border-dashed border-[var(--line)] rounded-xl p-3">
-                  <p className="text-xs font-medium">إضافة بند لمرة (oneOffLine)</p>
+                  <p className="text-xs font-medium">إضافة بند لمرة واحدة</p>
                   <div className="grid grid-cols-2 gap-2">
                     <input
                       className={inputClass}
@@ -1060,6 +1060,55 @@ export function RecurringPayeesWorkspace({
                   <button type="button" className="btn-secondary text-xs w-fit" disabled={busy} onClick={() => void addOneOffLine()}>
                     إضافة بند
                   </button>
+                </div>
+              )}
+              {vouchers.length > 0 && (
+                <div className="space-y-2">
+                  <h3 className="text-sm font-medium">سندات الصرف</h3>
+                  <DataTable
+                    data={vouchers}
+                    columns={[
+                      { key: 'id', header: 'المعرّف', getValue: (r) => String(r.id || '').slice(0, 8) },
+                      {
+                        key: 'amount',
+                        header: 'المبلغ',
+                        money: true,
+                        getValue: (r) => Number(r.amount || 0),
+                        render: (r) => <span className="num">{formatSar(r.amount)}</span>,
+                      },
+                      {
+                        key: 'status',
+                        header: 'الحالة',
+                        getValue: (r) => (Number(r.status) === 2 ? 'مصروف' : 'محجوز'),
+                      },
+                      {
+                        key: 'actions',
+                        header: 'إجراءات',
+                        getValue: () => '',
+                        render: (r) => (
+                          <div className="flex gap-2 text-xs">
+                            {canApprove && r.approvalRequestId && Number(r.status) === 1 && (
+                              <button
+                                type="button"
+                                className="underline"
+                                disabled={busy}
+                                onClick={() => void approveVoucherDual(r)}
+                              >
+                                اعتماد ثنائي
+                              </button>
+                            )}
+                            {canDisburse && Number(r.status) === 1 && (
+                              <button type="button" className="underline" disabled={busy} onClick={() => void payVoucher(r)}>
+                                صرف وترحيل
+                              </button>
+                            )}
+                          </div>
+                        ),
+                      },
+                    ]}
+                    emptyTitle="لا سندات"
+                    emptyDescription="نفّذ التشغيل لإنشاء السندات."
+                  />
                 </div>
               )}
             </div>

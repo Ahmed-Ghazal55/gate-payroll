@@ -1,12 +1,13 @@
 'use client';
 
-import { ScreenShell } from '../../../components/ui/ScreenShell';
+import React, { Suspense } from 'react';
+import { SuppliersWorkspace } from '../../../features/payments/SuppliersWorkspace';
+import { Skeleton } from '../../../components/ui/EmptyState';
 
 export default function Page() {
   return (
-    <ScreenShell
-      title="الموردون والدفعات"
-      description="قسم المدفوعات والمشتريات — المسار جاهز من شجرة التنقل."
-    />
+    <Suspense fallback={<Skeleton className="h-44 w-full" />}>
+      <SuppliersWorkspace />
+    </Suspense>
   );
 }

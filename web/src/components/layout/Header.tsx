@@ -58,6 +58,7 @@ function BreadcrumbsNav() {
       workforce: 'القوى العاملة',
       riders: 'القوى العاملة',
       companies: 'الشركات والسجلات',
+      payments: 'المدفوعات والمشتريات',
       hr: 'كتالوجات الموارد البشرية',
       operations: 'التشغيل والأسطول',
       payroll: 'الرواتب',
@@ -83,6 +84,32 @@ function BreadcrumbsNav() {
     }
     if (section === 'workforce') {
       crumbs.push({ label: 'القوى العاملة', href: '/workforce/' });
+    }
+    if (section === 'payments' && parts[1]) {
+      const paymentSubLabels: Record<string, string> = {
+        rents: 'الإيجارات والسكنات',
+        installments: 'الأقساط والمدفوعات البنكية',
+        purchases: 'فواتير المشتريات والمصروفات',
+        fuel: 'الوقود والمحطات',
+        'hr-requests': 'طلبات الموارد البشرية والخصومات',
+        advances: 'السلف والشحن',
+        mada: 'جهاز مدا والشحن',
+        'hs-custody': 'عهد هنقرستيشن',
+        'traffic-violations': 'سداد المخالفات المرورية',
+        suppliers: 'الموردون والدفعات',
+        'due-calendar': 'لوحة المستحقات',
+        government: 'المدفوعات الحكومية',
+        'prepaid-wallets': 'المحافظ المدفوعة مقدمًا',
+        quick: 'تسجيل مدفوعات سريعة',
+        recurring: parts[2] === 'runs' ? 'تشغيل المدفوعات الدورية' : 'مدفوعات دورية',
+      };
+      const subLabel = paymentSubLabels[parts[1]];
+      if (subLabel) {
+        crumbs.push({
+          label: subLabel,
+          href: parts[1] === 'recurring' && parts[2] === 'runs' ? '/payments/recurring/runs' : `/payments/${parts[1]}`,
+        });
+      }
     }
   }
 
@@ -274,6 +301,13 @@ function HeaderInner({
       href: '/approvals/',
       icon: <ClipboardCheck size={15} className="text-[var(--accent)]" />,
       visible: can('approvals.view') || can('approvals.decide'),
+    },
+    {
+      id: 'quick-payment',
+      label: 'تسجيل دفعة سريعة',
+      href: '/payments/quick',
+      icon: <Banknote size={15} className="text-[var(--accent)]" />,
+      visible: can('payments.disburse'),
     },
     {
       id: 'monthly-cycle',

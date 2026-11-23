@@ -124,12 +124,31 @@ export function buildNavGroups(
       id: 'payments',
       label: 'المدفوعات والمشتريات',
       icon: <Wallet size={18} />,
-      defaultHref: '/payments/mada',
-      permission: ['payments.view', 'payments.fuel.manage', 'payments.disburse', 'advances.payout'],
+      defaultHref: '/payments/due-calendar',
+      permission: [
+        'payments.view',
+        'payments.fuel.manage',
+        'payments.disburse',
+        'payments.hr_request.create',
+        'advances.request',
+        'advances.review',
+        'advances.payout',
+      ],
       items: [
+        { id: 'pay-rents', href: '/payments/rents', label: 'الإيجارات والسكنات', permission: 'payments.view' },
+        { id: 'pay-installments', href: '/payments/installments', label: 'الأقساط والمدفوعات البنكية', permission: 'payments.view' },
+        { id: 'pay-purchases', href: '/payments/purchases', label: 'فواتير المشتريات والمصروفات', permission: 'payments.view' },
         { id: 'pay-fuel', href: '/payments/fuel', label: 'الوقود والمحطات', permission: 'payments.fuel.manage' },
+        { id: 'pay-hr-requests', href: '/payments/hr-requests', label: 'طلبات الموارد البشرية والخصومات', permission: ['payments.view', 'payments.hr_request.create'] },
+        { id: 'pay-advances', href: '/payments/advances', label: 'السلف والشحن', permission: ['payments.view', 'advances.request', 'advances.review', 'advances.payout'] },
         { id: 'pay-mada', href: '/payments/mada', label: 'جهاز مدا والشحن', permission: ['payments.fuel.manage', 'advances.payout'] },
+        { id: 'pay-hs-custody', href: '/payments/hs-custody', label: 'عهد هنقرستيشن', permission: ['payments.view', 'advances.request'] },
+        { id: 'pay-traffic', href: '/payments/traffic-violations', label: 'سداد المخالفات المرورية', permission: ['payments.view', 'payments.disburse'] },
+        { id: 'pay-suppliers', href: '/payments/suppliers', label: 'الموردون والدفعات', permission: 'payments.view' },
+        { id: 'pay-due-calendar', href: '/payments/due-calendar', label: 'لوحة المستحقات', permission: 'payments.view' },
+        { id: 'pay-government', href: '/payments/government', label: 'المدفوعات الحكومية', permission: ['payments.view', 'payments.disburse'] },
         { id: 'pay-prepaid', href: '/payments/prepaid-wallets', label: 'المحافظ المدفوعة مقدمًا', permission: 'payments.fuel.manage' },
+        { id: 'pay-quick', href: '/payments/quick', label: 'تسجيل مدفوعات سريعة', permission: ['payments.view', 'payments.disburse'] },
         { id: 'pay-recurring', href: '/payments/recurring', label: 'مدفوعات دورية', permission: ['payments.view', 'payments.disburse'] },
         { id: 'pay-recurring-runs', href: '/payments/recurring/runs', label: 'تشغيل المدفوعات الدورية', permission: ['payments.view', 'payments.disburse'] },
       ],
@@ -288,8 +307,14 @@ function SidebarInner({
   const getActiveGroupId = () => {
     if (pathname === '/' || pathname === '') return 'home';
     const clean = pathname.replace(/\/$/, '');
-    if (clean.startsWith('/workforce') || clean.startsWith('/riders') || clean.startsWith('/companies') || clean.startsWith('/hr')) {
-      return 'home';
+    if (clean === '/payments' || clean.startsWith('/payments/')) return 'payments';
+    if (clean === '/hr' || clean.startsWith('/hr/')) return 'companies';
+    if (clean === '/riders' || clean.startsWith('/riders/')) {
+      if (clean.startsWith('/riders/statement')) return 'workforce';
+      return 'workforce';
+    }
+    if (clean.startsWith('/workforce') || clean.startsWith('/companies')) {
+      return clean.startsWith('/workforce') ? 'workforce' : 'companies';
     }
     const found = navGroups.find((g) => {
       if (g.id === 'home') return false;

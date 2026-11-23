@@ -1,12 +1,13 @@
 'use client';
 
-import { ScreenShell } from '../../../components/ui/ScreenShell';
+import React, { Suspense } from 'react';
+import { DueCalendarWorkspace } from '../../../features/payments/DueCalendarWorkspace';
+import { Skeleton } from '../../../components/ui/EmptyState';
 
 export default function Page() {
   return (
-    <ScreenShell
-      title="لوحة المستحقات"
-      description="قسم المدفوعات والمشتريات — المسار جاهز من شجرة التنقل."
-    />
+    <Suspense fallback={<Skeleton className="h-44 w-full" />}>
+      <DueCalendarWorkspace />
+    </Suspense>
   );
 }

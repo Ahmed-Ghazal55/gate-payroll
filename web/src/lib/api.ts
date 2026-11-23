@@ -168,6 +168,20 @@ export type RiderAccountsResponse = Omit<ApiResp<'/api/riders/{iqama}/accounts'>
   items: RiderAccountRow[];
 };
 
+// S-PAY Payments Engine — types derived strictly from api-contract.ts
+export type PaymentDocumentListResponse = ApiResp<'/api/payments/documents'>;
+export type PaymentDocumentItem = PaymentDocumentListResponse['items'][number];
+export type PaymentDocumentDetail = ApiResp<'/api/payments/documents/{id}'>;
+export type PaymentDocumentLineItem = NonNullable<PaymentDocumentItem['lines']>[number];
+export type PaymentVoucherItem = ApiResp<'/api/payments/vouchers/{id}'>;
+export type PaymentGenericListResponse = ApiResp<'/api/payments/suppliers'>;
+export type PaymentDueCalendarResponse = ApiResp<'/api/payments/due-calendar'>;
+export type PaymentWalletListResponse = ApiResp<'/api/payments/fuel-wallets'>;
+export type PaymentWalletReconcileResponse = ApiResp<'/api/payments/fuel-wallets/{id}/reconcile', 'post'>;
+export type PaymentRecurringListResponse = ApiResp<'/api/payments/recurring-payees'>;
+export type PaymentRecurringRunResponse = ApiResp<'/api/payments/recurring-runs/{id}'>;
+export type FinanceCoaResponse = ApiResp<'/api/finance/coa'>;
+
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
 
 export class ApiError extends Error {
@@ -2441,89 +2455,224 @@ export const api = {
   postLiabilityPayment: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/finance/liability-payment', { method: 'POST', body: JSON.stringify(input) }),
 
-  listFuelWallets: () =>
-    handleRequest<{ items?: Record<string, unknown>[]; allowedActions?: string[] }>('/payments/fuel-wallets'),
+  listPaymentDocuments: (params?: { type?: string; companyId?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.type) q.set('type', params.type);
+    if (params?.companyId) q.set('companyId', params.companyId);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<PaymentDocumentListResponse>(`/payments/documents${qs}`);
+  },
+  getPaymentDocument: (id: string) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/documents/${encodeURIComponent(id)}`),
+  createPaymentDocument: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/documents', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  editPaymentDocument: (id: string, input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/documents/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  submitPaymentDocument: (id: string) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/documents/${encodeURIComponent(id)}/submit`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  approvePaymentDocument: (id: string, input: Record<string, unknown> = {}) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/documents/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  cancelPaymentDocument: (id: string) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/documents/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  createPaymentRequest: (documentId: string, input: Record<string, unknown>) =>
+    handleRequest<PaymentVoucherItem>(
+      `/payments/documents/${encodeURIComponent(documentId)}/payment-requests`,
+      { method: 'POST', body: JSON.stringify(input) }
+    ),
+  getPaymentVoucher: (id: string) =>
+    handleRequest<PaymentVoucherItem>(`/payments/vouchers/${encodeURIComponent(id)}`),
+  payPaymentVoucher: (id: string) =>
+    handleRequest<PaymentVoucherItem>(`/payments/vouchers/${encodeURIComponent(id)}/pay`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  cancelPaymentVoucher: (id: string) =>
+    handleRequest<PaymentVoucherItem>(`/payments/vouchers/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  createQuickPayment: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/quick', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listPaymentSuppliers: () => handleRequest<PaymentGenericListResponse>('/payments/suppliers'),
+  createPaymentSupplier: (input: Record<string, unknown>) =>
+    handleRequest<PaymentGenericListResponse>('/payments/suppliers', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getPaymentSupplierLedger: (id: string) =>
+    handleRequest<PaymentGenericListResponse & { invoiced?: number; paid?: number; outstanding?: number }>(
+      `/payments/suppliers/${encodeURIComponent(id)}/ledger`
+    ),
+
+  listHrFees: () => handleRequest<PaymentDocumentListResponse>('/payments/hr-fees'),
+  createHrFee: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/hr-fees', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listTrafficViolations: () => handleRequest<PaymentDocumentListResponse>('/payments/traffic-violations'),
+  createTrafficViolation: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/traffic-violations', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listGovernmentPayments: () => handleRequest<PaymentDocumentListResponse>('/payments/government'),
+  createGovernmentPayment: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/government', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listPaymentProperties: () => handleRequest<PaymentGenericListResponse>('/payments/properties'),
+  createPaymentProperty: (input: Record<string, unknown>) =>
+    handleRequest<PaymentGenericListResponse>('/payments/properties', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listPaymentFinanciers: () => handleRequest<PaymentGenericListResponse>('/payments/financiers'),
+  createPaymentFinancier: (input: Record<string, unknown>) =>
+    handleRequest<PaymentGenericListResponse>('/payments/financiers', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listPaymentLeases: () => handleRequest<PaymentGenericListResponse>('/payments/leases'),
+  createPaymentLease: (input: Record<string, unknown>) =>
+    handleRequest<PaymentGenericListResponse>('/payments/leases', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getPaymentLeaseSchedule: (id: string) =>
+    handleRequest<PaymentGenericListResponse>(`/payments/leases/${encodeURIComponent(id)}/schedule`),
+  recognizeLeaseRent: (id: string, period: string) =>
+    handleRequest<PaymentGenericListResponse & { amount?: number; journalId?: string }>(
+      `/payments/leases/${encodeURIComponent(id)}/recognize`,
+      { method: 'POST', body: JSON.stringify({ period }) }
+    ),
+  listFinanceContracts: () => handleRequest<PaymentGenericListResponse>('/payments/finance-contracts'),
+  createFinanceContract: (input: Record<string, unknown>) =>
+    handleRequest<PaymentGenericListResponse>('/payments/finance-contracts', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getFinanceContractSchedule: (id: string) =>
+    handleRequest<PaymentGenericListResponse>(`/payments/finance-contracts/${encodeURIComponent(id)}/schedule`),
+  archivePaymentContract: (kind: 'properties' | 'financiers' | 'leases' | 'finance-contracts', id: string) =>
+    handleRequest<PaymentGenericListResponse>(
+      `/payments/contracts/${encodeURIComponent(kind)}/${encodeURIComponent(id)}/archive`,
+      { method: 'POST', body: '{}' }
+    ),
+  getPaymentDueCalendar: (params?: { companyId?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<PaymentDueCalendarResponse & { amountReserved?: number }>(`/payments/due-calendar${qs}`);
+  },
+  createPaymentAdvance: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/advances', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getFinanceCoa: (inactive = false) =>
+    handleRequest<FinanceCoaResponse>(`/finance/coa${inactive ? '?inactive=true' : ''}`),
+  createFinanceCoaAccount: (input: Record<string, unknown>) =>
+    handleRequest<FinanceCoaResponse>('/finance/coa', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listFuelWallets: () => handleRequest<PaymentWalletListResponse>('/payments/fuel-wallets'),
   createFuelWallet: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/payments/fuel-wallets', { method: 'POST', body: JSON.stringify(input) }),
+    handleRequest<PaymentWalletListResponse>('/payments/fuel-wallets', { method: 'POST', body: JSON.stringify(input) }),
   fundFuelWallet: (id: string, input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>(`/payments/fuel-wallets/${encodeURIComponent(id)}/fund`, {
+    handleRequest<PaymentDocumentDetail>(`/payments/fuel-wallets/${encodeURIComponent(id)}/fund`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
   reconcileFuelWallet: (id: string, input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>(`/payments/fuel-wallets/${encodeURIComponent(id)}/reconcile`, {
+    handleRequest<PaymentWalletReconcileResponse>(`/payments/fuel-wallets/${encodeURIComponent(id)}/reconcile`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
 
-  listPrepaidWallets: () =>
-    handleRequest<{ items?: Record<string, unknown>[]; allowedActions?: string[] }>('/payments/prepaid-wallets'),
+  listPrepaidWallets: () => handleRequest<PaymentWalletListResponse>('/payments/prepaid-wallets'),
   createPrepaidWallet: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/payments/prepaid-wallets', { method: 'POST', body: JSON.stringify(input) }),
+    handleRequest<PaymentWalletListResponse>('/payments/prepaid-wallets', { method: 'POST', body: JSON.stringify(input) }),
   createPrepaidWalletMovement: (id: string, input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>(`/payments/prepaid-wallets/${encodeURIComponent(id)}/movements`, {
+    handleRequest<PaymentDocumentDetail>(`/payments/prepaid-wallets/${encodeURIComponent(id)}/movements`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
 
-  listMadaWallets: () =>
-    handleRequest<{ items?: Record<string, unknown>[]; allowedActions?: string[] }>('/payments/mada/wallets'),
+  listMadaWallets: () => handleRequest<PaymentWalletListResponse>('/payments/mada/wallets'),
   createMadaTopup: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/payments/mada/topups', { method: 'POST', body: JSON.stringify(input) }),
+    handleRequest<PaymentDocumentDetail>('/payments/mada/topups', { method: 'POST', body: JSON.stringify(input) }),
   reconcileMada: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/payments/mada/reconcile', { method: 'POST', body: JSON.stringify(input) }),
+    handleRequest<PaymentWalletReconcileResponse>('/payments/mada/reconcile', { method: 'POST', body: JSON.stringify(input) }),
   issueMadaCard: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/payments/mada/cards/issue', { method: 'POST', body: JSON.stringify(input) }),
+    handleRequest<PaymentVoucherItem>('/payments/mada/cards/issue', { method: 'POST', body: JSON.stringify(input) }),
 
   listRecurringPayees: (companyId?: string) => {
     const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
-    return handleRequest<{
-      items?: Record<string, unknown>[];
-      costCentres?: Record<string, unknown>[];
-      allowedActions?: string[];
-    }>(`/payments/recurring-payees${qs}`);
+    return handleRequest<PaymentRecurringListResponse>(`/payments/recurring-payees${qs}`);
   },
   getRecurringPayee: (id: string) =>
-    handleRequest<Record<string, unknown>>(`/payments/recurring-payees/${encodeURIComponent(id)}`),
+    handleRequest<PaymentRecurringListResponse>(`/payments/recurring-payees/${encodeURIComponent(id)}`),
   createRecurringPayee: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/payments/recurring-payees', { method: 'POST', body: JSON.stringify(input) }),
+    handleRequest<PaymentRecurringListResponse>('/payments/recurring-payees', { method: 'POST', body: JSON.stringify(input) }),
   updateRecurringPayee: (id: string, input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>(`/payments/recurring-payees/${encodeURIComponent(id)}`, {
+    handleRequest<PaymentRecurringListResponse>(`/payments/recurring-payees/${encodeURIComponent(id)}`, {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
   getRecurringPayeeHistory: (id: string) =>
-    handleRequest<{ payeeId?: string; items?: Record<string, unknown>[]; allowedActions?: string[] }>(
+    handleRequest<PaymentRecurringListResponse>(
       `/payments/recurring-payees/${encodeURIComponent(id)}/history`
     ),
   listRecurringRuns: (companyId?: string) => {
     const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
-    return handleRequest<{ items?: Record<string, unknown>[]; allowedActions?: string[] }>(`/payments/recurring-runs${qs}`);
+    return handleRequest<PaymentRecurringListResponse>(`/payments/recurring-runs${qs}`);
   },
   getRecurringRun: (id: string) =>
-    handleRequest<Record<string, unknown>>(`/payments/recurring-runs/${encodeURIComponent(id)}`),
+    handleRequest<PaymentRecurringRunResponse>(`/payments/recurring-runs/${encodeURIComponent(id)}`),
   proposeRecurringRun: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/payments/recurring-runs', { method: 'POST', body: JSON.stringify(input) }),
+    handleRequest<PaymentRecurringRunResponse>('/payments/recurring-runs', { method: 'POST', body: JSON.stringify(input) }),
   updateRecurringRunLines: (id: string, input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>(`/payments/recurring-runs/${encodeURIComponent(id)}/lines`, {
+    handleRequest<PaymentRecurringRunResponse>(`/payments/recurring-runs/${encodeURIComponent(id)}/lines`, {
       method: 'PUT',
       body: JSON.stringify(input),
     }),
   submitRecurringRun: (id: string) =>
-    handleRequest<Record<string, unknown>>(`/payments/recurring-runs/${encodeURIComponent(id)}/submit`, { method: 'POST', body: '{}' }),
+    handleRequest<PaymentRecurringRunResponse>(`/payments/recurring-runs/${encodeURIComponent(id)}/submit`, { method: 'POST', body: '{}' }),
   approveRecurringRun: (id: string) =>
-    handleRequest<Record<string, unknown>>(`/payments/recurring-runs/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
+    handleRequest<PaymentRecurringRunResponse>(`/payments/recurring-runs/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
   executeRecurringRun: (id: string, input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>(`/payments/recurring-runs/${encodeURIComponent(id)}/execute`, {
+    handleRequest<PaymentRecurringRunResponse>(`/payments/recurring-runs/${encodeURIComponent(id)}/execute`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
   createRecurringOneOff: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/payments/recurring-one-off', { method: 'POST', body: JSON.stringify(input) }),
-  getPaymentVoucher: (id: string) =>
-    handleRequest<Record<string, unknown>>(`/payments/vouchers/${encodeURIComponent(id)}`),
-  payPaymentVoucher: (id: string) =>
-    handleRequest<Record<string, unknown>>(`/payments/vouchers/${encodeURIComponent(id)}/pay`, { method: 'POST', body: '{}' }),
+    handleRequest<PaymentVoucherItem>('/payments/recurring-one-off', { method: 'POST', body: JSON.stringify(input) }),
 
   getDebtSettlements: (params?: { debtId?: string; iqama?: string }) => {
     const q = new URLSearchParams();
