@@ -201,8 +201,9 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/payroll/preview` | Payroll.Api/Program.cs:247 | payroll.view | web | keep |
 | GET | `/api/payroll/runs` | Payroll.Api/Program.cs:248 | payroll.view | web | keep |
 | GET | `/api/policies` | Payroll.Api/Program.cs:225 | policies.view | web | keep |
-| GET | `/api/sal/simulations/{id}/journal-preview` | Payroll.Api/SalSimulations.cs:228 | see AccessPolicy + handler | web | keep |
-| GET | `/api/sal/simulations/{id}/promote-diff` | Payroll.Api/SalSimulations.cs:238 | see AccessPolicy + handler | web | keep |
+| POST | `/api/sal/simulations` | Payroll.Api/SalSimulations.cs | see AccessPolicy + handler | web | keep |
+| GET | `/api/sal/simulations/{id}/journal-preview` | Payroll.Api/SalSimulations.cs | see AccessPolicy + handler | web | keep |
+| GET | `/api/sal/simulations/{id}/promote-diff` | Payroll.Api/SalSimulations.cs | see AccessPolicy + handler | web | keep |
 | GET | `/api/template.csv` | Payroll.Api/Program.cs:235 | imports.view | web | deprecated |
 | POST | `/api/adjustments` | Payroll.Api/Program.cs:236 | adjustments.create | web | keep |
 | POST | `/api/excel/export` | Payroll.Api/TableExcelApi.cs:29 | riders.view | web | keep |
@@ -244,8 +245,8 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/sal/pay-runs/{id}/capture-ops` | Payroll.Api/OpsSnapshotCapture.cs:100 | see AccessPolicy + handler | web | keep |
 | POST | `/api/sal/pay-runs/{id}/freeze-capture` | Payroll.Api/OpsSnapshotCapture.cs:111 | see AccessPolicy + handler | web | keep |
 | POST | `/api/sal/settlements/combine` | Payroll.Api/SalDistribution.cs:207 | see AccessPolicy + handler | web | keep |
-| POST | `/api/sal/simulations/{id}/discard` | Payroll.Api/SalSimulations.cs:233 | see AccessPolicy + handler | web | keep |
-| POST | `/api/sal/simulations/{id}/promote-real` | Payroll.Api/SalSimulations.cs:243 | see AccessPolicy + handler | web | keep |
+| POST | `/api/sal/simulations/{id}/discard` | Payroll.Api/SalSimulations.cs | see AccessPolicy + handler | web | keep |
+| POST | `/api/sal/simulations/{id}/promote-real` | Payroll.Api/SalSimulations.cs | see AccessPolicy + handler | web | keep |
 | POST | `/api/sal/tga/allocate` | Payroll.Api/SalDistribution.cs:205 | see AccessPolicy + handler | web | keep |
 
 ## العمليات
