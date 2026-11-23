@@ -753,6 +753,15 @@ public static class FinancialCore
             req["decidedBy"] = ctx.User.Identity!.Name!;
             req["decidedAt"] = DateTimeOffset.UtcNow.ToString("O");
             Store.Save(c, "approval_request", req, tx);
+            // Persist the decision row so archive restore (and other kind hooks) run ApplyApproval in-band.
+            string outcome = decision == "suspended" ? "held" : decision;
+            SchemaApprovals.SaveDecision(c, tx, new()
+            {
+                ["requestId"] = id,
+                ["outcome"] = outcome,
+                ["decidedBy"] = ctx.User.Identity!.Name!,
+                ["decidedAt"] = req.S("decidedAt")
+            });
 
             // إذا كان الطلب مرتبطاً بمديونية بانتظار التصديق المتبادل، نفعّلها ونرحّل قيدها المالي
             if (req.S("kind") == "debt_creation" && decision == "approved")

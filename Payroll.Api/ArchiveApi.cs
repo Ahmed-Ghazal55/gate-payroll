@@ -130,7 +130,8 @@ public static class ArchiveApi
             JOIN {SchemaSql.Q(c,"archive","policy")} p ON p.id=r.policy_id WHERE r.id=@id
             """,("@id",id));
         if(h!=null)hours=Convert.ToInt32(h,CultureInfo.InvariantCulture);
-        string expires=DateTimeOffset.UtcNow.AddHours(hours).UtcDateTime.ToString("O",CultureInfo.InvariantCulture);
+        // Space-separated UTC matches SQLite datetime('now') / SQL datetime2 text compares.
+        string expires=DateTimeOffset.UtcNow.AddHours(hours).UtcDateTime.ToString("yyyy-MM-dd HH:mm:ss.fffffff",CultureInfo.InvariantCulture);
         string? approverId=null;
         try{approverId=SchemaApprovals.EnsureAuthUserId(c,tx,decidedBy);}catch{/* optional */}
         SchemaSql.Exec(c,tx,$"""
@@ -143,11 +144,111 @@ public static class ArchiveApi
 
     static void ExpireStale(DbConnection c,DbTransaction? tx)
     {
-        SchemaSql.Exec(c,tx,$"""
-            UPDATE {SchemaSql.Q(c,"archive","restore_request")}
-            SET status='expired', updated_at={SchemaSql.NowLiteral(c)}
-            WHERE status='active' AND expires_at IS NOT NULL AND expires_at < {SchemaSql.NowLiteral(c)}
-            """);
+        // Parse timestamps in process so ISO-with-T and space formats both expire on the same calendar day.
+        var expired=new List<string>();
+        using(var cmd=Store.Command(c,tx,$"""
+            SELECT id,expires_at FROM {SchemaSql.Q(c,"archive","restore_request")}
+            WHERE status='active' AND expires_at IS NOT NULL
+            """))
+        using(var r=cmd.ExecuteReader())
+        while(r.Read())
+        {
+            string id=r.GetValue(0).ToString()!;
+            string raw=Convert.ToString(r.GetValue(1),CultureInfo.InvariantCulture)??"";
+            if(!DateTimeOffset.TryParse(raw,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal|DateTimeStyles.AdjustToUniversal,out var ex))
+            {
+                // SQLite may return DateTime already.
+                if(r.GetValue(1) is DateTime dt)ex=new DateTimeOffset(DateTime.SpecifyKind(dt,DateTimeKind.Utc));
+                else continue;
+            }
+            if(ex.ToUniversalTime()<=DateTimeOffset.UtcNow)expired.Add(id);
+        }
+        foreach(string id in expired)
+            SchemaSql.Exec(c,tx,$"""
+                UPDATE {SchemaSql.Q(c,"archive","restore_request")}
+                SET status='expired', updated_at={SchemaSql.NowLiteral(c)}
+                WHERE id=@id AND status='active'
+                """,("@id",id));
+    }
+
+    public static bool HasActiveRestore(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string entityType,string? restoreRequestId=null)
+    {
+        ExpireStale(c,tx);
+        AccessPolicy.Demand(actor,Permission);
+        string sql=$"""
+            SELECT COUNT(1) FROM {SchemaSql.Q(c,"archive","restore_request")}
+            WHERE status='active' AND entity_type=@e
+            {(string.IsNullOrWhiteSpace(restoreRequestId)?"":"AND id=@id")}
+            """;
+        var args=new List<(string,object)>{("@e",entityType)};
+        if(!string.IsNullOrWhiteSpace(restoreRequestId))args.Add(("@id",restoreRequestId));
+        return Convert.ToInt64(SchemaSql.Scalar(c,tx,sql,args.ToArray())!)>0;
+    }
+
+    /// <summary>Temporary read-only restore view; requires an active unexpired approval for the entity type.</summary>
+    public static JsonObject RestoreView(DbConnection c,ClaimsPrincipal actor,JsonObject input)
+    {
+        AccessPolicy.Demand(actor,Permission);
+        ExpireStale(c,null);
+        string entityType=input.Required("entityType").Trim();
+        string restoreId=input.S("restoreRequestId");
+        J.Need(HasActiveRestore(c,null,actor,entityType,string.IsNullOrWhiteSpace(restoreId)?null:restoreId),
+            "يلزم اعتماد استعادة ساري غير منتهٍ لعرض الأرشيف.",403);
+        string from=input.S("periodFrom"),to=input.S("periodTo");
+        J.Need(DateOnly.TryParse(from,CultureInfo.InvariantCulture,DateTimeStyles.None,out var fromDate),"فترة غير صالحة.",400);
+        J.Need(DateOnly.TryParse(to,CultureInfo.InvariantCulture,DateTimeStyles.None,out var toDate),"فترة غير صالحة.",400);
+        var items=new JsonArray();
+        if(entityType is "chat.message" or "chat")
+        {
+            using var cmd=Store.Command(c,null,$"""
+                SELECT id,channel_id,body_ar,created_at FROM {SchemaSql.Q(c,"chat","message")}
+                WHERE created_at >= @f AND created_at < @t
+                ORDER BY created_at ASC
+                """,
+                ("@f",fromDate.ToDateTime(TimeOnly.MinValue).ToString("yyyy-MM-dd HH:mm:ss.fffffff",CultureInfo.InvariantCulture)),
+                ("@t",toDate.AddDays(1).ToDateTime(TimeOnly.MinValue).ToString("yyyy-MM-dd HH:mm:ss.fffffff",CultureInfo.InvariantCulture)));
+            using var r=cmd.ExecuteReader();
+            while(r.Read())
+                items.Add(new JsonObject
+                {
+                    ["id"]=r.GetValue(0).ToString(),
+                    ["channelId"]=r.GetValue(1).ToString(),
+                    ["bodyAr"]=r.IsDBNull(2)?"":r.GetString(2),
+                    ["createdAt"]=Convert.ToDateTime(r.GetValue(3),CultureInfo.InvariantCulture).ToString("O"),
+                    ["readOnly"]=true
+                });
+        }
+        else if(entityType is "audit.change_log" or "audit")
+        {
+            if(SchemaSql.TableExists(c,null,"audit","change_log"))
+            {
+                using var cmd=Store.Command(c,null,$"""
+                    SELECT id,entity_type,occurred_on FROM {SchemaSql.Q(c,"audit","change_log")}
+                    WHERE occurred_on >= @f AND occurred_on < @t
+                    ORDER BY occurred_on ASC
+                    """,
+                    ("@f",fromDate.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)),
+                    ("@t",toDate.AddDays(1).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)));
+                using var r=cmd.ExecuteReader();
+                while(r.Read())
+                    items.Add(new JsonObject
+                    {
+                        ["id"]=r.GetValue(0).ToString(),
+                        ["entityType"]=r.GetValue(1).ToString(),
+                        ["occurredOn"]=Convert.ToDateTime(r.GetValue(2),CultureInfo.InvariantCulture).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
+                        ["readOnly"]=true
+                    });
+            }
+        }
+        else throw new ApiError("نوع كيان الاستعادة غير مدعوم.",400);
+        return new()
+        {
+            ["items"]=items,
+            ["readOnly"]=true,
+            ["entityType"]=entityType,
+            ["allowedActions"]=new JsonArray("view_restore"),
+            ["messageAr"]="عرض أرشيفي للقراءة فقط ضمن الاعتماد الساري."
+        };
     }
 
     public static void Map(RouteGroupBuilder api,Store store)
@@ -156,5 +257,7 @@ public static class ArchiveApi
             .WithTags("Administration").WithSummary("List archive retention policies and restore views");
         api.MapPost("/admin/archive/restore-request",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>RequestRestore(c,tx,ctx.User,input)))
             .WithTags("Administration").WithSummary("Request temporary read-only archive restore view");
+        api.MapPost("/admin/archive/restore-view",(JsonObject input,HttpContext ctx)=>store.Read(c=>RestoreView(c,ctx.User,input)))
+            .WithTags("Administration").WithSummary("Read-only archived rows under an active restore approval");
     }
 }
