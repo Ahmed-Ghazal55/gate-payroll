@@ -542,13 +542,15 @@ export function EvaluationsTab() {
     }
   };
 
-  const handleTransitionRound = async (action: 'open' | 'pause' | 'close') => {
+  const handleTransitionRound = async (action: 'open' | 'pause' | 'close' | 'refresh-staff') => {
     if (!selectedRound) return;
     setTransitioningAction(action);
     try {
       await api.transitionEvaluationRound(selectedRound.id, action);
       const msg =
-        action === 'open'
+        action === 'refresh-staff'
+          ? 'تم تحديث موظفي الجولة ومدن العمل من القائمة الحالية'
+          : action === 'open'
           ? 'تم فتح جولة التقييم لاستقبال ردود المناديب'
           : action === 'pause'
           ? 'تم إيقاف جولة التقييم مؤقتًا'
@@ -781,7 +783,10 @@ export function EvaluationsTab() {
       header: 'المدن',
       type: 'list',
       filterType: 'list',
-      getValue: (s) => (s.cities || []).join('، '),
+      getValue: (s) =>
+        s.allCities
+          ? `كل مدن العمل (عن بُعد: ${(s.cities || []).join('، ')})`
+          : (s.cities || []).join('، '),
     },
     {
       key: 'departments',
@@ -879,6 +884,20 @@ export function EvaluationsTab() {
               >
                 <PauseCircle size={14} />
                 <span>إيقاف مؤقت</span>
+              </button>
+            )}
+
+            {allowedRoundActions.includes('refresh-staff') && (
+              <button
+                type="button"
+                disabled={transitioningAction !== null}
+                onClick={() => handleTransitionRound('refresh-staff')}
+                data-testid="eval-round-refresh-staff-btn"
+                title="يعيد قراءة قائمة الموظفين ومدن العمل في هذه الجولة دون تغيير الرابط؛ الردود السابقة تبقى كما هي"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-1.5 text-xs font-bold"
+              >
+                <RefreshCw size={14} />
+                <span>تحديث الموظفين</span>
               </button>
             )}
 
@@ -1647,7 +1666,7 @@ export function EvaluationsTab() {
               rows={7}
               value={importJsonText}
               onChange={(e) => setImportJsonText(e.target.value)}
-              placeholder='{"staff":[{"name":"...","cities":["..."],"departments":["..."],"roles":["..."],"apps":["Ninja"]}]}'
+              placeholder='{"staff":[{"name":"...","cities":["..."],"departments":["..."],"roles":["..."],"apps":["Ninja"],"allCities":false}]}'
               data-testid="eval-import-json-textarea"
               className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] p-2.5 font-mono text-xs text-[var(--ink)]"
             />

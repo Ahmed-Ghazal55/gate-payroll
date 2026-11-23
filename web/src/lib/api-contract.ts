@@ -1214,6 +1214,7 @@ export interface paths {
                                 active?: boolean;
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
+                                allCities?: boolean;
                             }[];
                             identityFields?: {
                                 id: string;
@@ -1505,6 +1506,7 @@ export interface paths {
                                 active?: boolean;
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
+                                allCities?: boolean;
                             }[];
                             identityFields?: {
                                 id: string;
@@ -17640,6 +17642,7 @@ export interface paths {
                             active?: boolean;
                             excluded?: boolean;
                             pendingRoleApproval?: boolean;
+                            allCities?: boolean;
                         }[];
                     };
                 };
@@ -17736,6 +17739,7 @@ export interface paths {
                                 active?: boolean;
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
+                                allCities?: boolean;
                             }[];
                             cities: string[];
                             apps: string[];
@@ -17786,6 +17790,7 @@ export interface paths {
                                 active?: boolean;
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
+                                allCities?: boolean;
                             }[];
                             cities: string[];
                             apps: string[];
@@ -17846,6 +17851,7 @@ export interface paths {
                                 active?: boolean;
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
+                                allCities?: boolean;
                             }[];
                             cities: string[];
                             apps: string[];
@@ -17875,7 +17881,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Open, pause or close evaluation round */
+        /** Open, pause, close or refresh staff of an evaluation round */
         post: {
             parameters: {
                 query?: never;
@@ -17911,6 +17917,7 @@ export interface paths {
                                 active?: boolean;
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
+                                allCities?: boolean;
                             }[];
                             cities: string[];
                             apps: string[];
@@ -18738,6 +18745,7 @@ export interface paths {
                                 active?: boolean;
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
+                                allCities?: boolean;
                             }[];
                             cities: string[];
                             apps: string[];

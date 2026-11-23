@@ -153,3 +153,14 @@ describe('EV1 evaluation survey and admin results screens', () => {
     assert.doesNotMatch(publicForm, /sessionStorage\.setItem\(\s*['"]gate_rider_mob['"]/);
   });
 });
+
+describe('Remote all-cities staff (Ghazal 2026-11-23: the Egypt office is not a work city)', () => {
+  it('shows the refresh-staff round action only when the API allows it, and labels remote staff', () => {
+    const tab = readWeb('src/features/forms/EvaluationsTab.tsx');
+    assert.match(tab, /allowedRoundActions\.includes\('refresh-staff'\)/);
+    assert.match(tab, /handleTransitionRound\('refresh-staff'\)/);
+    assert.match(tab, /s\.allCities/);
+    const contract = readWeb('src/lib/api-contract.ts');
+    assert.match(contract, /allCities\?: boolean/);
+  });
+});

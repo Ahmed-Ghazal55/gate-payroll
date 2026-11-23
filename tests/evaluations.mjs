@@ -37,7 +37,7 @@ try{
   const staff={name:'Synthetic person',cities:['Synthetic city'],departments:['Synthetic department'],roles:['Synthetic role'],apps:['Ninja']};
   assert.deepEqual(await request(prefix+'/staff/import',{staff:[staff,staff,{...staff,name:'Excluded synthetic person',excluded:true}]}),{imported:2,excluded:1});
   const round=await request(prefix+'/rounds',{title:'Synthetic evaluation'});
-  assert.equal(round.staff.length,1);assert.deepEqual(round.allowedActions,['open']);
+  assert.equal(round.staff.length,1);assert.deepEqual(round.allowedActions,['open','refresh-staff']);
   const pub='/api/public/evaluations/'+round.sharingToken;
   await request(pub,undefined,409,false);
   await request(prefix+'/rounds/'+round.id+'/open',{});
