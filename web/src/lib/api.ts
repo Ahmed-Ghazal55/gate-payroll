@@ -168,6 +168,22 @@ export type RiderAccountsResponse = Omit<ApiResp<'/api/riders/{iqama}/accounts'>
   items: RiderAccountRow[];
 };
 
+// Evaluation survey & management types — strictly derived from web/src/lib/api-contract.ts
+export type EvaluationStaffItem = ApiResp<'/api/forms/evaluations/staff'>[number];
+export type EvaluationStaffImportResponse = ApiResp<'/api/forms/evaluations/staff/import', 'post'>;
+export type EvaluationRoundItem = ApiResp<'/api/forms/evaluations/rounds'>[number];
+export type EvaluationResponsesPage = ApiResp<'/api/forms/evaluations/rounds/{id}/responses'>;
+export type EvaluationReplyItem = EvaluationResponsesPage['items'][number];
+export type EvaluationReplyCard = EvaluationReplyItem['staffAnswers'][number];
+export type EvaluationStatisticsResponse = ApiResp<'/api/forms/evaluations/rounds/{id}/statistics'>;
+export type EvaluationDimensionStatisticsResponse = ApiResp<'/api/forms/evaluations/rounds/{id}/statistics/{dimension}'>;
+export type EvaluationBucketItem = EvaluationStatisticsResponse['byCity'][number];
+export type PublicEvaluationSchema = ApiResp<'/api/public/evaluations/{token}'>;
+export type PublicEvaluationSubmitResponse = ApiResp<'/api/public/evaluations/{token}', 'post'>;
+export type RiderMobileEvaluationsList = ApiResp<'/api/rider-mobile/evaluations'>;
+export type RiderMobileEvaluationSchema = ApiResp<'/api/rider-mobile/evaluations/{token}'>;
+export type RiderMobileEvaluationSubmitResponse = ApiResp<'/api/rider-mobile/evaluations/{token}', 'post'>;
+
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
 
 export class ApiError extends Error {
@@ -2371,4 +2387,137 @@ export const api = {
     const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     return handleRequest<{ column: string; values: string[]; counts?: Record<string, number>; hasEmpty?: boolean; emptyCount?: number }>(`${clean}?${q.toString()}`);
   },
+
+  // Evaluation survey & results (EV1 — all routes from web/src/lib/api-contract.ts)
+  getEvaluationStaff: () =>
+    handleRequest<EvaluationStaffItem[]>('/forms/evaluations/staff'),
+  importEvaluationStaff: (staff: Record<string, unknown>[]) =>
+    handleRequest<EvaluationStaffImportResponse>('/forms/evaluations/staff/import', {
+      method: 'POST',
+      body: JSON.stringify({ staff }),
+    }),
+  getEvaluationRounds: () =>
+    handleRequest<EvaluationRoundItem[]>('/forms/evaluations/rounds'),
+  getEvaluationRound: (id: string) =>
+    handleRequest<EvaluationRoundItem>(`/forms/evaluations/rounds/${encodeURIComponent(id)}`),
+  createEvaluationRound: (title: string) =>
+    handleRequest<EvaluationRoundItem>('/forms/evaluations/rounds', {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    }),
+  transitionEvaluationRound: (id: string, action: 'open' | 'pause' | 'close') =>
+    handleRequest<EvaluationRoundItem>(
+      `/forms/evaluations/rounds/${encodeURIComponent(id)}/${encodeURIComponent(action)}`,
+      { method: 'POST', body: JSON.stringify({}) }
+    ),
+  getEvaluationResponses: (
+    roundId: string,
+    params?: { page?: number; pageSize?: number; q?: string; filters?: string; sort?: string }
+  ) => {
+    const q = new URLSearchParams();
+    q.set('page', String(params?.page ?? 1));
+    q.set('pageSize', String(params?.pageSize ?? 50));
+    if (params?.q) q.set('q', params.q);
+    if (params?.filters) q.set('filters', params.filters);
+    if (params?.sort) q.set('sort', params.sort);
+    return handleRequest<EvaluationResponsesPage>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/responses?${q.toString()}`
+    );
+  },
+  getEvaluationStatistics: (
+    roundId: string,
+    filters?: { city?: string; nationalityId?: string }
+  ) => {
+    const qs = new URLSearchParams();
+    if (filters?.city) qs.set('city', filters.city);
+    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return handleRequest<EvaluationStatisticsResponse>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics${suffix}`
+    );
+  },
+  getEvaluationStatisticsByDimension: (
+    roundId: string,
+    dimension: 'city' | 'app' | 'supervisor' | 'nationality' | 'factors' | 'trend',
+    filters?: { city?: string; nationalityId?: string }
+  ) => {
+    const qs = new URLSearchParams();
+    if (filters?.city) qs.set('city', filters.city);
+    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return handleRequest<EvaluationDimensionStatisticsResponse>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics/${encodeURIComponent(dimension)}${suffix}`
+    );
+  },
+  editPublicEvaluation: (token: string, payload: Record<string, unknown>) =>
+    handleRequest<PublicEvaluationSubmitResponse>(
+      `/public/evaluations/${encodeURIComponent(token)}`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    ),
+  editRiderMobileEvaluation: (
+    token: string,
+    payload: Record<string, unknown>,
+    accessToken?: string
+  ) =>
+    handleRequest<RiderMobileEvaluationSubmitResponse>(
+      `/rider-mobile/evaluations/${encodeURIComponent(token)}`,
+      {
+        method: 'PUT',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: JSON.stringify(payload),
+      }
+    ),
+  exportEvaluationWorkbook: (roundId: string) =>
+    handleRequest<Blob>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/export`),
+  getPublicEvaluationSchema: (token: string, city?: string) => {
+    const qs = city ? `?city=${encodeURIComponent(city)}` : '';
+    return handleRequest<PublicEvaluationSchema>(
+      `/public/evaluations/${encodeURIComponent(token)}${qs}`
+    );
+  },
+  submitPublicEvaluation: (token: string, payload: Record<string, unknown>) =>
+    handleRequest<PublicEvaluationSubmitResponse>(
+      `/public/evaluations/${encodeURIComponent(token)}`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    ),
+  getRiderMobileEvaluations: (accessToken?: string) =>
+    handleRequest<RiderMobileEvaluationsList>('/rider-mobile/evaluations', {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    }),
+  launchRiderMobileEvaluation: (token: string, accessToken?: string) =>
+    handleRequest<{ url: string }>(
+      `/rider-mobile/evaluations/${encodeURIComponent(token)}/launch`,
+      {
+        method: 'POST',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: '{}',
+      }
+    ),
+  exchangeEvaluationLaunch: (token: string, code: string) =>
+    handleRequest<{ accessToken: string; iqama: string; expiresAt: string }>(
+      `/public/evaluations/${encodeURIComponent(token)}/session`,
+      { method: 'POST', body: JSON.stringify({ code }) }
+    ),
+  getRiderMobileEvaluationSchema: (token: string, city?: string, accessToken?: string) => {
+    const qs = city ? `?city=${encodeURIComponent(city)}` : '';
+    return handleRequest<RiderMobileEvaluationSchema>(
+      `/rider-mobile/evaluations/${encodeURIComponent(token)}${qs}`,
+      {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      }
+    );
+  },
+  submitRiderMobileEvaluation: (
+    token: string,
+    payload: Record<string, unknown>,
+    accessToken?: string
+  ) =>
+    handleRequest<RiderMobileEvaluationSubmitResponse>(
+      `/rider-mobile/evaluations/${encodeURIComponent(token)}`,
+      {
+        method: 'POST',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: JSON.stringify(payload),
+      }
+    ),
 };

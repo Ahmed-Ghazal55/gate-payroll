@@ -2,17 +2,24 @@
 
 // Campaigns, responses and builder of the one forms system (R3); moved from the old /forms/ page.
 import React, { useEffect, useState } from 'react';
-import { BarChart3, List } from 'lucide-react';
+import { BarChart3, ClipboardCheck, List } from 'lucide-react';
 import { api } from '../../lib/api';
 import type { Campaign, Submission, CustomForm } from '../../lib/types';
+import { useAuth } from '../../lib/auth-context';
 import { SectionTabs } from '../../components/ui/SectionTabs';
 import { StatCard } from '../../components/ui/StatCard';
 import { CampaignsTab } from '../forms/CampaignsTab';
 import { BuilderTab } from '../forms/BuilderTab';
 import { ResponsesTab } from '../forms/ResponsesTab';
 import { AnalyticsTab } from '../forms/AnalyticsTab';
+import { EvaluationsTab } from '../forms/EvaluationsTab';
 
 export function FormsPanel({ tab, subtab }: { tab: 'campaigns' | 'responses' | 'builder'; subtab?: string }) {
+  const { can, isAdmin, user } = useAuth();
+  const isSupervisor = Boolean(user?.role && user.role.toLowerCase().includes('supervisor'));
+  const canViewForms = isAdmin || can('forms.view');
+  const canViewEvaluations = !isSupervisor && (isAdmin || can('forms.evaluations.view'));
+
   const [campaigns, setCampaigns] = useState<Campaign[]>([]);
   const [campaignsLoading, setCampaignsLoading] = useState(false);
   const [campaignsError, setCampaignsError] = useState<string | null>(null);
@@ -23,7 +30,9 @@ export function FormsPanel({ tab, subtab }: { tab: 'campaigns' | 'responses' | '
   const [formsLoading, setFormsLoading] = useState(false);
   const [formsError, setFormsError] = useState<string | null>(null);
 
-  const analytics = tab === 'campaigns' && subtab === 'analytics';
+  const showEvaluations =
+    subtab === 'evaluations' || (!canViewForms && canViewEvaluations);
+  const analytics = tab === 'campaigns' && subtab === 'analytics' && !showEvaluations;
 
   const loadCampaigns = async () => {
     setCampaignsLoading(true);
@@ -66,11 +75,12 @@ export function FormsPanel({ tab, subtab }: { tab: 'campaigns' | 'responses' | '
       loadCustomForms();
       return;
     }
+    if (!canViewForms) return;
     // Campaign KPI cards and analytics need the responses; the responses list needs the campaigns.
     loadCampaigns();
     loadSubmissions();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [tab]);
+  }, [tab, canViewForms]);
 
   if (tab === 'builder') {
     return <BuilderTab forms={customForms} loading={formsLoading} error={formsError} onRefresh={loadCustomForms} />;
@@ -78,13 +88,35 @@ export function FormsPanel({ tab, subtab }: { tab: 'campaigns' | 'responses' | '
 
   if (tab === 'responses') {
     return (
-      <ResponsesTab
-        submissions={submissions}
-        campaigns={campaigns}
-        loading={submissionsLoading}
-        error={submissionsError}
-        onRefresh={loadSubmissions}
-      />
+      <div className="space-y-4">
+        {canViewEvaluations && canViewForms && (
+          <SectionTabs
+            paramName="subtab"
+            activeTab={showEvaluations ? 'evaluations' : 'forms'}
+            variant="pills"
+            ariaLabel="نوع الردود"
+            tabs={[
+              { id: 'forms', label: 'ردود الحملات والنماذج', icon: <List size={14} /> },
+              {
+                id: 'evaluations',
+                label: 'تقييم المشرفين والمنصات',
+                icon: <ClipboardCheck size={14} />,
+              },
+            ]}
+          />
+        )}
+        {showEvaluations ? (
+          <EvaluationsTab />
+        ) : (
+          <ResponsesTab
+            submissions={submissions}
+            campaigns={campaigns}
+            loading={submissionsLoading}
+            error={submissionsError}
+            onRefresh={loadSubmissions}
+          />
+        )}
+      </div>
     );
   }
 
@@ -95,22 +127,37 @@ export function FormsPanel({ tab, subtab }: { tab: 'campaigns' | 'responses' | '
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <StatCard label="الحملات المفتوحة" value={campaignsLoading ? '…' : openCampaigns} loading={campaignsLoading} />
-        <StatCard label="إجمالي الردود" value={submissionsLoading ? '…' : submissions.length} loading={submissionsLoading} />
-        <StatCard label="ردود بانتظار المراجعة" value={submissionsLoading ? '…' : pending} loading={submissionsLoading} />
-      </div>
-      <SectionTabs
-        paramName="subtab"
-        activeTab={analytics ? 'analytics' : 'list'}
-        variant="pills"
-        ariaLabel="عرض الحملات"
-        tabs={[
-          { id: 'list', label: 'قائمة الحملات', icon: <List size={14} /> },
-          { id: 'analytics', label: 'التحليلات', icon: <BarChart3 size={14} /> },
-        ]}
-      />
-      {analytics ? (
+      {canViewForms && !showEvaluations && (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <StatCard label="الحملات المفتوحة" value={campaignsLoading ? '…' : openCampaigns} loading={campaignsLoading} />
+          <StatCard label="إجمالي الردود" value={submissionsLoading ? '…' : submissions.length} loading={submissionsLoading} />
+          <StatCard label="ردود بانتظار المراجعة" value={submissionsLoading ? '…' : pending} loading={submissionsLoading} />
+        </div>
+      )}
+      {canViewForms && (
+        <SectionTabs
+          paramName="subtab"
+          activeTab={showEvaluations ? 'evaluations' : analytics ? 'analytics' : 'list'}
+          variant="pills"
+          ariaLabel="عرض الحملات"
+          tabs={[
+            { id: 'list', label: 'قائمة الحملات', icon: <List size={14} /> },
+            { id: 'analytics', label: 'التحليلات', icon: <BarChart3 size={14} /> },
+            ...(canViewEvaluations
+              ? [
+                  {
+                    id: 'evaluations',
+                    label: 'تقييم المشرفين والمنصات',
+                    icon: <ClipboardCheck size={14} />,
+                  },
+                ]
+              : []),
+          ]}
+        />
+      )}
+      {showEvaluations ? (
+        <EvaluationsTab />
+      ) : analytics ? (
         <AnalyticsTab submissions={submissions} campaigns={campaigns} />
       ) : (
         <CampaignsTab campaigns={campaigns} loading={campaignsLoading} error={campaignsError} onRefresh={loadCampaigns} />

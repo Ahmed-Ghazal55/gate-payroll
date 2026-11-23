@@ -436,6 +436,8 @@ public static class RiderAsks
 
     static bool CanStaffSeeServiceRequest(DbConnection c, ClaimsPrincipal user, JsonObject req, DbTransaction? tx = null)
     {
+        if (req.S("source") == "evaluation")
+            return EvaluationSurvey.CanSeeComplaint(c, user, req, tx);
         if (req.B("confidential") || req.S("requestType") == "complaint")
         {
             if (!AccessPolicy.Administrator(user) && !AccessPolicy.Has(user, "mobile.complaints.confidential"))
@@ -470,8 +472,9 @@ public static class RiderAsks
         var riders = Store.ListByIds(c, "rider", rows.Select(r => r.S("riderIqama")).ToList())
             .GroupBy(r => r.S("id"), StringComparer.Ordinal).ToDictionary(g => g.Key, g => g.First(), StringComparer.Ordinal);
         return rows
+            .Where(r => r.S("source") != "evaluation" || EvaluationSurvey.CanSeeComplaint(c, user, r))
             .Where(r => confidentialOk || !(r.B("confidential") || r.S("requestType") == "complaint"))
-            .Where(r => riders.TryGetValue(r.S("riderIqama"), out var rider) && (allCompanies || FinancialScopes.Rider(user, rider)))
+            .Where(r => r.S("source") == "evaluation" || riders.TryGetValue(r.S("riderIqama"), out var rider) && (allCompanies || FinancialScopes.Rider(user, rider)))
             .OrderByDescending(r => r.S("createdAt"), StringComparer.Ordinal)
             .Select(r => StaffView(user, r, ibanOk))
             .ToList();
@@ -866,7 +869,14 @@ public static class RiderAsks
         return true;
     }
 
-    public static JsonObject FormSchemasCatalog(DbConnection c, string iqama)
+    public static bool HasRiderCapability(string? capabilitiesHeader, string capability)
+    {
+        if (string.IsNullOrWhiteSpace(capabilitiesHeader)) return false;
+        return capabilitiesHeader.Split([',', ' ', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Any(c => c.Equals(capability, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public static JsonObject FormSchemasCatalog(DbConnection c, string iqama, string? capabilitiesHeader = null)
     {
         var rider = Store.Get(c, iqama, "rider");
         var schemas = new JsonArray
@@ -1066,6 +1076,19 @@ public static class RiderAsks
             });
         }
 
+        // Old mobile clients (≤0.25.0) render unknown schemas as the work-system form; only advertise evaluations when the client opts in.
+        if (HasRiderCapability(capabilitiesHeader, "evaluation-web"))
+        {
+            foreach (var round in Store.ListWhere(c, EvaluationSurvey.RoundKind, null, null, ("status", "open")))
+            {
+                bool submitted = Store.ListWhere(c, EvaluationSurvey.ResponseKind, null, 1, ("roundId", round.S("id")), ("iqama", iqama)).Count > 0;
+                activeCampaigns.Add(new JsonObject
+                {
+                    ["id"] = round.S("id"), ["token"] = round.S("sharingToken"), ["kind"] = "evaluation", ["schema"] = "evaluation-v1",
+                    ["title"] = round.S("title"), ["alreadySubmitted"] = submitted, ["allowedActions"] = submitted ? new JsonArray() : new JsonArray("submit")
+                });
+            }
+        }
         return new JsonObject
         {
             ["rider"] = new JsonObject
@@ -1092,6 +1115,13 @@ public static class RiderAsks
         var payload = input.Clone();
         payload["iqama"] = iqama;
         payload["name"] = riderName;
+
+        if (store.Read(c => Store.ListWhere(c, EvaluationSurvey.RoundKind, null, 1, ("sharingToken", token)).Count > 0))
+            return store.Write<IResult>((c, tx) =>
+            {
+                MobileSessions.Validate(c, ctx, iqama, tx);
+                return Results.Ok(EvaluationSurvey.Submit(c, tx, token, payload, iqama));
+            });
 
         var customForm = store.Read(c => Store.List(c, "custom_form").FirstOrDefault(x => x.S("sharingToken") == token));
         if (customForm != null)
@@ -1253,7 +1283,8 @@ public static class RiderAsks
         app.MapGet("/api/rider-mobile/forms", (HttpContext ctx) =>
         {
             var session = PushNotifications.AuthenticateAndRateLimit(store, ctx, write: false);
-            return store.Read(c => FormSchemasCatalog(c, session.S("iqama")));
+            string caps = ctx.Request.Headers["X-Rider-App-Capabilities"].ToString();
+            return store.Read(c => FormSchemasCatalog(c, session.S("iqama"), caps));
         }).WithTags("Riders").WithSummary("Read unified form schemas and active campaigns for the authenticated rider app");
 
         app.MapPost("/api/rider-mobile/forms/{token}/submit", (string token, JsonObject input, HttpContext ctx) =>

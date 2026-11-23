@@ -3,6 +3,7 @@ import { getSession, setSession, setActiveFcmToken } from '../state';
 import { renderStatementHtml } from './statement';
 import { renderNotificationsHtml } from './notifications';
 import { renderRequestsHtml, type RequestTypeKey } from './requests';
+import { bindEvaluationSurveyEvents } from './evaluation';
 import { renderDebtsHtml } from './debts';
 import { renderDevicesHtml } from './devices';
 import { getLanguage, setLanguage, applyDirection, t, validateSaudiIban, type Language } from '../i18n';
@@ -186,6 +187,7 @@ export class PortalController {
     }
 
     this.bindTabEvents();
+    bindEvaluationSurveyEvents(this.root, () => this.renderTabContent());
   }
 
   private bindTabEvents() {
@@ -313,6 +315,29 @@ export class PortalController {
           return;
         }
         await this.renderTabContent();
+      };
+    });
+
+    // One-time hosted evaluation launch (never put the app session token in a URL)
+    this.root.querySelectorAll<HTMLButtonElement>('[data-eval-launch]').forEach(btn => {
+      btn.onclick = async () => {
+        const token = btn.dataset.evalLaunch || '';
+        if (!token) return;
+        btn.disabled = true;
+        try {
+          const launched = await api<{ url: string }>(
+            '/api/rider-mobile/evaluations/' + encodeURIComponent(token) + '/launch',
+            {}
+          );
+          if (!launched?.url || /riderSession=|rmob_/i.test(launched.url)) {
+            throw new Error(t('evalOpenHosted') || 'تعذر فتح نموذج التقييم');
+          }
+          window.open(launched.url, '_blank', 'noopener');
+        } catch (ex: any) {
+          this.showAlert(ex.message);
+        } finally {
+          btn.disabled = false;
+        }
       };
     });
 

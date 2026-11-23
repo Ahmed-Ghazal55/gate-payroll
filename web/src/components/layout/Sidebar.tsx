@@ -188,6 +188,7 @@ function SidebarInner({
       badge: pendingResponsesCount > 0 ? pendingResponsesCount : undefined,
       permission: [
         'forms.view',
+        'forms.evaluations.view',
         'forms.review',
         'mobile.sessions',
         'mobile.broadcast',
@@ -197,8 +198,8 @@ function SidebarInner({
         'inquiry.issue',
       ],
       items: [
-        { id: 'app-campaigns', href: '/rider-app/?tab=campaigns', label: 'الحملات والروابط', permission: 'forms.view' },
-        { id: 'app-responses', href: '/rider-app/?tab=responses', label: 'مراجعة الردود', permission: 'forms.view' },
+        { id: 'app-campaigns', href: '/rider-app/?tab=campaigns', label: 'الحملات والروابط', permission: ['forms.view', 'forms.evaluations.view'] },
+        { id: 'app-responses', href: '/rider-app/?tab=responses', label: 'مراجعة الردود', permission: ['forms.view', 'forms.evaluations.view'] },
         { id: 'app-builder', href: '/rider-app/?tab=builder', label: 'مصمم النماذج', permission: 'forms.view' },
         { id: 'app-accounts', href: '/rider-app/?tab=accounts', label: 'الحسابات والأجهزة', permission: ['mobile.sessions', 'inquiry.issue'] },
         { id: 'app-broadcasts', href: '/rider-app/?tab=broadcasts', label: 'الإشعارات والإرسال', permission: 'mobile.broadcast' },
