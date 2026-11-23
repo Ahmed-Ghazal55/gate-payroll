@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Cursor 2026-11-23 13:44 |
+| Current writer | Cursor 2026-11-23 14:47 |
 | Branch | `trial/local-2026-11-23` |
 | Updated | 2026-11-23 by Cursor (TRIAL1 integration merges) |
 | Live | unchanged (no push/deploy; local trial only) |
