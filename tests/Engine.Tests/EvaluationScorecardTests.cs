@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json.Nodes;
+using Microsoft.Data.SqlClient;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Payroll;
 
@@ -544,6 +545,25 @@ public sealed class EvaluationScorecardTests
         Assert.AreEqual("HR", items[ids.GammaId].S("department"));
         Assert.AreEqual(8.00m, items[ids.GammaId].N("average"));
         Assert.AreEqual(2m, items[ids.GammaId].N("rankInDepartment"));
+    }
+
+    /// <summary>
+    /// M3 (KPI1a2): SQL Server ListWhere must use the indexed computed column expression for roundId
+    /// (same CONVERT as Store.cs rec_round_id) and a literal kind so ix_evaluation_response_round can match.
+    /// Exact: FieldExpr → CONVERT(nvarchar(128),JSON_VALUE(body,'$.roundId')); KindSql → kind='evaluation_response'.
+    /// </summary>
+    [TestMethod]
+    public void SqlServerRoundIdLoad_UsesIndexedComputedExpr_AndEvaluationKindLiteral()
+    {
+        const string expectedRoundExpr = "CONVERT(nvarchar(128),JSON_VALUE(body,'$.roundId'))";
+        using var sql = new SqlConnection();
+        Assert.AreEqual(expectedRoundExpr, RiderDataIndexes.FieldExpr(sql, "roundId"),
+            "ListWhere roundId predicate must match rec_round_id / ix_evaluation_response_round");
+        string kindPred = RiderDataIndexes.KindSql(sql, EvaluationSurvey.ResponseKind, "@kind", out bool usedLiteral);
+        Assert.IsTrue(usedLiteral, "filtered index requires literal kind='evaluation_response'");
+        Assert.AreEqual("kind='evaluation_response'", kindPred);
+        // iqama stays on the CONVERT map (control): 1 field mapped → roundId must not fall back to bare JSON_VALUE.
+        Assert.AreEqual("CONVERT(nvarchar(128),JSON_VALUE(body,'$.iqama'))", RiderDataIndexes.FieldExpr(sql, "iqama"));
     }
 
     /// <summary>
