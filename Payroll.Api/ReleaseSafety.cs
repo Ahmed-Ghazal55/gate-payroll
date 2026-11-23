@@ -7,7 +7,7 @@ namespace Payroll;
 
 public static class ReleaseSafety
 {
-    public const string Version="0.33.0";
+    public const string Version="0.33.1";
     public static object Capture(DbConnection c,DbTransaction? tx=null)
     {
         using var cmd=Store.Command(c,tx,"SELECT id,kind,body FROM records ORDER BY id");using var reader=cmd.ExecuteReader();
@@ -32,7 +32,8 @@ public static class ReleaseSafety
         digest.AppendData(Encoding.UTF8.GetBytes(tag.Length+":"));digest.AppendData(tag);
         return new{counts,recordsSha256=Convert.ToHexString(digest.GetHashAndReset()),payRunInputRows=payRunInputs};
     }
-    // This checkpoint stays under private App_Data and never enters a publish artifact.
+    // Ghazal 2026-11-23: no backups at all (server or local). A new version only writes a small evidence file
+    // (row counts + hash) so /health can prove that the upgrade kept every record. No data, keys or settings are copied.
     public static string? Checkpoint(DbConnection c,string dataDirectory)
     {
         using(var exists=c.CreateCommand())
@@ -42,30 +43,8 @@ public static class ReleaseSafety
         }
         string directory=Path.Combine(dataDirectory,"release-backups",Version);Directory.CreateDirectory(directory);
         string manifest=Path.Combine(directory,"checkpoint.json");if(File.Exists(manifest))return JsonSerializer.Serialize(Capture(c));
-        string snapshot=Path.Combine(directory,"records-"+Guid.NewGuid().ToString("N"));object before;
-        if(c is SqliteConnection sqlite)
-        {
-            snapshot+=".db";
-            using var target=new SqliteConnection(new SqliteConnectionStringBuilder{DataSource=snapshot,Pooling=false}.ToString());target.Open();sqlite.BackupDatabase(target);
-            using var integrity=target.CreateCommand();integrity.CommandText="PRAGMA integrity_check";
-            if((string?)integrity.ExecuteScalar()!="ok")throw new InvalidOperationException("Release backup integrity check failed.");
-            before=Capture(target);
-        }
-        else
-        {
-            snapshot+=".json";using var tx=c.BeginTransaction(System.Data.IsolationLevel.Serializable);
-            before=Capture(c,tx);
-            using(var file=new FileStream(snapshot,FileMode.CreateNew,FileAccess.Write,FileShare.None))
-            using(var writer=new Utf8JsonWriter(file))
-            {
-                writer.WriteStartArray();using var cmd=Store.Command(c,tx,"SELECT id,kind,body FROM records ORDER BY id");using var rows=cmd.ExecuteReader();
-                while(rows.Read()){writer.WriteStartObject();writer.WriteString("id",rows.GetString(0));writer.WriteString("kind",rows.GetString(1));writer.WriteString("body",rows.GetString(2));writer.WriteEndObject();}writer.WriteEndArray();
-            }
-            tx.Commit();
-        }
-        string keys=Path.Combine(dataDirectory,"keys");if(Directory.Exists(keys)){string target=Path.Combine(directory,"keys");Directory.CreateDirectory(target);foreach(string key in Directory.GetFiles(keys,"*.xml"))File.Copy(key,Path.Combine(target,Path.GetFileName(key)),false);}
-        string local=Path.Combine(AppContext.BaseDirectory,"appsettings.Local.json");if(File.Exists(local))File.Copy(local,Path.Combine(directory,"appsettings.Local.json"),false);
-        var evidence=new{version=Version,createdAt=DateTimeOffset.UtcNow.ToString("O"),snapshot=Path.GetFileName(snapshot),before};
+        object before=Capture(c);
+        var evidence=new{version=Version,createdAt=DateTimeOffset.UtcNow.ToString("O"),before};
         string temp=manifest+"."+Guid.NewGuid().ToString("N")+".tmp";File.WriteAllText(temp,JsonSerializer.Serialize(evidence));
         try{File.Move(temp,manifest,false);}catch(IOException)when(File.Exists(manifest)){File.Delete(temp);}
         return JsonSerializer.Serialize(before);

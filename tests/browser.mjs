@@ -50,7 +50,16 @@ browser = await chromium.launch(launchOpts);
  assert.deepEqual(await mobile.locator('#rider-choice').evaluate(f=>[...new Set([...f.querySelectorAll('[name]')].map(e=>e.name))].sort()),['iqama','name','workSystem']);
  await mobile.locator('[name=iqama]').fill('٢٠٠٠٠٠٠٠٠١');assert.equal(await mobile.locator('[name=iqama]').evaluate(e=>e.checkValidity()),false);
  await mobile.locator('[name=name]').fill('مندوب تجريبي');await mobile.locator('[name=iqama]').fill('2000000002');
+ // CW1: choosing commission opens a warning; "back" clears the choice; "confirm" keeps it.
  await mobile.locator('[name=workSystem][value=commission]').check();
+ await mobile.locator('#commission-dialog[open]').waitFor();
+ assert.match(await mobile.locator('#commission-dialog').innerText(),/لا تتنازل الشركة عن أي ريال/);
+ await mobile.locator('#commission-back').click();
+ assert.equal(await mobile.locator('[name=workSystem][value=commission]').isChecked(),false,'back must clear the commission choice');
+ assert.equal(await mobile.locator('#commission-dialog[open]').count(),0);
+ await mobile.locator('[name=workSystem][value=commission]').check();
+ await mobile.locator('#commission-confirm').click();
+ assert.equal(await mobile.locator('[name=workSystem][value=commission]').isChecked(),true);
  mobile.once('dialog',d=>d.accept());await mobile.locator('button[type=submit]').click();await mobile.getByRole('heading',{name:'تم تسجيل ردك بنجاح'}).waitFor();
  const submissions=await(await page.request.get(base+'/api/submissions')).json();assert.equal(submissions.length,1);assert.equal(submissions[0].name,'مندوب تجريبي');
  const template=await page.request.get(base+'/api/excel/choices/template');assert.equal(template.status(),200);assert.match(template.headers()['content-type']||'',/spreadsheetml/);

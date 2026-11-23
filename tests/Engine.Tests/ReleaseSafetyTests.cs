@@ -8,7 +8,7 @@ using Payroll;
 public sealed class ReleaseSafetyTests
 {
     [TestMethod]
-    public void UpgradePreservesEveryLegacyDocumentAndCreatesVerifiablePrivateBackup()
+    public void UpgradePreservesEveryLegacyDocumentAndWritesEvidenceWithoutAnyBackupCopy()
     {
         string directory=Path.Combine(Path.GetTempPath(),"gate-upgrade-"+Guid.NewGuid().ToString("N"));
         try
@@ -19,8 +19,9 @@ public sealed class ReleaseSafetyTests
             var upgraded=new Store(directory);Assert.AreEqual(before,upgraded.Read(c=>JsonSerializer.Serialize(ReleaseSafety.Capture(c))));
             string manifest=Path.Combine(directory,"release-backups",ReleaseSafety.Version,"checkpoint.json");
             var report=JsonNode.Parse(File.ReadAllText(manifest))!.AsObject();Assert.AreEqual(before,report["before"]!.ToJsonString());
-            using var backup=new SqliteConnection("Data Source="+Path.Combine(Path.GetDirectoryName(manifest)!,report.S("snapshot"))+";Mode=ReadOnly;Pooling=False");backup.Open();
-            Assert.AreEqual(before,JsonSerializer.Serialize(ReleaseSafety.Capture(backup)));
+            // no backups (Ghazal 2026-11-23): the version folder holds only the evidence file — no data copy, no keys, no settings
+            CollectionAssert.AreEqual(new[]{"checkpoint.json"},Directory.GetFileSystemEntries(Path.GetDirectoryName(manifest)!).Select(Path.GetFileName).ToArray());
+            Assert.IsNull(report["snapshot"]);
         }
         finally{SqliteConnection.ClearAllPools();if(Directory.Exists(directory))Directory.Delete(directory,true);}
     }
