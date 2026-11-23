@@ -25,7 +25,8 @@ public static partial class PaymentsEngine
         if(supplier!="")J.Need(SchemaSql.Scalar(c,tx,$"SELECT id FROM {Q(c,"supplier")} WHERE id=@id AND company_id=@c AND status=1",("@id",Id(supplier)),("@c",company))!=null,"المورد غير موجود في نطاق الشركة.",404);
         foreach(var line in lines.OfType<JsonObject>())
         {
-            _=Account(c,tx,line.Required("accountCode"));ValidateCentre(c,tx,company,Id(line.S("costCentreId",SchemaOrgCostCentre.NoneId.ToString("D"))));
+            string accountCode=line.Required("accountCode");DemandGenericDebitAccount(old.S("type"),accountCode);
+            _=Account(c,tx,accountCode);ValidateCentre(c,tx,company,Id(line.S("costCentreId",SchemaOrgCostCentre.NoneId.ToString("D"))));
             J.Need(line.S("erpRiderId")==""&&line.S("erpPlatformAccountId")==""&&line.S("appCode","none")=="none","المستند المنسوب لمندوب أو منصة يعدل من مسار مصدره.",409);
         }
         SchemaSql.Exec(c,tx,$"UPDATE {Q(c,"document")} SET period_month=@m,occurred_on=@day,due_on=@due,reference=@ref,amount=@amount,vat_amount=@vat,supplier_id=@s,metadata=@meta,content_hash=@hash,updated_by=@by,updated_at={SchemaSql.NowLiteral(c)} WHERE id=@id AND status=1",("@m",month),("@day",day),("@due",due),("@ref",reference),("@amount",amount),("@vat",vat),("@s",NullId(supplier)),("@meta",input.ToJsonString()),("@hash",Hash(input)),("@by",Me(actor)),("@id",Id(id)));

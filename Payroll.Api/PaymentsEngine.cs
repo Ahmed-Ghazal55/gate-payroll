@@ -22,6 +22,16 @@ public static partial class PaymentsEngine
         object? id=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","account")} WHERE code=@code AND is_active=1 AND is_postable=1",("@code",code));
         J.Need(id!=null,"الحساب غير موجود أو غير نشط أو غير قابل للترحيل.",409);return Guid.Parse(id!.ToString()!);
     }
+    /// <summary>RWP7a3: generic documents cannot debit wallets (1124*/1141*), advance/HS receivables (1125*), or bank/cash — those have dedicated flows (BR §25.3 / §25.9).</summary>
+    internal static void DemandGenericDebitAccount(string documentType,string code)
+    {
+        if(documentType is not ("quick" or "expense" or "government" or "purchase"))return;
+        bool blocked=MoneyWriteGuards.IsBankOrCashAccountCode(code)
+            ||code.StartsWith("1124",StringComparison.Ordinal)
+            ||code.StartsWith("1141",StringComparison.Ordinal)
+            ||code.StartsWith("1125",StringComparison.Ordinal);
+        J.Need(!blocked,"هذا الحساب له مسار مخصص؛ اختر حساب مصروف أو ضريبة مدخلات أو مشتريات.",409);
+    }
     internal static List<JsonObject> Rows(DbConnection c,DbTransaction? tx,string sql,params (string Name,object Value)[] args)
     {
         var rows=new List<JsonObject>();using var cmd=Store.Command(c,tx,sql,args);using var r=cmd.ExecuteReader();
@@ -123,7 +133,8 @@ public static partial class PaymentsEngine
             """,("@id",id),("@no","PD-"+id.Replace("-","")[..30]),("@t",type),("@c",company),("@sup",NullId(supplier)),("@ref",reference),("@key",key),("@hash",hash),("@plat",input.S("platform")),("@on",occurred),("@due",due),("@pm",month),("@amount",amount),("@vat",vat),("@erp",NullId(input.S("erpReceiptId"))),("@meta",input.ToJsonString()),("@mode",(int)input.N("runMode")),("@blocked",input.B("payoutBlocked")?1:0),("@by",Me(actor)));
         int index=0;foreach(var l in lines.OfType<JsonObject>())
         {
-            Guid account=Account(c,tx,l.Required("accountCode"));string centre=l.S("costCentreId",SchemaOrgCostCentre.NoneId.ToString("D"));
+            string accountCode=l.Required("accountCode");DemandGenericDebitAccount(type,accountCode);
+            Guid account=Account(c,tx,accountCode);string centre=l.S("costCentreId",SchemaOrgCostCentre.NoneId.ToString("D"));
             ValidateCentre(c,tx,company,Id(centre));
             string app=l.S("appCode","none");if(app!="none")J.Need(FinancialScopes.Platform(actor,PayPlatforms.For(app).Platform),"المنصة خارج نطاقك.",403);
             SchemaSql.Exec(c,tx,$"INSERT INTO {Q(c,"document_line")}(id,document_id,company_id,line_no,period_month,account_id,cost_centre_id,erp_rider_id,erp_platform_account_id,app_code,amount,created_by) VALUES(@id,@doc,@c,@ln,@pm,@a,@cc,@r,@p,@app,@amount,@by)",("@id",MoneyId()),("@doc",id),("@c",company),("@ln",++index),("@pm",month),("@a",account.ToString("D")),("@cc",centre),("@r",NullId(l.S("erpRiderId"))),("@p",NullId(l.S("erpPlatformAccountId"))),("@app",app),("@amount",l.N("amount")),("@by",Me(actor)));
