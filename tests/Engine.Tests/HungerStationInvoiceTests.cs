@@ -33,7 +33,7 @@ public sealed class HungerStationInvoiceTests
         var company=Row(("Company CR",cr),("Contract Name","Synthetic Contract"),("completed_orders",10),("basic_payment",1000),("COURIER_BASIC_PAYMENT",1000),("Rider Balance",balance),("Amount Excl VAT",1000),("VAT",150),("Amount Incl VAT",incl),("Total Deduction",totalDed),("Net FTR",netFtr),("CAR Deduction October 2026",car),("TGA Deduction October 2026",tga),("Driver Card Support "+taggedMonth+" 2026",0),("Car Adjustment - October 2026",carAdjustment),("late_penalty",latePenalty));
         // Different column order is intentional: the adapter must use headers.
         var rider=Row(("basic_payment",riderBasic),("Contract Name","Synthetic Contract"),("rider_id","SYN-ACCOUNT-1"),("completed_orders",10),("COURIER_BASIC_PAYMENT",1000),("Rider Balance",balance),("scheme","salary"),("late_penalty",latePenalty));if(riderTga)rider["TGA Deduction October 2026"]=tga.ToString(CultureInfo.InvariantCulture);
-        var detail=Row(("rider_id","SYN-ACCOUNT-1"),("completed_orders",detailOrders),("working_hours",100));
+        var detail=Row(("rider_id","SYN-ACCOUNT-1"),("completed_orders",detailOrders),("working_hours",100),("segment","Tier-A"),("rating","4.8"));
         var sheets=new List<(string Name,Dictionary<string,string> Row)>{("Co LVL",company),("Rider LVL",rider),("Breakdown",detail)};
         if(damage)sheets.Add(("Car Damage",Row(("rider_id","SYN-ACCOUNT-1"),("Amount Excl VAT",25),("VAT",3.75m),("Amount Incl VAT",28.75m),("loading_period","2026-09"),("invoice_date","2026-10-05"))));
         using var memory=new MemoryStream();
@@ -61,6 +61,18 @@ public sealed class HungerStationInvoiceTests
         Assert.AreEqual("required",rows.Single(r=>r.S("lineType")=="company").S("accountantReview"));
         Assert.IsTrue(preview["rows"]![0]!["columnLabelsAr"]!.AsObject().ContainsKey("Rider Balance"));
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"platform_invoice").Count));
+    }
+    [TestMethod]
+    public void T11b_RiderLinesCarryCategoryAndRatingFromInvoiceBreakdown()
+    {
+        using var f=new Fixture();
+        var preview=f.Preview(f.Input(Workbook(f.Cr())));
+        var rider=preview["rows"]![0]!["lines"]!.AsArray().OfType<JsonObject>().Single(r=>r.S("lineType")=="rider");
+        Assert.AreEqual("Tier-A",rider.S("riderCategory"));
+        Assert.AreEqual("4.8",rider.S("riderRating"));
+        Assert.AreEqual("hs_invoice",rider["invoiceFacts"]!.AsObject().S("source"));
+        Assert.IsFalse(rider["invoiceFacts"]!.AsObject().B("categoryMissing"));
+        Assert.IsFalse(rider["invoiceFacts"]!.AsObject().B("ratingMissing"));
     }
     [TestMethod]
     public void OctoberTieChecks_TotalDeductionEqualsBalancePlusCarPlusTga()

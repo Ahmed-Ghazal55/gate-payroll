@@ -1318,6 +1318,29 @@ export const api = {
   getAdminNotifySettings: () => handleRequest<Record<string, unknown>>('/admin/notify-settings'),
   putAdminNotifySettings: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/admin/notify-settings', { method: 'PUT', body: JSON.stringify(input) }),
+  getArchivePolicies: () =>
+    handleRequest<{
+      items?: Array<Record<string, unknown>>;
+      restoreRequests?: Array<Record<string, unknown>>;
+      messageAr?: string;
+      allowedActions?: string[];
+      retentionYears?: number;
+    }>('/admin/archive/policies'),
+  requestArchiveRestore: (input: {
+    entityType: string;
+    periodFrom: string;
+    periodTo: string;
+    reasonAr: string;
+  }) =>
+    handleRequest<Record<string, unknown>>('/admin/archive/restore-request', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getArchiveRestoreView: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/admin/archive/restore-view', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   getOrgApprovalLimits: () => handleRequest<Record<string, unknown>>('/admin/org/approval-limits'),
   putOrgApprovalLimits: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/admin/org/approval-limits', { method: 'PUT', body: JSON.stringify(input) }),
@@ -1719,6 +1742,39 @@ export const api = {
   getPaySchemes: (app: string, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
     return handleRequest<PayConfigListResponse>(`/pay/apps/${encodeURIComponent(app)}/schemes${q}`);
+  },
+  /** T12/T13: Omar ERP PlatformDailyCommissionRates (Jahez/Chefz), read-only. */
+  getOmarCommissionRates: (app: string, asOf?: string) => {
+    const q = asOf ? `?asOf=${encodeURIComponent(asOf)}` : '';
+    return handleRequest<{
+      app: string;
+      program: number;
+      asOf: string;
+      readAt?: string;
+      source: string;
+      rates: Array<Record<string, unknown>>;
+      byCity: Array<{
+        cityCode: string;
+        cityNameAr: string;
+        available: boolean;
+        dailyRate?: number;
+        kind?: string;
+        message?: string;
+      }>;
+      schemeRows: Array<{
+        identifierType: string;
+        cityCode?: string;
+        cityNameAr?: string;
+        kind?: string;
+        rate?: number | null;
+        available: boolean;
+        message?: string;
+        sourceNote?: string;
+      }>;
+      missing: Array<{ cityCode: string; cityNameAr: string; message: string; omarFile?: string }>;
+      writable: boolean;
+      allowedActions?: string[];
+    }>(`/pay/apps/${encodeURIComponent(app)}/omar-commission-rates${q}`);
   },
   createPayScheme: (app: string, input: PaySchemeCreateInput, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';

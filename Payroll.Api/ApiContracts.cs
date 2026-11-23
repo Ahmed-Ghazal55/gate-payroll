@@ -210,6 +210,8 @@ public static class ApiContracts
         if(get&&path.StartsWith("/api/operations/",StringComparison.Ordinal)&&path.EndsWith("/export",StringComparison.Ordinal))return Free();
         if(get&&path is "/api/pay/sources/fuel-consumption" or "/api/pay/sources/vehicle-assignment-periods" or "/api/pay/sources/housing-periods" or "/api/pay/sources/keeta-eligibility" or "/api/pay/sources/hs-stamp-queue")
             return OpsFleetPage(Free());
+        if(get&&path=="/api/pay/apps/{app}/omar-commission-rates")
+            return O(new(){["app"]=S(),["program"]=N(),["asOf"]=S(),["readAt"]=S(),["source"]=S(),["rates"]=A(Free()),["byCity"]=A(Free()),["schemeRows"]=A(Free()),["missing"]=A(Free()),["writable"]=B(),["allowedActions"]=A(S())},"app","source","asOf","schemeRows","writable","allowedActions");
         if(path=="/api/riders/{iqama}/accounts"&&get)return OperationsPage();
         if(path=="/api/riders/lookup"&&get)return A(Rider());
         if(path=="/api/rider-mobile/service-requests"&&get)return new(){OneOf=[A(ServiceRequest()),Page(ServiceRequest())]};

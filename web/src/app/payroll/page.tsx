@@ -11,6 +11,7 @@ import {
   type PayrollTab,
 } from '../../lib/page-tabs';
 import { appendPeriodToHref } from '../../lib/period';
+import { payAppHasEligibility } from '../../lib/pay-app-flags';
 import { usePeriod } from '../../lib/use-period';
 import {
   Calculator,
@@ -257,13 +258,21 @@ function PayrollPageInner() {
 
   const selectAppSubInUrl = useCallback(
     (nextSub: PayAppSubTab) => {
-      setAppSubTab(nextSub);
+      const safeSub =
+        nextSub === 'eligibility' && !payAppHasEligibility(appSlug) ? 'settlements' : nextSub;
+      setAppSubTab(safeSub);
       const params = new URLSearchParams(searchParams?.toString() || '');
-      params.set('sub', nextSub);
+      params.set('sub', safeSub);
       router.replace(`${pathname || '/payroll/'}?${params.toString()}`, { scroll: false });
     },
-    [pathname, router, searchParams]
+    [pathname, router, searchParams, appSlug]
   );
+
+  useEffect(() => {
+    if (appSubTab === 'eligibility' && !payAppHasEligibility(appSlug)) {
+      selectAppSubInUrl('settlements');
+    }
+  }, [appSubTab, appSlug, selectAppSubInUrl]);
 
   // Filters & period (URL ?period=YYYY-MM single source of truth)
   const { period: selectedPeriod, setPeriod: setSelectedPeriod } = usePeriod();
@@ -418,6 +427,10 @@ function PayrollPageInner() {
 
   const [schemesList, setSchemesList] = useState<PayConfigDoc[]>([]);
   const [loadingSchemes, setLoadingSchemes] = useState<boolean>(false);
+  const [omarCommission, setOmarCommission] = useState<Awaited<ReturnType<typeof api.getOmarCommissionRates>> | null>(null);
+  const [omarCommissionError, setOmarCommissionError] = useState<string | null>(null);
+  const [loadingOmarCommission, setLoadingOmarCommission] = useState(false);
+  const usesOmarCommission = appSlug === 'jahez' || appSlug === 'chefz';
   const [schemesError, setSchemesError] = useState<string | null>(null);
 
   const [eligibilityList, setEligibilityList] = useState<PayConfigDoc[]>([]);
@@ -864,9 +877,28 @@ function PayrollPageInner() {
     }
   };
 
+  const loadOmarCommission = async () => {
+    if (!usesOmarCommission) {
+      setOmarCommission(null);
+      setOmarCommissionError(null);
+      return;
+    }
+    setLoadingOmarCommission(true);
+    setOmarCommissionError(null);
+    try {
+      const res = await api.getOmarCommissionRates(appSlug, selectedPeriod);
+      setOmarCommission(res);
+    } catch (err: any) {
+      setOmarCommissionError(err?.message || 'تعذر قراءة عمولة نظام عمر');
+      setOmarCommission(null);
+    } finally {
+      setLoadingOmarCommission(false);
+    }
+  };
+
   // Load Eligibility
   const loadEligibility = async () => {
-    if (appSlug === 'jahez') {
+    if (!payAppHasEligibility(appSlug)) {
       setEligibilityList([]);
       setPrevEligibilityList([]);
       return;
@@ -1332,7 +1364,10 @@ function PayrollPageInner() {
   useEffect(() => {
     if (mainTab === 'platforms') {
       if (appSubTab === 'parent_terms') loadTerms();
-      else if (appSubTab === 'internal_schemes') loadSchemes();
+      else if (appSubTab === 'internal_schemes') {
+        loadSchemes();
+        loadOmarCommission();
+      }
       else if (appSubTab === 'eligibility') loadEligibility();
       else if (appSubTab === 'accounts') loadAssignments();
     } else if (mainTab === 'cycle') {
@@ -1493,7 +1528,10 @@ function PayrollPageInner() {
       const res = await api.copyPayMonth(targetApp, prevMonth, selectedPeriod);
       showToast(`تم نسخ ${res.created} إعداد من شهر ${prevMonth} كمسودات جديدة (${res.unchanged} مطابق سابقاً)`, 'success');
       if (appSubTab === 'parent_terms') loadTerms();
-      if (appSubTab === 'internal_schemes') loadSchemes();
+      if (appSubTab === 'internal_schemes') {
+        loadSchemes();
+        loadOmarCommission();
+      }
       if (appSubTab === 'eligibility') loadEligibility();
       if (mainTab === 'rules') loadGlobalSettings();
     } catch (err: any) {
@@ -1559,14 +1597,14 @@ function PayrollPageInner() {
   };
 
   const handleOpenEligibilityForm = () => {
-    if (appSlug === 'jahez') return;
+    if (!payAppHasEligibility(appSlug)) return;
     setEditorKind('eligibility');
     setEditingDoc(null);
     setEditorModalOpen(true);
   };
 
   const handleEditEligibility = (doc: PayConfigDoc) => {
-    if (appSlug === 'jahez') return;
+    if (!payAppHasEligibility(appSlug)) return;
     setEditorKind('eligibility');
     setEditingDoc(doc);
     setEditorModalOpen(true);
@@ -1979,6 +2017,47 @@ function PayrollPageInner() {
     []
   );
   const hsInvoicesFilter = useTableAutoFilter(invoices, hsInvoicesFilterCols);
+
+  // T11b: rider category (فئة) + rating (تقييم) from uploaded HS invoice lines — never manual settings.
+  const hsRiderInvoiceRows = useMemo(() => {
+    const rows: Array<{
+      invoiceId: string;
+      platformId: string;
+      riderCategory: string;
+      riderRating: string;
+      basicPayment: number;
+      period: string;
+    }> = [];
+    for (const inv of invoices as Array<HsInvoice & { lines?: Array<Record<string, unknown>> }>) {
+      const lines = Array.isArray(inv.lines) ? inv.lines : [];
+      for (const line of lines) {
+        if (String(line.lineType || '') !== 'rider') continue;
+        const facts = (line.invoiceFacts || {}) as Record<string, unknown>;
+        const category = String(line.riderCategory || facts.category || '');
+        const rating = String(line.riderRating || facts.rating || '');
+        rows.push({
+          invoiceId: inv.id,
+          platformId: String(line.platformId || ''),
+          riderCategory: category || 'غير متوفر في الفاتورة',
+          riderRating: rating || 'غير متوفر في الفاتورة',
+          basicPayment: Number(line.basicPayment ?? 0),
+          period: inv.period || '',
+        });
+      }
+    }
+    return rows;
+  }, [invoices]);
+  const hsRiderFactsFilterCols = useMemo(
+    () => [
+      { key: 'platformId', header: 'معرف المندوب في المنصة', type: 'text' as const, getValue: (r: (typeof hsRiderInvoiceRows)[0]) => r.platformId },
+      { key: 'riderCategory', header: 'فئة المندوب', type: 'list' as const, getValue: (r: (typeof hsRiderInvoiceRows)[0]) => r.riderCategory },
+      { key: 'riderRating', header: 'تقييم المندوب', type: 'text' as const, getValue: (r: (typeof hsRiderInvoiceRows)[0]) => r.riderRating },
+      { key: 'basicPayment', header: 'الدفعة الأساسية', type: 'number' as const, numeric: true, getValue: (r: (typeof hsRiderInvoiceRows)[0]) => r.basicPayment },
+      { key: 'period', header: 'الشهر', type: 'date' as const, getValue: (r: (typeof hsRiderInvoiceRows)[0]) => r.period },
+    ],
+    []
+  );
+  const hsRiderFactsFilter = useTableAutoFilter(hsRiderInvoiceRows, hsRiderFactsFilterCols);
 
   const hsDisputesFilterCols = useMemo(
     () => [
@@ -2465,7 +2544,9 @@ function PayrollPageInner() {
               { id: 'settlements', label: 'الفواتير والتسويات' },
               { id: 'parent_terms', label: 'الشروط الأصلية' },
               { id: 'internal_schemes', label: 'الأنظمة الداخلية' },
-              { id: 'eligibility', label: 'الأهلية والضوابط' },
+              ...(payAppHasEligibility(appSlug)
+                ? [{ id: 'eligibility' as const, label: 'الأهلية والضوابط' }]
+                : []),
               { id: 'accounts', label: 'الحسابات والمعرفات' },
             ].map((sub) => (
               <button
@@ -2629,6 +2710,39 @@ function PayrollPageInner() {
                                     {inv.status === 'approved' ? 'معتمدة' : inv.status === 'posted' ? 'مرحلة' : 'مسودة'}
                                   </span>
                                 </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                  {hsRiderInvoiceRows.length > 0 && (
+                    <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                      <div className="p-3 border-b border-[var(--line)]">
+                        <h4 className="font-bold text-sm text-[var(--ink)]">وقائع الفاتورة · فئة المندوب وتقييمه</h4>
+                        <p className="text-[11px] text-[var(--muted)] mt-0.5">من ملف فاتورة هنقرستيشن فقط (الشريحة/التقييم) — ليست إعدادات يدوية.</p>
+                      </div>
+                      <AutoFilterBar controller={hsRiderFactsFilter} totalCount={hsRiderInvoiceRows.length} />
+                      <div className="overflow-x-auto">
+                        <table className="w-full text-start text-xs sm:text-sm">
+                          <thead className="border-b border-[var(--line)] bg-[var(--raised)]/50 text-[var(--muted)] font-semibold">
+                            <tr>
+                              <AutoFilterTh controller={hsRiderFactsFilter} colKey="platformId" className="p-3 text-start" />
+                              <AutoFilterTh controller={hsRiderFactsFilter} colKey="riderCategory" className="p-3 text-start" />
+                              <AutoFilterTh controller={hsRiderFactsFilter} colKey="riderRating" className="p-3 text-start" />
+                              <AutoFilterTh controller={hsRiderFactsFilter} colKey="basicPayment" className="p-3 text-start" />
+                              <AutoFilterTh controller={hsRiderFactsFilter} colKey="period" className="p-3 text-start" />
+                            </tr>
+                          </thead>
+                          <tbody className="divide-y divide-[var(--line)]">
+                            {hsRiderFactsFilter.rows.map((row) => (
+                              <tr key={`${row.invoiceId}-${row.platformId}`} className="hover:bg-[var(--row-hover)]">
+                                <td className="p-3 font-mono">{row.platformId}</td>
+                                <td className="p-3 font-bold">{row.riderCategory}</td>
+                                <td className="p-3 font-mono">{row.riderRating}</td>
+                                <td className="p-3 num">{formatSar(row.basicPayment)}</td>
+                                <td className="p-3 font-mono">{row.period}</td>
                               </tr>
                             ))}
                           </tbody>
@@ -3113,10 +3227,13 @@ function PayrollPageInner() {
                     الأنظمة الداخلية · منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr}
                   </h3>
                   <p className="text-xs text-[var(--muted)] mt-1">
-                    تحديد مصفوفة الفئات الست الصريحة (كفالة × مركبة) ونوع النظام ودور المحاسبة (أصيل / وكيل).
+                    {usesOmarCommission
+                      ? 'عمولة جاهز/شيفز تُقرأ من نظام عمر (قراءة فقط) لكل مدينة؛ لا إعادة إدخال يدوي.'
+                      : 'تحديد مصفوفة الفئات الست الصريحة (كفالة × مركبة) ونوع النظام ودور المحاسبة (أصيل / وكيل).'}
                   </p>
                 </div>
 
+                {!usesOmarCommission && (
                 <div className="flex items-center gap-2">
                   <button
                     type="button"
@@ -3135,9 +3252,69 @@ function PayrollPageInner() {
                     + إضافة نظام داخلي
                   </button>
                 </div>
+                )}
               </div>
 
-              {loadingSchemes ? (
+              {usesOmarCommission && (
+                <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden shadow-xs">
+                  <div className="p-4 border-b border-[var(--line)] flex flex-wrap items-center justify-between gap-2">
+                    <div>
+                      <h4 className="font-bold text-sm text-[var(--ink)]">عمولة نظام عمر (قراءة فقط)</h4>
+                      <p className="text-[11px] text-[var(--muted)] mt-0.5">
+                        المصدر: {omarCommission?.source || 'omar_erp.app.PlatformDailyCommissionRates'}
+                        {omarCommission?.readAt ? ` · وقت القراءة ${omarCommission.readAt}` : ''}
+                      </p>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={loadOmarCommission}
+                      className="px-3 py-1.5 rounded-xl border border-[var(--line)] text-xs font-bold hover:bg-[var(--raised)] cursor-pointer inline-flex items-center gap-1.5"
+                    >
+                      <RefreshCw size={12} />
+                      تحديث
+                    </button>
+                  </div>
+                  {loadingOmarCommission ? (
+                    <div className="p-6 space-y-2"><Skeleton className="h-8 w-full" /><Skeleton className="h-8 w-full" /></div>
+                  ) : omarCommissionError ? (
+                    <ErrorState title="تعذر قراءة عمولة نظام عمر" message={omarCommissionError} onRetry={loadOmarCommission} />
+                  ) : (
+                    <div className="p-3 space-y-2">
+                      {(omarCommission?.schemeRows || []).map((row, idx) => (
+                        <div
+                          key={`${row.identifierType}-${row.cityCode || 'all'}-${idx}`}
+                          className="grid grid-cols-2 sm:grid-cols-5 gap-2 p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/30 text-xs"
+                        >
+                          <div><span className="text-[var(--muted)]">النوع </span><span className="font-bold">{row.identifierType}</span></div>
+                          <div><span className="text-[var(--muted)]">المدينة </span><span>{row.cityNameAr || '—'}</span></div>
+                          <div><span className="text-[var(--muted)]">الحساب </span><span className="font-mono">{row.kind === 'percentage' ? 'نسبة مئوية' : row.kind === 'fixed' ? 'ثابت يومي' : row.kind || '—'}</span></div>
+                          <div className="num font-mono">
+                            {row.available && row.rate != null
+                              ? row.kind === 'percentage'
+                                ? `${row.rate}%`
+                                : formatSar(Number(row.rate))
+                              : '—'}
+                          </div>
+                          <div>
+                            {row.available ? (
+                              <span className="text-[var(--money-pos)] font-bold">من نظام عمر</span>
+                            ) : (
+                              <span className="text-[var(--warning)] font-bold">{row.message || 'غير متوفر في نظام عمر'}</span>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                      {(omarCommission?.missing?.length || 0) > 0 && (
+                        <div className="p-2 text-[11px] text-[var(--warning)]">
+                          للملف عند عمر: {(omarCommission?.missing || []).map((m) => `${m.cityNameAr} (${m.omarFile || 'PlatformDailyCommissionRates'})`).join(' · ')}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {!usesOmarCommission && (loadingSchemes ? (
                 <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
                   <Skeleton className="h-10 w-full" />
                   <Skeleton className="h-10 w-full" />
@@ -3247,28 +3424,15 @@ function PayrollPageInner() {
                     );
                   })}
                 </div>
-              )}
+              ))}
             </div>
           )}
 
           {/* ======================================================== */}
           {/* ELIGIBILITY RULES SUB-TAB (F1)                           */}
           {/* ======================================================== */}
-          {appSubTab === 'eligibility' && (
+          {appSubTab === 'eligibility' && payAppHasEligibility(appSlug) && (
             <div className="space-y-6">
-              {appSlug === 'jahez' ? (
-                <div className="p-6 rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-center space-y-2">
-                  <div className="h-10 w-10 rounded-full bg-[var(--accent)]/15 text-[var(--accent)] flex items-center justify-center mx-auto font-bold">
-                    i
-                  </div>
-                  <h4 className="font-bold text-sm text-[var(--ink)]">
-                    جاهز بلا شروط أهلية وله دورة تصفيات منفصلة
-                  </h4>
-                  <p className="text-xs text-[var(--muted)] max-w-md mx-auto">
-                    وفق ضوابط نموذج العمل المالي، تصفيات جاهز مستقلة محاسبياً وتتبع الدورة الميدانية المنفصلة.
-                  </p>
-                </div>
-              ) : (
                 <div className="space-y-6">
                   <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
                     <div>
@@ -3447,7 +3611,6 @@ function PayrollPageInner() {
                     </div>
                   )}
                 </div>
-              )}
             </div>
           )}
 

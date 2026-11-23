@@ -175,7 +175,14 @@ export function CoaManagePanel() {
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
-        <SectionTabs tabs={INNER} activeTab={subtab} onChange={setSubtab} paramName="subtab" ariaLabel="تبويبات دليل الحسابات" />
+        <SectionTabs
+          tabs={INNER}
+          activeTab={subtab}
+          onChange={setSubtab}
+          paramName="subtab"
+          ariaLabel="تبويبات دليل الحسابات"
+          className="flex-wrap overflow-hidden max-w-full"
+        />
         <div className="flex gap-2">
           <button
             type="button"

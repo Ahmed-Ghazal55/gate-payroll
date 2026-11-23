@@ -4,15 +4,17 @@ namespace Payroll;
 // BR24.8: the account table is shared by posting and read-only legacy projections.
 public static class PayPlatforms
 {
-    public sealed record Accounts(string App,string Platform,string Receivable,string? Principal,string? Agent);
+    public sealed record Accounts(string App,string Platform,string Receivable,string? Principal,string? Agent,bool HasEligibility=true);
     public static readonly Accounts[] Table=[
-        new("jahez","Jahez","112801","411106","411401"),
-        new("keeta","Keeta","112804","411101","411501"),
-        new("hs","HungerStation","112805","411102","411601"),
-        new("ninja","Ninja","112806","411104",null),
-        new("chefz","Chefz","112807","411103",null),
-        new("amazon","Amazon","112808","411105",null)
+        // T11: Jahez / Chefz / HS have no eligibility conditions (invoice is source of truth for HS categories/ratings).
+        new("jahez","Jahez","112801","411106","411401",false),
+        new("keeta","Keeta","112804","411101","411501",true),
+        new("hs","HungerStation","112805","411102","411601",false),
+        new("ninja","Ninja","112806","411104",null,true),
+        new("chefz","Chefz","112807","411103",null,false),
+        new("amazon","Amazon","112808","411105",null,true)
     ];
+    public static bool HasEligibility(string app)=>For(app).HasEligibility;
     static string Normalize(string value)
     {
         string code=value.Trim().ToLowerInvariant().Replace(" ","-").Replace("_","-");

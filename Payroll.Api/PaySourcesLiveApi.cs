@@ -28,6 +28,44 @@ public static class PaySourcesLiveApi
             .WithTags("Payroll").WithSummary("Keeta expected eligibility result per user/period (Omar live; not approval)");
         api.MapGet("/pay/sources/hs-stamp-queue", (HttpContext ctx) => Hs(store, config, env, ctx))
             .WithTags("Payroll").WithSummary("HungerStation WalletPending queue and stamped financial events (read side)");
+        // T12/T13: Jahez daily + Chefz %/daily from Omar PlatformDailyCommissionRates (read-only).
+        api.MapGet("/pay/apps/{app}/omar-commission-rates", (string app, HttpContext ctx) => OmarRates(store, config, env, app, ctx))
+            .WithTags("Payroll").WithSummary("Omar ERP daily/percentage commission rates per city (read-only; Jahez/Chefz)");
+    }
+
+    static object OmarRates(Store store, IConfiguration config, IHostEnvironment env, string app, HttpContext ctx)
+    {
+        AccessPolicy.Demand(ctx.User, "pay.view");
+        app = PayPlatforms.App(app);
+        J.Need(app is "jahez" or "chefz", "عمولة نظام عمر متاحة لجاهز وشيفز فقط.");
+        if (!FinancialScopes.Platform(ctx.User, PayPlatforms.For(app).Platform))
+            throw new ApiError("التطبيق خارج نطاق المستخدم.", 403);
+        DateOnly? asOf = null;
+        string raw = ctx.Request.Query["asOf"].ToString();
+        if (raw != "")
+        {
+            if (DateOnly.TryParseExact(raw, "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var d))
+                asOf = d;
+            else if (DateOnly.TryParseExact(raw + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var m))
+                asOf = m;
+            else throw new ApiError("تاريخ asOf يجب أن يكون yyyy-MM-dd أو yyyy-MM.");
+        }
+        if (Operations.SourceMode(config, env) == Operations.SourceStore)
+        {
+            // Store mode: no live ERP — surface missing so UI shows «غير متوفر في نظام عمر».
+            var empty = PlatformCommissionLiveQuery.FromMappedRates(app, [], asOf ?? DateOnly.FromDateTime(DateTime.UtcNow));
+            empty["source"] = Operations.SourceStore;
+            empty["readAt"] = DateTimeOffset.UtcNow.ToString("O");
+            empty["allowedActions"] = Actions(ctx.User);
+            return empty;
+        }
+        return LiveRead(ctx, token =>
+        {
+            using var erp = OpenErp(config);
+            var result = PlatformCommissionLiveQuery.Read(erp, app, asOf, token);
+            result["allowedActions"] = Actions(ctx.User);
+            return result;
+        }, "omar-commission-rates");
     }
 
     static object Fuel(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)

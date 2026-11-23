@@ -166,12 +166,15 @@ public static class DebtLedger
             object? hr=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"hr","company")} WHERE id=@id",("@id",companyKey));
             J.Need(hr!=null&&(AccessPolicy.Administrator(actor)||FinancialScopes.AllCompanies(actor)),"السجل التجاري خارج النطاق المالي للمستخدم.",403);
         }
-        using var cmd=Store.Command(c,tx,$"SELECT category,platform FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id AND company_id=@c",
-            ("@id",SchemaSql.GuidText(debtId)),("@c",SchemaSql.GuidText(companyId)));
-        using var reader=cmd.ExecuteReader();
-        J.Need(reader.Read(),"المديونية غير موجودة.",404);
-        string category=reader["category"].ToString()!;
-        string platform=reader["platform"] is DBNull?"":reader["platform"].ToString()!;
+        string category,platform;
+        using(var cmd=Store.Command(c,tx,$"SELECT category,platform FROM {SchemaSql.Q(c,"debt","debt")} WHERE id=@id AND company_id=@c",
+            ("@id",SchemaSql.GuidText(debtId)),("@c",SchemaSql.GuidText(companyId))))
+        using(var reader=cmd.ExecuteReader())
+        {
+            J.Need(reader.Read(),"المديونية غير موجودة.",404);
+            category=reader["category"].ToString()!;
+            platform=reader["platform"] is DBNull?"":reader["platform"].ToString()!;
+        }
         // Empty creditorSponsorId uses AllCompanies+finance-role path when company is hr GUID (not in legacy catalog).
         var fake=new JsonObject{["creditorSponsorId"]=FinancialCore.FindSponsor(companyKey)!=null?companyKey:"",["category"]=category,["platform"]=platform};
         FinancialScopes.DemandDebt(actor,fake);

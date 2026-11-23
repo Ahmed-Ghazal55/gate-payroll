@@ -253,9 +253,12 @@ public static class ChartOfAccountsApi
             SELECT code FROM {T(c)} WHERE {(inactiveOnly?"is_active=0":"is_active=1")} ORDER BY code
             """);
         var items=new JsonArray();
-        using var r=cmd.ExecuteReader();
+        // Materialize codes and dispose the reader before Load() — SQL Server rejects a second command on an open reader (no MARS).
         var codes=new List<string>();
-        while(r.Read())codes.Add(r.GetString(0));
+        using(var r=cmd.ExecuteReader())
+        {
+            while(r.Read())codes.Add(r.GetString(0));
+        }
         foreach(string code in codes)items.Add(WithActions(actor,Load(c,null,code),c,null));
         return new(){["items"]=items,["allowedActions"]=AccessPolicy.Has(actor,CreatePerm)?new JsonArray("create"):new JsonArray()};
     }

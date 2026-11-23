@@ -1,7 +1,15 @@
+using System.Net;
 using System.Security.Claims;
+using System.Text;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Http;
+using Microsoft.AspNetCore.Http.Features;
+using Microsoft.AspNetCore.Routing;
+using Microsoft.AspNetCore.Routing.Template;
 using Microsoft.Data.SqlClient;
 using Microsoft.Data.Sqlite;
+using Microsoft.Extensions.DependencyInjection;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Payroll;
 
@@ -110,5 +118,71 @@ public sealed class ChartOfAccountsApiTests
             Assert.AreEqual(1,again["status"]!.GetValue<int>());
             Assert.IsTrue(again.B("isActive"));
         },sqlServer);
+    }
+
+    sealed class BodyDetection : IHttpRequestBodyDetectionFeature { public bool CanHaveBody => true; }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public async Task ListActiveAndInactiveThroughHttp_WithAtLeastTwoAccounts(bool sqlServer)
+    {
+        await Task.Yield();
+        WithStore(store =>
+        {
+            var actor = Actor("coa-list", "accounting.chart.view", "accounting.chart.create", "accounting.chart.deactivate");
+            store.Write((c, tx) => ChartOfAccountsApi.Create(c, tx, actor, new() { ["parentCode"] = "5", ["code"] = "599930", ["nameAr"] = "نشط أ", ["isPostable"] = true }));
+            store.Write((c, tx) => ChartOfAccountsApi.Create(c, tx, actor, new() { ["parentCode"] = "5", ["code"] = "599931", ["nameAr"] = "نشط ب", ["isPostable"] = true }));
+            store.Write((c, tx) => ChartOfAccountsApi.Deactivate(c, tx, actor, "599931"));
+
+            var builder = WebApplication.CreateSlimBuilder(new WebApplicationOptions { ContentRootPath = store.DirectoryPath, EnvironmentName = "Development" });
+            using var app = builder.Build();
+            var api = app.MapGroup("/api");
+            api.AddEndpointFilter(async (context, next) =>
+                AccessPolicy.Allowed(context.HttpContext.User, context.HttpContext.Request.Method, context.HttpContext.Request.Path)
+                    ? await next(context)
+                    : Results.StatusCode(403));
+            ChartOfAccountsApi.Map(api, store);
+
+            async Task<(int Status, JsonObject Body)> Request(string method, string pathAndQuery)
+            {
+                string pathOnly = pathAndQuery.Split('?', 2)[0];
+                string query = pathAndQuery.Contains('?', StringComparison.Ordinal) ? pathAndQuery.Split('?', 2)[1] : "";
+                var matches = ((IEndpointRouteBuilder)app).DataSources.SelectMany(s => s.Endpoints).OfType<RouteEndpoint>()
+                    .Where(e => e.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains(method))
+                    .Select(e =>
+                    {
+                        var values = new RouteValueDictionary();
+                        bool match = new TemplateMatcher(TemplateParser.Parse(e.RoutePattern.RawText!), new()).TryMatch(pathOnly, values);
+                        return (Endpoint: e, Values: values, Match: match);
+                    }).Where(x => x.Match).ToList();
+                Assert.AreEqual(1, matches.Count);
+                using var scope = app.Services.CreateScope();
+                var ctx = new DefaultHttpContext { RequestServices = scope.ServiceProvider, User = actor };
+                ctx.Request.Method = method;
+                ctx.Request.Path = pathOnly;
+                ctx.Request.QueryString = query == "" ? QueryString.Empty : new QueryString("?" + query);
+                ctx.Request.RouteValues = matches[0].Values;
+                ctx.SetEndpoint(matches[0].Endpoint);
+                ctx.Request.Body = new MemoryStream(Encoding.UTF8.GetBytes("{}"));
+                ctx.Request.ContentType = "application/json";
+                ctx.Features.Set<IHttpRequestBodyDetectionFeature>(new BodyDetection());
+                ctx.Response.Body = new MemoryStream();
+                try { await matches[0].Endpoint.RequestDelegate!(ctx); }
+                catch (ApiError error) { ctx.Response.StatusCode = error.Status; }
+                ctx.Response.Body.Position = 0;
+                string text = new StreamReader(ctx.Response.Body).ReadToEnd();
+                return (ctx.Response.StatusCode, text == "" ? new() : JsonNode.Parse(text)!.AsObject());
+            }
+
+            var active = Request("GET", "/api/finance/coa").GetAwaiter().GetResult();
+            Assert.AreEqual(200, active.Status);
+            Assert.IsTrue(active.Body["items"]!.AsArray().Count >= 2, "active CoA list must return ≥2 accounts without DataReader conflict");
+            Assert.IsTrue(active.Body["items"]!.AsArray().Any(n => n!.AsObject().S("code") == "599930"));
+
+            var inactive = Request("GET", "/api/finance/coa?inactive=true").GetAwaiter().GetResult();
+            Assert.AreEqual(200, inactive.Status);
+            Assert.IsTrue(inactive.Body["items"]!.AsArray().Any(n => n!.AsObject().S("code") == "599931"));
+        }, sqlServer);
     }
 }

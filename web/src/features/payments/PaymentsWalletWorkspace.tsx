@@ -19,7 +19,7 @@ import { SourceBadge } from '../../components/ui/SourceBadge';
 import { formatSar } from '../../lib/money';
 import { usePeriod } from '../../lib/use-period';
 import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
-import type { CompanySponsor, ConfigListItem } from '../../lib/types';
+import type { CompanySponsor } from '../../lib/types';
 import {
   accountOptions,
   type CoaAccountOption,
@@ -30,6 +30,7 @@ import {
   newIdempotencyKey,
 } from './payment-engine';
 import { AddCoaAccountDialog, PaymentDocumentActions } from './PaymentWorkflowPanel';
+import { ConfigListsPanel, MADA_RECHARGE_LIST_GROUPS } from '../admin/ConfigListsPanel';
 
 type WalletRow = Record<string, unknown> & {
   id?: string;
@@ -102,8 +103,6 @@ export function PaymentsWalletWorkspace({
   const [busy, setBusy] = useState(false);
   const [companies, setCompanies] = useState<CompanySponsor[]>([]);
   const [consumption, setConsumption] = useState<Record<string, unknown>[]>([]);
-  const [networks, setNetworks] = useState<ConfigListItem[]>([]);
-  const [packages, setPackages] = useState<ConfigListItem[]>([]);
 
   const [createForm, setCreateForm] = useState({
     companyId: '',
@@ -163,12 +162,6 @@ export function PaymentsWalletWorkspace({
       .then((res) => setConsumption((res?.items as unknown as Record<string, unknown>[]) || []))
       .catch(() => setConsumption([]));
   }, [mode, activeTab, period]);
-
-  useEffect(() => {
-    if (mode !== 'mada' || activeTab !== 'settings') return;
-    api.getConfigListGroup('recharge_networks').then((res) => setNetworks(res?.items || [])).catch(() => {});
-    api.getConfigListGroup('recharge_packages').then((res) => setPackages(res?.items || [])).catch(() => {});
-  }, [activeTab, mode]);
 
   const companyOptions = companies.map((c) => ({
     value: c.id || c.code || '',
@@ -562,26 +555,7 @@ export function PaymentsWalletWorkspace({
           )}
 
           {mode === 'mada' && activeTab === 'settings' && (
-            <div className="grid gap-3 lg:grid-cols-2">
-              <DataTable
-                columns={[
-                  { key: 'code', header: 'الرمز', type: 'text', getValue: (r) => String(r.code || '') },
-                  { key: 'nameAr', header: 'الشبكة', type: 'text', getValue: (r) => String(r.nameAr || '') },
-                ]}
-                data={networks}
-                emptyTitle="لا شبكات معتمدة"
-                emptyDescription="أدر الشبكات من قوائم الإعدادات."
-              />
-              <DataTable
-                columns={[
-                  { key: 'code', header: 'الرمز', type: 'text', getValue: (r) => String(r.code || '') },
-                  { key: 'nameAr', header: 'الباقة', type: 'text', getValue: (r) => String(r.nameAr || '') },
-                ]}
-                data={packages}
-                emptyTitle="لا باقات معتمدة"
-                emptyDescription="أدر الباقات من قوائم الإعدادات."
-              />
-            </div>
+            <ConfigListsPanel includeGroups={MADA_RECHARGE_LIST_GROUPS} />
           )}
 
           {mode === 'fuel' && activeTab === 'consumption' && (

@@ -2,14 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Current writer | (none) |
+| Current writer | Cursor 2026-11-23 18:10 |
 | Branch | `trial/local-2026-11-23` |
-| Updated | 2026-11-23 by Cursor (TRIAL1 tests + report) |
+| Updated | 2026-11-23 by Cursor (TRIAL2 feedback fixes) |
 | Live | unchanged (no push/deploy; local trial only) |
-| Next | Planner: local try (invoices / pay cycle / balances); never push until Ghazal backup + «دمج» |
+| Next | Planner: restart local trial for Ghazal; sqltest later; never push until backup + «دمج» |
 
 ## Goal now
-TRIAL1 done locally: all W1/W2/W3 trial branches are ancestors of HEAD; build/web/sqltest green. Report: `~/.cache/agents-runs/cursor-TRIAL1-report.md`.
+TRIAL2 done on trial branch: every `trial-feedback.md` row T1–T13 (T10 pending Ghazal). Report: `~/.cache/agents-runs/cursor-TRIAL2-report.md`.
 
 ## Done (TRIAL1)
 - Merges through `feat/w3-screens-pay`; contracts regenerated (`4bcdfe3`); integration fix (`d9d40ca`).

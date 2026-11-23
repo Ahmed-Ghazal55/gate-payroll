@@ -57,10 +57,11 @@ import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
-import { ConfigListsPanel } from '../../features/admin/ConfigListsPanel';
+import { ConfigListsPanel, MADA_RECHARGE_LIST_GROUPS } from '../../features/admin/ConfigListsPanel';
 import { ApprovalBypassPanel } from '../../features/admin/ApprovalBypassPanel';
 import { AdminSettingsPanel } from '../../features/admin/AdminSettingsPanel';
 import { AdminReadSummaryPanel } from '../../features/admin/AdminReadSummaryPanel';
+import { ArchivePanel } from '../../features/admin/ArchivePanel';
 import { ScreenShell } from '../../components/ui/ScreenShell';
 import { RolePermissionsEditor, UserAccessDialog, type AccessCatalog, type AccessUser } from '../../features/admin/UserAccessDialog';
 import type {
@@ -1319,7 +1320,7 @@ function AdminPageInner() {
       {/* Tab: القوائم والإعدادات (BR §27)                           */}
       {/* ======================================================== */}
       {activeTab === 'lists' && (
-        <ConfigListsPanel />
+        <ConfigListsPanel excludeGroups={MADA_RECHARGE_LIST_GROUPS} />
       )}
 
       {activeTab === 'bypass' && (
@@ -1495,9 +1496,7 @@ function AdminPageInner() {
       {activeTab === 'notify_settings' && (
         <ScreenShell title="إعدادات الإشعارات والمهام" description="مصفوفة التنبيهات وإرسال الإشعارات والمهام التشغيلية." />
       )}
-      {activeTab === 'archive' && (
-        <ScreenShell title="الأرشفة" description="سياسات الاحتفاظ وطلبات استرجاع العرض للبيانات الأقدم من ثلاث سنوات." />
-      )}
+      {activeTab === 'archive' && <ArchivePanel />}
       {activeTab === 'staff_chat' && (
         <ScreenShell title="محادثة الموظفين" description="قنوات الإدارة والأقسام مع إشراف ومنع الفيديو." />
       )}

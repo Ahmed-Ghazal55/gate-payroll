@@ -16,7 +16,7 @@ public static partial class HungerStationInvoices
     static string Key(string value)=>Regex.Replace(value.ToLowerInvariant(),@"[^a-z0-9]","");
     static Dictionary<string,string> BuildAliases()
     {
-        string[] fields=MoneyFields.Concat(new[]{"completedOrders","platformId","contractName","companyCr","scheme","riderId","currency","cityName","vehicleType","contractStart","contractEnd","totalMonthlyHours","workingHours","fullyWorkingDays","workingDays","cityMonthlyFlatSalary","cityPayment","basicRate","segment","segmentRate","excusedAbsenceDays","missedWeekends","missedEom","totalMissedDays","missedDaysAfterAllowance","totalManhattanDistance","manhattanDistancePayable","invoiceDate","loadingPeriod"}).ToArray();
+        string[] fields=MoneyFields.Concat(new[]{"completedOrders","platformId","contractName","companyCr","scheme","riderId","currency","cityName","vehicleType","contractStart","contractEnd","totalMonthlyHours","workingHours","fullyWorkingDays","workingDays","cityMonthlyFlatSalary","cityPayment","basicRate","segment","segmentRate","riderRating","excusedAbsenceDays","missedWeekends","missedEom","totalMissedDays","missedDaysAfterAllowance","totalManhattanDistance","manhattanDistancePayable","invoiceDate","loadingPeriod"}).ToArray();
         var map=fields.ToDictionary(Key,x=>x);
         foreach(var (name,field) in new[]{
             ("rider_id","platformId"),("Rider ID","platformId"),("platform_id","platformId"),
@@ -33,7 +33,10 @@ public static partial class HungerStationInvoices
             ("amount_excluding_vat","amountExclVat"),("amount_including_vat","amountInclVat"),("vat_amount","vat"),
             ("COURIER_BASIC_PAYMENT","courierBasicPayment"),("Bonus Achieved","bonusAchieved"),
             ("actual_rider_iqama","riderId"),("city_name","cityName"),("rider_vehicle_type","vehicleType"),
-            ("report_month","reportMonth"),("basic_rate","basicRate"),("city_monthly_flat_salary","cityMonthlyFlatSalary")
+            ("report_month","reportMonth"),("basic_rate","basicRate"),("city_monthly_flat_salary","cityMonthlyFlatSalary"),
+            // T11b: category = Breakdown.segment; rating when present on the invoice sheet.
+            ("segment","segment"),("rider_category","segment"),("category","segment"),("فئة","segment"),
+            ("rating","riderRating"),("rider_rating","riderRating"),("quality_rating","riderRating"),("evaluation","riderRating"),("تقييم","riderRating")
         })map[Key(name)]=field;
         return map;
     }
@@ -175,7 +178,14 @@ public static partial class HungerStationInvoices
                 }
                 catch(ApiError){errors.Add(new(file,"Rider LVL",riderRow,"invalid_approved_facts"));continue;}
                 merged["id"]="hs-line:"+Hash(invoiceId+"\nrider\n"+platformId);merged["lineType"]="rider";merged["tgaAmount"]=riderTga?row.N("tgaDeduction"):0;
-                merged["breakdown"]=new JsonArray(breakdown.Select(d=>(JsonNode)d.Clone()).ToArray());lines.Add(merged);
+                merged["breakdown"]=new JsonArray(breakdown.Select(d=>(JsonNode)d.Clone()).ToArray());
+                // T11b: promote invoice category (segment) + rating as facts — never from manual settings.
+                string category=breakdown.Select(d=>d.S("segment")).FirstOrDefault(s=>s!="")??merged.S("segment");
+                string rating=breakdown.Select(d=>d.S("riderRating")).FirstOrDefault(s=>s!="")??merged.S("riderRating");
+                merged["riderCategory"]=category;
+                merged["riderRating"]=rating;
+                merged["invoiceFacts"]=new JsonObject{["category"]=category,["rating"]=rating,["source"]="hs_invoice",["categoryMissing"]=category=="",["ratingMissing"]=rating==""};
+                lines.Add(merged);
             }
         }
         foreach(var row in riderRows.Where(r=>!knownContracts.Contains(r.S("contractName"))))errors.Add(new(file,"Rider LVL",(int)row.N("sourceRow"),"unknown_contract"));

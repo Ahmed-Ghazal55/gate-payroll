@@ -23,6 +23,7 @@ import {
 import { useAuth } from '../../lib/auth-context';
 import { ApprovalExceptionChip } from '../../features/admin/ApprovalExceptionChip';
 import { appendPeriodToHref, readUrlPeriod } from '../../lib/period';
+import { isNavHrefActive } from '../../lib/nav-active';
 
 export interface NavSubItem {
   id: string;
@@ -101,29 +102,6 @@ export function buildNavGroups(
       id: 'payments',
       label: 'المدفوعات والمشتريات',
       icon: <Wallet size={18} />,
-      defaultHref: '/payments/rents',
-      permission: 'payments.view',
-      items: [
-        { id: 'pay-rents', href: '/payments/rents', label: 'الإيجارات والسكنات' },
-        { id: 'pay-installments', href: '/payments/installments', label: 'الأقساط والمدفوعات البنكية' },
-        { id: 'pay-purchases', href: '/payments/purchases', label: 'فواتير المشتريات والمصروفات' },
-        { id: 'pay-fuel', href: '/payments/fuel', label: 'الوقود والمحطات' },
-        { id: 'pay-hr', href: '/payments/hr-requests', label: 'طلبات الموارد البشرية والخصومات' },
-        { id: 'pay-advances', href: '/payments/advances', label: 'السلف والشحن' },
-        { id: 'pay-mada', href: '/payments/mada', label: 'جهاز مدا والشحن' },
-        { id: 'pay-hs', href: '/payments/hs-custody', label: 'عهد هنقرستيشن' },
-        { id: 'pay-traffic', href: '/payments/traffic-violations', label: 'سداد المخالفات المرورية' },
-        { id: 'pay-suppliers', href: '/payments/suppliers', label: 'الموردون والدفعات' },
-        { id: 'pay-due', href: '/payments/due-calendar', label: 'لوحة المستحقات' },
-        { id: 'pay-gov', href: '/payments/government', label: 'المدفوعات الحكومية' },
-        { id: 'pay-prepaid', href: '/payments/prepaid-wallets', label: 'المحافظ المدفوعة مقدمًا' },
-        { id: 'pay-quick', href: '/payments/quick', label: 'تسجيل مدفوعات سريعة' },
-      ],
-    },
-    {
-      id: 'payments',
-      label: 'المدفوعات والمشتريات',
-      icon: <Wallet size={18} />,
       defaultHref: '/payments/due-calendar',
       permission: [
         'payments.view',
@@ -190,13 +168,13 @@ export function buildNavGroups(
       id: 'debts',
       label: 'المديونيات والتحصيل',
       icon: <Receipt size={18} />,
-      defaultHref: '/debts/',
+      defaultHref: '/debts/?tab=debts',
       permission: 'debts.view',
       items: [
-        { id: 'debts-list', href: '/debts/', label: 'سجل المديونيات', permission: 'debts.view' },
+        { id: 'debts-list', href: '/debts/?tab=debts', label: 'سجل المديونيات', permission: 'debts.view' },
         {
           id: 'debts-promissory',
-          href: '/debts/promissory',
+          href: '/debts/?tab=promissory',
           label: 'أرشيف سندات الأمر',
           permission: 'debts.promissory.view',
         },
@@ -456,37 +434,10 @@ function SidebarInner({
               {!collapsed && isOpen && group.items.length > 0 && (
                 <div className="ms-6 me-1 my-1 space-y-0.5 border-s-2 border-[var(--line)] ps-2.5 animate-in slide-in-from-top-1 duration-150">
                   {group.items.map((subItem) => {
-                    const [subPath, subQuery] = subItem.href.split('?');
-                    const cleanSubPath = subPath.replace(/\/$/, '') || '/';
-                    const cleanCurrentPath = pathname.replace(/\/$/, '') || '/';
-                    const pathMatch =
-                      cleanCurrentPath === cleanSubPath ||
-                      (group.id === 'approvals' && cleanCurrentPath.startsWith('/approvals')) ||
-                      (cleanSubPath !== '/' && cleanCurrentPath.startsWith(cleanSubPath + '/'));
-
-                    const hasTabbedSibling = group.items.some((sibling) => {
-                      const [sibPath, sibQuery] = sibling.href.split('?');
-                      const cleanSibPath = sibPath.replace(/\/$/, '') || '/';
-                      return (
-                        cleanSibPath === cleanSubPath &&
-                        Boolean(sibQuery && new URLSearchParams(sibQuery).get('tab'))
-                      );
+                    const isSubActive = isNavHrefActive(subItem.href, pathname || '/', searchParams, {
+                      groupId: group.id,
+                      siblingHrefs: group.items.map((s) => s.href),
                     });
-
-                    let isSubActive = false;
-                    if (pathMatch) {
-                      if (subQuery) {
-                        const targetParam = new URLSearchParams(subQuery).get('tab');
-                        const defaultTab = new URLSearchParams(group.defaultHref.split('?')[1] || '').get('tab');
-                        const currentParam = searchParams?.get('tab') ?? defaultTab;
-                        isSubActive = currentParam === targetParam;
-                      } else {
-                        isSubActive = hasTabbedSibling
-                          ? !searchParams?.get('tab')
-                          : cleanCurrentPath === cleanSubPath ||
-                            (group.id === 'approvals' && cleanCurrentPath.startsWith('/approvals'));
-                      }
-                    }
 
                     if (subItem.disabled) {
                       return (

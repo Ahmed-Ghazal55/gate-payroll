@@ -8,7 +8,8 @@ import { Dialog } from '../../components/ui/Dialog';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
 
 const TABS: SectionTabItem[] = [
-  { id: 'company', label: 'بيانات الشركة والعمل' },
+  { id: 'company', label: 'بيانات الشركة' },
+  { id: 'notifications', label: 'إعدادات الإشعارات' },
   { id: 'periods', label: 'الفترات المالية' },
   { id: 'snapshots', label: 'جدولة اللقطات التلقائية' },
   { id: 'thresholds', label: 'عتبات التقارير والوسائط والأمان' },
@@ -105,7 +106,15 @@ export function AdminSettingsPanel() {
       {subtab === 'company' && (
         <div className="space-y-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
           <p className="text-sm text-[var(--muted)]">العملة الافتراضية: ر.س · المنطقة الزمنية: آسيا/الرياض</p>
-          <label className="block text-xs font-semibold">أيام العمل لمهلة التصعيد</label>
+        </div>
+      )}
+
+      {subtab === 'notifications' && (
+        <div className="space-y-3 rounded-xl border border-[var(--line)] bg-[var(--surface)] p-4">
+          <label className="block text-xs font-semibold">مهلة رد الموظفين على المهام والطلبات (أيام عمل)</label>
+          <p className="text-[11px] text-[var(--muted)]">
+            بعد انتهاء المهلة يُرسل تذكير ثم تصعيد للمدير المسؤول. لا تخص المناديب ولا الرواتب.
+          </p>
           <input
             className="w-full max-w-xs rounded-lg border border-[var(--line)] bg-[var(--raised)] px-2 py-1.5 text-sm num"
             value={replyWorkingDays}

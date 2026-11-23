@@ -113,6 +113,8 @@ public sealed class LiveOpsLiveFactsReader:IOpsLiveFactsReader
 
     IEnumerable<JsonObject> EligibilityFromSources(string companyId,string app,string periodMonth)
     {
+        // T11: Jahez / Chefz / HS have no eligibility rules — never require or evaluate them.
+        if(!PayPlatforms.HasEligibility(app))return [];
         if(string.Equals(PayPlatforms.App(app),"keeta",StringComparison.Ordinal))
             return KeetaEligibilityPages(companyId,periodMonth);
         if(_store==null)return [];
