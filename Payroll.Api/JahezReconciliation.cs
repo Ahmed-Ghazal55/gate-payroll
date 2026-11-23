@@ -443,7 +443,7 @@ public static class JahezReconciliation
                     .Where(r=>InScope(c,tx,r,companyId)&&HandoverDay(r,day)&&IsConfirmedHandover(r))
                     .Where(r=>VaultMatches(c,tx,r,vaultId,vaultCode,togaryRun)))
         {
-            var split=SplitHandoverByPurpose(c,tx,h,companyId);
+            var split=SplitHandoverByPurpose(c,tx,h,companyId,vaultId);
             string handoverKey=h.S("erpSourceId",h.S("id"));
             string handoverGuid=AsGuidOrEmpty(handoverKey);
             if(split.Cash>0)
@@ -473,8 +473,9 @@ public static class JahezReconciliation
             ["unresolvedPurpose"]=unresolved
         };
     /// <summary>M-0676 / Omar Fund+Purpose: Settlement+Cashbox → company cash; Settlement+Bank → bank;
-    /// AccountFee / Fuel / PetroApp → external owner register (never company clearing).</summary>
-    static (decimal Cash,decimal Bank,decimal External,bool Unresolved) SplitHandoverByPurpose(DbConnection c,DbTransaction tx,JsonObject handover,string companyId)
+    /// AccountFee / Fuel / PetroApp → external owner register (never company clearing).
+    /// Amounts are limited to movements that own the day's vault (untied handovers must not pull other vaults).</summary>
+    static (decimal Cash,decimal Bank,decimal External,bool Unresolved) SplitHandoverByPurpose(DbConnection c,DbTransaction tx,JsonObject handover,string companyId,string dayVaultId)
     {
         var moveIds=new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if(handover["moneyMovementSourceIds"] is JsonArray arr)
@@ -483,34 +484,50 @@ public static class JahezReconciliation
                 string id=n.ToString()??"";
                 if(id!="")moveIds.Add(id);
             }
+        string handoverVault=handover.S("vaultId");
         var moves=Store.List(c,"erp_money_movement",tx)
             .Where(m=>InScope(c,tx,m,companyId))
             .Where(m=>moveIds.Count==0
                 ?string.Equals(m.S("handoverId",m.S("cashboxHandoverId")),handover.S("erpSourceId",handover.S("id")),StringComparison.OrdinalIgnoreCase)
                 :moveIds.Contains(m.S("erpSourceId",m.S("id"))))
+            .Where(m=>MovementOwnsDayVault(m,handoverVault,dayVaultId))
             .ToList();
         if(moves.Count>0)
         {
             decimal cash=0,bank=0,external=0;
+            bool unresolved=false;
             foreach(var m in moves)
             {
                 decimal amt=J.Money(m.N("amount"));
                 string fund=NormalizeFund(m);
                 string purpose=NormalizePurpose(m);
                 if(purpose is "AccountFee" or "AccountFeeRefund"||fund=="PetroApp"||purpose=="Fuel")
-                    external=J.Money(external+amt);
+                    external=J.Money(external+amt); // intentional owner-register external
                 else if(fund=="Bank"&&purpose=="Settlement")
                     bank=J.Money(bank+amt);
                 else if(fund=="Cashbox"&&purpose=="Settlement")
                     cash=J.Money(cash+amt);
                 else
+                {
                     external=J.Money(external+amt); // unresolved purpose/ownership stays out of company cash
+                    unresolved=true; // block submit/approve (RefuseIfUnresolvedPurpose)
+                }
             }
-            return (cash,bank,external,false);
+            return (cash,bank,external,unresolved);
         }
         // No fund/purpose on movements: post no company cash; keep aggregates on the external register and block the day.
         decimal externalOnly=J.Money(handover.N("cashboxAmount")+handover.N("bankAmount")+handover.N("petroAppAmount"));
         return (0m,0m,externalOnly,externalOnly>0);
+    }
+    /// <summary>Movement counts for this vault day when it names the day vault, or inherits the handover vault when blank.</summary>
+    static bool MovementOwnsDayVault(JsonObject movement,string handoverVaultId,string dayVaultId)
+    {
+        string moveVault=movement.S("vaultId");
+        if(moveVault!="")
+            return string.Equals(moveVault,dayVaultId,StringComparison.OrdinalIgnoreCase);
+        if(handoverVaultId!="")
+            return string.Equals(handoverVaultId,dayVaultId,StringComparison.OrdinalIgnoreCase);
+        return false; // untied movement on untied handover: never claim a vault day without an owner vault
     }
     static decimal OmarTransferAmount(DbConnection c,DbTransaction tx,string companyId,DateOnly day,string vaultId,string vaultCode,bool togaryRun)=>
         J.Money(Store.List(c,"erp_money_movement",tx)
