@@ -21,6 +21,7 @@ public static class TreasuryVaultCountsApi
             ORDER BY v.counted_on DESC
             """);
         using var r=cmd.ExecuteReader();
+        var pending=new List<(JsonObject Row,string AccountId)>();
         while(r.Read())
         {
             string company=r["company_id"].ToString()!;
@@ -43,6 +44,17 @@ public static class TreasuryVaultCountsApi
                 ["createdBy"]=r["created_by"] is DBNull?"":r["created_by"].ToString(),
                 ["approvedBy"]=r["approved_by"] is DBNull?"":r["approved_by"].ToString()
             };
+            pending.Add((row,r["cash_box_id"].ToString()!));
+        }
+        r.Close();
+        foreach(var (row,boxId) in pending)
+        {
+            object? accountObj=SchemaSql.Scalar(c,tx,$"SELECT account_id FROM {SchemaSql.Q(c,"treasury","cash_box")} WHERE id=@id",("@id",boxId));
+            string accountId=accountObj?.ToString()??"";
+            if(accountId=="")continue;
+            object? codeObj=SchemaSql.Scalar(c,tx,$"SELECT code FROM {SchemaSql.Q(c,"fin","account")} WHERE id=@id",("@id",accountId));
+            string code=codeObj?.ToString()??"";
+            if(!FinancialScopes.TargetAccount(actor,row.S("companyId"),code))continue;
             row["allowedActions"]=Allowed(actor,row);
             rows.Add(row);
         }
@@ -69,8 +81,11 @@ public static class TreasuryVaultCountsApi
         DateOnly periodMonth=new(countedOn.Year,countedOn.Month,1);
         decimal counted=J.Money(PayValues.Number(input,"countedAmount",0));
         J.Need(counted>=0,"مبلغ الجرد لا يكون سالبًا.");
-        // Book balance is server-authored as of the count date's period; callers never supply it.
-        decimal book=BookBalance(c,tx,companyId,boxAccountId,periodMonth);
+        // Book balance is server-authored through the count date; callers never supply it.
+        // Later posted lines after the count date block the count (cutoff must stay the count date).
+        J.Need(!HasPostedLinesAfter(c,tx,companyId,boxAccountId,countedOn),
+            "توجد قيود مرحّلة بعد تاريخ الجرد؛ لا يُنشأ الجرد حتى يُزال الفرق أو يُختَم الحد.",409);
+        decimal book=BookBalanceAsOf(c,tx,companyId,boxAccountId,periodMonth,countedOn);
         string id=SchemaSql.GuidText(SchemaSql.NewId());
         string actorName=actor.Identity!.Name!;
         SchemaSql.Exec(c,tx,$"""
@@ -102,7 +117,7 @@ public static class TreasuryVaultCountsApi
         var row=Get(c,tx,actor,id);
         J.Need(row.N("statusCode")==2,"الجرد بانتظار الاعتماد.");
         string maker=row.S("createdBy");
-        J.Need(AccessPolicy.Independent(actor,maker,"treasury.vault_count_approve",c,tx,row,scope:AccessPolicy.ScopePayApprovals),
+        J.Need(AccessPolicy.Independent(actor,maker,"treasury.vault_count_approve",c,tx,row,scope:AccessPolicy.ScopeTreasuryVaultCount),
             "لا يجوز اعتماد جرد أنشأته؛ يلزم مراجع مستقل (صانع ≠ معتمد).",403);
         decimal variance=row.N("variance");
         string? journalId=null;
@@ -193,13 +208,35 @@ public static class TreasuryVaultCountsApi
             NarrationAr:variance>0?"ترحيل زيادة جرد خزنة":"ترحيل عجز جرد خزنة"));
         return SchemaSql.GuidText(result.JournalId);
     }
-    static decimal BookBalance(DbConnection c,DbTransaction tx,string companyId,string accountId,DateOnly periodMonth)
+    static decimal BookBalanceAsOf(DbConnection c,DbTransaction tx,string companyId,string accountId,DateOnly periodMonth,DateOnly asOf)
     {
-        object? v=SchemaSql.Scalar(c,tx,$"""
-            SELECT COALESCE(SUM(closing),0) FROM {SchemaSql.Q(c,"fin","period_balance")}
+        object? openingObj=SchemaSql.Scalar(c,tx,$"""
+            SELECT COALESCE(SUM(opening),0) FROM {SchemaSql.Q(c,"fin","period_balance")}
             WHERE company_id=@c AND account_id=@a AND period_month=@m
             """,("@c",companyId),("@a",accountId),("@m",periodMonth.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)));
-        return J.Money(Convert.ToDecimal(v??0m,CultureInfo.InvariantCulture));
+        decimal opening=J.Money(Convert.ToDecimal(openingObj??0m,CultureInfo.InvariantCulture));
+        object? moveObj=SchemaSql.Scalar(c,tx,$"""
+            SELECT COALESCE(SUM(jl.debit-jl.credit),0)
+            FROM {SchemaSql.Q(c,"fin","journal_line")} jl
+            JOIN {SchemaSql.Q(c,"fin","journal")} j ON j.id=jl.journal_id
+            WHERE jl.company_id=@c AND jl.account_id=@a AND j.status=2 AND j.run_mode=0
+              AND j.journal_date>=@from AND j.journal_date<=@to
+            """,
+            ("@c",companyId),("@a",accountId),
+            ("@from",periodMonth.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)),
+            ("@to",asOf.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)));
+        return J.Money(opening+Convert.ToDecimal(moveObj??0m,CultureInfo.InvariantCulture));
+    }
+    static bool HasPostedLinesAfter(DbConnection c,DbTransaction tx,string companyId,string accountId,DateOnly asOf)
+    {
+        object? v=SchemaSql.Scalar(c,tx,$"""
+            SELECT COUNT(1)
+            FROM {SchemaSql.Q(c,"fin","journal_line")} jl
+            JOIN {SchemaSql.Q(c,"fin","journal")} j ON j.id=jl.journal_id
+            WHERE jl.company_id=@c AND jl.account_id=@a AND j.status=2 AND j.run_mode=0
+              AND j.journal_date>@d
+            """,("@c",companyId),("@a",accountId),("@d",asOf.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)));
+        return Convert.ToInt32(v??0,CultureInfo.InvariantCulture)>0;
     }
     static string AccountIdByCode(DbConnection c,DbTransaction tx,string code)
     {
