@@ -18388,7 +18388,9 @@ export interface paths {
                             roundId: string;
                             totalResponses: number;
                             confidenceNoteAr: string;
-                            labelsAr?: Record<string, never>;
+                            labelsAr?: {
+                                [key: string]: string;
+                            };
                             items: {
                                 staffId: string;
                                 name: string;
@@ -18406,7 +18408,7 @@ export interface paths {
                                     count: number;
                                     average?: null | number;
                                 }[];
-                                drillDown: {
+                                drillDown?: {
                                     target: string;
                                     city?: string;
                                     app?: string;
@@ -18464,7 +18466,9 @@ export interface paths {
                             roundId: string;
                             totalResponses: number;
                             confidenceNoteAr: string;
-                            labelsAr?: Record<string, never>;
+                            labelsAr?: {
+                                [key: string]: string;
+                            };
                             items: {
                                 app: string;
                                 replyCount: number;
@@ -18486,7 +18490,7 @@ export interface paths {
                                 }[];
                                 lowSample: boolean;
                                 identityVisible: boolean;
-                                drillDown: {
+                                drillDown?: {
                                     target: string;
                                     city?: string;
                                     app?: string;
@@ -18545,7 +18549,9 @@ export interface paths {
                             totalResponses: number;
                             dimensions: string[];
                             confidenceNoteAr: string;
-                            labelsAr?: Record<string, never>;
+                            labelsAr?: {
+                                [key: string]: string;
+                            };
                             cells: {
                                 staffId: string;
                                 name?: string;
@@ -18554,7 +18560,7 @@ export interface paths {
                                 average?: null | number;
                                 lowSample: boolean;
                                 identityVisible: boolean;
-                                drillDown: {
+                                drillDown?: {
                                     target: string;
                                     city?: string;
                                     app?: string;
@@ -18614,7 +18620,9 @@ export interface paths {
                             cities: string[];
                             apps: string[];
                             confidenceNoteAr: string;
-                            labelsAr?: Record<string, never>;
+                            labelsAr?: {
+                                [key: string]: string;
+                            };
                             cells: {
                                 city: string;
                                 app: string;
@@ -18622,7 +18630,7 @@ export interface paths {
                                 average?: null | number;
                                 lowSample: boolean;
                                 identityVisible: boolean;
-                                drillDown: {
+                                drillDown?: {
                                     target: string;
                                     city?: string;
                                     app?: string;

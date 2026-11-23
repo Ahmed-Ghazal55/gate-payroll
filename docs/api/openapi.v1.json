@@ -30624,7 +30624,10 @@
                       "type": "string"
                     },
                     "labelsAr": {
-                      "type": "object"
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
                     },
                     "items": {
                       "type": "array",
@@ -30635,8 +30638,7 @@
                           "replyCount",
                           "lowSample",
                           "identityVisible",
-                          "dimensions",
-                          "drillDown"
+                          "dimensions"
                         ],
                         "type": "object",
                         "properties": {
@@ -30828,7 +30830,10 @@
                       "type": "string"
                     },
                     "labelsAr": {
-                      "type": "object"
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
                     },
                     "items": {
                       "type": "array",
@@ -30840,8 +30845,7 @@
                           "topFactors",
                           "bottomFactors",
                           "lowSample",
-                          "identityVisible",
-                          "drillDown"
+                          "identityVisible"
                         ],
                         "type": "object",
                         "properties": {
@@ -31061,7 +31065,10 @@
                       "type": "string"
                     },
                     "labelsAr": {
-                      "type": "object"
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
                     },
                     "cells": {
                       "type": "array",
@@ -31071,8 +31078,7 @@
                           "dimension",
                           "replyCount",
                           "lowSample",
-                          "identityVisible",
-                          "drillDown"
+                          "identityVisible"
                         ],
                         "type": "object",
                         "properties": {
@@ -31233,7 +31239,10 @@
                       "type": "string"
                     },
                     "labelsAr": {
-                      "type": "object"
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
                     },
                     "cells": {
                       "type": "array",
@@ -31243,8 +31252,7 @@
                           "app",
                           "replyCount",
                           "lowSample",
-                          "identityVisible",
-                          "drillDown"
+                          "identityVisible"
                         ],
                         "type": "object",
                         "properties": {

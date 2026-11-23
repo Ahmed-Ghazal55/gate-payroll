@@ -39,10 +39,10 @@ public static partial class ApiContracts
         ["changeVsPrevious"] = NullableNumber(), ["lowSample"] = B(), ["identityVisible"] = B(),
         ["dimensions"] = A(O(new() { ["key"] = S(), ["count"] = N(), ["average"] = NullableNumber() }, "key", "count")),
         ["drillDown"] = EvaluationDrillDown()
-    }, "staffId", "name", "replyCount", "lowSample", "identityVisible", "dimensions", "drillDown");
+    }, "staffId", "name", "replyCount", "lowSample", "identityVisible", "dimensions");
     static OpenApiSchema EvaluationSupervisorScorecard() => O(new()
     {
-        ["roundId"] = S(), ["totalResponses"] = N(), ["confidenceNoteAr"] = S(), ["labelsAr"] = Free(),
+        ["roundId"] = S(), ["totalResponses"] = N(), ["confidenceNoteAr"] = S(), ["labelsAr"] = StringMap(),
         ["items"] = A(EvaluationSupervisorScorecardItem()), ["allowedActions"] = A(S())
     }, "roundId", "totalResponses", "confidenceNoteAr", "items", "allowedActions");
     static OpenApiSchema EvaluationAppScorecardItem() => O(new()
@@ -51,30 +51,30 @@ public static partial class ApiContracts
         ["distribution"] = A(O(new() { ["stars"] = N(), ["count"] = N() }, "stars", "count")),
         ["topFactors"] = A(EvaluationFactorStat()), ["bottomFactors"] = A(EvaluationFactorStat()),
         ["lowSample"] = B(), ["identityVisible"] = B(), ["drillDown"] = EvaluationDrillDown()
-    }, "app", "replyCount", "distribution", "topFactors", "bottomFactors", "lowSample", "identityVisible", "drillDown");
+    }, "app", "replyCount", "distribution", "topFactors", "bottomFactors", "lowSample", "identityVisible");
     static OpenApiSchema EvaluationAppScorecard() => O(new()
     {
-        ["roundId"] = S(), ["totalResponses"] = N(), ["confidenceNoteAr"] = S(), ["labelsAr"] = Free(),
+        ["roundId"] = S(), ["totalResponses"] = N(), ["confidenceNoteAr"] = S(), ["labelsAr"] = StringMap(),
         ["items"] = A(EvaluationAppScorecardItem()), ["allowedActions"] = A(S())
     }, "roundId", "totalResponses", "confidenceNoteAr", "items", "allowedActions");
     static OpenApiSchema EvaluationHeatmap() => O(new()
     {
-        ["roundId"] = S(), ["totalResponses"] = N(), ["dimensions"] = A(S()), ["confidenceNoteAr"] = S(), ["labelsAr"] = Free(),
+        ["roundId"] = S(), ["totalResponses"] = N(), ["dimensions"] = A(S()), ["confidenceNoteAr"] = S(), ["labelsAr"] = StringMap(),
         ["cells"] = A(O(new()
         {
             ["staffId"] = S(), ["name"] = S(), ["dimension"] = S(), ["replyCount"] = N(), ["average"] = NullableNumber(),
             ["lowSample"] = B(), ["identityVisible"] = B(), ["drillDown"] = EvaluationDrillDown()
-        }, "staffId", "dimension", "replyCount", "lowSample", "identityVisible", "drillDown")),
+        }, "staffId", "dimension", "replyCount", "lowSample", "identityVisible")),
         ["allowedActions"] = A(S())
     }, "roundId", "totalResponses", "dimensions", "confidenceNoteAr", "cells", "allowedActions");
     static OpenApiSchema EvaluationCityAppMatrix() => O(new()
     {
-        ["roundId"] = S(), ["totalResponses"] = N(), ["cities"] = A(S()), ["apps"] = A(S()), ["confidenceNoteAr"] = S(), ["labelsAr"] = Free(),
+        ["roundId"] = S(), ["totalResponses"] = N(), ["cities"] = A(S()), ["apps"] = A(S()), ["confidenceNoteAr"] = S(), ["labelsAr"] = StringMap(),
         ["cells"] = A(O(new()
         {
             ["city"] = S(), ["app"] = S(), ["replyCount"] = N(), ["average"] = NullableNumber(),
             ["lowSample"] = B(), ["identityVisible"] = B(), ["drillDown"] = EvaluationDrillDown()
-        }, "city", "app", "replyCount", "lowSample", "identityVisible", "drillDown")),
+        }, "city", "app", "replyCount", "lowSample", "identityVisible")),
         ["allowedActions"] = A(S())
     }, "roundId", "totalResponses", "cities", "apps", "confidenceNoteAr", "cells", "allowedActions");
     static OpenApiSchema? EvaluationResponse(string method, string path)
