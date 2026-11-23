@@ -31,15 +31,20 @@ public static class TreasuryBalancesApi
                 ["cash"]=0m,["bank"]=0m,["custody"]=0m,["total"]=0m
             };
             var children=companyNode["children"]!.AsArray();
+            var registrationNodes=new Dictionary<string,JsonObject>(StringComparer.OrdinalIgnoreCase);
 
             // Book balances from period_balance; classify cash/bank via FinanceViews chart types.
+            // Group under commercial registration when the cash/bank master row exists.
             var chartType=FinanceViews.Accounts.Where(a=>a.B("posting")).ToDictionary(a=>a.S("code"),a=>a.S("type"),StringComparer.Ordinal);
             using(var cmd=Store.Command(c,tx,$"""
-                SELECT a.code,a.name_ar,COALESCE(SUM(pb.closing),0) AS closing
+                SELECT a.code,a.name_ar,COALESCE(SUM(pb.closing),0) AS closing,
+                       COALESCE(box.registration_id,bank.registration_id) AS registration_id
                 FROM {SchemaSql.Q(c,"fin","period_balance")} pb
                 JOIN {SchemaSql.Q(c,"fin","account")} a ON a.id=pb.account_id
+                LEFT JOIN {SchemaSql.Q(c,"treasury","cash_box")} box ON box.account_id=a.id AND box.company_id=pb.company_id
+                LEFT JOIN {SchemaSql.Q(c,"treasury","bank_account")} bank ON bank.account_id=a.id AND bank.company_id=pb.company_id
                 WHERE pb.company_id=@c AND pb.period_month=@m
-                GROUP BY a.code,a.name_ar
+                GROUP BY a.code,a.name_ar,COALESCE(box.registration_id,bank.registration_id)
                 ORDER BY a.code
                 """,("@c",company.Id),("@m",MonthLiteral(c,month))))
             using(var r=cmd.ExecuteReader())
@@ -47,16 +52,40 @@ public static class TreasuryBalancesApi
             {
                 string code=r.GetString(0);string name=r.IsDBNull(1)?code:r.GetString(1);
                 decimal bal=J.Money(Convert.ToDecimal(r.GetValue(2),CultureInfo.InvariantCulture));
+                string registrationId=r.IsDBNull(3)?"":r.GetValue(3).ToString()??"";
                 string type=chartType.GetValueOrDefault(code,"");
                 string kind=ClassifyTreasuryKind(code,type);
                 if(kind=="")continue; // never "everything else is custody" — skip revenue/liability/etc.
                 if(!FinancialScopes.TargetAccount(actor,company.Id,code))continue;
-                children.Add(new JsonObject
+                var accountNode=new JsonObject
                 {
-                    ["id"]="account:"+company.Id+":"+code,["kind"]=kind,["accountCode"]=code,
+                    ["id"]="account:"+company.Id+":"+code+(registrationId==""?"":":"+registrationId),
+                    ["kind"]=kind,["accountCode"]=code,
                     ["nameAr"]=name,["companyId"]=company.Id,["balance"]=bal,
+                    ["registrationId"]=registrationId,
                     ["isAlTogary"]=togary,["source"]="period_balance"
-                });
+                };
+                if(registrationId!="")
+                {
+                    if(!registrationNodes.TryGetValue(registrationId,out var regNode))
+                    {
+                        regNode=new JsonObject
+                        {
+                            ["id"]="registration:"+registrationId,["kind"]="registration",
+                            ["registrationId"]=registrationId,["companyId"]=company.Id,
+                            ["nameAr"]="سجل تجاري",["children"]=new JsonArray(),
+                            ["cash"]=0m,["bank"]=0m,["custody"]=0m,["total"]=0m
+                        };
+                        registrationNodes[registrationId]=regNode;
+                        children.Add(regNode);
+                    }
+                    regNode["children"]!.AsArray().Add(accountNode);
+                    if(kind=="cash")regNode["cash"]=J.Money(regNode.N("cash")+bal);
+                    else if(kind=="bank")regNode["bank"]=J.Money(regNode.N("bank")+bal);
+                    else regNode["custody"]=J.Money(regNode.N("custody")+bal);
+                    regNode["total"]=J.Money(regNode.N("cash")+regNode.N("bank")+regNode.N("custody"));
+                }
+                else children.Add(accountNode);
                 if(kind=="cash")companyNode["cash"]=J.Money(companyNode.N("cash")+bal);
                 else if(kind=="bank")companyNode["bank"]=J.Money(companyNode.N("bank")+bal);
                 else companyNode["custody"]=J.Money(companyNode.N("custody")+bal);
