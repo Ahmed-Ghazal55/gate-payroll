@@ -104,4 +104,18 @@ describe('EV1 evaluation survey and admin results screens', () => {
       '/rider-app/?tab=campaigns&subtab=evaluations'
     );
   });
+
+  it('keeps hosted evaluation survey session in gate_eval_survey eves_ only and reads launch from the URL fragment', () => {
+    const riderForm = readRepo('RiderForm/src/rider-form.ts');
+    const publicForm = readRepo('web/src/features/forms/EvaluationPublicForm.tsx');
+    assert.match(riderForm, /gate_eval_survey/);
+    assert.match(riderForm, /startsWith\('eves_'\)/);
+    assert.match(riderForm, /hashParams\.get\('launch'\)/);
+    assert.doesNotMatch(riderForm, /sessionStorage\.setItem\('gate_rider_mob'/);
+    assert.match(publicForm, /gate_eval_survey/);
+    assert.match(publicForm, /hashParams\.get\('launch'\)/);
+    assert.match(publicForm, /startsWith\('eves_'\)/);
+    assert.match(publicForm, /pathname\.startsWith\('\/app\/'\)/);
+    assert.doesNotMatch(publicForm, /sessionStorage\.setItem\(\s*['"]gate_rider_mob['"]/);
+  });
 });

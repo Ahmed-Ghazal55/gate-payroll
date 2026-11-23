@@ -239,13 +239,17 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
 
   useEffect(() => {
     if (typeof window === 'undefined') return;
+    const surveyKey = 'gate_eval_survey';
     try {
       const savedLang = localStorage.getItem('gate-language');
       if (savedLang === 'ar' || savedLang === 'en' || savedLang === 'ur') {
         setLang(savedLang);
       }
       const params = new URLSearchParams(window.location.search);
-      const launchCode = params.get('launch');
+      const hashParams = new URLSearchParams(
+        window.location.hash.startsWith('#') ? window.location.hash.slice(1) : window.location.hash
+      );
+      const launchCode = hashParams.get('launch');
       if (launchCode && token) {
         void fetch(`/api/public/evaluations/${encodeURIComponent(token)}/session`, {
           method: 'POST',
@@ -258,10 +262,11 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
               iqama?: string;
               error?: string;
             };
-            if (!r.ok || !d.accessToken) throw new Error(d.error || 'launch_invalid');
+            if (!r.ok || !d.accessToken || !d.accessToken.startsWith('eves_'))
+              throw new Error(d.error || 'launch_invalid');
             try {
               sessionStorage.setItem(
-                'gate_rider_mob',
+                surveyKey,
                 JSON.stringify({ accessToken: d.accessToken, iqama: d.iqama })
               );
             } catch {}
@@ -270,33 +275,43 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
               setIqama(d.iqama);
               setSessionLockedIqama(true);
             }
-            params.delete('launch');
+            hashParams.delete('launch');
+            const nextHash = hashParams.toString();
             const clean =
               window.location.pathname +
               (params.toString() ? `?${params.toString()}` : '') +
-              window.location.hash;
+              (nextHash ? `#${nextHash}` : '');
             window.history.replaceState(null, '', clean);
           })
           .catch(() => {});
       }
-      const rawSess =
-        sessionStorage.getItem('gate_rider_mob') || localStorage.getItem('gate_rider_mob');
-      if (rawSess) {
-        const parsed = JSON.parse(rawSess) as {
+      // Hosted survey: only eves_ in gate_eval_survey. In-app /app/evaluation may use rmob_ from the app store.
+      const applySession = (raw: string | null, allowAppBearer: boolean) => {
+        if (!raw) return false;
+        const parsed = JSON.parse(raw) as {
           iqama?: string;
           name?: string;
           accessToken?: string;
-          token?: string;
         };
-        if (parsed.iqama && /^[0-9]{10}$/.test(parsed.iqama)) {
-          setIqama(parsed.iqama);
-          setSessionLockedIqama(true);
+        const tok = parsed.accessToken;
+        if (typeof tok !== 'string') return false;
+        if (tok.startsWith('eves_') || (allowAppBearer && tok.startsWith('rmob_'))) {
+          setSessionToken(tok);
+          if (parsed.iqama && /^[0-9]{10}$/.test(parsed.iqama)) {
+            setIqama(parsed.iqama);
+            setSessionLockedIqama(true);
+          }
+          if (parsed.name) setName(parsed.name);
+          return true;
         }
-        if (parsed.name) setName(parsed.name);
-        if (parsed.accessToken || parsed.token) setSessionToken(parsed.accessToken || parsed.token);
+        return false;
+      };
+      if (!applySession(sessionStorage.getItem(surveyKey), false)) {
+        const inApp = mode === 'app' && window.location.pathname.startsWith('/app/');
+        if (inApp) applySession(sessionStorage.getItem('gate_rider_mob'), true);
       }
     } catch {}
-  }, [token]);
+  }, [token, mode]);
 
   useEffect(() => {
     if (!token) {
@@ -307,7 +322,9 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
     setLoading(true);
     setLoadError(null);
     const loadPromise =
-      mode === 'app' && sessionToken
+      mode === 'app' &&
+      sessionToken &&
+      (sessionToken.startsWith('eves_') || sessionToken.startsWith('rmob_'))
         ? api.getRiderMobileEvaluationSchema(token, undefined, sessionToken)
         : api.getPublicEvaluationSchema(token);
     loadPromise
@@ -502,7 +519,9 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
     };
     try {
       const res =
-        mode === 'app' && sessionToken
+        mode === 'app' &&
+        sessionToken &&
+        (sessionToken.startsWith('eves_') || sessionToken.startsWith('rmob_'))
           ? await api.submitRiderMobileEvaluation(token, payload, sessionToken)
           : await api.submitPublicEvaluation(token, payload);
       setReceipt(res.receipt);

@@ -71,8 +71,12 @@ const PLATFORMS=['keeta','hungerstation','ninja','amazon','chefz','jahez','other
 function ibanForm(){return formData?.schema==='iban-v1';}
 function leaveForm(){return formData?.schema==='annual-leave-v1';}
 function leaveFields(){return `<label>${t('iqama')}<input name="iqama" required inputmode="numeric" pattern="[0-9]{10}" minlength="10" maxlength="10" dir="ltr" placeholder="${t('iqamaPlaceholder')}" autocomplete="off"><span class="field-note">${t('iqamaHint')}</span></label><label>${t('name')}<input name="name" required maxlength="150" autocomplete="name" placeholder="${t('namePlaceholder')}"><span class="field-note">${t('nameHint')}</span></label><label>${t('leaveType')}<select name="leaveType" required><option value="annual">${t('leave_annual')}</option><option value="emergency">${t('leave_emergency')}</option><option value="unpaid">${t('leave_unpaid')}</option></select></label><label>${t('startDate')}<input name="startDate" type="date" required></label><label>${t('endDate')}<input name="endDate" type="date" required></label><fieldset class="choice-options"><legend>${t('destination')}</legend><label class="check"><input type="radio" name="destination" value="inside_ksa" checked required>${t('inside_ksa')}</label><label class="check"><input type="radio" name="destination" value="outside_ksa" required>${t('outside_ksa')}</label></fieldset><label>${t('contactPhone')}<input name="contactPhone" type="tel" dir="ltr" inputmode="tel" maxlength="16" placeholder="${t('localPhone')}"></label><label>${t('leaveReason')}<input name="reason" required minlength="2" maxlength="1000"></label>`;}
+const SURVEY_SESSION_KEY='gate_eval_survey';
 function getAppSession():{iqama:string;name?:string;accessToken?:string}|null{try{const h=new URLSearchParams(location.hash.slice(1));if(h.get('app_iqama'))return {iqama:h.get('app_iqama')!,name:h.get('app_name')||undefined};const raw=sessionStorage.getItem('gate_rider_mob')||localStorage.getItem('gate_rider_mob');return raw?JSON.parse(raw):null;}catch{return null;}}
-function applyAppSessionPrefill(form:HTMLFormElement){const sess=getAppSession();if(!sess?.iqama||!/^[0-9]{10}$/.test(sess.iqama))return;const iq=form.elements.namedItem('iqama') as HTMLInputElement|null;if(iq&&!iq.value){iq.value=sess.iqama;iq.readOnly=true;const note=iq.parentElement?.querySelector('.field-note');if(note)note.textContent='✓ '+t('appSessionVerified');if(!custom&&!leaveForm())void lookupChoice(sess.iqama,form).catch(()=>{});}const nm=form.elements.namedItem('name') as HTMLInputElement|null;if(nm&&!nm.value&&sess.name)nm.value=sess.name;}
+/** Evaluation survey page: only an eves_ token in a dedicated sessionStorage key — never the app rmob_ session. */
+function getSurveySession():{iqama?:string;name?:string;accessToken:string}|null{try{const raw=sessionStorage.getItem(SURVEY_SESSION_KEY);if(!raw)return null;const parsed=JSON.parse(raw) as {iqama?:string;name?:string;accessToken?:string};if(typeof parsed?.accessToken!=='string'||!parsed.accessToken.startsWith('eves_'))return null;return {iqama:parsed.iqama,name:parsed.name,accessToken:parsed.accessToken};}catch{return null;}}
+function saveSurveySession(accessToken:string,iqama?:string){if(!accessToken.startsWith('eves_'))return;try{sessionStorage.setItem(SURVEY_SESSION_KEY,JSON.stringify({accessToken,iqama:iqama||undefined}));}catch{}}
+function applyAppSessionPrefill(form:HTMLFormElement){if(evaluationForm())return;const sess=getAppSession();if(!sess?.iqama||!/^[0-9]{10}$/.test(sess.iqama))return;const iq=form.elements.namedItem('iqama') as HTMLInputElement|null;if(iq&&!iq.value){iq.value=sess.iqama;iq.readOnly=true;const note=iq.parentElement?.querySelector('.field-note');if(note)note.textContent='✓ '+t('appSessionVerified');if(!custom&&!leaveForm())void lookupChoice(sess.iqama,form).catch(()=>{});}const nm=form.elements.namedItem('name') as HTMLInputElement|null;if(nm&&!nm.value&&sess.name)nm.value=sess.name;}
 function bankLabel(b:{ar:string;en:string;swift:string}){return `${language==='ar'?b.ar:b.en} — ${b.swift}`;}
 // Normalize what riders type or paste: Arabic digits, spaces, dashes, a leading SA.
 function ibanBody(raw:string){let s=raw.replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x0660)).replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-0x06F0)).toUpperCase().replace(/[^0-9A-Z]/g,'');if(s.startsWith('IBAN'))s=s.slice(4);if(s.startsWith('SA'))s=s.slice(2);return s;}
@@ -133,10 +137,10 @@ const escapeText=(v:unknown):string=>String(v??'').replace(/[&<>"']/g,c=>({'&':'
 function localized(obj:object,key:string):string{return String((obj as Record<string,unknown>)[key+({ar:'Ar',en:'En',ur:'Ur'}[language])]||(obj as Record<string,unknown>)[key+'Ar']||'');}
 function layout(){document.documentElement.lang=language;document.documentElement.dir=language==='en'?'ltr':'rtl';document.title=t(inquiry?'inquiry':'form')+' | '+t('brand');document.querySelector('#brand-title')!.textContent=t('brand');document.querySelector('#brand-subtitle')!.textContent=t(inquiry?'inquiry':'form');document.querySelector('#public-tools')!.innerHTML=`<div class="language-pills" aria-label="Language">${(['ar','en','ur'] as Language[]).map(l=>`<button type="button" data-lang="${l}" aria-pressed="${l===language}">${{ar:'العربية',en:'English',ur:'اردو'}[l]}</button>`).join('')}</div><select id="public-theme" class="theme-control" aria-label="${t('theme')}">${['sand','light','dim'].map(v=>`<option value="${v}" ${(v===document.documentElement.dataset.theme||(v==='dim'&&document.documentElement.dataset.theme==='dark'))?'selected':''}>${t(v)}</option>`).join('')}</select>`;}
 class PublicRequestError extends Error{constructor(public status:number,public data:any){super(data?.error||t(status===409?'conflict':status===429?'rate':status===401?'denied':status===404?'unavailable':'failed'));}}
-async function request(path:string,payload?:object):Promise<any>{const sess=getAppSession();const headers:Record<string,string>={...(payload?{'Content-Type':'application/json'}:{}),...(sess?.accessToken&&path.startsWith('/api/rider-mobile/')?{Authorization:'Bearer '+sess.accessToken}:{})};const r=await fetch(path,payload?{method:'POST',headers,body:JSON.stringify(payload)}:{headers});const d=await r.json().catch(()=>({}));if(!r.ok)throw new PublicRequestError(r.status,d);return d;}
+async function request(path:string,payload?:object):Promise<any>{const survey=evaluationForm()?getSurveySession():null;const sess=survey||(!evaluationForm()?getAppSession():null);const headers:Record<string,string>={...(payload?{'Content-Type':'application/json'}:{}),...(sess?.accessToken&&path.startsWith('/api/rider-mobile/')?{Authorization:'Bearer '+sess.accessToken}:{})};const r=await fetch(path,payload?{method:'POST',headers,body:JSON.stringify(payload)}:{headers});const d=await r.json().catch(()=>({}));if(!r.ok)throw new PublicRequestError(r.status,d);return d;}
 function renderEvaluation(){
  if(!formData)return;
- const sess=getAppSession();
+ const sess=getSurveySession();
  if(sess?.iqama&&!evalState.iqama)evalState.iqama=sess.iqama;
  if(sess?.name&&!evalState.name)evalState.name=sess.name;
  const cities=evalCityList();
@@ -301,7 +305,8 @@ function renderEvaluation(){
    appAnswers:apps.map(app=>{const a=ensureEvalApp(app);return {app,reason:a.reason,...(a.reason===''?{overall:a.overall,factorRatings:a.factorRatings}:{}),notes:a.notes.trim(),attachments:[]};})
   };
   try{
-   const useMob=Boolean(sess?.accessToken&&searchParams.get('mode')==='app');
+   const survey=getSurveySession();
+   const useMob=Boolean(survey?.accessToken&&searchParams.get('mode')==='app');
    const endpoint=(useMob?'/api/rider-mobile/evaluations/':'/api/public/evaluations/')+encodeURIComponent(token);
    const res=await request(endpoint,payload);
    receipt=res.receipt;renderPublic();
@@ -331,15 +336,17 @@ document.addEventListener('change',e=>{const el=e.target as HTMLSelectElement;if
 renderPublic();if(!inquiry){
  void (async()=>{
   try{
-   const launchCode=searchParams.get('launch');
+   const hashParams=new URLSearchParams(location.hash.startsWith('#')?location.hash.slice(1):location.hash);
+   const launchCode=hashParams.get('launch');
    if(evalPath&&launchCode){
     const exchanged=await fetch('/api/public/evaluations/'+encodeURIComponent(token)+'/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:launchCode})}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||t('unavailable'));return d;});
-    try{sessionStorage.setItem('gate_rider_mob',JSON.stringify({accessToken:exchanged.accessToken,iqama:exchanged.iqama||undefined}));}catch{}
-    searchParams.delete('launch');
-    const clean=location.pathname+(searchParams.toString()?'?'+searchParams.toString():'')+location.hash;
+    if(typeof exchanged.accessToken==='string'&&exchanged.accessToken.startsWith('eves_'))saveSurveySession(exchanged.accessToken,exchanged.iqama||undefined);
+    hashParams.delete('launch');
+    const nextHash=hashParams.toString();
+    const clean=location.pathname+(searchParams.toString()?'?'+searchParams.toString():'')+(nextHash?'#'+nextHash:'');
     history.replaceState(null,'',clean);
    }
-   const sess=getAppSession();
+   const sess=getSurveySession();
    const initPath=evalPath?((sess?.accessToken&&searchParams.get('mode')==='app'?'/api/rider-mobile/evaluations/':'/api/public/evaluations/')+encodeURIComponent(token)):'/api/public/'+(custom?'questionnaires/':'forms/')+encodeURIComponent(token);
    formData=await request(initPath);
    renderPublic();
