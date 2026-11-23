@@ -18242,6 +18242,7 @@ export interface paths {
                 query?: {
                     supervisorId?: string;
                     department?: string;
+                    section?: string;
                 };
                 header?: never;
                 path: {
@@ -18371,6 +18372,7 @@ export interface paths {
                 query?: {
                     city?: string;
                     nationalityId?: string;
+                    section?: string;
                 };
                 header?: never;
                 path: {
@@ -18577,6 +18579,7 @@ export interface paths {
                 query?: {
                     city?: string;
                     nationalityId?: string;
+                    section?: string;
                 };
                 header?: never;
                 path: {
@@ -18646,7 +18649,9 @@ export interface paths {
         /** Export evaluation replies workbook */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    section?: string;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -18688,6 +18693,7 @@ export interface paths {
                     department?: string;
                     supervisorId?: string;
                     nationalityId?: string;
+                    section?: string;
                 };
                 header?: never;
                 path: {
@@ -18725,6 +18731,12 @@ export interface paths {
                                 dimensions: {
                                     key: string;
                                     count: number;
+                                    average?: null | number;
+                                }[];
+                                bySection?: {
+                                    sectionKey: string;
+                                    sectionTitle?: string;
+                                    replyCount: number;
                                     average?: null | number;
                                 }[];
                                 drillDown?: {
@@ -18766,6 +18778,7 @@ export interface paths {
                     department?: string;
                     supervisorId?: string;
                     nationalityId?: string;
+                    section?: string;
                 };
                 header?: never;
                 path: {
@@ -18832,6 +18845,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forms/evaluations/rounds/{id}/scorecards/finance": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Finance-card evaluation scorecard per app */
+        get: {
+            parameters: {
+                query?: {
+                    city?: string;
+                    app?: string;
+                    nationalityId?: string;
+                    section?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            roundId: string;
+                            totalResponses: number;
+                            confidenceNoteAr: string;
+                            labelsAr?: {
+                                [key: string]: string;
+                            };
+                            items: {
+                                app: string;
+                                ratedCount: number;
+                                skippedCount?: number;
+                                average?: null | number;
+                                factors: {
+                                    key: string;
+                                    count: number;
+                                    average?: null | number;
+                                }[];
+                                lowSample?: boolean;
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forms/evaluations/rounds/{id}/scorecards/heatmap": {
         parameters: {
             query?: never;
@@ -18848,6 +18924,7 @@ export interface paths {
                     department?: string;
                     supervisorId?: string;
                     nationalityId?: string;
+                    section?: string;
                 };
                 header?: never;
                 path: {
@@ -18918,6 +18995,7 @@ export interface paths {
                     department?: string;
                     supervisorId?: string;
                     nationalityId?: string;
+                    section?: string;
                 };
                 header?: never;
                 path: {
@@ -18988,6 +19066,7 @@ export interface paths {
                     department?: string;
                     supervisorId?: string;
                     nationalityId?: string;
+                    section?: string;
                 };
                 header?: never;
                 path: {

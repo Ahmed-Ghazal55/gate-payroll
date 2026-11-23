@@ -11,14 +11,14 @@ public static partial class EvaluationSurvey
     const string ConfidenceNoteAr =
         "عينة صغيرة: النتائج ذات عدد ردود أقل من 5 تُعرض مع تنبيه ثقة منخفض، ولا تُكشف هوية المندوب في التجميعات عندما يقل العدد عن 3.";
 
-    public sealed record ScorecardFilter(string? City = null, string? App = null, string? Department = null, string? SupervisorId = null, string? NationalityId = null);
+    public sealed record ScorecardFilter(string? City = null, string? App = null, string? Department = null, string? SupervisorId = null, string? NationalityId = null, string? Section = null);
 
-    static ScorecardFilter F(string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null) =>
-        new(city, app, department, supervisorId, nationalityId);
+    static ScorecardFilter F(string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null, string? section = null) =>
+        new(city, app, department, supervisorId, nationalityId, section);
 
     static List<JsonObject> FilteredReplies(DbConnection c, ClaimsPrincipal user, string id, ScorecardFilter filter)
     {
-        var rows = Responses(c, user, id);
+        var rows = Responses(c, user, id, section: filter.Section);
         if (!string.IsNullOrEmpty(filter.City)) rows = rows.Where(r => r.S("city") == filter.City).ToList();
         if (!string.IsNullOrEmpty(filter.NationalityId))
             rows = rows.Where(r => r.S("nationalityId") == filter.NationalityId || r.S("nationality") == filter.NationalityId).ToList();
@@ -92,24 +92,37 @@ public static partial class EvaluationSurvey
     };
 
     public static JsonObject SupervisorScorecard(DbConnection c, ClaimsPrincipal user, string id,
-        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null)
+        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null, string? section = null)
     {
-        var filter = F(city, app, department, supervisorId, nationalityId);
+        var filter = F(city, app, department, supervisorId, nationalityId, section);
         Demand(user);
         var round = Round(c, id);
         var rows = FilteredReplies(c, user, id, filter);
         var prevAvgs = PreviousStaffAverages(c, user, PreviousRound(c, round), filter);
         var staffCards = round["staff"]!.AsArray().OfType<JsonObject>().Where(s => StaffMatches(s, filter)).ToList();
-        var answers = rows.SelectMany(r => r["staffAnswers"]!.AsArray().OfType<JsonObject>()).ToList();
+        var tagged = rows.SelectMany(r => r["staffAnswers"]!.AsArray().OfType<JsonObject>()
+            .Select(a => (Answer: a, SectionKey: r.S("sectionKey"), SectionTitle: r.S("sectionTitle")))).ToList();
 
         var drafts = staffCards.SelectMany(staff =>
         {
             string sid = staff.S("id");
-            var cards = answers.Where(a => a.S("staffId") == sid).ToList();
-            var rated = cards.Where(a => a.S("reason") == "").ToList();
+            var cards = tagged.Where(t => t.Answer.S("staffId") == sid).ToList();
+            var rated = cards.Where(t => t.Answer.S("reason") == "").ToList();
             int n = rated.Count;
-            int complaints = rated.Count(a => a.B("complaint"));
-            var overall = Round2(rated.Select(a => StaffDimensions.Average(d => a["ratings"]!.N(d))));
+            int complaints = rated.Count(t => t.Answer.B("complaint"));
+            var overall = Round2(rated.Select(t => StaffDimensions.Average(d => t.Answer["ratings"]!.N(d))));
+            var bySection = rated.GroupBy(t => t.SectionKey == "" ? "(legacy)" : t.SectionKey)
+                .Select(g =>
+                {
+                    var avg = Round2(g.Select(t => StaffDimensions.Average(d => t.Answer["ratings"]!.N(d))));
+                    return new JsonObject
+                    {
+                        ["sectionKey"] = g.Key,
+                        ["sectionTitle"] = g.Select(t => t.SectionTitle).FirstOrDefault(v => v != "") ?? g.Key,
+                        ["replyCount"] = g.Count(),
+                        ["average"] = avg == null ? null : JsonValue.Create(avg.Value)
+                    };
+                }).OrderBy(s => s.S("sectionKey"), StringComparer.Ordinal).ToList();
             var depts = Strings(staff, "departments");
             if (!string.IsNullOrEmpty(filter.Department))
                 depts = depts.Where(d => d == filter.Department).ToArray();
@@ -117,7 +130,7 @@ public static partial class EvaluationSurvey
             decimal? change = overall != null && prevAvgs.TryGetValue(sid, out var prev) ? Math.Round(overall.Value - prev, 2, MidpointRounding.AwayFromZero) : null;
             var dimensions = StaffDimensions.Select(d =>
             {
-                var dimAvg = Round2(rated.Select(a => a["ratings"]!.N(d)));
+                var dimAvg = Round2(rated.Select(t => t.Answer["ratings"]!.N(d)));
                 return new JsonObject
                 {
                     ["key"] = d,
@@ -135,7 +148,8 @@ public static partial class EvaluationSurvey
                 Complaints = complaints,
                 Average = overall,
                 Change = change,
-                Dimensions = dimensions
+                Dimensions = dimensions,
+                BySection = bySection
             });
         }).ToList();
 
@@ -168,7 +182,8 @@ public static partial class EvaluationSurvey
                 ["changeVsPrevious"] = d.Change == null ? null : JsonValue.Create(d.Change.Value),
                 ["lowSample"] = n > 0 && n < LowSampleThreshold,
                 ["identityVisible"] = identityVisible,
-                ["dimensions"] = Array(d.Dimensions)
+                ["dimensions"] = Array(d.Dimensions),
+                ["bySection"] = Array(d.BySection)
             };
             if (identityVisible) item["drillDown"] = DrillDown("replies", filter, supervisorId: d.Sid);
             return item;
@@ -188,7 +203,8 @@ public static partial class EvaluationSurvey
                 ["complaintRate"] = "معدل الشكاوى",
                 ["rankInDepartment"] = "الترتيب داخل القسم",
                 ["changeVsPrevious"] = "التغير عن الجولة السابقة",
-                ["lowSample"] = "عينة صغيرة"
+                ["lowSample"] = "عينة صغيرة",
+                ["bySection"] = "تفصيل الأقسام"
             },
             ["items"] = Array(items),
             ["allowedActions"] = AccessPolicy.Has(user, ExportPermission) ? new JsonArray("export") : new JsonArray()
@@ -196,9 +212,9 @@ public static partial class EvaluationSurvey
     }
 
     public static JsonObject AppScorecard(DbConnection c, ClaimsPrincipal user, string id,
-        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null)
+        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null, string? section = null)
     {
-        var filter = F(city, app, department, supervisorId, nationalityId);
+        var filter = F(city, app, department, supervisorId, nationalityId, section);
         Demand(user);
         var round = Round(c, id);
         var rows = FilteredReplies(c, user, id, filter);
@@ -269,9 +285,9 @@ public static partial class EvaluationSurvey
     }
 
     public static JsonObject SupervisorDimensionHeatmap(DbConnection c, ClaimsPrincipal user, string id,
-        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null)
+        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null, string? section = null)
     {
-        var filter = F(city, app, department, supervisorId, nationalityId);
+        var filter = F(city, app, department, supervisorId, nationalityId, section);
         Demand(user);
         var round = Round(c, id);
         var rows = FilteredReplies(c, user, id, filter);
@@ -314,9 +330,9 @@ public static partial class EvaluationSurvey
     }
 
     public static JsonObject CityAppMatrix(DbConnection c, ClaimsPrincipal user, string id,
-        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null)
+        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null, string? section = null)
     {
-        var filter = F(city, app, department, supervisorId, nationalityId);
+        var filter = F(city, app, department, supervisorId, nationalityId, section);
         Demand(user);
         var round = Round(c, id);
         var rows = FilteredReplies(c, user, id, filter);
@@ -359,10 +375,10 @@ public static partial class EvaluationSurvey
     }
 
     public static byte[] ExportSupervisorScorecard(DbConnection c, ClaimsPrincipal user, string id,
-        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null)
+        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null, string? section = null)
     {
         AccessPolicy.Demand(user, ExportPermission);
-        var card = SupervisorScorecard(c, user, id, city, app, department, supervisorId, nationalityId);
+        var card = SupervisorScorecard(c, user, id, city, app, department, supervisorId, nationalityId, section);
         var columns = new List<ExcelColumn>
         {
             new("الموظف"), new("القسم"), new("عدد التقييمات", true), new("المتوسط", true),
@@ -393,24 +409,97 @@ public static partial class EvaluationSurvey
         return ExportWorkbook(columns, rows);
     }
 
+    public static JsonObject FinanceScorecard(DbConnection c, ClaimsPrincipal user, string id,
+        string? city = null, string? app = null, string? nationalityId = null, string? section = null)
+    {
+        var filter = F(city, app, null, null, nationalityId, section);
+        Demand(user);
+        var round = Round(c, id);
+        var rows = FilteredReplies(c, user, id, filter);
+        var apps = Strings(round, "apps").Where(a => string.IsNullOrEmpty(filter.App) || a == filter.App).ToList();
+        var items = apps.Select(platform =>
+        {
+            var financeCards = rows
+                .Where(r => r.S("sectionKey") == "app:" + platform || (r.S("sectionKey") == "" && Strings(r, "workApps").Contains(platform)))
+                .Select(r => r["financeAnswer"] as JsonObject)
+                .Where(a => a != null).Cast<JsonObject>().ToList();
+            // Prefer explicit app-section finance answers; fall back to any financeAnswer when already section-filtered.
+            if (financeCards.Count == 0)
+                financeCards = rows.Select(r => r["financeAnswer"] as JsonObject).Where(a => a != null).Cast<JsonObject>()
+                    .Where(_ => string.IsNullOrEmpty(filter.App) || filter.App == platform).ToList();
+            var rated = financeCards.Where(a => a.S("reason") == "" && a["overall"] != null).ToList();
+            int n = rated.Count;
+            var factors = FinanceFactors.Select(factor =>
+            {
+                var vals = rated.Where(a => a["factorRatings"]?[factor] is JsonValue).Select(a => a["factorRatings"]!.N(factor)).ToList();
+                return new JsonObject
+                {
+                    ["key"] = factor,
+                    ["count"] = vals.Count,
+                    ["average"] = vals.Count == 0 ? null : JsonValue.Create(Math.Round(vals.Average(), 2, MidpointRounding.AwayFromZero))
+                };
+            }).ToList();
+            return new JsonObject
+            {
+                ["app"] = platform,
+                ["ratedCount"] = n,
+                ["skippedCount"] = financeCards.Count - n,
+                ["average"] = Round2(rated.Select(a => a.N("overall"))) is { } avg ? JsonValue.Create(avg) : null,
+                ["factors"] = Array(factors),
+                ["lowSample"] = n > 0 && n < LowSampleThreshold
+            };
+        }).Where(i => i.N("ratedCount") > 0 || i.N("skippedCount") > 0).ToList();
+        return new()
+        {
+            ["roundId"] = id,
+            ["totalResponses"] = rows.Count,
+            ["confidenceNoteAr"] = items.Any(i => i.B("lowSample")) || rows.Count < LowSampleThreshold ? ConfidenceNoteAr : "",
+            ["labelsAr"] = new JsonObject
+            {
+                ["title"] = "بطاقة المالية حسب المنصة",
+                ["average"] = "متوسط التقييم العام",
+                ["factors"] = "متوسط عوامل المالية"
+            },
+            ["items"] = Array(items),
+            ["allowedActions"] = AccessPolicy.Has(user, ExportPermission) ? new JsonArray("export") : new JsonArray()
+        };
+    }
+
     public static byte[] ExportScorecard(DbConnection c, ClaimsPrincipal user, string id, string kind,
-        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null)
+        string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null, string? section = null)
     {
         AccessPolicy.Demand(user, ExportPermission);
         return kind switch
         {
-            "supervisors" => ExportSupervisorScorecard(c, user, id, city, app, department, supervisorId, nationalityId),
-            "apps" => ExportAppScorecard(c, user, id, city, app, department, supervisorId, nationalityId),
-            "heatmap" => ExportHeatmap(c, user, id, city, app, department, supervisorId, nationalityId),
-            "city-app" => ExportCityApp(c, user, id, city, app, department, supervisorId, nationalityId),
+            "supervisors" => ExportSupervisorScorecard(c, user, id, city, app, department, supervisorId, nationalityId, section),
+            "apps" => ExportAppScorecard(c, user, id, city, app, department, supervisorId, nationalityId, section),
+            "finance" => ExportFinanceScorecard(c, user, id, city, app, nationalityId, section),
+            "heatmap" => ExportHeatmap(c, user, id, city, app, department, supervisorId, nationalityId, section),
+            "city-app" => ExportCityApp(c, user, id, city, app, department, supervisorId, nationalityId, section),
             _ => throw new ApiError("نوع بطاقة غير معروف.", 404)
         };
     }
 
-    static byte[] ExportAppScorecard(DbConnection c, ClaimsPrincipal user, string id,
-        string? city, string? app, string? department, string? supervisorId, string? nationalityId)
+    static byte[] ExportFinanceScorecard(DbConnection c, ClaimsPrincipal user, string id,
+        string? city, string? app, string? nationalityId, string? section)
     {
-        var card = AppScorecard(c, user, id, city, app, department, supervisorId, nationalityId);
+        var card = FinanceScorecard(c, user, id, city, app, nationalityId, section);
+        var columns = new List<ExcelColumn> { new("المنصة"), new("عدد التقييمات", true), new("المتوسط", true), new("تخطّي", true) };
+        columns.AddRange(FinanceFactors.Select(f => new ExcelColumn(f, true)));
+        var rows = card["items"]!.AsArray().OfType<JsonObject>().Select(item =>
+        {
+            var factors = item["factors"]!.AsArray().OfType<JsonObject>().ToDictionary(x => x.S("key"), x => x);
+            var values = new List<object?> { item.S("app"), item.N("ratedCount"), item["average"] == null ? null : item.N("average"), item.N("skippedCount") };
+            values.AddRange(FinanceFactors.Select(f => (object?)(factors.TryGetValue(f, out var row) && row["average"] != null ? row.N("average") : null)));
+            return values.ToArray();
+        }).ToList();
+        return ExportWorkbook(columns, rows);
+    }
+
+    static byte[] ExportAppScorecard(DbConnection c, ClaimsPrincipal user, string id,
+        string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section = null)
+    {
+        var card = AppScorecard(c, user, id, city, app, department, supervisorId, nationalityId, section);
         var columns = new List<ExcelColumn>
         {
             new("المنصة"), new("عدد التقييمات", true), new("متوسط النجوم", true), new("صافي التقييم", true),
@@ -435,9 +524,9 @@ public static partial class EvaluationSurvey
     }
 
     static byte[] ExportHeatmap(DbConnection c, ClaimsPrincipal user, string id,
-        string? city, string? app, string? department, string? supervisorId, string? nationalityId)
+        string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section = null)
     {
-        var card = SupervisorDimensionHeatmap(c, user, id, city, app, department, supervisorId, nationalityId);
+        var card = SupervisorDimensionHeatmap(c, user, id, city, app, department, supervisorId, nationalityId, section);
         var columns = new List<ExcelColumn> { new("الموظف"), new("البُعد"), new("عدد التقييمات", true), new("المتوسط", true), new("عينة صغيرة") };
         var rows = card["cells"]!.AsArray().OfType<JsonObject>().Select(cell => new object?[]
         {
@@ -449,9 +538,9 @@ public static partial class EvaluationSurvey
     }
 
     static byte[] ExportCityApp(DbConnection c, ClaimsPrincipal user, string id,
-        string? city, string? app, string? department, string? supervisorId, string? nationalityId)
+        string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section = null)
     {
-        var card = CityAppMatrix(c, user, id, city, app, department, supervisorId, nationalityId);
+        var card = CityAppMatrix(c, user, id, city, app, department, supervisorId, nationalityId, section);
         var columns = new List<ExcelColumn> { new("المدينة"), new("المنصة"), new("عدد التقييمات", true), new("المتوسط", true), new("عينة صغيرة") };
         var rows = card["cells"]!.AsArray().OfType<JsonObject>().Select(cell => new object?[]
         {

@@ -91,7 +91,7 @@ public static partial class EvaluationSurvey
         string field = dimension switch { "city" => "byCity", "app" => "byApp", "supervisor" => "bySupervisor", "nationality" => "byNationality", "factors" => "factorAverages", "trend" => "dailyTrend", _ => throw new ApiError("نوع إحصاء غير صالح.") };
         return new() { ["roundId"] = stats.S("roundId"), ["totalResponses"] = stats.N("totalResponses"), ["items"] = stats[field]!.DeepClone() };
     }
-    static byte[] Export(DbConnection c, System.Security.Claims.ClaimsPrincipal user, string id)
+    public static byte[] ExportReplies(DbConnection c, System.Security.Claims.ClaimsPrincipal user, string id, string? section = null)
     {
         Demand(user); AccessPolicy.Demand(user, ExportPermission);
         var round = Round(c, id); var schema = Schema(round);
@@ -99,22 +99,48 @@ public static partial class EvaluationSurvey
         var dimensions = schema["staffDimensions"]!.AsArray().OfType<JsonObject>().ToDictionary(d => d.S("id"), d => d.S("labelAr"));
         var factors = schema["factors"]!.AsArray().OfType<JsonObject>().ToDictionary(d => d.S("id"), d => d.S("labelAr"));
         var apps = Strings(round, "apps");
-        var columns = new List<ExcelColumn> { new("الرد"), new("الإقامة"), new("الاسم"), new("المدينة"), new("الجنسية"), new("الجوال"), new("تاريخ الإرسال"), new("نوع البطاقة"), new("البطاقة"), new("اسم الموظف"), new("سبب عدم التقييم"), new("التقييم العام", true) };
+        var columns = new List<ExcelColumn> { new("الرد"), new("القسم"), new("الإقامة"), new("الاسم"), new("المدينة"), new("الجنسية"), new("الجوال"), new("تاريخ الإرسال"), new("نوع البطاقة"), new("البطاقة"), new("اسم الموظف"), new("سبب عدم التقييم"), new("التقييم العام", true) };
         columns.AddRange(StaffDimensions.Select(d => new ExcelColumn(dimensions[d], true)));
         columns.Add(new("ملاحظات")); columns.Add(new("شكوى")); columns.Add(new("تفاصيل الشكوى"));
         columns.AddRange(Factors.Select(f => new ExcelColumn(factors[f], true)));
+        columns.Add(new("مالية: العام", true));
+        columns.AddRange(FinanceFactors.Select(f => new ExcelColumn("مالية: " + (f switch
+        {
+            "responsiveness" => "التجاوب",
+            "accuracy" => "الدقة",
+            "correctionSpeed" => "سرعة التصحيح",
+            "clarity" => "الوضوح",
+            _ => f
+        }), true)));
+        columns.Add(new("مالية: السبب")); columns.Add(new("مالية: ملاحظات")); columns.Add(new("مالية: مرفقات", true)); columns.Add(new("مالية: شكوى"));
         columns.AddRange(apps.Select(a => new ExcelColumn("منصة العمل: " + a)));
         var cells = new List<object?[]>();
-        foreach (var row in Responses(c, user, id))
-        foreach (bool staff in new[] { true, false })
-        foreach (var card in row[staff ? "staffAnswers" : "appAnswers"]!.AsArray().OfType<JsonObject>())
+        foreach (var row in Responses(c, user, id, section: section))
         {
-            var values = new List<object?> { row.S("id"), row.S("iqama"), row.S("name"), row.S("city"), row.S("nationality"), row.S("phone"), row.S("createdAt"), staff ? "موظف" : "منصة", card.S(staff ? "staffId" : "app"), staff ? names.GetValueOrDefault(card.S("staffId"), "") : "", card.S("reason"), card["overall"] == null ? null : card.N("overall") };
-            values.AddRange(StaffDimensions.Select(d => (object?)(card["ratings"]?[d] == null ? null : card["ratings"]!.N(d))));
-            values.Add(card.S("notes")); values.Add(card.B("complaint") ? "نعم" : "لا"); values.Add(card.S("complaintDetails"));
-            values.AddRange(Factors.Select(f => (object?)(card["factorRatings"]?[f] == null ? null : card["factorRatings"]!.N(f))));
-            values.AddRange(apps.Select(a => (object?)(Strings(row, "workApps").Contains(a) ? "نعم" : "")));
-            cells.Add(values.ToArray());
+            var finance = row["financeAnswer"] as JsonObject;
+            object? FinanceVal(Func<JsonObject, object?> read) => finance == null ? null : read(finance);
+            foreach (bool staff in new[] { true, false })
+            foreach (var card in row[staff ? "staffAnswers" : "appAnswers"]!.AsArray().OfType<JsonObject>())
+            {
+                var values = new List<object?>
+                {
+                    row.S("id"), row.S("sectionKey") == "" ? row.S("sectionTitle") : row.S("sectionKey"),
+                    row.S("iqama"), row.S("name"), row.S("city"), row.S("nationality"), row.S("phone"), row.S("createdAt"),
+                    staff ? "موظف" : "منصة", card.S(staff ? "staffId" : "app"), staff ? names.GetValueOrDefault(card.S("staffId"), "") : "",
+                    card.S("reason"), card["overall"] == null ? null : card.N("overall")
+                };
+                values.AddRange(StaffDimensions.Select(d => (object?)(card["ratings"]?[d] == null ? null : card["ratings"]!.N(d))));
+                values.Add(card.S("notes")); values.Add(card.B("complaint") ? "نعم" : "لا"); values.Add(card.S("complaintDetails"));
+                values.AddRange(Factors.Select(f => (object?)(card["factorRatings"]?[f] == null ? null : card["factorRatings"]!.N(f))));
+                values.Add(FinanceVal(fin => fin["overall"] == null ? null : fin.N("overall")));
+                values.AddRange(FinanceFactors.Select(f => FinanceVal(fin => fin["factorRatings"]?[f] == null ? null : fin["factorRatings"]!.N(f))));
+                values.Add(FinanceVal(fin => fin.S("reason")));
+                values.Add(FinanceVal(fin => fin.S("notes")));
+                values.Add(FinanceVal(fin => fin["attachments"] is JsonArray a ? a.Count : 0));
+                values.Add(FinanceVal(fin => fin.B("complaint") ? "نعم" : "لا"));
+                values.AddRange(apps.Select(a => (object?)(Strings(row, "workApps").Contains(a) ? "نعم" : "")));
+                cells.Add(values.ToArray());
+            }
         }
         return ExportWorkbook(columns, cells);
     }
@@ -133,21 +159,23 @@ public static partial class EvaluationSurvey
         api.MapDelete("/forms/evaluations/rounds/{id}/sections/{sectionKey}/staff/{staffId}", (string id, string sectionKey, string staffId, HttpContext ctx) =>
             store.Write((c, tx) => RemoveSectionStaff(c, tx, ctx.User, id, Uri.UnescapeDataString(sectionKey), staffId))).WithTags("Forms and responses").WithSummary("Remove staff override from an evaluation section");
         api.MapPost("/forms/evaluations/rounds/{id}/{action}", (string id, string action, HttpContext ctx) => store.Write((c, tx) => RoundView(action == "refresh-staff" ? RefreshStaff(c, tx, ctx.User, id) : Transition(c, tx, ctx.User, id, action switch { "open" => "open", "pause" => "paused", "close" => "closed", _ => throw new ApiError("إجراء غير معروف.", 404) }), ctx))).WithTags("Forms and responses").WithSummary("Open, pause, close or refresh staff of an evaluation round");
-        api.MapGet("/forms/evaluations/rounds/{id}/responses", (string id, string? supervisorId, string? department, HttpContext ctx) => store.Read(c => ApiPagination.Apply(Responses(c, ctx.User, id, supervisorId, department), ctx.Request.Query, always: true,
-            whitelist: new HashSet<string>(StringComparer.Ordinal) { "id", "iqama", "name", "city", "nationality", "phone", "companyId", "createdAt", "workApps" }))).WithTags("Forms and responses").WithSummary("Page evaluation replies");
-        api.MapGet("/forms/evaluations/rounds/{id}/statistics", (string id, string? city, string? nationalityId, HttpContext ctx) => store.Read(c => Statistics(c, ctx.User, id, city, nationalityId))).WithTags("Forms and responses").WithSummary("Evaluation statistics for charts");
-        api.MapGet("/forms/evaluations/rounds/{id}/statistics/{dimension}", (string id, string dimension, string? city, string? nationalityId, HttpContext ctx) => store.Read(c => FilterStatistics(Statistics(c, ctx.User, id, city, nationalityId), dimension))).WithTags("Forms and responses").WithSummary("Evaluation statistics by dimension");
-        api.MapGet("/forms/evaluations/rounds/{id}/export", (string id, HttpContext ctx) => Results.File(store.Read(c => Export(c, ctx.User, id)), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "evaluations.xlsx")).WithTags("Forms and responses").WithSummary("Export evaluation replies workbook");
-        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/supervisors", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, HttpContext ctx) =>
-            store.Read(c => SupervisorScorecard(c, ctx.User, id, city, app, department, supervisorId, nationalityId))).WithTags("Forms and responses").WithSummary("Per-supervisor evaluation scorecard");
-        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/apps", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, HttpContext ctx) =>
-            store.Read(c => AppScorecard(c, ctx.User, id, city, app, department, supervisorId, nationalityId))).WithTags("Forms and responses").WithSummary("Per-app evaluation scorecard");
-        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/heatmap", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, HttpContext ctx) =>
-            store.Read(c => SupervisorDimensionHeatmap(c, ctx.User, id, city, app, department, supervisorId, nationalityId))).WithTags("Forms and responses").WithSummary("Supervisor × dimension heatmap");
-        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/city-app", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, HttpContext ctx) =>
-            store.Read(c => CityAppMatrix(c, ctx.User, id, city, app, department, supervisorId, nationalityId))).WithTags("Forms and responses").WithSummary("City × app evaluation matrix");
-        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/{kind}/export", (string id, string kind, string? city, string? app, string? department, string? supervisorId, string? nationalityId, HttpContext ctx) =>
-            Results.File(store.Read(c => ExportScorecard(c, ctx.User, id, kind, city, app, department, supervisorId, nationalityId)), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"evaluation-{kind}.xlsx")).WithTags("Forms and responses").WithSummary("Export an evaluation scorecard workbook");
+        api.MapGet("/forms/evaluations/rounds/{id}/responses", (string id, string? supervisorId, string? department, string? section, HttpContext ctx) => store.Read(c => ApiPagination.Apply(Responses(c, ctx.User, id, supervisorId, department, section), ctx.Request.Query, always: true,
+            whitelist: new HashSet<string>(StringComparer.Ordinal) { "id", "iqama", "name", "city", "nationality", "phone", "companyId", "createdAt", "workApps", "sectionKey", "sectionTitle" }))).WithTags("Forms and responses").WithSummary("Page evaluation replies");
+        api.MapGet("/forms/evaluations/rounds/{id}/statistics", (string id, string? city, string? nationalityId, string? section, HttpContext ctx) => store.Read(c => Statistics(c, ctx.User, id, city, nationalityId, section))).WithTags("Forms and responses").WithSummary("Evaluation statistics for charts");
+        api.MapGet("/forms/evaluations/rounds/{id}/statistics/{dimension}", (string id, string dimension, string? city, string? nationalityId, string? section, HttpContext ctx) => store.Read(c => FilterStatistics(Statistics(c, ctx.User, id, city, nationalityId, section), dimension))).WithTags("Forms and responses").WithSummary("Evaluation statistics by dimension");
+        api.MapGet("/forms/evaluations/rounds/{id}/export", (string id, string? section, HttpContext ctx) => Results.File(store.Read(c => ExportReplies(c, ctx.User, id, section)), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "evaluations.xlsx")).WithTags("Forms and responses").WithSummary("Export evaluation replies workbook");
+        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/supervisors", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section, HttpContext ctx) =>
+            store.Read(c => SupervisorScorecard(c, ctx.User, id, city, app, department, supervisorId, nationalityId, section))).WithTags("Forms and responses").WithSummary("Per-supervisor evaluation scorecard");
+        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/apps", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section, HttpContext ctx) =>
+            store.Read(c => AppScorecard(c, ctx.User, id, city, app, department, supervisorId, nationalityId, section))).WithTags("Forms and responses").WithSummary("Per-app evaluation scorecard");
+        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/finance", (string id, string? city, string? app, string? nationalityId, string? section, HttpContext ctx) =>
+            store.Read(c => FinanceScorecard(c, ctx.User, id, city, app, nationalityId, section))).WithTags("Forms and responses").WithSummary("Finance-card evaluation scorecard per app");
+        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/heatmap", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section, HttpContext ctx) =>
+            store.Read(c => SupervisorDimensionHeatmap(c, ctx.User, id, city, app, department, supervisorId, nationalityId, section))).WithTags("Forms and responses").WithSummary("Supervisor × dimension heatmap");
+        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/city-app", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section, HttpContext ctx) =>
+            store.Read(c => CityAppMatrix(c, ctx.User, id, city, app, department, supervisorId, nationalityId, section))).WithTags("Forms and responses").WithSummary("City × app evaluation matrix");
+        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/{kind}/export", (string id, string kind, string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section, HttpContext ctx) =>
+            Results.File(store.Read(c => ExportScorecard(c, ctx.User, id, kind, city, app, department, supervisorId, nationalityId, section)), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", $"evaluation-{kind}.xlsx")).WithTags("Forms and responses").WithSummary("Export an evaluation scorecard workbook");
         api.MapGet("/forms/evaluations/attachments/{attachmentId}", (string attachmentId, HttpContext ctx) => store.Read(c => PlayAttachment(store, c, ctx.User, attachmentId))).WithTags("Forms and responses").WithSummary("Play or download an evaluation attachment");
         app.MapGet("/api/public/evaluations/{token}", (string token, string? city) => store.Read(c => Schema(ByToken(c, token), city))).RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Public evaluation schema");
         app.MapPost("/api/public/evaluations/{token}", (string token, JsonObject input) =>

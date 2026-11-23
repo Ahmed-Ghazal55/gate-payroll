@@ -408,7 +408,7 @@ public static partial class EvaluationSurvey
         var staff = Round(c, response.S("roundId"), tx)["staff"]!.AsArray().OfType<JsonObject>().SingleOrDefault(s => s.S("id") == request["payload"].S("targetId"));
         return staff != null && (scope.Length == 0 || Strings(staff, "apps").All(scope.Contains));
     }
-    public static List<JsonObject> Responses(DbConnection c, ClaimsPrincipal user, string id, string? supervisorId = null, string? department = null)
+    public static List<JsonObject> Responses(DbConnection c, ClaimsPrincipal user, string id, string? supervisorId = null, string? department = null, string? section = null)
     {
         Demand(user); Round(c, id);
         var scope = user.FindAll("finance.platforms").Select(p => p.Value).ToArray();
@@ -421,6 +421,8 @@ public static partial class EvaluationSurvey
             r["staffAnswers"] = Array(r["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => ids.Contains(a.S("staffId"))));
             return r;
         }).ToList();
+        if (!string.IsNullOrEmpty(section))
+            rows = rows.Where(r => r.S("sectionKey") == section).ToList();
         if (!string.IsNullOrEmpty(supervisorId))
             rows = rows.Where(r => r["staffAnswers"]!.AsArray().OfType<JsonObject>().Any(a => a.S("staffId") == supervisorId && a.S("reason") == "")).ToList();
         if (!string.IsNullOrEmpty(department))
@@ -431,9 +433,9 @@ public static partial class EvaluationSurvey
         }
         return rows;
     }
-    public static JsonObject Statistics(DbConnection c, ClaimsPrincipal user, string id, string? city = null, string? nationalityId = null)
+    public static JsonObject Statistics(DbConnection c, ClaimsPrincipal user, string id, string? city = null, string? nationalityId = null, string? section = null)
     {
-        var rows = Responses(c, user, id);
+        var rows = Responses(c, user, id, section: section);
         if (!string.IsNullOrEmpty(city)) rows = rows.Where(r => r.S("city") == city).ToList();
         if (!string.IsNullOrEmpty(nationalityId)) rows = rows.Where(r => r.S("nationalityId") == nationalityId || r.S("nationality") == nationalityId).ToList();
         JsonObject Summary(string key, IEnumerable<JsonObject> subset)

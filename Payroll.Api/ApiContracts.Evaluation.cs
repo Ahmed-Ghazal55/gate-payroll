@@ -42,8 +42,19 @@ public static partial class ApiContracts
         ["complaintRate"] = NullableNumber(), ["average"] = NullableNumber(), ["rankInDepartment"] = NullableNumber(),
         ["changeVsPrevious"] = NullableNumber(), ["lowSample"] = B(), ["identityVisible"] = B(),
         ["dimensions"] = A(O(new() { ["key"] = S(), ["count"] = N(), ["average"] = NullableNumber() }, "key", "count")),
+        ["bySection"] = A(O(new() { ["sectionKey"] = S(), ["sectionTitle"] = S(), ["replyCount"] = N(), ["average"] = NullableNumber() }, "sectionKey", "replyCount")),
         ["drillDown"] = EvaluationDrillDown()
     }, "staffId", "name", "replyCount", "lowSample", "identityVisible", "dimensions");
+    static OpenApiSchema EvaluationFinanceScorecardItem() => O(new()
+    {
+        ["app"] = S(), ["ratedCount"] = N(), ["skippedCount"] = N(), ["average"] = NullableNumber(),
+        ["factors"] = A(EvaluationFactorStat()), ["lowSample"] = B()
+    }, "app", "ratedCount", "factors");
+    static OpenApiSchema EvaluationFinanceScorecard() => O(new()
+    {
+        ["roundId"] = S(), ["totalResponses"] = N(), ["confidenceNoteAr"] = S(), ["labelsAr"] = StringMap(),
+        ["items"] = A(EvaluationFinanceScorecardItem()), ["allowedActions"] = A(S())
+    }, "roundId", "totalResponses", "confidenceNoteAr", "items", "allowedActions");
     static OpenApiSchema EvaluationSupervisorScorecard() => O(new()
     {
         ["roundId"] = S(), ["totalResponses"] = N(), ["confidenceNoteAr"] = S(), ["labelsAr"] = StringMap(),
@@ -95,6 +106,7 @@ public static partial class ApiContracts
             if (path.Contains("/scorecards/", StringComparison.Ordinal) && path.EndsWith("/export", StringComparison.Ordinal)) return null;
             if (path.EndsWith("/scorecards/supervisors", StringComparison.Ordinal)) return EvaluationSupervisorScorecard();
             if (path.EndsWith("/scorecards/apps", StringComparison.Ordinal)) return EvaluationAppScorecard();
+            if (path.EndsWith("/scorecards/finance", StringComparison.Ordinal)) return EvaluationFinanceScorecard();
             if (path.EndsWith("/scorecards/heatmap", StringComparison.Ordinal)) return EvaluationHeatmap();
             if (path.EndsWith("/scorecards/city-app", StringComparison.Ordinal)) return EvaluationCityAppMatrix();
             if (path.EndsWith("/export", StringComparison.Ordinal)) return null;

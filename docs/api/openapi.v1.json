@@ -30242,6 +30242,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -30575,6 +30582,13 @@
           },
           {
             "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
             "in": "query",
             "schema": {
               "type": "string"
@@ -31351,6 +31365,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -31511,6 +31532,13 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -31565,6 +31593,13 @@
           },
           {
             "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
             "in": "query",
             "schema": {
               "type": "string"
@@ -31683,6 +31718,33 @@
                               }
                             }
                           },
+                          "bySection": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "sectionKey",
+                                "replyCount"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "sectionKey": {
+                                  "type": "string"
+                                },
+                                "sectionTitle": {
+                                  "type": "string"
+                                },
+                                "replyCount": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
                           "drillDown": {
                             "required": [
                               "target"
@@ -31771,6 +31833,13 @@
           },
           {
             "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
             "in": "query",
             "schema": {
               "type": "string"
@@ -31954,6 +32023,149 @@
         }
       }
     },
+    "/api/forms/evaluations/rounds/{id}/scorecards/finance": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Finance-card evaluation scorecard per app",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "roundId",
+                    "totalResponses",
+                    "confidenceNoteAr",
+                    "items",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "roundId": {
+                      "type": "string"
+                    },
+                    "totalResponses": {
+                      "type": "number"
+                    },
+                    "confidenceNoteAr": {
+                      "type": "string"
+                    },
+                    "labelsAr": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "app",
+                          "ratedCount",
+                          "factors"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "app": {
+                            "type": "string"
+                          },
+                          "ratedCount": {
+                            "type": "number"
+                          },
+                          "skippedCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "factors": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "lowSample": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/forms/evaluations/rounds/{id}/scorecards/heatmap": {
       "get": {
         "tags": [
@@ -31999,6 +32211,13 @@
           },
           {
             "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
             "in": "query",
             "schema": {
               "type": "string"
@@ -32166,6 +32385,13 @@
           },
           {
             "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
             "in": "query",
             "schema": {
               "type": "string"
@@ -32345,6 +32571,13 @@
           },
           {
             "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
             "in": "query",
             "schema": {
               "type": "string"
