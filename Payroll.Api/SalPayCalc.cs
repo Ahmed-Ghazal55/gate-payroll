@@ -33,6 +33,7 @@ public static class SalPayCalc
         {
             string erpRider=src.Required("erpRiderId");
             DemandAssigned(assignments,run.S("app"),erpRider);
+            DemandNoSiblingSalaryApproved(c,tx,erpRider,run.S("periodMonth"),payRunId);
             BindFromFrozen(src,run.S("app"),erpRider,frozenScheme,frozenEligibility,frozenChefz,frozenKeeta,frozenWallet);
             BindGrossFromEvidence(c,tx,run,src,erpRider,assignments,frozenKeeta);
             BindCommissionFromEvidence(src,run.S("app"),frozenKeeta,frozenChefz,erpRider,assignments);
@@ -83,7 +84,7 @@ public static class SalPayCalc
             {
                 mudadAmount=J.Money(src.N("mudadAmount",src.N("amount")));
                 J.Need(mudadAmount>=0,"مبلغ مدد لا يكون سالباً.",400);
-                DemandMudadLine(c,tx,mudadLineId,run.S("companyId"),run.S("periodMonth"),erpRider,mudadAmount);
+                DemandMudadLine(c,tx,mudadLineId,run.S("companyId"),run.S("periodMonth"),erpRider,mudadAmount,payRunId);
             }
             else
             {
@@ -127,7 +128,7 @@ public static class SalPayCalc
                 proposedDebt=J.Money(Math.Min(proposedDebt,salaryNet));
             else if(salaryNet<=0)proposedDebt=0;
 
-            bool createsNegativeDebt=salaryNet<0&&!keetaIneligible;
+            bool createsNegativeDebt=salaryNet<0&&!protectedSalary;
             string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
             string? existingId=FindPendingRider(c,tx,payRunId,erpRider);
             string riderId;
@@ -139,21 +140,21 @@ public static class SalPayCalc
                     ("@by",actor.Identity!.Name!),("@at",now),("@r",riderId));
                 Exec(c,tx,$"""
                     UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}
-                    SET gross=@gross,commission=@comm,salary_net=@net,old_debt_instalment=@debt,keeta_ineligible=@keeta,updated_by=@by,updated_at=@at
+                    SET gross=@gross,commission=@comm,salary_net=@net,old_debt_instalment=@debt,keeta_ineligible=@keeta,protected_salary=@prot,updated_by=@by,updated_at=@at
                     WHERE id=@id
                     """,("@gross",gross),("@comm",commission),("@net",salaryNet),("@debt",proposedDebt),
-                    ("@keeta",keetaIneligible?1:0),("@by",actor.Identity!.Name!),("@at",now),("@id",riderId));
+                    ("@keeta",keetaIneligible?1:0),("@prot",protectedSalary?1:0),("@by",actor.Identity!.Name!),("@at",now),("@id",riderId));
             }
             else
             {
                 riderId=SchemaSql.GuidText(SchemaSql.NewId());
                 Exec(c,tx,$"""
                     INSERT INTO {SchemaSql.Q(c,"sal","pay_run_rider")}
-                    (id,pay_run_id,company_id,period_month,erp_rider_id,run_mode,gross,commission,salary_net,old_debt_instalment,keeta_ineligible,created_by,created_at)
-                    VALUES(@id,@run,@c,@pm,@erp,@rm,@gross,@comm,@net,@debt,@keeta,@by,@at)
+                    (id,pay_run_id,company_id,period_month,erp_rider_id,run_mode,gross,commission,salary_net,old_debt_instalment,keeta_ineligible,protected_salary,created_by,created_at)
+                    VALUES(@id,@run,@c,@pm,@erp,@rm,@gross,@comm,@net,@debt,@keeta,@prot,@by,@at)
                     """,("@id",riderId),("@run",payRunId),("@c",run.S("companyId")),("@pm",run.S("periodMonth")),
                     ("@erp",erpRider),("@rm",(byte)run.N("runMode")),("@gross",gross),("@comm",commission),
-                    ("@net",salaryNet),("@debt",proposedDebt),("@keeta",keetaIneligible?1:0),
+                    ("@net",salaryNet),("@debt",proposedDebt),("@keeta",keetaIneligible?1:0),("@prot",protectedSalary?1:0),
                     ("@by",actor.Identity!.Name!),("@at",now));
             }
 
@@ -180,6 +181,8 @@ public static class SalPayCalc
             Persist(Item("net","net_after_l1",netAfterL1,true,"212103",null),"net");
             foreach(var it in l2Items)Persist(it,"level2");
             if(proposedDebt>0)Persist(Item("old_debt","old_debt_instalment",proposedDebt,true,"112507",null),"old_debt");
+
+            if(mudadLineId!=""&&mudadTake>0)PersistMudadDeduction(c,tx,actor,riderId,run.S("periodMonth"),mudadLineId,mudadTake,now);
 
             // After the rider + items exist so consolidation can read this app's net and shared L1 (§40.5).
             DetectAndOpenSharedHold(c,tx,run,erpRider,worked);
@@ -287,11 +290,11 @@ public static class SalPayCalc
         object? siblingApproved=SchemaSql.Scalar(c,tx,$"""
             SELECT 1 FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
             INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
-            WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND r.salary_approved_at IS NOT NULL AND pr.status<>4
+            WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND r.salary_approved_at IS NOT NULL AND pr.status<>4 AND pr.run_mode=0
             """,("@erp",erpRider),("@pm",period));
         J.Need(siblingApproved is null or DBNull,"لا تطبيق مدد بعد اعتماد راتب تطبيق آخر لنفس المندوب.",409);
 
-        DemandMudadLine(c,tx,lineId,run.S("companyId"),period,erpRider,amount);
+        DemandMudadLine(c,tx,lineId,run.S("companyId"),period,erpRider,amount,payRunId);
 
         string dedId=SchemaSql.GuidText(SchemaSql.NewId());
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
@@ -507,7 +510,18 @@ public static class SalPayCalc
         return rows;
     }
 
-    static void DemandMudadLine(DbConnection c,DbTransaction tx,string lineId,string companyId,string periodMonth,string erpRider,decimal amount)
+    static void DemandNoSiblingSalaryApproved(DbConnection c,DbTransaction tx,string erpRider,string periodMonth,string payRunId)
+    {
+        object? sibling=SchemaSql.Scalar(c,tx,$"""
+            SELECT 1 FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+            WHERE r.erp_rider_id=@erp AND r.period_month=@pm AND r.salary_approved_at IS NOT NULL
+              AND pr.status<>4 AND pr.run_mode=0 AND r.pay_run_id<>@run
+            """,("@erp",erpRider),("@pm",periodMonth),("@run",payRunId));
+        J.Need(sibling is null or DBNull,"لا إعادة احتساب بعد اعتماد راتب تطبيق آخر لنفس المندوب.",409);
+    }
+
+    static void DemandMudadLine(DbConnection c,DbTransaction tx,string lineId,string companyId,string periodMonth,string erpRider,decimal amount,string? excludePayRunId=null)
     {
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
         cmd.CommandText=$"""
@@ -523,7 +537,45 @@ public static class SalPayCalc
             ||string.Equals(ReadMonth(r["period_month"]),periodMonth,StringComparison.Ordinal),"صف مدد لشهر آخر.",404);
         J.Need(r["erp_employee_id"] is not DBNull&&string.Equals(r["erp_employee_id"].ToString(),erpRider,StringComparison.Ordinal),"صف مدد لموظف آخر.",404);
         if(r["basic_salary"] is not DBNull)
-            J.Need(J.Money(Convert.ToDecimal(r["basic_salary"]))==amount||amount<=J.Money(Convert.ToDecimal(r["basic_salary"])),"مبلغ مدد لا يطابق المصدر.",409);
+            J.Need(J.Money(Convert.ToDecimal(r["basic_salary"]))==amount,"مبلغ مدد لا يطابق المصدر.",409);
+        r.Close();
+        DemandMudadLineUnused(c,tx,lineId,excludePayRunId,erpRider);
+    }
+
+    /// <summary>RWC4a3 H13: one mudad_line_id may fund only one live run rider (deduction amount &gt; 0).</summary>
+    static void DemandMudadLineUnused(DbConnection c,DbTransaction tx,string lineId,string? excludePayRunId,string erpRider)
+    {
+        object? taken=SchemaSql.Scalar(c,tx,$"""
+            SELECT 1 FROM {SchemaSql.Q(c,"sal","mudad_deduction")} d
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run_rider")} r ON r.id=d.pay_run_rider_id
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+            WHERE d.mudad_line_id=@line AND d.amount>0 AND pr.status<>4
+              AND NOT (r.pay_run_id=@run AND r.erp_rider_id=@erp)
+            """,("@line",lineId),("@run",(object?)excludePayRunId??SchemaSql.GuidText(Guid.Empty)),("@erp",erpRider));
+        J.Need(taken is null or DBNull,"خصم مدد لهذا الصف مسجل على تطبيق آخر.",409);
+    }
+
+    static void PersistMudadDeduction(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string riderId,string periodMonth,string lineId,decimal amount,string now)
+    {
+        object? existing=SchemaSql.Scalar(c,tx,$"""
+            SELECT id FROM {SchemaSql.Q(c,"sal","mudad_deduction")}
+            WHERE pay_run_rider_id=@r AND mudad_line_id=@line
+            """,("@r",riderId),("@line",lineId));
+        if(existing is null or DBNull)
+        {
+            Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"sal","mudad_deduction")}
+                (id,period_month,pay_run_rider_id,mudad_line_id,amount,created_by,created_at)
+                VALUES(@id,@pm,@r,@line,@amt,@by,@at)
+                """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pm",periodMonth),("@r",riderId),
+                ("@line",lineId),("@amt",amount),("@by",actor.Identity!.Name!),("@at",now));
+            return;
+        }
+        Exec(c,tx,$"""
+            UPDATE {SchemaSql.Q(c,"sal","mudad_deduction")}
+            SET amount=@amt,updated_by=@by,updated_at=@at
+            WHERE id=@id
+            """,("@amt",amount),("@by",actor.Identity!.Name!),("@at",now),("@id",existing.ToString()!));
     }
 
     static void DemandLinkedDebt(DbConnection c,DbTransaction tx,string debtId,string companyId,string erpRider,decimal amount,string payRunId)
@@ -682,7 +734,7 @@ public static class SalPayCalc
             if(r.Read()){payRunId=r["pay_run_id"].ToString()!;erpRider=r["erp_rider_id"].ToString()!;keetaIneligible=Convert.ToInt32(r["keeta_ineligible"])==1;}
         }
         var schemeRow=LoadFrozenKind(c,tx,payRunId,"scheme").FirstOrDefault(s=>string.Equals(s.S("erpRiderId",s.S("riderProfileId")),erpRider,StringComparison.OrdinalIgnoreCase));
-        bool protectedSalary=keetaIneligible&&(schemeRow==null||string.Equals(schemeRow.S("schemeCode"),"salary",StringComparison.OrdinalIgnoreCase));
+        bool protectedSalary=keetaIneligible&&schemeRow!=null&&string.Equals(schemeRow.S("schemeCode"),"salary",StringComparison.OrdinalIgnoreCase);
         using(var cmd=c.CreateCommand())
         {
             cmd.Transaction=tx;
