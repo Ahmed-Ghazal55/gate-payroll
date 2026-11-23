@@ -36,9 +36,17 @@ public static partial class EvaluationSurvey
             ["usedAt"] = ""
         };
         Store.Save(c, LaunchKind, row, tx);
+        // Put the one-time code in the URL fragment so proxies never log it on the document request.
         string url = publicBaseUrl.TrimEnd('/') + "/rider-form.html?evaluation=" + Uri.EscapeDataString(sharingToken)
-            + "&launch=" + Uri.EscapeDataString(code) + "&mode=app";
+            + "&mode=app#launch=" + Uri.EscapeDataString(code);
         return new() { ["url"] = url };
+    }
+
+    static void DemandActiveRider(DbConnection c, string iqama, DbTransaction? tx)
+    {
+        var rider = Store.Get(c, iqama, "rider", tx);
+        if (rider == null || !rider.S("status").Equals("Active", StringComparison.OrdinalIgnoreCase))
+            throw new ApiError("جلسة التقييم منتهية أو الحساب موقوف.", 401, "survey_session_inactive");
     }
 
     public static JsonObject ExchangeLaunch(DbConnection c, DbTransaction tx, string sharingToken, string code)
@@ -51,6 +59,7 @@ public static partial class EvaluationSurvey
         if (row.S("usedAt") != "") throw new ApiError("رمز التشغيل مستخدم من قبل.", 401, "launch_used");
         if (!DateTimeOffset.TryParse(row.S("expiresAt"), out var until) || until <= DateTimeOffset.UtcNow)
             throw new ApiError("انتهت صلاحية رمز التشغيل.", 401, "launch_expired");
+        DemandActiveRider(c, row.S("iqama"), tx);
         row["usedAt"] = Now();
         Store.Save(c, LaunchKind, row, tx);
 
@@ -96,6 +105,7 @@ public static partial class EvaluationSurvey
             throw new ApiError("جلسة التقييم منتهية أو غير صالحة.", 401, "survey_session_invalid");
         var round = ByToken(c, sharingToken, tx);
         J.Need(session.S("roundId") == round.S("id"), "جلسة التقييم لا تطابق هذه الجولة.", "survey_session_round", 401);
+        DemandActiveRider(c, session.S("iqama"), tx);
         return session;
     }
 }
