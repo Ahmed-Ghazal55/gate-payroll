@@ -185,6 +185,43 @@ public static class ArchiveApi
         return Convert.ToInt64(SchemaSql.Scalar(c,tx,sql,args.ToArray())!)>0;
     }
 
+    static bool InCompanyScope(ClaimsPrincipal actor,string? companyId)
+    {
+        if(AccessPolicy.Administrator(actor)||FinancialScopes.AllCompanies(actor))return true;
+        if(string.IsNullOrWhiteSpace(companyId))return false;
+        return FinancialScopes.Sponsor(actor,companyId);
+    }
+
+    /// <summary>Load the approved restore window; caller period may only narrow it further. Archive cutoff = now − retention.</summary>
+    static (DateOnly From,DateOnly To) ApprovedRestoreWindow(DbConnection c,string entityType,string? restoreRequestId,string callerFrom,string callerTo)
+    {
+        string sql=$"""
+            SELECT period_from,period_to FROM {SchemaSql.Q(c,"archive","restore_request")}
+            WHERE status='active' AND entity_type=@e
+            {(string.IsNullOrWhiteSpace(restoreRequestId)?"":"AND id=@id")}
+            ORDER BY period_from ASC
+            """;
+        var args=new List<(string,object)>{("@e",entityType)};
+        if(!string.IsNullOrWhiteSpace(restoreRequestId))args.Add(("@id",restoreRequestId!));
+        DateOnly? approvedFrom=null,approvedTo=null;
+        using(var cmd=Store.Command(c,null,sql,args.ToArray()))
+        using(var r=cmd.ExecuteReader())
+        if(r.Read())
+        {
+            approvedFrom=DateOnly.FromDateTime(Convert.ToDateTime(r.GetValue(0),CultureInfo.InvariantCulture));
+            approvedTo=DateOnly.FromDateTime(Convert.ToDateTime(r.GetValue(1),CultureInfo.InvariantCulture));
+        }
+        J.Need(approvedFrom.HasValue&&approvedTo.HasValue,"يلزم اعتماد استعادة ساري غير منتهٍ لعرض الأرشيف.",403);
+        DateOnly from=approvedFrom!.Value,to=approvedTo!.Value;
+        if(DateOnly.TryParse(callerFrom,CultureInfo.InvariantCulture,DateTimeStyles.None,out var cf)&&cf>from)from=cf;
+        if(DateOnly.TryParse(callerTo,CultureInfo.InvariantCulture,DateTimeStyles.None,out var ct)&&ct<to)to=ct;
+        // Restore is for archived rows only (M-0632): never newer than retention cutoff.
+        DateOnly archiveLast=DateOnly.FromDateTime(DateTime.UtcNow.AddYears(-RetentionYears).AddDays(-1));
+        if(to>archiveLast)to=archiveLast;
+        J.Need(to>=from,"فترة الاستعادة خارج نافذة الاعتماد أو الأرشيف.",400);
+        return (from,to);
+    }
+
     /// <summary>Temporary read-only restore view; requires an active unexpired approval for the entity type.</summary>
     public static JsonObject RestoreView(DbConnection c,ClaimsPrincipal actor,JsonObject input)
     {
@@ -194,29 +231,34 @@ public static class ArchiveApi
         string restoreId=input.S("restoreRequestId");
         J.Need(HasActiveRestore(c,null,actor,entityType,string.IsNullOrWhiteSpace(restoreId)?null:restoreId),
             "يلزم اعتماد استعادة ساري غير منتهٍ لعرض الأرشيف.",403);
-        string from=input.S("periodFrom"),to=input.S("periodTo");
-        J.Need(DateOnly.TryParse(from,CultureInfo.InvariantCulture,DateTimeStyles.None,out var fromDate),"فترة غير صالحة.",400);
-        J.Need(DateOnly.TryParse(to,CultureInfo.InvariantCulture,DateTimeStyles.None,out var toDate),"فترة غير صالحة.",400);
+        var (fromDate,toDate)=ApprovedRestoreWindow(c,entityType,string.IsNullOrWhiteSpace(restoreId)?null:restoreId,input.S("periodFrom"),input.S("periodTo"));
         var items=new JsonArray();
         if(entityType is "chat.message" or "chat")
         {
             using var cmd=Store.Command(c,null,$"""
-                SELECT id,channel_id,body_ar,created_at FROM {SchemaSql.Q(c,"chat","message")}
-                WHERE created_at >= @f AND created_at < @t
-                ORDER BY created_at ASC
+                SELECT m.id,m.channel_id,m.body_ar,m.created_at,ch.company_id
+                FROM {SchemaSql.Q(c,"chat","message")} m
+                INNER JOIN {SchemaSql.Q(c,"chat","channel")} ch ON ch.id=m.channel_id
+                WHERE m.created_at >= @f AND m.created_at < @t
+                ORDER BY m.created_at ASC
                 """,
                 ("@f",fromDate.ToDateTime(TimeOnly.MinValue).ToString("yyyy-MM-dd HH:mm:ss.fffffff",CultureInfo.InvariantCulture)),
                 ("@t",toDate.AddDays(1).ToDateTime(TimeOnly.MinValue).ToString("yyyy-MM-dd HH:mm:ss.fffffff",CultureInfo.InvariantCulture)));
             using var r=cmd.ExecuteReader();
             while(r.Read())
+            {
+                string? company=r.IsDBNull(4)?null:r.GetValue(4) switch{Guid g=>SchemaSql.GuidText(g),_=>Convert.ToString(r.GetValue(4),CultureInfo.InvariantCulture)};
+                if(!InCompanyScope(actor,company))continue;
                 items.Add(new JsonObject
                 {
                     ["id"]=r.GetValue(0).ToString(),
                     ["channelId"]=r.GetValue(1).ToString(),
                     ["bodyAr"]=r.IsDBNull(2)?"":r.GetString(2),
                     ["createdAt"]=Convert.ToDateTime(r.GetValue(3),CultureInfo.InvariantCulture).ToString("O"),
+                    ["companyId"]=company??"",
                     ["readOnly"]=true
                 });
+            }
         }
         else if(entityType is "audit.change_log" or "audit")
         {
@@ -246,6 +288,8 @@ public static class ArchiveApi
             ["items"]=items,
             ["readOnly"]=true,
             ["entityType"]=entityType,
+            ["periodFrom"]=fromDate.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
+            ["periodTo"]=toDate.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
             ["allowedActions"]=new JsonArray("view_restore"),
             ["messageAr"]="عرض أرشيفي للقراءة فقط ضمن الاعتماد الساري."
         };
