@@ -18,6 +18,7 @@ import {
   type EvalLanguage,
 } from './evaluation-helpers';
 import { ApiError } from '../../lib/api';
+import { EvaluationSectionFlow } from './EvaluationSectionFlow';
 
 export {
   NATIONALITY_SUGGESTIONS,
@@ -614,6 +615,15 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
             {receipt}
           </div>
         </div>
+      ) : (schema as { sectionKey?: string }).sectionKey ? (
+        <EvaluationSectionFlow
+          token={token}
+          schema={schema}
+          lang={lang}
+          mode={mode}
+          sessionToken={sessionToken}
+          lockedIqama={sessionLockedIqama}
+        />
       ) : (
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {notice && (
