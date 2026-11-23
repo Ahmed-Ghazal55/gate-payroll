@@ -222,6 +222,10 @@ try {
   await adminPage.locator('[data-testid="eval-round-open-btn"]').waitFor();
   await adminPage.click('[data-testid="eval-round-open-btn"]');
   await adminPage.locator('[data-testid="eval-round-pause-btn"]').waitFor();
+  await adminPage.locator('[data-testid="eval-round-sections"]').waitFor();
+  await adminPage.locator('[data-testid="eval-round-delete-btn"]').waitFor();
+  await adminPage.locator('[data-testid="eval-section-copy"]').first().waitFor();
+  await adminPage.locator('[data-testid="eval-finance-scorecard"]').waitFor();
 
   const rounds = await (
     await adminPage.request.get(`${base}/api/forms/evaluations/rounds`)
@@ -230,8 +234,12 @@ try {
   const round = rounds[0];
   assert.equal(round.status, 'open');
   assert.equal(round.staff.length, 2, 'excluded staff not in round cards');
+  assert.ok(Array.isArray(round.sections) && round.sections.length >= 5, 'sectioned round exposes sections');
+  const ninjaSection = round.sections.find((s) => s.key === 'app:Ninja');
+  assert.ok(ninjaSection?.sharingToken, 'app:Ninja section token');
 
   // 3. Rider 1: Public Web Form (/rider-form.html?evaluation=<token>) in 3 languages on 360px phone
+  // Round-level token keeps the legacy combined two-page path.
   const phoneCtx = await browser.newContext({
     viewport: { width: 360, height: 780 },
     hasTouch: true,
@@ -315,6 +323,35 @@ try {
   await publicPage.locator('.success-symbol').waitFor();
   assert.match(await publicPage.locator('.edit-credentials').textContent(), /^[0-9a-f]{64}$/);
 
+  // 3b. Section token form shows finance card on page 2 (evaluation-section-v1)
+  const sectionPage = await phoneCtx.newPage();
+  attachWatchers(sectionPage);
+  await sectionPage.goto(
+    `${base}/rider-form.html?evaluation=${encodeURIComponent(ninjaSection.sharingToken)}`,
+    { waitUntil: 'networkidle' }
+  );
+  await sectionPage.locator('#rider-evaluation').waitFor();
+  await sectionPage.fill('#eval-iqama', '٢٠٠٠٠٠٠٨١٣');
+  await sectionPage.fill('#eval-name', 'Synthetic Section Rider');
+  await sectionPage.selectOption('#eval-city', 'Synthetic City One');
+  await sectionPage.fill('#eval-nationality', 'Synthetic Nationality Section');
+  await sectionPage.check('[name="workApps"][value="Ninja"]');
+  for (const staff of ninjaSection.staff || []) {
+    for (const dim of ['professional', 'treatment', 'support', 'responseSpeed', 'problemSolving']) {
+      const rate = sectionPage.locator(
+        `[data-staff-rate="${staff.id}"][data-dim="${dim}"][data-score="6"]`
+      );
+      if ((await rate.count()) > 0) await rate.click();
+    }
+  }
+  await sectionPage.click('#eval-next-btn');
+  await sectionPage.locator('#eval-page-2').waitFor();
+  await sectionPage.locator('#eval-finance-card').waitFor();
+  await sectionPage.click('[data-app-star="Ninja"][data-stars="3"]');
+  await sectionPage.click('[data-finance-star="4"]');
+  await sectionPage.click('#eval-submit-btn');
+  await sectionPage.locator('.success-symbol').waitFor();
+
   // 4. Rider 2: Signed-in Rider App session on /app/evaluation/?token=<token>&mode=app
   const riderAppPage = await phoneCtx.newPage();
   attachWatchers(riderAppPage);
@@ -362,7 +399,7 @@ try {
 
   const byCityText = await adminPage.locator('[data-testid="eval-chart-by-city"]').textContent();
   assert.match(byCityText, /Synthetic City One/);
-  assert.match(byCityText, /2 رد/);
+  assert.match(byCityText, /3 رد/);
 
   const byNatText = await adminPage
     .locator('[data-testid="eval-chart-by-nationality"]')
@@ -412,7 +449,7 @@ try {
   assert.deepEqual(errors, [], `Unexpected page errors: ${errors.join('; ')}`);
   assert.deepEqual(cspErrors, [], `Unexpected CSP errors: ${cspErrors.join('; ')}`);
   console.log(
-    'PASS browser-evaluations: admin staff import, round open, 3-language public form + rider app session form, 5 charts, filters, responses table, and Excel export.'
+    'PASS browser-evaluations: admin sections panel + delete, legacy + section public forms (finance card), rider app session, charts, Excel export.'
   );
 } finally {
   if (browser) await browser.close();
