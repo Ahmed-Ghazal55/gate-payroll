@@ -35,13 +35,23 @@ public static class RecurringPayees
     }
     static decimal SarOf(decimal amount,decimal rate)=>J.Money(amount*rate);
     static string PeriodDay(string period)=>J.Period(period)+"-01";
+    static string MaskBank(string details)
+    {
+        if(string.IsNullOrWhiteSpace(details))return "";
+        string t=details.Trim();
+        if(t.Length<=4)return "****";
+        return new string('*',Math.Min(12,t.Length-4))+t[^4..];
+    }
     static JsonObject LineView(JsonObject row)
     {
-        // Never surface bank details in list payloads that might be logged; return only a presence flag.
+        // Approver sees a masked destination; full bank details stay server-side / in document metadata only.
         var view=row.DeepClone().AsObject();
-        bool has=view.S("bankDetails")!="";
+        string bank=view.S("bankDetails");
+        bool has=bank!="";
         view.Remove("bankDetails");
         view["hasBankDetails"]=has;
+        view["bankDetailsMasked"]=MaskBank(bank);
+        view["bankDetails"]="";
         return view;
     }
     static JsonObject RunView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id)
@@ -82,6 +92,7 @@ public static class RecurringPayees
         string? to=string.IsNullOrWhiteSpace(input.S("activeTo"))?null:PaymentsEngine.Day(input.S("activeTo"));
         if(to!=null)J.Need(string.CompareOrdinal(to,from)>=0,"تاريخ الانتهاء قبل البداية.");
         string centre=PaymentsEngine.Id(input.S("costCentreId",SchemaOrgCostCentre.NoneId.ToString("D")));
+        PaymentsEngine.ValidateCentre(c,tx,company,centre);
         string bank=input.S("bankDetails");J.Need(bank.Length<=500,"تفاصيل التحويل أطول من الحد.");
         string id=PaymentsEngine.MoneyId();
         SchemaSql.Exec(c,tx,$"""
@@ -112,13 +123,15 @@ public static class RecurringPayees
         else
             bank=SchemaSql.Scalar(c,tx,$"SELECT bank_details FROM {Q(c,"recurring_payee")} WHERE id=@id",("@id",PaymentsEngine.Id(id)))?.ToString()??"";
         J.Need(bank.Length<=500,"تفاصيل التحويل أطول من الحد.");
+        string centre=PaymentsEngine.Id(input.S("costCentreId",existing.S("costCentreId")));
+        PaymentsEngine.ValidateCentre(c,tx,existing.S("companyId"),centre);
         int status=input.ContainsKey("status")?(int)input.N("status"):(int)existing.N("status");J.Need(status is 1 or 2,"الحالة غير صالحة.");
         SchemaSql.Exec(c,tx,$"""
             UPDATE {Q(c,"recurring_payee")} SET name_ar=@name,payee_type=@type,amount=@amount,currency_code=@cur,payment_method=@method,
             bank_details=@bank,cost_centre_id=@cc,erp_person_id=@person,active_from=@from,active_to=@to,notes=@notes,status=@status,
             updated_by=@by,updated_at={SchemaSql.NowLiteral(c)} WHERE id=@id
             """,("@name",PaymentsEngine.Text(input,"nameAr",200)),("@type",type),("@amount",amount),("@cur",currency),("@method",method),
-            ("@bank",bank),("@cc",PaymentsEngine.Id(input.S("costCentreId",existing.S("costCentreId")))),
+            ("@bank",bank),("@cc",centre),
             ("@person",PaymentsEngine.NullId(input.S("erpPersonId",existing.S("erpPersonId")))),
             ("@from",from),("@to",(object?)to??DBNull.Value),("@notes",input.S("notes",existing.S("notes"))),("@status",status),
             ("@by",Me(actor)),("@id",PaymentsEngine.Id(id)));
@@ -151,11 +164,12 @@ public static class RecurringPayees
             FROM {Q(c,"recurring_payee")} ORDER BY name_ar
             """).Where(r=>FinancialScopes.Sponsor(actor,r.S("companyId"))&&(companyId==null||r.S("companyId")==PaymentsEngine.Id(companyId))).Select(LineView);
         string? scopeCompany=companyId==null?null:PaymentsEngine.Id(companyId);
+        if(scopeCompany!=null)J.Need(FinancialScopes.Sponsor(actor,scopeCompany),"الشركة خارج نطاقك.",403);
         var centres=PaymentsEngine.Rows(c,null,$"""
             SELECT id,code,name_ar AS nameAr,kind,company_id AS companyId
             FROM {SchemaSql.Q(c,"org","cost_centre")} WHERE status=1
             ORDER BY CASE WHEN code='none' THEN 0 ELSE 1 END, name_ar
-            """).Where(r=>r.S("companyId")==""||scopeCompany==null||r.S("companyId")==scopeCompany||FinancialScopes.Sponsor(actor,r.S("companyId")));
+            """).Where(r=>r.S("companyId")==""||(FinancialScopes.Sponsor(actor,r.S("companyId"))&&(scopeCompany==null||r.S("companyId")==scopeCompany)));
         return new()
         {
             ["items"]=PaymentsEngine.Array(rows),
@@ -248,6 +262,7 @@ public static class RecurringPayees
                 decimal amount=node.ContainsKey("amount")?PaymentsEngine.Money(node,"amount"):Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"SELECT amount FROM {Q(c,"recurring_run_line")} WHERE id=@id",("@id",lineId)));
                 string currency=(node.S("currencyCode")==""?SchemaSql.Scalar(c,tx,$"SELECT currency_code FROM {Q(c,"recurring_run_line")} WHERE id=@id",("@id",lineId))!.ToString()!:node.S("currencyCode")).ToUpperInvariant();
                 decimal rate=node.ContainsKey("exchangeRate")?node.N("exchangeRate"):Convert.ToDecimal(SchemaSql.Scalar(c,tx,$"SELECT exchange_rate FROM {Q(c,"recurring_run_line")} WHERE id=@id",("@id",lineId)));
+                if(currency=="SAR")rate=1m;
                 if(!skipped)J.Need(rate>0,"سعر الصرف غير صالح.");
                 else if(rate<0)throw new ApiError("سعر الصرف غير صالح.");
                 rate=decimal.Round(rate,6,MidpointRounding.AwayFromZero);
@@ -257,6 +272,7 @@ public static class RecurringPayees
                 J.Need(fx==J.Money(fx),"فرق العملة غير صالح.");
                 decimal sar=skipped?0m:(rate>0?SarOf(amount,rate):0m);
                 if(!skipped)J.Need(sar>0,"المبلغ بالريال يجب أن يكون موجباً.");
+                if(!skipped&&currency=="SAR")J.Need(sar==amount,"مبلغ الريال غير متطابق.",409);
                 string bank=node.ContainsKey("bankDetails")?node.S("bankDetails"):SchemaSql.Scalar(c,tx,$"SELECT bank_details FROM {Q(c,"recurring_run_line")} WHERE id=@id",("@id",lineId))?.ToString()??"";
                 SchemaSql.Exec(c,tx,$"""
                     UPDATE {Q(c,"recurring_run_line")} SET amount=@amount,currency_code=@cur,exchange_rate=@rate,transfer_fee=@fee,fx_difference=@fx,
@@ -276,8 +292,10 @@ public static class RecurringPayees
                 J.Need(fee>=0&&fee==J.Money(fee),"رسوم التحويل غير صالحة.");
                 J.Need(fx==J.Money(fx),"فرق العملة غير صالح.");
                 string method=node.S("paymentMethod","other");J.Need(Methods.Contains(method),"طريقة الدفع غير صالحة.");
+                string centre=PaymentsEngine.Id(node.S("costCentreId",SchemaOrgCostCentre.NoneId.ToString("D")));
+                PaymentsEngine.ValidateCentre(c,tx,run.S("companyId"),centre);
                 InsertLine(c,tx,PaymentsEngine.Id(runId),null,name,amount,currency,rate,fee,fx,SarOf(amount,rate),method,node.S("bankDetails"),
-                    PaymentsEngine.Id(node.S("costCentreId",SchemaOrgCostCentre.NoneId.ToString("D"))),node.B("skipped"),node.S("notes"),Me(actor));
+                    centre,node.B("skipped"),node.S("notes"),Me(actor));
             }
         }
         string hash=PaymentsEngine.Hash(new JsonObject{["runId"]=runId,["at"]=DateTime.UtcNow.ToString("O")});
@@ -295,7 +313,11 @@ public static class RecurringPayees
         J.Need(active.Count>0,"لا توجد بنود للدفع.",409);
         foreach(var l in active)
         {
-            if(l.S("currencyCode")=="SAR")continue;
+            if(l.S("currencyCode")=="SAR")
+            {
+                J.Need(l.N("sarAmount")==l.N("amount")&&l.N("exchangeRate")==1m,"مبلغ الريال وسعر الصرف غير متطابقين.",409);
+                continue;
+            }
             J.Need(l.N("exchangeRate")>0&&l.N("sarAmount")>0,"حدد سعر الصرف للعملة الأجنبية قبل الإرسال.",409);
         }
         SchemaSql.Exec(c,tx,$"UPDATE {Q(c,"recurring_run")} SET status=2,submitted_by=@by,updated_by=@by,updated_at={SchemaSql.NowLiteral(c)} WHERE id=@id",("@by",Me(actor)),("@id",PaymentsEngine.Id(runId)));
@@ -310,6 +332,13 @@ public static class RecurringPayees
         J.Need((int)run.N("status")==2,"التشغيل غير مُرسل للاعتماد.",409);
         string maker=run.S("submittedBy");
         J.Need(!AccessPolicy.SamePerson(actor,maker),"لا تعتمد تشغيلاً أنشأته أنت.",403);
+        J.Need(!AccessPolicy.SamePerson(actor,run.S("createdBy")),"لا تعتمد تشغيلاً أنشأته أنت.",403);
+        var editors=PaymentsEngine.Rows(c,tx,$"SELECT created_by AS createdBy,updated_by AS updatedBy FROM {Q(c,"recurring_run_line")} WHERE run_id=@id",("@id",PaymentsEngine.Id(runId)));
+        foreach(var e in editors)
+        {
+            J.Need(!AccessPolicy.SamePerson(actor,e.S("createdBy")),"لا تعتمد تشغيلاً عدّلت بنوده.",403);
+            if(e.S("updatedBy")!="")J.Need(!AccessPolicy.SamePerson(actor,e.S("updatedBy")),"لا تعتمد تشغيلاً عدّلت بنوده.",403);
+        }
         SchemaSql.Exec(c,tx,$"UPDATE {Q(c,"recurring_run")} SET status=3,approved_by=@by,updated_by=@by,updated_at={SchemaSql.NowLiteral(c)} WHERE id=@id",("@by",Me(actor)),("@id",PaymentsEngine.Id(runId)));
         Store.Audit(c,tx,"recurring_run.approved",PaymentsEngine.Id(runId),Me(actor));
         return RunView(c,tx,actor,runId);
@@ -398,7 +427,10 @@ public static class RecurringPayees
             {
                 ["type"]="expense",["companyId"]=run.S("companyId"),["period"]=period,["occurredOn"]=paidOn,["dueOn"]=paidOn,
                 ["idempotencyKey"]="rp:"+runId+":"+line.S("id"),["reference"]="RP-"+line.S("id").Replace("-","")[..Math.Min(30,line.S("id").Replace("-","").Length)],
-                ["lines"]=built.lines,["recurringRunId"]=runId,["recurringLineId"]=line.S("id"),["payeeName"]=line.S("nameAr")
+                ["lines"]=built.lines,["recurringRunId"]=runId,["recurringLineId"]=line.S("id"),["payeeName"]=line.S("nameAr"),
+                // RWP7a3: bind beneficiary destination into document content hash for dual approval.
+                ["bankDetails"]=line.S("bankDetails"),["currencyCode"]=currency,["originalAmount"]=line.N("amount"),
+                ["exchangeRate"]=rate,["transferFee"]=fee,["paymentMethod"]=line.S("paymentMethod"),["bankAccountCode"]=bank
             };
             JsonObject doc;
             if(line.S("documentId")!="")doc=PaymentsEngine.Get(c,tx,actor,line.S("documentId"));
@@ -446,12 +478,18 @@ public static class RecurringPayees
         string centre=PaymentsEngine.Id(input.S("costCentreId",SchemaOrgCostCentre.NoneId.ToString("D")));
         var built=BuildExpenseLines(expense,feeCode,fxCode,centre,sar,fee,fx);
         string key=input.Required("idempotencyKey").Trim();J.Need(key.Length is >=8 and <=64,"مفتاح العملية مطلوب وطوله من 8 إلى 64.",400);
+        string payingBank=input.Required("bankAccountCode");
+        string bankDetails=input.S("bankDetails");J.Need(bankDetails.Length<=500,"تفاصيل التحويل أطول من الحد.");
+        PaymentsEngine.ValidateCentre(c,tx,company,centre);
         var docBody=new JsonObject
         {
             ["type"]="expense",["companyId"]=company,["period"]=period,["occurredOn"]=paidOn,["dueOn"]=paidOn,
             ["idempotencyKey"]=key,["reference"]=input.S("reference","ONEOFF-"+key[..Math.Min(8,key.Length)]),["lines"]=built.lines,
             // RWP7a2: bind signed FX into content hash (lines alone collapse 1000/−40 and 1960/−1000 to the same 960 expense).
             ["fxDifference"]=fx,
+            // RWP7a3: bind currency/amount/rate/fee/paying bank/beneficiary so same-key replay cannot change destination.
+            ["currencyCode"]=currency,["originalAmount"]=amount,["exchangeRate"]=rate,["transferFee"]=fee,
+            ["bankAccountCode"]=payingBank,["bankDetails"]=bankDetails,["paymentMethod"]=input.S("paymentMethod","other"),
             ["payeeName"]=PaymentsEngine.Text(input,"nameAr",200),["oneOff"]=true
         };
         var doc=PaymentsEngine.Create(c,tx,actor,docBody);
@@ -464,7 +502,7 @@ public static class RecurringPayees
         var reserved=PaymentsEngine.Reserve(c,tx,actor,doc.S("id"),new()
         {
             ["idempotencyKey"]="oneoff:"+key,["amount"]=built.total,["paidOn"]=paidOn,
-            ["bankAccountCode"]=input.Required("bankAccountCode"),["reference"]="ONEOFF"
+            ["bankAccountCode"]=payingBank,["reference"]="ONEOFF"
         });
         Store.Audit(c,tx,"recurring_payee.one_off",reserved.S("id"),Me(actor));
         return reserved;
