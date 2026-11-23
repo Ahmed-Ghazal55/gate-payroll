@@ -284,6 +284,7 @@ public static partial class SchemaAuditNotify
                   id {g} NOT NULL,
                   code varchar(40) NOT NULL,
                   name_ar nvarchar(200) NOT NULL,
+                  company_id {g} NULL,
                   {SchemaSql.AuditCols(c)},
                   CONSTRAINT PK_chat_channel PRIMARY KEY NONCLUSTERED (id),
                   CONSTRAINT UQ_chat_channel_code UNIQUE (code)
@@ -295,6 +296,7 @@ public static partial class SchemaAuditNotify
                   id {g} NOT NULL PRIMARY KEY,
                   code TEXT NOT NULL,
                   name_ar TEXT NOT NULL,
+                  company_id {g} NULL,
                   created_by TEXT NULL, created_at TEXT NOT NULL, updated_by TEXT NULL, updated_at TEXT NULL, row_version BLOB NULL,
                   CONSTRAINT UQ_chat_channel_code UNIQUE (code)
                 );

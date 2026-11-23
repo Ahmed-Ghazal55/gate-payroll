@@ -8,7 +8,45 @@ public static class SchemaChatExtras
     {
         SchemaSql.EnsureSchema(c,tx,"chat");
         EnsureMembership(c,tx);
+        EnsureChannelCompany(c,tx);
         EnsureMediaDurationColumn(c,tx);
+        EnsureMediaBlob(c,tx);
+    }
+
+    static void EnsureChannelCompany(DbConnection c,DbTransaction? tx)
+    {
+        if(!SchemaSql.TableExists(c,tx,"chat","channel"))return;
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,"""
+                IF COL_LENGTH(N'chat.channel',N'company_id') IS NULL
+                  ALTER TABLE chat.channel ADD company_id uniqueidentifier NULL;
+                """);
+        else if(!SqliteHasColumn(c,tx,"chat_channel","company_id"))
+            SchemaSql.Exec(c,tx,"ALTER TABLE chat_channel ADD COLUMN company_id TEXT NULL;");
+        SchemaSql.CreateIndexIfMissing(c,tx,"chat","channel","IX_chat_channel_company_id","company_id");
+    }
+
+    static void EnsureMediaBlob(DbConnection c,DbTransaction? tx)
+    {
+        if(!SchemaSql.TableExists(c,tx,"chat","message"))return;
+        if(SchemaSql.IsSql(c))
+        {
+            SchemaSql.Exec(c,tx,"""
+                IF COL_LENGTH(N'chat.message',N'media_blob') IS NULL
+                  ALTER TABLE chat.message ADD media_blob varbinary(max) NULL;
+                """);
+            SchemaSql.Exec(c,tx,"""
+                IF COL_LENGTH(N'chat.message',N'media_content_type') IS NULL
+                  ALTER TABLE chat.message ADD media_content_type varchar(80) NULL;
+                """);
+        }
+        else
+        {
+            if(!SqliteHasColumn(c,tx,"chat_message","media_blob"))
+                SchemaSql.Exec(c,tx,"ALTER TABLE chat_message ADD COLUMN media_blob BLOB NULL;");
+            if(!SqliteHasColumn(c,tx,"chat_message","media_content_type"))
+                SchemaSql.Exec(c,tx,"ALTER TABLE chat_message ADD COLUMN media_content_type TEXT NULL;");
+        }
     }
 
     static void EnsureMembership(DbConnection c,DbTransaction? tx)
