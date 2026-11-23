@@ -71,6 +71,9 @@ public static class UserAccess
         new("accounting.chart.edit", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "تعديل حساب في الدليل", "تعديل الاسم وأعلام الترحيل؛ لا حذف ولا تغيير رمز عليه ترحيل."),
         new("accounting.chart.deactivate", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "إيقاف أو تفعيل حساب", "إيقاف حساب مستخدم يحتاج شخصاً ثانياً؛ لا حذف نهائي."),
         new("treasury.transfer", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "التحويل المالي بين الصناديق والبنوك", "إنشاء قيود التحويل والتمويل بين الصندوق الداخلي الرئيسي وحسابات البنوك."),
+        new("treasury.bank_reconcile", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "رفع ومطابقة كشوف البنوك", "رفع ملف الكشف والمطابقة الآلية وطلب تسوية بنكية معتمدة قبل الترحيل."),
+        new("treasury.vault_reconcile", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "جرد الخزن واعتماد الزيادة والعجز", "إنشاء جرد خزنة وتقديمه واعتماد قيود الزيادة 422202 أو العجز 542102 بمراجع مستقل."),
+        new("treasury.balances.by_registration", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "أرصدة الخزينة حسب السجل التجاري", "عرض شجرة الأرصدة مجمّعة أو مفصّلة حسب السجل التجاري."),
         new("treasury.jahez.manage", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "إدارة صندوق كاش جاهز ورسوم فتح الحسابات", "تحصيل كاش تطبيق جاهز وقبض رسوم فتح حسابات جاهز (200 ر.س) في عهدة المشرف."),
         new("treasury.jahez.handover", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "تسليم وتصفير عهدة صندوق جاهز للصندوق الداخلي", "ترحيل وتصفير رصيد خزنة جاهز الميدانية (SUP.*) في نهاية اليوم إلى الصندوق الداخلي الرئيسي (MAIN.*)."),
 
@@ -150,7 +153,7 @@ public static class UserAccess
                 "operations.view", "riders.view", "riders.view_360", "riders.iban.view",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
                 "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
-                "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
+                "treasury.view", "treasury.transfer", "treasury.bank_reconcile", "treasury.vault_reconcile", "treasury.balances.by_registration", "treasury.jahez.manage", "treasury.jahez.handover",
                 "accounting.chart.view", "accounting.chart.create", "accounting.chart.edit",
                 "approvals.view", "mobile.broadcast", "payroll.view"
             ]),
@@ -162,7 +165,7 @@ public static class UserAccess
                 "operations.view", "riders.view", "riders.view_360", "riders.iban.view",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
                 "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
-                "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
+                "treasury.view", "treasury.transfer", "treasury.bank_reconcile", "treasury.vault_reconcile", "treasury.balances.by_registration", "treasury.jahez.manage", "treasury.jahez.handover",
                 "accounting.chart.view", "accounting.chart.create", "accounting.chart.edit", "accounting.chart.deactivate",
                 "approvals.view", "approvals.decide", "mobile.broadcast", "payroll.view"
             ]),

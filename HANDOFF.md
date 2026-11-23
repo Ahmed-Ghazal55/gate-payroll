@@ -2,14 +2,14 @@
 
 | Field | Value |
 |---|---|
-| Current writer | none |
-| Branch | `chore/s1-remove-sync-hangfire` |
-| Updated | 2026-11-19 by Cursor (S1F fix round done, not pushed) |
-| Live | unchanged (no push/deploy) |
-| Next | Planner/Ghazal review S1+S1F; do **not** drop live Hangfire tables until Ghazal says yes |
+| Current writer | Cursor 2026-11-23 13:44 |
+| Branch | `trial/local-2026-11-23` |
+| Updated | 2026-11-23 by Cursor (TRIAL1 integration merges) |
+| Live | unchanged (no push/deploy; local trial only) |
+| Next | Merge remaining W2/W3 into trial branch; regenerate contracts; sqltest |
 
 ## Goal now
-S1F review fixes on the S1 branch: pay-file imports page back, ImportPlan tests restored, role-editor/sync-baseline cleanup.
+TRIAL1: local integration of W2/W3 branches for Ghazal to try invoices, pay cycle, balances. Never push / never main / never live DB.
 
 ## Done (S1F)
 - HIGH: `web/src/app/imports/page.tsx` catalog uploads; sidebar «استيراد الملفات»; payroll `import_operations` → `/app/imports`.

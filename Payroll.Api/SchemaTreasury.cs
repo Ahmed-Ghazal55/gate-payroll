@@ -27,6 +27,8 @@ public static class SchemaTreasury
             SchemaMoneyGuard.Retain(c,tx,"treasury",table,"o.code=NEW.code");
             SchemaSql.EnsureRowVersion(c,tx,"treasury",table);
             foreach(string column in new[]{"company_id","registration_id","account_id"})SchemaSql.CreateIndexIfMissing(c,tx,"treasury",table,$"IX_{table}_{column}",column);
+            // One active master per chart account per company — prevents duplicate period_balance display.
+            SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"treasury",table,$"UQ_treasury_{table}_account","company_id,account_id","status=1");
         }
         string bank=SchemaSql.Q(c,"treasury","bank_account"),statement=SchemaSql.Q(c,"treasury","bank_statement"),line=SchemaSql.Q(c,"treasury","bank_statement_line");
         SchemaSql.EnsureTable(c,tx,"treasury","bank_statement",$"""

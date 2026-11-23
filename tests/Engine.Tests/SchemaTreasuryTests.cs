@@ -15,7 +15,16 @@ public sealed class SchemaTreasuryTests
     }
     internal static string Account(DbConnection c,string company,string registration,string table="bank_account")
     {
-        string id=MoneySchemaFixture.Id(),chart=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_account WHERE is_postable=1 AND account_type=1")!;
+        // One active master per company+chart account (UQ_treasury_*_account) — pick an unused type-1 account.
+        string id=MoneySchemaFixture.Id();
+        object? chartObj=MoneySchemaFixture.Scalar(c,null,$"""
+            SELECT a.id FROM fin_account a
+            WHERE a.is_postable=1 AND a.account_type=1
+              AND NOT EXISTS(SELECT 1 FROM treasury_{table} t WHERE t.company_id=@c AND t.account_id=a.id AND t.status=1)
+            ORDER BY a.code LIMIT 1
+            """,("@c",company));
+        Assert.IsNotNull(chartObj,"no free postable type-1 account for treasury master");
+        string chart=chartObj switch{Guid g=>SchemaSql.GuidText(g),_=>Convert.ToString(chartObj,System.Globalization.CultureInfo.InvariantCulture)!};
         MoneySchemaFixture.Exec(c,null,$"INSERT INTO treasury_{table}(id,company_id,registration_id,code,name_ar,account_id) VALUES(@id,@c,@r,@id,'Synthetic treasury account',@a)",("@id",id),("@c",company),("@r",registration),("@a",chart));return id;
     }
     internal static string Statement(DbConnection c,string company,string registration,string bank)
@@ -119,7 +128,9 @@ public sealed class SchemaTreasuryTests
     {
         using var c=Open(sqlServer);
         string company=MoneySchemaFixture.Company(c),registration=Registration(c,company),box=Account(c,company,registration,"cash_box");
-        string otherAcc=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_account WHERE is_postable=1 AND code NOT IN ('542102','422202') AND id<>(SELECT account_id FROM treasury_cash_box WHERE id=@b) ORDER BY code LIMIT 1",("@b",box))!;
+        // Fixed non-cash CoA row so later cash_box masters (unique per account) cannot steal this id.
+        string otherAcc=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_account WHERE code='212103'")!;
+        Assert.IsNotNull(otherAcc,"missing CoA 212103 for foreign-line rejection case");
         string zeroNetCount=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,null,"INSERT INTO treasury_vault_count(id,cash_box_id,company_id,registration_id,period_month,counted_on,book_balance,counted_amount) VALUES(@id,@b,@c,@r,'2026-11-01','2026-11-20',100,99)",("@id",zeroNetCount),("@b",box),("@c",company),("@r",registration));
         MoneySchemaFixture.Exec(c,null,"UPDATE treasury_vault_count SET status=2 WHERE id=@id",("@id",zeroNetCount));
