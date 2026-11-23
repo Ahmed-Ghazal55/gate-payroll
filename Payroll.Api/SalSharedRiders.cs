@@ -64,9 +64,18 @@ public static class SalSharedRiders
     /// When every app is received, consolidate (§40.5) and clear the hold.</summary>
     public static void OpenHold(DbConnection c,DbTransaction tx,string erpRider,string periodMonth,IEnumerable<string> apps,string calculatingApp)
     {
-        object? cleared=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'",
+        object? clearedHold=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='cleared'",
             ("@erp",erpRider),("@pm",periodMonth));
-        if(cleared is not null and not DBNull)return; // consolidation or exception release already decided
+        if(clearedHold is not null and not DBNull)
+        {
+            // RWC4a3 H11: consolidated hold — refresh combined_net from live rider nets after recalc.
+            long pendingAfter=Convert.ToInt64(SchemaSql.Scalar(c,tx,$"SELECT COUNT(*) FROM {SchemaSql.Q(c,"sal","shared_rider_hold_app")} WHERE hold_id=@h AND received=0",("@h",clearedHold.ToString()!))??0L);
+            if(pendingAfter==0)
+            {
+                ConsolidateIfComplete(c,tx,clearedHold.ToString()!,erpRider,periodMonth);
+                return;
+            }
+        }
         object? existing=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"sal","shared_rider_hold")} WHERE erp_rider_id=@erp AND period_month=@pm AND status='open'",
             ("@erp",erpRider),("@pm",periodMonth));
         string holdId;
