@@ -132,6 +132,49 @@ public sealed class StaffChatApiTests
     }
 
     [TestMethod]
+    public void Attachment_RejectsWavHeaderDurationLie_AgainstFileLength()
+    {
+        WithStore(store=>
+        {
+            string company=FinancialCore.Sponsors[0].Id;
+            store.Write((c,tx)=>
+            {
+                Store.Save(c,"user",UserAccess.Create("voicelie","Password!23456","Admin"),tx);
+                return true;
+            });
+            var admin=UserAccess.Principal(store.Read(c=>Store.List(c,"user").First(u=>u.S("username")=="voicelie")));
+            var channel=store.Write((c,tx)=>StaffChatApi.CreateChannel(c,tx,admin,new()
+            {
+                ["code"]="voice-lie",["nameAr"]="صوت",["companyId"]=company
+            }));
+            // 2 MiB WAV whose RIFF header claims 1 second (dataSize=1 at 1 byte/sec) — must be rejected.
+            byte[] lie=new byte[2*1024*1024];
+            Buffer.BlockCopy(System.Text.Encoding.ASCII.GetBytes("RIFF"),0,lie,0,4);
+            BitConverter.TryWriteBytes(lie.AsSpan(4),lie.Length-8);
+            Buffer.BlockCopy(System.Text.Encoding.ASCII.GetBytes("WAVEfmt "),0,lie,8,8);
+            BitConverter.TryWriteBytes(lie.AsSpan(16),16);
+            BitConverter.TryWriteBytes(lie.AsSpan(20),(short)1);
+            BitConverter.TryWriteBytes(lie.AsSpan(22),(short)1);
+            BitConverter.TryWriteBytes(lie.AsSpan(24),1);
+            BitConverter.TryWriteBytes(lie.AsSpan(28),1); // byte rate 1
+            BitConverter.TryWriteBytes(lie.AsSpan(32),(short)1);
+            BitConverter.TryWriteBytes(lie.AsSpan(34),(short)8);
+            Buffer.BlockCopy(System.Text.Encoding.ASCII.GetBytes("data"),0,lie,36,4);
+            BitConverter.TryWriteBytes(lie.AsSpan(40),1); // header claims 1 byte ≈ 1 second
+            Assert.AreEqual(1,BitConverter.ToInt32(lie,40));
+            Assert.AreEqual(2097152,lie.Length);
+            Assert.AreEqual(400,Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>StaffChatApi.PostAttachment(c,tx,admin,channel.S("id"),new()
+            {
+                ["mediaKind"]="voice",
+                ["mediaName"]="lie.wav",
+                ["mediaDurationSeconds"]=1,
+                ["mediaBase64"]=Convert.ToBase64String(lie)
+            }))).Status);
+            Assert.AreEqual(0L,store.Read(c=>Convert.ToInt64(SchemaSql.Scalar(c,null,$"SELECT COUNT(1) FROM {SchemaSql.Q(c,"chat","message")} WHERE media_kind='voice'")!)));
+        });
+    }
+
+    [TestMethod]
     public void Attachment_RejectsClientSizeLie_StoresExactServerBytes()
     {
         WithStore(store=>

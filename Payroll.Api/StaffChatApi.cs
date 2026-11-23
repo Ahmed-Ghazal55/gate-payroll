@@ -296,13 +296,15 @@ public static class StaffChatApi
 
     static int? MeasureVoiceSeconds(byte[] data)
     {
-        // Server-side WAV duration from header (sampleRate × channels × bits).
+        // Server-side WAV duration: header byte-rate × payload. Payload size must match the file (no client/header lie).
         if(data.Length<44||Encoding.ASCII.GetString(data,0,4)!="RIFF"||Encoding.ASCII.GetString(data,8,4)!="WAVE")
             return null;
         int byteRate=BitConverter.ToInt32(data,28);
         int dataSize=BitConverter.ToInt32(data,40);
-        if(byteRate<=0||dataSize<=0)return null;
-        return (int)Math.Ceiling(dataSize/(double)byteRate);
+        int actualPayload=data.Length-44;
+        if(byteRate<=0||dataSize<=0||actualPayload<=0)return null;
+        if(dataSize!=actualPayload)return null;
+        return (int)Math.Ceiling(actualPayload/(double)byteRate);
     }
 
     static bool ColumnReady(DbConnection c,DbTransaction? tx)
