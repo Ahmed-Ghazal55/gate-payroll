@@ -43,7 +43,7 @@ public static class OrgDirectory
     public static JsonObject DemandResponsible(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string operation,JsonObject? record=null)
     {
         var match=Responsible(c,tx,operation).FirstOrDefault(r=>r.S("userId")==actor.Identity?.Name);
-        if(match==null&&AccessPolicy.Independent(actor,actor.Identity?.Name??"",operation+".routing",c,tx,record))return new(){["userId"]=actor.Identity!.Name,["via"]="approval_exception",["selfApprovedException"]=true};
+        if(match==null&&AccessPolicy.Independent(actor,actor.Identity?.Name??"",operation+".routing",c,tx,record,scope:AccessPolicy.ScopePayApprovals))return new(){["userId"]=actor.Identity!.Name,["via"]="approval_exception",["selfApprovedException"]=true};
         return match??throw new ApiError("لست المسؤول المكلّف بهذه العملية؛ الصلاحية وحدها لا تكفي (BR §25.1).",403);
     }
     public static bool Supervises(DbConnection c,DbTransaction? tx,string supervisor,string iqama,DateTimeOffset? at=null)=>

@@ -10,6 +10,9 @@ public static class SchemaDebt
     public static void Ensure(DbConnection c,DbTransaction? tx=null)
     {
         string g=SchemaSql.GuidType(c),m=SchemaSql.Decimal(c),d=SchemaSql.Q(c,"debt","debt"),mov=SchemaSql.Q(c,"debt","debt_movement"),company=SchemaSql.Q(c,"hr","company");
+        // pay_run_item.debt_id is referenced by movement source guards (RWC4b H12).
+        SchemaSalPayRun.Ensure(c,tx);
+        EnsurePayRunItemDebtColumn(c,tx);
         SchemaSql.EnsureTable(c,tx,"debt","debt",$"""
             id {g} NOT NULL, erp_rider_id {g} NOT NULL, company_id {g} NOT NULL,
             category {SchemaSql.Varchar(c,40)} NOT NULL, principal {m} NOT NULL CHECK(principal>=0),
@@ -30,7 +33,7 @@ public static class SchemaDebt
             {SchemaSql.MoneyAuditCols(c)}, CONSTRAINT PK_debt_movement {SchemaSql.PrimaryKey(c)}(id),
             CONSTRAINT UQ_debt_mov_source UNIQUE(source_type,source_id),
             CONSTRAINT CK_debt_mov_month CHECK({SchemaSql.MonthCheck(c)} AND {DateInMonth(c,"occurred_on")}),
-            CONSTRAINT CK_debt_mov_salary CHECK(source_type NOT IN ('salary_deduction','carryover_112507') OR pay_run_rider_id IS NOT NULL),
+            CONSTRAINT CK_debt_mov_salary CHECK(source_type NOT IN ('salary_deduction','carryover_112507','pay_item_debt_settle') OR pay_run_rider_id IS NOT NULL),
             CONSTRAINT CK_debt_mov_salary_month CHECK((pay_run_rider_id IS NULL AND pay_run_period_month IS NULL) OR (pay_run_rider_id IS NOT NULL AND pay_run_period_month IS NOT NULL)),
             CONSTRAINT CK_debt_mov_disbursement CHECK(source_type<>'new_disbursement' OR payment_id IS NOT NULL),
             CONSTRAINT FK_debt_mov_debt FOREIGN KEY(debt_id,company_id) REFERENCES {d}(id,company_id) ON DELETE NO ACTION,
@@ -120,13 +123,21 @@ public static class SchemaDebt
     static void EnsureMovementRules(DbConnection c,DbTransaction? tx)
     {
         string d=SchemaSql.Q(c,"debt","debt"),r=SchemaSql.Q(c,"sal","pay_run_rider"),run=SchemaSql.Q(c,"sal","pay_run"),p=SchemaSql.Q(c,"pay","payment"),j=SchemaSql.Q(c,"fin","journal");
+        string hold=SchemaSql.Q(c,"sal","shared_rider_hold"),mov=SchemaSql.Q(c,"debt","debt_movement");
+        // RWC4m H11: carryover may equal −salary_net (single app) or the remaining combined shortfall on a cleared multi-app hold.
         SchemaMoneyGuard.Rule(c,tx,"debt","debt_movement","TR_debt_movement_source",n=>$"""
             NOT EXISTS(SELECT 1 FROM {d} d WHERE d.id={n}.debt_id AND d.status='open')
             OR ({n}.journal_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM {j} j WHERE j.id={n}.journal_id AND j.company_id={n}.company_id AND j.period_month={n}.period_month AND j.run_mode=0 AND j.status=2))
             OR ({n}.pay_run_rider_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM {r} r JOIN {run} pr ON pr.id=r.pay_run_id JOIN {d} d ON d.id={n}.debt_id
               WHERE r.id={n}.pay_run_rider_id AND r.company_id={n}.company_id AND r.erp_rider_id=d.erp_rider_id AND pr.run_mode=0
               AND (({n}.source_type='salary_deduction' AND {n}.amount<0 AND r.salary_approved_at IS NULL AND r.debt_confirm_status='confirmed' AND -{n}.amount<=r.old_debt_instalment AND -{n}.amount<=r.salary_net)
-                OR ({n}.source_type='carryover_112507' AND {n}.amount>0 AND r.salary_approved_at IS NOT NULL AND r.keeta_ineligible=0 AND r.salary_net<0 AND {n}.amount=-r.salary_net))))
+                OR ({n}.source_type='pay_item_debt_settle' AND {n}.amount<0 AND r.salary_approved_at IS NULL
+                  AND EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"sal","pay_run_item")} i WHERE i.pay_run_rider_id=r.id AND i.debt_id={n}.debt_id AND i.amount>0 AND i.amount=-{n}.amount AND i.affects_net=1 AND i.item_code<>'old_debt_instalment'))
+                OR ({n}.source_type='carryover_112507' AND {n}.amount>0 AND r.salary_approved_at IS NOT NULL AND r.protected_salary=0 AND r.salary_net<0 AND {n}.amount<=-r.salary_net AND (
+                  {n}.amount=-r.salary_net
+                  OR EXISTS(SELECT 1 FROM {hold} h WHERE h.erp_rider_id=r.erp_rider_id AND h.period_month=r.period_month AND h.status='cleared' AND h.combined_net<0
+                    AND {n}.amount+COALESCE((SELECT SUM(m.amount) FROM {mov} m INNER JOIN {r} ox ON ox.id=m.pay_run_rider_id
+                      WHERE m.source_type='carryover_112507' AND m.pay_run_period_month=r.period_month AND ox.erp_rider_id=r.erp_rider_id AND m.pay_run_rider_id<>{n}.pay_run_rider_id),0)=-h.combined_net))))))
             OR ({n}.source_type='new_disbursement' AND ({n}.amount<=0 OR NOT EXISTS(SELECT 1 FROM {p} p WHERE p.id={n}.payment_id AND p.company_id={n}.company_id AND p.status=2 AND p.run_mode=0 AND p.payout_blocked=0 AND p.amount={n}.amount)))
             """);
         foreach(var (kind,table,sign) in new[]{("collection","collection",-1),("waiver","waiver",-1),("new_disbursement","disbursement",1)})
@@ -147,6 +158,19 @@ public static class SchemaDebt
             SchemaSql.Exec(c,tx,$"CREATE OR ALTER TRIGGER debt.TR_debt_movement_balance ON {mov} AFTER INSERT AS BEGIN SET NOCOUNT ON; UPDATE d SET balance=s.total FROM {d} d CROSS APPLY(SELECT COALESCE(SUM(amount),0) total FROM {mov} m WHERE m.debt_id=d.id) s WHERE d.id IN(SELECT debt_id FROM inserted); IF EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r WHERE r.id IN(SELECT pay_run_rider_id FROM inserted) AND ({overCap})) THROW 51040,'Debt deductions exceed net or instalment',1; END;");
         else
             SchemaSql.SqliteTrigger(c,tx,$"CREATE TRIGGER TR_debt_movement_balance AFTER INSERT ON {mov} BEGIN UPDATE {d} SET balance=round((SELECT SUM(amount) FROM {mov} WHERE debt_id=NEW.debt_id),2) WHERE id=NEW.debt_id; SELECT RAISE(ABORT,'Debt deductions exceed net or instalment') WHERE EXISTS(SELECT 1 FROM {SchemaSql.Q(c,"sal","pay_run_rider")} r WHERE r.id=NEW.pay_run_rider_id AND ({overCap})); END;");
+    }
+
+    static void EnsurePayRunItemDebtColumn(DbConnection c,DbTransaction? tx)
+    {
+        string t=SchemaSql.Q(c,"sal","pay_run_item");
+        if(!SchemaSql.TableExists(c,tx,"sal","pay_run_item"))return;
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"IF COL_LENGTH(N'sal.pay_run_item',N'debt_id') IS NULL ALTER TABLE {t} ADD debt_id {SchemaSql.GuidType(c)} NULL;");
+        else
+        {
+            object? has=SchemaSql.Scalar(c,tx,"SELECT 1 FROM pragma_table_info('sal_pay_run_item') WHERE name='debt_id'");
+            if(has is null or DBNull)SchemaSql.Exec(c,tx,$"ALTER TABLE {t} ADD COLUMN debt_id TEXT NULL;");
+        }
     }
 
     /// <summary>Call inside the journal+movement transaction BEFORE INSERT. Compare row_version in any metadata UPDATE.

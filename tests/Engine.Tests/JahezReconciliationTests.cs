@@ -89,7 +89,7 @@ public sealed class JahezReconciliationTests
         f.Store.Write((c,tx)=>JahezReconciliation.Submit(c,tx,creator,same.S("id")));
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,creator,same.S("id")))).Status);
         string day=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd");
-        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="synthetic-jahez-creator-user",["username"]="synthetic-jahez-creator",["role"]="Accountant"},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-jahez-creator",["from"]=day,["to"]=day,["reason"]="§35 grant for Jahez self-approve test"});return true;});
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="synthetic-jahez-creator-user",["username"]="synthetic-jahez-creator",["role"]="Accountant"},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-jahez-creator",["from"]=day,["to"]=day,["reason"]="§35 grant for Jahez self-approve test",["scope"]=AccessPolicy.ScopeInvoiceApprovals});return true;});
         Assert.AreEqual("approved",f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,creator,same.S("id"))).S("status"));
     }
     [TestMethod]

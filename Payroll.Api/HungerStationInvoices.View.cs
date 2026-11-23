@@ -8,7 +8,7 @@ public static partial class HungerStationInvoices
     public static JsonObject InvoiceView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject invoice)
     {
         var result=invoice.Clone();var actions=new JsonArray();var blockers=new JsonArray();
-        bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopeInvoiceApprovals);
         bool manage=AccessPolicy.Has(actor,"platforms.hs.manage"),approve=AccessPolicy.Has(actor,"platforms.hs.approve");
         bool independent=AccessPolicy.IndependentForView(actor,invoice.S("createdBy"),bypass);
         string status=invoice.S("status"),approval=invoice.S("approvalStatus","pending");
@@ -25,7 +25,7 @@ public static partial class HungerStationInvoices
     public static JsonObject AllocationView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject allocation)
     {
         var result=allocation.Clone();var actions=new JsonArray();var blockers=new JsonArray();
-        bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopeInvoiceApprovals);
         if(allocation.S("status")=="pending")
         {
             if(!AccessPolicy.Has(actor,"platforms.hs.approve"))blockers.Add("صلاحية اعتماد توزيع هنقرستيشن مطلوبة.");
@@ -37,7 +37,7 @@ public static partial class HungerStationInvoices
     public static JsonObject DisputeView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject dispute)
     {
         var result=dispute.Clone();var actions=new JsonArray();var blockers=new JsonArray();
-        bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopeInvoiceApprovals);
         if(dispute.S("status") is "open" or "escalated")
         {
             if(!AccessPolicy.Has(actor,"platforms.hs.approve"))blockers.Add("صلاحية حسم اعتراض هنقرستيشن مطلوبة.");

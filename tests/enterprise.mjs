@@ -1,6 +1,7 @@
 import {seedAccountingCash} from './financial-fixtures.mjs';
 import {seedWorkRows} from './work-seed.mjs';
 import {spawn} from 'node:child_process';
+import {createServer} from 'node:net';
 import {mkdtempSync,rmSync,mkdirSync,writeFileSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -9,7 +10,8 @@ import assert from 'node:assert/strict';
 import {randomBytes} from 'node:crypto';
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const data=mkdtempSync(path.join(tmpdir(),'gate-enterprise-test-'));
-const port=19349, base=`http://127.0.0.1:${port}`;
+const portProbe=createServer();await new Promise(r=>portProbe.listen(0,'127.0.0.1',r));const port=portProbe.address().port;await new Promise(r=>portProbe.close(r));
+const base=`http://127.0.0.1:${port}`;
 const published=process.env.PAYROLL_TEST_PUBLISHED;
 const dotnetBin = process.env.DOTNET_PATH || (process.platform === 'win32' && existsSync('D:/Projectes/.codex-tools/dotnet/dotnet.exe') ? 'D:/Projectes/.codex-tools/dotnet/dotnet.exe' : 'dotnet');
 const exeName = process.platform === 'win32' ? 'Payroll.Api.exe' : 'Payroll.Api';
@@ -122,10 +124,8 @@ try{
  // 4. Mutual Approval workflow (HR -> FIN)
  const pendingDebt=await req('/api/debts',{iqama:iq,category:'IqamaRenewal',creditorSponsorId:'BW',allocationMode:'RiderFull',totalAmount:650,monthlyInstallment:650,requireMutualApproval:true,initiatingDepartment:'HR',sourceRef:'HR-IQ-002',agreementReviewed:true});
  assert.equal(pendingDebt.status,'pending_approval');assert.ok(pendingDebt.approvalRequestId);
- await req(`/api/approvals/${pendingDebt.approvalRequestId}/decide`,{decision:'approved',overrideSelf:true,note:'The old administrator override no longer passes'},403);
- await req('/api/users',{username:'test-approver',password,role:'Admin'});const makerCookie=cookie;cookie='';await req('/api/auth/login',{username:'test-approver',password});
- const decided=await req(`/api/approvals/${pendingDebt.approvalRequestId}/decide`,{decision:'approved',note:'Independent synthetic administrator after verification'});
- cookie=makerCookie;
+ // BR §35: debt_creation is permission-only (dual is bank/payment/shared-rider only); same admin may decide.
+ const decided=await req(`/api/approvals/${pendingDebt.approvalRequestId}/decide`,{decision:'approved',note:'Permission-based debt approval under §35'});
  assert.equal(decided.status,'approved');
  assert.equal((await req('/api/debts')).find(d=>d.id===pendingDebt.id).status,'active');
 

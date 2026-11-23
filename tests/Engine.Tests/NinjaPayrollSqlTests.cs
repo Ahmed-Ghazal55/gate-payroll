@@ -95,8 +95,8 @@ public sealed class NinjaPayrollSqlTests
             invoice=(await Request(checker,invoicePath)).AsObject();Assert.AreEqual(cycle.S("journalEntryId"),invoice.S("journalEntryId"),"Invoice must link to its payroll posting.");
             var replay=await Upload(preview);Assert.AreEqual(invoiceId,replay.S("id"));await Request(checker,cyclePath+"/advance",new(){["stage"]=7});await Request(maker,"/api/pay/cycles",cycleInput,400);Assert.AreEqual(1,store.Read(c=>Store.List(c,"journal").Count));
             await Request(maker,cyclePath+"/advance",new(){["action"]="reversal_request",["period"]="2026-11",["note"]="Synthetic correction"});
-            await Request(maker,cyclePath+"/advance",new(){["action"]="reversal_approve"},403);
-            var reversed=(await Request(checker,cyclePath+"/advance",new(){["action"]="reversal_approve"})).AsObject();Assert.AreEqual("reversed",reversed.S("status"));Assert.AreEqual(2,store.Read(c=>Store.List(c,"journal").Count));Assert.AreEqual(journalBody,store.Read(c=>Store.Get(c,journals[0].S("id"),"journal")!.ToJsonString()));
+            // BR §35: pay.approve / cycle reversal is permission-only — requester may approve.
+            var reversed=(await Request(maker,cyclePath+"/advance",new(){["action"]="reversal_approve"})).AsObject();Assert.AreEqual("reversed",reversed.S("status"));Assert.AreEqual(2,store.Read(c=>Store.List(c,"journal").Count));Assert.AreEqual(journalBody,store.Read(c=>Store.Get(c,journals[0].S("id"),"journal")!.ToJsonString()));
             var reversedInvoice=(await Request(checker,invoicePath)).AsObject();Assert.AreEqual("reversed",reversedInvoice.S("accountingStatus"));Assert.AreNotEqual("",reversedInvoice.S("reversalJournalEntryId"));
             var afterStatement=(await Request(checker,"/api/finance/statement/rider/"+rider+"/monthly?period=2026-10")).AsObject();Assert.AreEqual(0m,afterStatement.N("net"));
             Console.WriteLine("R8 SQL HTTP: invoice, classification, independent approval, dispute, D3, draft, 7 stages, lines, statement, one posting, replay and reversal passed.");

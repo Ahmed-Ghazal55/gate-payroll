@@ -91,7 +91,7 @@ public sealed class AllowedActionsViewTests
         var recvView=f.Store.Read(c=>JahezHandovers.View(c,null,receiver,request));
         Assert.IsTrue(recvView["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));
         Assert.IsTrue(recvView["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="reject"));
-        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="u-jh",["username"]="synthetic-handover-maker",["role"]="FinancialAccountant"},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-handover-maker",["from"]=Day(0),["to"]=Day(1),["reason"]="§35 jahez view"});return true;});
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="u-jh",["username"]="synthetic-handover-maker",["role"]="FinancialAccountant"},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-handover-maker",["from"]=Day(0),["to"]=Day(1),["reason"]="§35 jahez view",["scope"]=AccessPolicy.ScopeInvoiceApprovals});return true;});
         var bypassView=f.Store.Read(c=>JahezHandovers.View(c,null,maker,request));
         Assert.IsTrue(bypassView["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));
     }

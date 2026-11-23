@@ -75,11 +75,10 @@ public sealed class SchemaOperationCaptureTests
     [DataRow(true)]
     public void CatalogueIsExhaustiveAndIdempotentWithGuidV7Keys(bool sqlServer)
     {
-        using var c=Open(sqlServer);Assert.AreEqual(40L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM fin_operation_required_kind"));
-        SchemaOperationCapture.Ensure(c);Assert.AreEqual(40L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM fin_operation_required_kind"));
-        foreach(var (app,count) in new[]{("ninja",8L),("keeta",8L),("hs",9L),("amazon",8L)})
+        using var c=Open(sqlServer);Assert.AreEqual(57L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM fin_operation_required_kind"));
+        SchemaOperationCapture.Ensure(c);Assert.AreEqual(57L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM fin_operation_required_kind"));
+        foreach(var (app,count) in new[]{("ninja",9L),("keeta",8L),("hs",9L),("amazon",8L),("chefz",8L),("jahez",8L)})
             Assert.AreEqual(count,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM fin_operation_required_kind WHERE operation_type='pay_run' AND app_code=@app",("@app",app)));
-        Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM fin_operation_required_kind WHERE operation_type='pay_run' AND app_code='chefz'"));
         using var cmd=MoneySchemaFixture.Command(c,null,"SELECT id FROM fin_operation_required_kind");using var reader=cmd.ExecuteReader();
         while(reader.Read())Assert.AreEqual(7,Guid.Parse(Convert.ToString(reader.GetValue(0))!).Version);
     }
@@ -139,7 +138,7 @@ public sealed class SchemaOperationCaptureTests
         MoneySchemaFixture.Reject(()=>Link(c,run,Snapshot(c,company,"fuel")),"Frozen operation evidence cannot change");
         MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET capture_state=2 WHERE id=@id",("@id",run));
         MoneySchemaFixture.Reject(()=>MoneySchemaFixture.Exec(c,null,"UPDATE sal_pay_run SET capture_state=1 WHERE id=@id",("@id",run)),"Frozen run cannot reopen or change capture scope");
-        SchemaOperationCapture.Ensure(c);Assert.AreEqual(8L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM fin_operation_capture_manifest WHERE operation_id=@id",("@id",run)));
+        SchemaOperationCapture.Ensure(c);Assert.AreEqual(9L,MoneySchemaFixture.Scalar(c,null,"SELECT COUNT(*) FROM fin_operation_capture_manifest WHERE operation_id=@id",("@id",run)));
     }
 
     [TestMethod]

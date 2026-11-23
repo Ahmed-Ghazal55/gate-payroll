@@ -74,7 +74,7 @@ public static partial class PayCycles
     public static JsonObject DebtDeductionsView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id)
     {
         var cycle=Store.Get(c,id,Kind,tx)??throw new ApiError("الدورة غير موجودة.",404);Scope(actor,cycle,"pay.view");var rows=new JsonArray();
-        bool bypass=AccessPolicy.BypassForView(c,tx,actor);var root=new JsonArray();int pendingConfirm=0;
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopePayApprovals);var root=new JsonArray();int pendingConfirm=0;
         foreach(var row in Rows(cycle["riders"]).OfType<JsonObject>())
         {
             if(Store.Get(c,row.S("rider"),"rider",tx) is {} person)FinancialScopes.DemandRider(actor,person);
@@ -108,7 +108,7 @@ public static partial class PayCycles
             var payables=Store.List(c,"journal",tx).Where(FinanceViews.Posted).SelectMany(j=>Rows(j["lines"]).OfType<JsonObject>()).Where(l=>l.S("sponsorId")==cycle.S("companyId")&&l.S("accountCode")=="212103").GroupBy(l=>l.S("iqama")).ToDictionary(g=>g.Key,g=>g.Sum(l=>l.N("credit")-l.N("debit")));
             foreach(var row in rows.Where(r=>r.S("salaryApprovedAt")!=""&&r.S("debtDeductionStatus")!="confirmed"))
             {
-                J.Need(AccessPolicy.Independent(actor,row.S("debtSelectedBy",cycle.S("createdBy")),"pay.debt_confirm",c,tx,cycle),"مؤكد الخصم غير من اختار القسط.",403);
+                J.Need(AccessPolicy.Independent(actor,row.S("debtSelectedBy",cycle.S("createdBy")),"pay.debt_confirm",c,tx,cycle,scope:AccessPolicy.ScopePayApprovals),"مؤكد الخصم غير من اختار القسط.",403);
                 var proposed=ProposedDebtItems(c,tx,actor,cycle,row);var payLines=new List<PayLine>();decimal total=0;
                 foreach(var item in proposed.OfType<JsonObject>())
                 {

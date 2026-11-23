@@ -22,10 +22,14 @@ public static class UserAccess
         new("approvals.dual.bank_file","Admin","إدارة النظام","اعتماد ملف البنك بشخصين","صلاحية مستقلة لإصدار وإرسال ملف البنك باعتماد شخصين مختلفين؛ قابلة للمنح لأي دور."),
         new("approvals.dual.payment_out","Admin","إدارة النظام","اعتماد الصرف بشخصين","صلاحية مستقلة لصرف الأموال للخارج باعتماد شخصين مختلفين؛ قابلة للمنح لأي دور."),
         new("approvals.dual.shared_rider_release","Admin","إدارة النظام","فك حجز المندوب المشترك بشخصين","صلاحية مستقلة لفك حجز المندوب المشترك باعتماد شخصين مختلفين؛ قابلة للمنح لأي دور."),
+        new("admin.org.manage","Admin","إدارة النظام","حدود الاعتماد وسياسات المهلة","تعديل حدود الاعتماد بالرتبة وسياسات تصعيد المهلة دون اعتماد تلقائي."),
+        new("salaries.simulation.run","Payroll","الرواتب","تشغيل محاكاة الرواتب","معاينة وإلغاء دورات المحاكاة دون أي أثر حقيقي."),
         new("operations.view","Operations","العمليات","عرض العمليات","عرض العمليات وحسابات المناديب ضمن الشركة والمنصة."),
         new("pay.view","Payroll","الرواتب","عرض إطار الرواتب","عرض إعدادات التطبيقات والدورات والكشوف ضمن النطاق."),
         new("pay.manage","Payroll","الرواتب","تحضير الرواتب","إنشاء مسودات الإعدادات وتحضير الدورات دون اعتماد ذاتي."),
         new("pay.approve","Payroll","الرواتب","اعتماد الرواتب","اعتماد مستقل لإعدادات ودورات المسار الجديد."),
+        new("people.mudad.manage","Riders","دليل المناديب والملفات","رفع ومطابقة مدد","رفع دفعات مدد ومطابقة الصفوف بالهوية دون اعتماد مالي."),
+        new("salaries.mudad.edit","Payroll","الرواتب","تعديل صفوف مدد","إضافة وتعديل وحذف صفوف مدد داخل دفعة مرفوعة."),
         new("platforms.hs.view","Platforms","المنصات","مراجعة وقائع هنقر","عرض الفواتير والاعتراضات والوقائع والمعاينات ضمن النطاق."),
         new("platforms.hs.manage","Platforms","المنصات","تحضير وقائع هنقر","استيراد الوقائع واقتراح التوزيع والاعتراض والتصحيح دون اعتماد ذاتي."),
         new("platforms.hs.approve","Platforms","المنصات","اعتماد وقائع هنقر","اعتماد مستقل للوقائع والتوزيع والعكس ضمن النطاق المالي."),
@@ -387,7 +391,10 @@ public static class UserAccess
         var former = new JsonArray(FormerUsernames(u).Append(old).Distinct(StringComparer.OrdinalIgnoreCase).Select(n => (JsonNode?)n).ToArray());
         u["username"] = next; u["formerUsernames"] = former; u["securityVersion"] = Guid.NewGuid().ToString("N");
         Store.Save(c, "user", u, tx);
-        // Dated bypass grants follow the person, not the old name.
+        // Dated bypass grants follow the person; auth.user.username drives SQL bypass list joins.
+        if(SchemaSql.TableExists(c,tx,"auth","user"))
+            SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"auth","user")} SET username=@n WHERE username=@old OR username=@oldNorm",
+                ("@n",next),("@old",old),("@oldNorm",Normalize(old)));
         foreach (var grant in Store.List(c, AccessPolicy.BypassGrantKind, tx).Where(g => g.S("userId") == id || Normalize(g.S("username")) == Normalize(old)))
         { grant["username"] = next; Store.Save(c, AccessPolicy.BypassGrantKind, grant, tx); }
         Store.Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = "admin.username_changed", ["entityId"] = id, ["actor"] = actor.Identity!.Name, ["at"] = DateTimeOffset.UtcNow.ToString("O"), ["from"] = old, ["to"] = next, ["reason"] = reason }, tx);

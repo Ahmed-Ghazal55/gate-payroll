@@ -70,8 +70,11 @@ public static class SchemaOperationCapture
         string common="platform_account,assignment,housing,fuel,vehicle,scheme,eligibility";
         (string Operation,string App,string Kinds)[] groups=
         [
-            ("pay_run","ninja","ninja_daily,"+common),("pay_run","keeta","keeta_invoice_row,"+common),
+            // M-0692: Ninja Oct freezes daily performance + daily deductions from Omar (no our upload).
+            ("pay_run","ninja","ninja_daily,ninja_daily_deduction,"+common),("pay_run","keeta","keeta_invoice_row,"+common),
             ("pay_run","hs","hs_ops,"+common+",hs_wallet"),("pay_run","amazon","platform_ops,"+common),
+            // Chefz/Jahez pay-run capture (Codex RWC4): settlement/day sources + shared masters — not test-only inserts.
+            ("pay_run","chefz","chefz_settlement,"+common),("pay_run","jahez","jahez_day,"+common),
             ("chefz_settlement","","chefz_settlement,platform_account"),("platform_invoice","","invoice_file,platform_account"),
             ("jahez_recon","","jahez_day,jahez_handover"),("payment","","payment_source")
         ];
