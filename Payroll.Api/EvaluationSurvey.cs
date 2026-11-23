@@ -36,6 +36,49 @@ public static partial class EvaluationSurvey
     static JsonArray Array(IEnumerable<JsonObject> values) => new(values.Select(v => (JsonNode?)v.Clone()).ToArray());
     public static string ReplyId(string roundId, string iqama) =>
         "evreply:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(roundId + ":" + iqama))).ToLowerInvariant();
+    public static string NewEditReceipt() => Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
+    public static bool ReceiptEquals(string a, string b) =>
+        a.Length == b.Length && a.Length == 64 && a.All(Uri.IsHexDigit) && b.All(Uri.IsHexDigit)
+        && CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(a), Encoding.UTF8.GetBytes(b));
+    /// <summary>Stages attachment bytes until the document transaction commits, then writes (or discards).</summary>
+    public sealed class AttachmentWriteBatch
+    {
+        readonly List<(string Path, byte[] Bytes)> _items = new();
+        public int Count => _items.Count;
+        public void Stage(string path, byte[] bytes) => _items.Add((path, bytes));
+        public void Flush()
+        {
+            foreach (var (path, bytes) in _items)
+            {
+                Directory.CreateDirectory(Path.GetDirectoryName(path)!);
+                File.WriteAllBytes(path, bytes);
+            }
+            _items.Clear();
+        }
+        public void Discard()
+        {
+            foreach (var (path, _) in _items)
+            {
+                try { if (File.Exists(path)) File.Delete(path); } catch { /* best-effort */ }
+            }
+            _items.Clear();
+        }
+    }
+    public static T WriteWithAttachments<T>(Store store, Func<DbConnection, DbTransaction, AttachmentWriteBatch, T> action)
+    {
+        var batch = new AttachmentWriteBatch();
+        try
+        {
+            var result = store.Write((c, tx) => action(c, tx, batch));
+            batch.Flush();
+            return result;
+        }
+        catch
+        {
+            batch.Discard();
+            throw;
+        }
+    }
     public static string CanonicalNationality(string raw, out string display)
     {
         string value = raw.Trim();
@@ -160,7 +203,7 @@ public static partial class EvaluationSurvey
         }
         return clean;
     }
-    static JsonArray Answers(JsonObject round, JsonObject input, bool staff, string city, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes)
+    static JsonArray Answers(JsonObject round, JsonObject input, bool staff, string city, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes, AttachmentWriteBatch? batch)
     {
         string field = staff ? "staffAnswers" : "appAnswers", key = staff ? "staffId" : "app";
         var expected = staff ? round["staff"]!.AsArray().OfType<JsonObject>().Where(s => Strings(s, "cities").Contains(city)).Select(s => s.S("id")).ToArray() : Strings(round, "apps");
@@ -198,8 +241,8 @@ public static partial class EvaluationSurvey
                     answer["attachments"] = arr.DeepClone();
                 else
                 {
-                    J.Need(store != null && c != null && tx != null, "رفع المرفقات غير متاح.", "attachment_unavailable");
-                    answer["attachments"] = PersistAttachments(store!, c!, tx!, replyId, key, card.S(key), card, ref replyBytes);
+                    J.Need(store != null && c != null && tx != null && batch != null, "رفع المرفقات غير متاح.", "attachment_unavailable");
+                    answer["attachments"] = PersistAttachments(store!, c!, tx!, replyId, key, card.S(key), card, ref replyBytes, batch!);
                 }
             }
             else answer["attachments"] = new JsonArray();
@@ -207,19 +250,23 @@ public static partial class EvaluationSurvey
         }
         return clean;
     }
-    public static JsonObject Submit(DbConnection c, DbTransaction tx, string token, JsonObject input, string? authenticatedIqama = null, Store? store = null)
+    public static JsonObject Submit(DbConnection c, DbTransaction tx, string token, JsonObject input, string? authenticatedIqama = null, Store? store = null, AttachmentWriteBatch? attachments = null)
     {
         var round = ByToken(c, token, tx);
         string iqama = J.Iqama(authenticatedIqama ?? input.Required("iqama"));
         J.Need(authenticatedIqama == null || input.S("iqama") is "" || J.Iqama(input.S("iqama")) == iqama, "هوية المندوب لا تطابق الجلسة.", "identity_mismatch");
+        var rider = Store.Get(c, iqama, "rider", tx);
+        // A directory rider may bind a reply only through the mobile or survey session — never from a typed iqama alone.
+        if (authenticatedIqama == null && rider != null)
+            throw new ApiError("أرسل الرد من جلسة المندوب أو رابط التقييم الآمن.", 401, "session_required");
         string id = ReplyId(round.S("id"), iqama);
         if (Store.Get(c, id, ResponseKind, tx) != null) throw new ApiError("سبق إرسال هذا الرد؛ يمكنك تعديله إن كانت الجولة ما زالت مفتوحة.", 409, "already_submitted");
         string city = Text(input, "city", 100, true); J.Need(Strings(round, "cities").Contains(city), "اختر مدينة من الجولة.", "invalid_city");
         var workApps = Strings(input, "workApps"); J.Need(workApps.Length > 0 && workApps.All(a => Strings(round, "apps").Contains(a)), "اختر منصات العمل الحالية.", "invalid_apps");
         string nationalityRaw = Text(input, "nationality", 100, true);
         string nationalityId = CanonicalNationality(nationalityRaw, out string nationalityDisplay);
-        var rider = Store.Get(c, iqama, "rider", tx);
         string companyId = rider == null ? "" : new[] { "financeSponsorId", "sponsorId", "companyId" }.Select(k => rider.S(k)).FirstOrDefault(v => v != "") ?? "";
+        string editReceipt = NewEditReceipt();
         long replyBytes = 0;
         var reply = new JsonObject
         {
@@ -228,15 +275,16 @@ public static partial class EvaluationSurvey
             ["city"] = city, ["nationality"] = nationalityDisplay, ["nationalityId"] = nationalityId,
             ["phone"] = input.S("phone") == "" ? "" : RiderDirectory.Phone(input.S("phone")), ["workApps"] = Array(workApps),
             ["companyId"] = companyId, ["identityVerified"] = authenticatedIqama != null, ["editCount"] = 0,
-            ["staffAnswers"] = Answers(round, input, true, city, store, c, tx, id, ref replyBytes),
-            ["appAnswers"] = Answers(round, input, false, city, store, c, tx, id, ref replyBytes),
+            ["editReceipt"] = editReceipt,
+            ["staffAnswers"] = Answers(round, input, true, city, store, c, tx, id, ref replyBytes, attachments),
+            ["appAnswers"] = Answers(round, input, false, city, store, c, tx, id, ref replyBytes, attachments),
             ["createdAt"] = Now()
         };
         Store.Save(c, ResponseKind, reply, tx);
         foreach (var answer in reply["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => a.B("complaint")))
             CreateComplaint(c, tx, reply, answer);
         Store.Audit(c, tx, "evaluation.submitted", id, authenticatedIqama == null ? "public-form" : "rider-app");
-        return new() { ["receipt"] = id, ["allowedActions"] = new JsonArray("edit"), ["editCount"] = 0, ["editsRemaining"] = MaxEdits, ["editPolicyPending"] = false, ["uploadsPolicyPending"] = false };
+        return new() { ["receipt"] = editReceipt, ["allowedActions"] = new JsonArray("edit"), ["editCount"] = 0, ["editsRemaining"] = MaxEdits, ["editPolicyPending"] = false, ["uploadsPolicyPending"] = false };
     }
     static void CreateComplaint(DbConnection c, DbTransaction tx, JsonObject reply, JsonObject answer)
     {

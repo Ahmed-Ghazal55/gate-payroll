@@ -72,7 +72,7 @@ public sealed class EvaluationAttachmentMagicTests
             };
             if (sample.Kind == "voice") att["durationSeconds"] = 8;
             input["staffAnswers"]![0]!["attachments"] = new JsonArray(att);
-            f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, round.S("sharingToken"), input, store: f.Store));
+            EvaluationSurvey.WriteWithAttachments(f.Store, (c, tx, batch) => EvaluationSurvey.Submit(c, tx, round.S("sharingToken"), input, store: f.Store, attachments: batch));
         }
 
         var mismatchRound = OpenRound(f);
@@ -82,7 +82,7 @@ public sealed class EvaluationAttachmentMagicTests
             ["kind"] = "image", ["fileName"] = "fake.png", ["contentType"] = "image/png",
             ["dataBase64"] = Convert.ToBase64String(Pad([0xFF, 0xD8, 0xFF, 0xE0]))
         });
-        var ex = Assert.ThrowsExactly<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, mismatchRound.S("sharingToken"), bad, store: f.Store)));
+        var ex = Assert.ThrowsExactly<ApiError>(() => EvaluationSurvey.WriteWithAttachments(f.Store, (c, tx, batch) => EvaluationSurvey.Submit(c, tx, mismatchRound.S("sharingToken"), bad, store: f.Store, attachments: batch)));
         Assert.AreEqual("attachment_type", ex.Code);
     }
 
@@ -98,7 +98,7 @@ public sealed class EvaluationAttachmentMagicTests
             ["kind"] = "image", ["fileName"] = "evil\"name\r\n.png", ["contentType"] = "image/png",
             ["dataBase64"] = Convert.ToBase64String(png)
         });
-        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, round.S("sharingToken"), input, store: f.Store));
+        EvaluationSurvey.WriteWithAttachments(f.Store, (c, tx, batch) => EvaluationSurvey.Submit(c, tx, round.S("sharingToken"), input, store: f.Store, attachments: batch));
         var meta = f.Store.Read(c => Store.List(c, EvaluationSurvey.AttachmentKind)).Single();
         var result = f.Store.Read(c => EvaluationSurvey.PlayAttachment(f.Store, c, Admin, meta.S("id")));
         var ctx = new DefaultHttpContext();

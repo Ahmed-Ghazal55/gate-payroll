@@ -7,7 +7,7 @@ public static partial class EvaluationSurvey
 {
     public const int MaxEdits = 3;
 
-    public static JsonObject Edit(DbConnection c, DbTransaction tx, string token, JsonObject input, string authenticatedIqama, Store? store = null)
+    public static JsonObject Edit(DbConnection c, DbTransaction tx, string token, JsonObject input, string authenticatedIqama, Store? store = null, AttachmentWriteBatch? attachments = null)
     {
         var round = ByToken(c, token, tx);
         string iqama = J.Iqama(authenticatedIqama);
@@ -23,10 +23,11 @@ public static partial class EvaluationSurvey
         long replyBytes = 0;
         var staffInput = WithPreservedAttachments(reply, input, true);
         var appInput = WithPreservedAttachments(reply, input, false);
-        reply["staffAnswers"] = Answers(round, staffInput, true, reply.S("city"), store, c, tx, id, ref replyBytes);
-        reply["appAnswers"] = Answers(round, appInput, false, reply.S("city"), store, c, tx, id, ref replyBytes);
+        reply["staffAnswers"] = Answers(round, staffInput, true, reply.S("city"), store, c, tx, id, ref replyBytes, attachments);
+        reply["appAnswers"] = Answers(round, appInput, false, reply.S("city"), store, c, tx, id, ref replyBytes, attachments);
         reply["editCount"] = edits + 1;
         reply["updatedAt"] = Now();
+        if (reply.S("editReceipt") == "") reply["editReceipt"] = NewEditReceipt();
         Store.Save(c, ResponseKind, reply, tx);
 
         foreach (var answer in reply["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => a.B("complaint")))
@@ -39,7 +40,7 @@ public static partial class EvaluationSurvey
         int remaining = MaxEdits - (int)reply.N("editCount");
         return new()
         {
-            ["receipt"] = id,
+            ["receipt"] = reply.S("editReceipt"),
             ["editCount"] = reply.N("editCount"),
             ["editsRemaining"] = remaining,
             ["allowedActions"] = remaining > 0 ? new JsonArray("edit") : new JsonArray()

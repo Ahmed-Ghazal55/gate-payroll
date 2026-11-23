@@ -48,12 +48,14 @@ try{
   await request(pub,{...answer,nationality:''},400,false);
   await request(pub,{...answer,staffAnswers:[]},400,false);
   await request(pub,{...answer,appAnswers:[...answer.appAnswers,{app:'Unknown',overall:5}]},400,false);
-  const reply=await request(pub,answer,200,false);assert.ok(reply.receipt);assert.deepEqual(reply.allowedActions,['edit']);assert.equal(reply.editCount,0);assert.equal(reply.editsRemaining,3);
+  const reply=await request(pub,answer,200,false);assert.ok(reply.receipt);assert.match(reply.receipt,/^[0-9a-f]{64}$/);assert.deepEqual(reply.allowedActions,['edit']);assert.equal(reply.editCount,0);assert.equal(reply.editsRemaining,3);
   const dup=await fetch(base+pub,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(answer)});assert.equal(dup.status,409);const dupBody=await dup.json();assert.equal(dupBody.code,'already_submitted');checks++;
   let stats=await request(prefix+'/rounds/'+round.id+'/statistics');
   assert.equal(stats.totalResponses,1);assert.equal(stats.bySupervisor[0].average,8);assert.equal(stats.bySupervisor[0].complaintCount,1);
   assert.equal(stats.byApp.find(a=>a.key==='Ninja').average,4);assert.equal(stats.factorAverages.length,2);assert.equal(stats.factorAverages.find(f=>f.key==='orderVolume').average,5);
   assert.ok(!JSON.stringify(stats).includes(answer.iqama));assert.ok(!JSON.stringify(stats).includes(answer.name));
+  const stolen={receipt:round.id.replace(/^evround:/,'')+answer.iqama,iqama:answer.iqama,staffAnswers:answer.staffAnswers,appAnswers:answer.appAnswers};
+  const stolenEdit=await fetch(base+pub,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({...stolen,receipt:round.id})});assert.equal(stolenEdit.status,403);checks++;
   const editPayload={receipt:reply.receipt,iqama:answer.iqama,staffAnswers:answer.staffAnswers.map(a=>({...a,ratings:Object.fromEntries(schema.staffDimensions.map(d=>[d.id,5])),notes:'Synthetic edit'})),appAnswers:answer.appAnswers};
   const edited=await fetch(base+pub,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(editPayload)});assert.equal(edited.status,200);const editedBody=await edited.json();assert.equal(editedBody.editCount,1);checks++;
   stats=await request(prefix+'/rounds/'+round.id+'/statistics');assert.equal(stats.bySupervisor[0].average,5);

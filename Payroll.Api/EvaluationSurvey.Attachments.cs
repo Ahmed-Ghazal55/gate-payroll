@@ -60,7 +60,17 @@ public static partial class EvaluationSurvey
         return safe.Length == 0 ? "attachment.bin" : safe[..Math.Min(safe.Length, 120)];
     }
 
-    static JsonArray PersistAttachments(Store store, DbConnection c, DbTransaction tx, string replyId, string cardKey, string cardId, JsonObject card, ref long replyBytes)
+    static string AttachmentRoot(Store store) =>
+        Path.GetFullPath(Path.Combine(store.DirectoryPath, "evaluation-attachments")) + Path.DirectorySeparatorChar;
+
+    static bool TryResolveAttachmentPath(Store store, string relativePath, out string fullPath)
+    {
+        fullPath = Path.GetFullPath(Path.Combine(store.DirectoryPath, relativePath));
+        string root = AttachmentRoot(store);
+        return fullPath.StartsWith(root, StringComparison.Ordinal);
+    }
+
+    static JsonArray PersistAttachments(Store store, DbConnection c, DbTransaction tx, string replyId, string cardKey, string cardId, JsonObject card, ref long replyBytes, AttachmentWriteBatch batch)
     {
         var raw = card["attachments"] as JsonArray ?? new JsonArray();
         J.Need(raw.Count <= 3 && raw.All(x => x is JsonObject), "مرفقات البطاقة غير صالحة.", "attachment_invalid");
@@ -101,8 +111,8 @@ public static partial class EvaluationSurvey
             string id = "evatt:" + Guid.NewGuid().ToString("N");
             string relative = Path.Combine("evaluation-attachments", replyId.Replace(':', '_'), id + extension);
             string path = Path.Combine(store.DirectoryPath, relative);
-            Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-            File.WriteAllBytes(path, bytes);
+            // Validate in memory and stage bytes; disk write happens only after the document transaction commits.
+            batch.Stage(path, bytes);
 
             var meta = new JsonObject
             {
@@ -131,9 +141,7 @@ public static partial class EvaluationSurvey
         var meta = Store.Get(c, id, AttachmentKind) ?? throw new ApiError("المرفق غير موجود.", 404, "not_found");
         var reply = Store.Get(c, meta.S("replyId"), ResponseKind) ?? throw new ApiError("المرفق غير موجود.", 404, "not_found");
         J.Need(InScope(c, user, reply), "ليست لديك صلاحية لهذا المرفق.", "forbidden", 403);
-        string basePath = Path.GetFullPath(Path.Combine(store.DirectoryPath, "evaluation-attachments")) + Path.DirectorySeparatorChar;
-        string file = Path.GetFullPath(Path.Combine(store.DirectoryPath, meta.S("relativePath")));
-        if (!file.StartsWith(basePath, StringComparison.Ordinal) || !File.Exists(file))
+        if (!TryResolveAttachmentPath(store, meta.S("relativePath"), out string file) || !File.Exists(file))
             throw new ApiError("الملف غير موجود.", 404, "not_found");
         return new InlineAttachmentFileResult(file, meta.S("contentType"), SafeAttachmentFileName(meta.S("fileName")));
     }
@@ -154,6 +162,12 @@ public static partial class EvaluationSurvey
         }
     }
 
+    static void DeleteAttachmentFileIfSafe(Store store, string relativePath)
+    {
+        if (!TryResolveAttachmentPath(store, relativePath, out string path)) return;
+        if (File.Exists(path)) File.Delete(path);
+    }
+
     public static int PurgeExpiredAttachments(Store store, DateTimeOffset now)
     {
         var cutoff = now - AttachmentRetention;
@@ -164,8 +178,7 @@ public static partial class EvaluationSurvey
             {
                 if (att.S("status") == "purged") continue;
                 if (!DateTimeOffset.TryParse(att.S("createdAt"), out var created) || created > cutoff) continue;
-                string path = Path.Combine(store.DirectoryPath, att.S("relativePath"));
-                if (File.Exists(path)) File.Delete(path);
+                DeleteAttachmentFileIfSafe(store, att.S("relativePath"));
                 var reply = Store.Get(c, att.S("replyId"), ResponseKind, tx);
                 if (reply != null)
                 {
@@ -186,6 +199,22 @@ public static partial class EvaluationSurvey
                 del.ExecuteNonQuery();
                 removed++;
             }
+            // Orphan files (rolled-back writes or missing rows) still fall under the six-month private retention rule.
+            var knownPaths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            foreach (var att in Store.List(c, AttachmentKind, tx))
+                if (TryResolveAttachmentPath(store, att.S("relativePath"), out string tracked))
+                    knownPaths.Add(tracked);
+            string root = AttachmentRoot(store);
+            if (Directory.Exists(root))
+            {
+                foreach (string file in Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories))
+                {
+                    string full = Path.GetFullPath(file);
+                    if (!full.StartsWith(root, StringComparison.Ordinal) || knownPaths.Contains(full)) continue;
+                    File.Delete(full);
+                    removed++;
+                }
+            }
             if (removed > 0) Store.Audit(c, tx, "evaluation.attachments_purged", removed.ToString(), "system");
             return removed;
         });
@@ -198,18 +227,24 @@ public sealed class EvaluationAttachmentRetentionService(Store store, ILogger<Ev
 {
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
+        await RunOnce(stoppingToken);
         using var timer = new PeriodicTimer(TimeSpan.FromHours(12));
         while (await timer.WaitForNextTickAsync(stoppingToken))
+            await RunOnce(stoppingToken);
+    }
+
+    async Task RunOnce(CancellationToken stoppingToken)
+    {
+        try
         {
-            try
-            {
-                int n = EvaluationSurvey.PurgeExpiredAttachments(store, DateTimeOffset.UtcNow);
-                if (n > 0) log.LogInformation("Purged {Count} expired evaluation attachments", n);
-            }
-            catch (Exception ex) when (ex is not OperationCanceledException)
-            {
-                log.LogError(ex, "Evaluation attachment retention failed");
-            }
+            await Task.Yield();
+            stoppingToken.ThrowIfCancellationRequested();
+            int n = EvaluationSurvey.PurgeExpiredAttachments(store, DateTimeOffset.UtcNow);
+            if (n > 0) log.LogInformation("Purged {Count} expired evaluation attachments", n);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            log.LogError(ex, "Evaluation attachment retention failed");
         }
     }
 }

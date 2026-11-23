@@ -213,11 +213,11 @@ public sealed class EvaluationSurveyTests
         string company = FinancialCore.Sponsors[0].Id, other = FinancialCore.Sponsors[1].Id;
         f.Store.Write((c, tx) =>
         {
-            Store.Save(c, "rider", new() { ["id"] = "2000000091", ["name"] = "Synthetic directory rider", ["financeSponsorId"] = "", ["sponsorId"] = company }, tx);
+            Store.Save(c, "rider", new() { ["id"] = "2000000091", ["name"] = "Synthetic directory rider", ["status"] = "Active", ["financeSponsorId"] = "", ["sponsorId"] = company }, tx);
             return true;
         });
         var input = Reply(r); input["companyId"] = other;
-        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input));
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, "2000000091"));
         ClaimsPrincipal Scoped(string id) => new(new ClaimsIdentity(Reader("Reviewer", EvaluationSurvey.ViewPermission, SubmissionChoices.PermAllCompanies).Claims.Append(new Claim("finance.sponsorIds", id)), "test"));
         Assert.HasCount(1, f.Store.Read(c => EvaluationSurvey.Responses(c, Scoped(company), r.S("id"))));
         Assert.HasCount(0, f.Store.Read(c => EvaluationSurvey.Responses(c, Scoped(other), r.S("id"))));
@@ -267,7 +267,7 @@ public sealed class EvaluationSurveyTests
             new JsonObject { ["kind"] = "image", ["fileName"] = "a.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng },
             new JsonObject { ["kind"] = "image", ["fileName"] = "b.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng },
             new JsonObject { ["kind"] = "voice", ["fileName"] = "note.webm", ["contentType"] = "audio/webm", ["dataBase64"] = voice, ["durationSeconds"] = 12 });
-        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store));
+        EvaluationSurvey.WriteWithAttachments(f.Store, (c, tx, batch) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store, attachments: batch));
         var stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single();
         var atts = stored["staffAnswers"]![0]!["attachments"]!.AsArray().OfType<JsonObject>().ToList();
         Assert.HasCount(3, atts);
@@ -388,12 +388,110 @@ public sealed class EvaluationSurveyTests
         using var f = new PayFixture(); var r = Setup(f); var input = Reply(r);
         string tinyPng = Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A });
         input["staffAnswers"]![0]!["attachments"] = new JsonArray(new JsonObject { ["kind"] = "image", ["fileName"] = "a.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng });
-        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store));
+        EvaluationSurvey.WriteWithAttachments(f.Store, (c, tx, batch) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store, attachments: batch));
         var att = f.Store.Read(c => Store.List(c, EvaluationSurvey.AttachmentKind)).Single();
         att["createdAt"] = DateTimeOffset.UtcNow.AddMonths(-7).ToString("O");
         f.Store.Write((c, tx) => { Store.Save(c, EvaluationSurvey.AttachmentKind, att, tx); return true; });
         int removed = EvaluationSurvey.PurgeExpiredAttachments(f.Store, DateTimeOffset.UtcNow);
         Assert.AreEqual(1, removed);
+        Assert.HasCount(0, f.Store.Read(c => Store.List(c, EvaluationSurvey.AttachmentKind)));
+    }
+
+    [TestMethod]
+    public void RandomEditReceiptBlocksComputedReplyIdAndForeignIqamaCannotOccupyOrEdit()
+    {
+        using var f = new PayFixture();
+        var r = Setup(f);
+        f.Store.Write((c, tx) =>
+        {
+            Store.Save(c, "rider", new() { ["id"] = "2000000091", ["iqama"] = "2000000091", ["name"] = "Owner rider", ["status"] = "Active" }, tx);
+            return true;
+        });
+        var sessionRequired = Assert.ThrowsExactly<ApiError>(() =>
+            f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), Reply(r))));
+        Assert.AreEqual(401, sessionRequired.Status);
+        Assert.AreEqual("session_required", sessionRequired.Code);
+
+        var submitted = f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), Reply(r), "2000000091"));
+        string receipt = submitted.S("receipt");
+        Assert.AreEqual(64, receipt.Length);
+        Assert.IsTrue(receipt.All(Uri.IsHexDigit));
+        string computed = EvaluationSurvey.ReplyId(r.S("id"), "2000000091");
+        Assert.AreNotEqual(computed, receipt);
+        Assert.IsFalse(EvaluationSurvey.ReceiptEquals(computed.Replace("evreply:", "").PadRight(64, '0')[..64], receipt));
+
+        var stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single();
+        Assert.AreEqual(receipt, stored.S("editReceipt"));
+        Assert.AreEqual(computed, stored.S("id"));
+
+        Assert.IsFalse(EvaluationSurvey.ReceiptEquals(computed, stored.S("editReceipt")));
+        Assert.IsTrue(EvaluationSurvey.ReceiptEquals(receipt, stored.S("editReceipt")));
+        Assert.AreEqual("already_submitted", Assert.ThrowsExactly<ApiError>(() =>
+            f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), Reply(r), "2000000091"))).Code);
+
+        var editBody = new JsonObject
+        {
+            ["staffAnswers"] = Reply(r)["staffAnswers"]!.DeepClone(),
+            ["appAnswers"] = Reply(r)["appAnswers"]!.DeepClone()
+        };
+        var foreign = Assert.ThrowsExactly<ApiError>(() =>
+            f.Store.Write((c, tx) => EvaluationSurvey.Edit(c, tx, r.S("sharingToken"), editBody, "2000000092")));
+        Assert.AreEqual(404, foreign.Status);
+        Assert.AreEqual(1, f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Count);
+        Assert.AreEqual("2000000091", f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single().S("iqama"));
+    }
+
+    [TestMethod]
+    public void AttachmentBytesAreNotWrittenWhenTransactionRollsBackAndPurgeRemovesOrphans()
+    {
+        using var f = new PayFixture();
+        var r = Setup(f);
+        string tinyPng = Convert.ToBase64String(new byte[] { 0x89, 0x50, 0x4E, 0x47, 0x0D, 0x0A, 0x1A, 0x0A, 0x00, 0x00, 0x00, 0x0D });
+        var batch = new EvaluationSurvey.AttachmentWriteBatch();
+        Assert.ThrowsExactly<ApiError>(() => f.Store.Write<bool>((c, tx) =>
+        {
+            var input = Reply(r);
+            input["staffAnswers"]![0]!["attachments"] = new JsonArray(new JsonObject
+            {
+                ["kind"] = "image", ["fileName"] = "a.png", ["contentType"] = "image/png", ["dataBase64"] = tinyPng
+            });
+            EvaluationSurvey.Submit(c, tx, r.S("sharingToken"), input, store: f.Store, attachments: batch);
+            throw new ApiError("forced rollback", 400, "forced_rollback");
+        }));
+        Assert.IsTrue(batch.Count >= 1);
+        batch.Discard();
+        Assert.AreEqual(0, batch.Count);
+        string root = Path.Combine(f.Store.DirectoryPath, "evaluation-attachments");
+        Assert.IsFalse(Directory.Exists(root) && Directory.EnumerateFiles(root, "*", SearchOption.AllDirectories).Any());
+
+        Directory.CreateDirectory(root);
+        string orphan = Path.Combine(root, "orphan-no-row.bin");
+        File.WriteAllBytes(orphan, new byte[] { 1, 2, 3, 4 });
+        int removed = EvaluationSurvey.PurgeExpiredAttachments(f.Store, DateTimeOffset.UtcNow);
+        Assert.AreEqual(1, removed);
+        Assert.IsFalse(File.Exists(orphan));
+    }
+
+    [TestMethod]
+    public void PurgeRefusesRelativePathsOutsideEvaluationAttachmentsRoot()
+    {
+        using var f = new PayFixture();
+        string outside = Path.Combine(f.Store.DirectoryPath, "outside-secret.bin");
+        File.WriteAllBytes(outside, new byte[] { 9, 9, 9 });
+        f.Store.Write((c, tx) =>
+        {
+            Store.Save(c, EvaluationSurvey.AttachmentKind, new()
+            {
+                ["id"] = "evatt:traversal",
+                ["replyId"] = "evreply:none",
+                ["relativePath"] = Path.Combine("..", "outside-secret.bin"),
+                ["createdAt"] = DateTimeOffset.UtcNow.AddMonths(-8).ToString("O"),
+                ["kind"] = "image", ["fileName"] = "x.bin", ["contentType"] = "image/png", ["sizeBytes"] = 3
+            }, tx);
+            return true;
+        });
+        EvaluationSurvey.PurgeExpiredAttachments(f.Store, DateTimeOffset.UtcNow);
+        Assert.IsTrue(File.Exists(outside));
         Assert.HasCount(0, f.Store.Read(c => Store.List(c, EvaluationSurvey.AttachmentKind)));
     }
 }

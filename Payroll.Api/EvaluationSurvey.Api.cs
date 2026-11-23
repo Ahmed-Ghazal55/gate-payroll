@@ -113,7 +113,9 @@ public static partial class EvaluationSurvey
         api.MapGet("/forms/evaluations/rounds/{id}/export", (string id, HttpContext ctx) => Results.File(store.Read(c => Export(c, ctx.User, id)), "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", "evaluations.xlsx")).WithTags("Forms and responses").WithSummary("Export evaluation replies workbook");
         api.MapGet("/forms/evaluations/attachments/{attachmentId}", (string attachmentId, HttpContext ctx) => store.Read(c => PlayAttachment(store, c, ctx.User, attachmentId))).WithTags("Forms and responses").WithSummary("Play or download an evaluation attachment");
         app.MapGet("/api/public/evaluations/{token}", (string token, string? city) => store.Read(c => Schema(ByToken(c, token), city))).RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Public evaluation schema");
-        app.MapPost("/api/public/evaluations/{token}", (string token, JsonObject input) => store.Write((c, tx) => Submit(c, tx, token, input, store: store))).RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Submit public evaluation reply");
+        app.MapPost("/api/public/evaluations/{token}", (string token, JsonObject input) =>
+            WriteWithAttachments(store, (c, tx, batch) => Submit(c, tx, token, input, store: store, attachments: batch)))
+            .RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Submit public evaluation reply");
         app.MapGet("/api/rider-mobile/evaluations", (HttpContext ctx) =>
         {
             MobileSessions.Authenticate(store, ctx);
@@ -134,16 +136,25 @@ public static partial class EvaluationSurvey
             ExchangeLaunch(c, tx, token, input.Required("code")))).RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Exchange one-time launch code for survey-scoped session");
         app.MapGet("/api/rider-mobile/evaluations/{token}", (string token, string? city, HttpContext ctx) =>
         { AuthenticateEvaluation(store, ctx, token); return store.Read(c => Schema(ByToken(c, token), city)); }).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Evaluation schema for signed-in rider");
-        app.MapPost("/api/rider-mobile/evaluations/{token}", (string token, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-        { var session = ValidateEvaluation(c, ctx, token, tx); return Submit(c, tx, token, input, session.S("iqama"), store); })).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Submit evaluation reply as signed-in rider");
-        app.MapPut("/api/rider-mobile/evaluations/{token}", (string token, JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-        { var session = ValidateEvaluation(c, ctx, token, tx); return Edit(c, tx, token, input, session.S("iqama"), store); })).RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Edit evaluation reply as signed-in rider");
-        app.MapPut("/api/public/evaluations/{token}", (string token, JsonObject input) => store.Write((c, tx) =>
-        {
-            string iqama = J.Iqama(input.Required("iqama"));
-            string expected = ReplyId(ByToken(c, token, tx).S("id"), iqama);
-            J.Need(input.S("receipt") == expected, "إيصال التعديل غير صالح.", "edit_receipt_invalid", 403);
-            return Edit(c, tx, token, input, iqama, store);
-        })).RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Edit public evaluation reply with receipt");
+        app.MapPost("/api/rider-mobile/evaluations/{token}", (string token, JsonObject input, HttpContext ctx) =>
+            WriteWithAttachments(store, (c, tx, batch) =>
+            { var session = ValidateEvaluation(c, ctx, token, tx); return Submit(c, tx, token, input, session.S("iqama"), store, batch); }))
+            .RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Submit evaluation reply as signed-in rider");
+        app.MapPut("/api/rider-mobile/evaluations/{token}", (string token, JsonObject input, HttpContext ctx) =>
+            WriteWithAttachments(store, (c, tx, batch) =>
+            { var session = ValidateEvaluation(c, ctx, token, tx); return Edit(c, tx, token, input, session.S("iqama"), store, batch); }))
+            .RequireRateLimiting("sensitive").WithTags("Riders").WithSummary("Edit evaluation reply as signed-in rider");
+        app.MapPut("/api/public/evaluations/{token}", (string token, JsonObject input) =>
+            WriteWithAttachments(store, (c, tx, batch) =>
+            {
+                var round = ByToken(c, token, tx);
+                string iqama = J.Iqama(input.Required("iqama"));
+                string id = ReplyId(round.S("id"), iqama);
+                var reply = Store.Get(c, id, ResponseKind, tx) ?? throw new ApiError("الرد غير موجود.", 404, "not_found");
+                // Possession of the random edit receipt is the only public proof — never ReplyId or a typed iqama alone.
+                if (!ReceiptEquals(input.S("receipt"), reply.S("editReceipt")))
+                    throw new ApiError("إيصال التعديل غير صالح.", 403, "edit_receipt_invalid");
+                return Edit(c, tx, token, input, iqama, store, batch);
+            })).RequireRateLimiting("sensitive").WithTags("Forms and responses").WithSummary("Edit public evaluation reply with receipt");
     }
 }

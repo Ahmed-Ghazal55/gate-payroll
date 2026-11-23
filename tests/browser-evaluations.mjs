@@ -313,7 +313,7 @@ try {
 
   await publicPage.click('#eval-submit-btn');
   await publicPage.locator('.success-symbol').waitFor();
-  assert.match(await publicPage.locator('.edit-credentials').textContent(), /^evreply:/);
+  assert.match(await publicPage.locator('.edit-credentials').textContent(), /^[0-9a-f]{64}$/);
 
   // 4. Rider 2: Signed-in Rider App session on /app/evaluation/?token=<token>&mode=app
   const riderAppPage = await phoneCtx.newPage();
