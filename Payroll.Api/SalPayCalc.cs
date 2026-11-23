@@ -680,9 +680,12 @@ public static class SalPayCalc
         }
         if(string.Equals(app,"chefz",StringComparison.OrdinalIgnoreCase))
         {
-            var settle=chefz.FirstOrDefault(s=>RiderMatch(s,erpRider));
-            J.Need(settle!=null,"شيفز: لا تسوية مجمّدة لهذا المندوب.",409);
-            decimal frozenAmount=J.Money(settle!.N("RiderAmount",settle.N("riderAmount")));
+            // RWC4a3F H9: sum every distinct frozen chefz_settlement for the rider (1–15 + 16–end / multi-account).
+            var settles=chefz.Where(s=>RiderMatch(s,erpRider)).GroupBy(s=>s.S("id",s.S("sourceKey")),StringComparer.Ordinal)
+                .Select(g=>g.First()).ToList();
+            J.Need(settles.Count>0,"شيفز: لا تسوية مجمّدة لهذا المندوب.",409);
+            DemandChefzNoOverlap(settles);
+            decimal frozenAmount=J.Money(settles.Sum(s=>J.Money(s.N("RiderAmount",s.N("riderAmount")))));
             if(src.ContainsKey("riderAmount")&&src["riderAmount"] is not null&&J.Money(src.N("riderAmount"))!=frozenAmount)
                 throw new ApiError("شيفز: RiderAmount لا يطابق التسوية المجمّدة.",409);
             if(src.ContainsKey("gross")&&J.Money(src.N("gross"))!=0&&J.Money(src.N("gross"))!=frozenAmount)
@@ -703,6 +706,24 @@ public static class SalPayCalc
                 return (JsonNode)copy;
             }).ToArray();
             src["frozenWallet"]=new JsonArray(rows);
+        }
+    }
+
+    /// <summary>RWC4a3F H9: overlapping period windows for the same account are ambiguous — reject.</summary>
+    static void DemandChefzNoOverlap(List<JsonObject> settles)
+    {
+        for(int i=0;i<settles.Count;i++)
+        for(int j=i+1;j<settles.Count;j++)
+        {
+            string a=settles[i].S("erpPlatformAccountId",settles[i].S("platformRiderAccountId"));
+            string b=settles[j].S("erpPlatformAccountId",settles[j].S("platformRiderAccountId"));
+            if(a==""||b==""||!string.Equals(a,b,StringComparison.OrdinalIgnoreCase))continue;
+            string fromA=settles[i].S("periodFrom",settles[i].S("fromDate","1900-01-01"));
+            string toA=settles[i].S("periodTo",settles[i].S("toDate","9999-12-31"));
+            string fromB=settles[j].S("periodFrom",settles[j].S("fromDate","1900-01-01"));
+            string toB=settles[j].S("periodTo",settles[j].S("toDate","9999-12-31"));
+            if(string.CompareOrdinal(fromA,toB)<=0&&string.CompareOrdinal(fromB,toA)<=0)
+                throw new ApiError("شيفز: تسويتان متداخلتان لنفس الحساب.",409);
         }
     }
 

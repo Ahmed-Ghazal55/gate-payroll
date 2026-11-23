@@ -26,6 +26,7 @@ public static class MudadApi
         var lines=(input["lines"] as JsonArray??[]).OfType<JsonObject>().ToList();
         J.Need(lines.Count>0,"أدخل صفوف مدد.",400);
         DemandCompany(c,tx,companyId);
+        FinancialScopes.DemandSponsor(actor,companyId);
 
         string uploadId=SchemaSql.GuidText(SchemaSql.NewId());
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
@@ -80,12 +81,14 @@ public static class MudadApi
         AccessPolicy.Demand(actor,ManagePermission);
         Ensure(c,tx);
         var upload=LoadUpload(c,tx,uploadId);
+        FinancialScopes.DemandSponsor(actor,upload.S("companyId"));
         var matches=(input["matches"] as JsonArray??[]).OfType<JsonObject>().ToList();
         J.Need(matches.Count>0,"أدخل مطابقات.",400);
         int matched=0;
         foreach(var m in matches)
         {
             string lineId=m.Required("lineId");
+            DemandLineNotApplied(c,tx,uploadId,lineId);
             string? erp=NullIfEmpty(m.S("erpEmployeeId"));
             byte status=erp==null?MatchNoPerson:MatchMatched;
             int n=Exec(c,tx,$"""
@@ -107,6 +110,7 @@ public static class MudadApi
         AccessPolicy.Demand(actor,EditPermission);
         Ensure(c,tx);
         var upload=LoadUpload(c,tx,uploadId);
+        FinancialScopes.DemandSponsor(actor,upload.S("companyId"));
         string iqama=J.Iqama(input.Required("iqama"));
         string official=input.Required("officialName").Trim();
         string lineId=SchemaSql.GuidText(SchemaSql.NewId());
@@ -134,7 +138,9 @@ public static class MudadApi
     {
         AccessPolicy.Demand(actor,EditPermission);
         Ensure(c,tx);
-        LoadUpload(c,tx,uploadId);
+        var upload=LoadUpload(c,tx,uploadId);
+        FinancialScopes.DemandSponsor(actor,upload.S("companyId"));
+        DemandLineNotApplied(c,tx,uploadId,lineId);
         decimal? basic=MoneyOrNull(input,"basicSalary"),gross=MoneyOrNull(input,"grossSalary");
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
         int n=Exec(c,tx,$"""
@@ -154,7 +160,9 @@ public static class MudadApi
     {
         AccessPolicy.Demand(actor,EditPermission);
         Ensure(c,tx);
-        LoadUpload(c,tx,uploadId);
+        var uploadDel=LoadUpload(c,tx,uploadId);
+        FinancialScopes.DemandSponsor(actor,uploadDel.S("companyId"));
+        DemandLineNotApplied(c,tx,uploadId,lineId);
         // Soft-cancel: money retain forbids hard delete; cancelled lines stay for audit (M-0632).
         int n=Exec(c,tx,$"""
             UPDATE {SchemaSql.Q(c,"hr","mudad_line")}
@@ -174,6 +182,7 @@ public static class MudadApi
     {
         AccessPolicy.Demand(actor,ManagePermission);
         Ensure(c);
+        if(!string.IsNullOrWhiteSpace(companyId))FinancialScopes.DemandSponsor(actor,companyId);
         using var cmd=c.CreateCommand();
         cmd.CommandText=$"""
             SELECT id,company_id,period_month,file_kind,file_name,row_count,status,uploaded_by,uploaded_at
@@ -186,14 +195,18 @@ public static class MudadApi
         var rows=new JsonArray();
         using var r=cmd.ExecuteReader();
         while(r.Read())
+        {
+            string cid=r["company_id"].ToString()!;
+            if(!FinancialScopes.Sponsor(actor,cid))continue;
             rows.Add(new JsonObject
             {
-                ["id"]=r["id"].ToString(),["companyId"]=r["company_id"].ToString(),
+                ["id"]=r["id"].ToString(),["companyId"]=cid,
                 ["periodMonth"]=ReadMonth(r["period_month"]),
                 ["fileKind"]=r["file_kind"].ToString(),["fileName"]=r["file_name"].ToString(),
                 ["rowCount"]=Convert.ToInt32(r["row_count"]),["status"]=Convert.ToInt32(r["status"]),
                 ["uploadedBy"]=r["uploaded_by"].ToString(),["uploadedAt"]=r["uploaded_at"].ToString()
             });
+        }
         return new(){["rows"]=rows};
     }
 
@@ -269,6 +282,20 @@ public static class MudadApi
         ["basicSalary"]=basic is {} b?b:null,["grossSalary"]=gross is {} g?g:null,
         ["matchStatus"]=match,["iban"]=iban??""
     };
+
+    static void DemandLineNotApplied(DbConnection c,DbTransaction tx,string uploadId,string? lineId=null)
+    {
+        SchemaSalMudad.Ensure(c,tx);
+        object? used=SchemaSql.Scalar(c,tx,$"""
+            SELECT 1 FROM {SchemaSql.Q(c,"sal","mudad_deduction")} d
+            INNER JOIN {SchemaSql.Q(c,"hr","mudad_line")} l ON l.id=d.mudad_line_id
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run_rider")} r ON r.id=d.pay_run_rider_id
+            INNER JOIN {SchemaSql.Q(c,"sal","pay_run")} pr ON pr.id=r.pay_run_id
+            WHERE l.upload_id=@up AND d.amount>0 AND pr.status<>4
+              AND (@line IS NULL OR d.mudad_line_id=@line)
+            """,("@up",uploadId),("@line",(object?)lineId??DBNull.Value));
+        J.Need(used is null or DBNull,"صف مدد مستخدم في احتساب مسير؛ لا تعديل.",409);
+    }
 
     static void DemandCompany(DbConnection c,DbTransaction tx,string companyId)
     {

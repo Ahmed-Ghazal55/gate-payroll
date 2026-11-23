@@ -116,7 +116,6 @@ public static class SalSalaryApprove
         Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
         Guid payableAcc=AccountId(c,tx,"212103");
         Guid unrecoveredAcc=AccountId(c,tx,"512121");
-        Guid? erpRider=Guid.TryParse(rider.S("erpRiderId"),out var er)?er:null;
         foreach(var (code,g) in groups)
         {
             decimal full=J.Money(g.Recovered+g.Unrecovered);
@@ -124,9 +123,10 @@ public static class SalSalaryApprove
             string ctrl=g.Account is {Length:>0}?g.Account:ProtectedControlAccount(code,rider);
             Guid creditAcc=AccountId(c,tx,ctrl);
             var lines=new List<JournalPosting.Line>();
-            if(g.Recovered>0)lines.Add(new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),g.Recovered,0m,"استرداد محمي كيتا",null,erpRider));
-            if(g.Unrecovered>0)lines.Add(new(unrecoveredAcc,SchemaOrgCostCentre.NoneId,run.S("app"),g.Unrecovered,0m,"غير مسترد §22.9.2",null,erpRider));
-            lines.Add(new(creditAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,full,"استقطاع محمي كيتا",null,erpRider));
+            // Pair rule: until row-12 fills rider+account together, leave both null here.
+            if(g.Recovered>0)lines.Add(new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),g.Recovered,0m,"استرداد محمي كيتا"));
+            if(g.Unrecovered>0)lines.Add(new(unrecoveredAcc,SchemaOrgCostCentre.NoneId,run.S("app"),g.Unrecovered,0m,"غير مسترد §22.9.2"));
+            lines.Add(new(creditAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,full,"استقطاع محمي كيتا"));
             JournalPosting.Post(c,tx,new JournalPosting.Draft(
                 company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
                 DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
@@ -171,9 +171,11 @@ public static class SalSalaryApprove
             ]));
     }
 
-    /// <summary>Recover personal L1/L2 that still sit on 212103 (skip linked debt_id — settled earlier; skip old_debt — settled at confirm).</summary>
+    /// <summary>Recover personal L1/L2 that still sit on 212103 (skip linked debt_id — settled earlier; skip old_debt — settled at confirm).
+    /// RWC4a3F H8: Keeta protected operating items are posted by PostKeetaProtected.</summary>
     static void PostPersonalRecoveries(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider)
     {
+        bool skipProtectedOps=rider.B("protectedSalary");
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
         cmd.CommandText=$"""
             SELECT item_code,amount,account_code FROM {SchemaSql.Q(c,"sal","pay_run_item")}
@@ -186,7 +188,15 @@ public static class SalSalaryApprove
         using var r=cmd.ExecuteReader();
         var rows=new List<(string Code,decimal Amount,string Account)>();
         while(r.Read())
-            rows.Add((r["item_code"].ToString()!,Convert.ToDecimal(r["amount"]),r["account_code"].ToString()!));
+        {
+            string code=r["item_code"].ToString()!;
+            if(skipProtectedOps&&(code is "fuel" or "vehicle" or "housing"
+                ||code.StartsWith("fuel_",StringComparison.Ordinal)
+                ||code.StartsWith("vehicle_",StringComparison.Ordinal)
+                ||code.StartsWith("housing_",StringComparison.Ordinal)))
+                continue;
+            rows.Add((code,Convert.ToDecimal(r["amount"]),r["account_code"].ToString()!));
+        }
         r.Close();
         if(rows.Count==0)return;
         Guid company=Guid.Parse(run.S("companyId"));
