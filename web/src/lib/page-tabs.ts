@@ -45,37 +45,59 @@ export const DEBTS_TAB_LABELS: Record<DebtsTab, string> = {
 };
 
 export const TREASURY_TABS = [
+  'balances',
+  'transfers',
+  'bank_recon',
+  'vault_counts',
+  'jahez',
+  'movements',
   'vaults',
   'advance_payouts',
   'bank_file',
-  'jahez',
-  'movements',
+  'extras',
 ] as const;
 export type TreasuryTab = (typeof TREASURY_TABS)[number];
 
 export const TREASURY_TAB_LABELS: Record<TreasuryTab, string> = {
+  balances: 'الأرصدة',
+  transfers: 'التحويلات',
+  bank_recon: 'مطابقة البنوك',
+  vault_counts: 'جرد الخزن',
+  jahez: 'جاهز (مطابقة وخزينة)',
+  movements: 'سجل الحركات',
   vaults: 'أرصدة الخزينة (1110-1140)',
   advance_payouts: 'صرف السلف المعتمدة',
   bank_file: 'ملف صرف الرواتب البنكي',
-  jahez: 'جاهز — مطابقة وخزينة',
-  movements: 'سجل القيود والحركات',
+  extras: 'مدا والتزامات وتوزيع قديم',
 };
 
 export const ACCOUNTING_TABS = [
   'coa',
-  'journals',
   'manual_journals',
+  'journals',
+  'general_ledger',
   'trial_balance',
   'income_statement',
+  'balance_sheet',
+  'cost_centres',
+  'app_profitability',
+  'reports',
+  'adjustments',
 ] as const;
 export type AccountingTab = (typeof ACCOUNTING_TABS)[number];
 
 export const ACCOUNTING_TAB_LABELS: Record<AccountingTab, string> = {
   coa: 'دليل الحسابات',
-  journals: 'سجل القيود اليومية',
   manual_journals: 'القيود اليدوية',
+  journals: 'سجل القيود اليومية',
+  general_ledger: 'دفتر الأستاذ / كشف حساب',
   trial_balance: 'ميزان المراجعة',
   income_statement: 'قائمة الدخل',
+  balance_sheet: 'الميزانية العمومية',
+  cost_centres: 'مراكز التكلفة والمدن',
+  app_profitability: 'ربحية التطبيقات',
+  reports: 'التقارير',
+  adjustments: 'تسويات مدا والراتب',
 };
 
 /** One-time toast when a removed tab redirects (U-W3-27 / U-W3-28). */
@@ -89,20 +111,28 @@ export const REMOVED_TAB_TOASTS = {
 export const ADMIN_TABS = [
   'users',
   'org',
-  'lists',
   'bypass',
+  'lists',
   'audit',
+  'read_summary',
   'settings',
+  'notify_settings',
+  'archive',
+  'staff_chat',
 ] as const;
 export type AdminTab = (typeof ADMIN_TABS)[number];
 
 export const ADMIN_TAB_LABELS: Record<AdminTab, string> = {
   users: 'المستخدمون والصلاحيات',
   org: 'الأقسام والرتب والتفويضات',
-  lists: 'القوائم والإعدادات',
   bypass: 'تجاوز الاعتماد',
-  audit: 'سجل التدقيق والعمليات',
+  lists: 'القوائم العامة',
+  audit: 'سجل التدقيق',
+  read_summary: 'ملخص القراءة اليومي',
   settings: 'إعدادات النظام',
+  notify_settings: 'إعدادات الإشعارات',
+  archive: 'الأرشفة',
+  staff_chat: 'محادثة الموظفين',
 };
 
 export const OPERATIONS_TABS = ['cities', 'housing', 'vehicles', 'fuel'] as const;
@@ -189,7 +219,7 @@ export function resolveTreasuryTab(raw: string | null | undefined): TabResolutio
       dropTab: mapped.dropTab,
     };
   }
-  return { tab: 'vaults', legacy: Boolean(raw) };
+  return { tab: 'balances', legacy: Boolean(raw) };
 }
 
 export function resolveAccountingTab(raw: string | null | undefined): TabResolution<AccountingTab> {

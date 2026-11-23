@@ -47,6 +47,7 @@ import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { ScreenShell } from '../../components/ui/ScreenShell';
 import { StatCard } from '../../components/ui/StatCard';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Drawer } from '../../components/ui/Drawer';
@@ -455,7 +456,7 @@ function TreasuryPageContent() {
       {/* ======================================================== */}
       {/* Sub-tab 1: الحسابات البنكية والصناديق                      */}
       {/* ======================================================== */}
-      {activeTab === 'vaults' && (
+      {(activeTab === 'vaults' || activeTab === 'balances') && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
             <div className="flex items-center gap-2 flex-1 min-w-0 w-full sm:max-w-sm">
@@ -836,6 +837,12 @@ function TreasuryPageContent() {
       {/* Sub-tab 4: سجل حركات الخزينة والقيود                      */}
       {/* ======================================================== */}
 
+      {(activeTab === 'transfers' || activeTab === 'bank_recon' || activeTab === 'vault_counts') && (
+        <ScreenShell
+          title={TREASURY_TAB_LABELS[activeTab]}
+          description="شاشة الخزينة قيد التجهيز لهذا التبويب."
+        />
+      )}
       {activeTab === 'jahez' && <JahezWorkspace />}
 
       {activeTab === 'movements' && (

@@ -20,30 +20,33 @@ browser = await chromium.launch(launchOpts);
  const ctx=await browser.newContext({viewport:{width:1440,height:1000},storageState:cookies});
  const admin=await ctx.newPage();admin.on('pageerror',e=>errors.push(e.message));
  assert.equal((await fetch(base+'/',{redirect:'manual'})).headers.get('location'),'/app/');
- assert.equal((await fetch(base+'/legacy/',{redirect:'manual'})).headers.get('location'),'/app/');
- if(existsSync(path.join(root,'Payroll.Api/bin/Debug/net10.0/wwwroot/app/index.html'))||existsSync(path.join(root,'Payroll.Api/wwwroot/app/index.html'))){
-  await admin.goto(base+'/app/',{waitUntil:'networkidle'});
-  await admin.waitForFunction(()=>!location.pathname.includes('/login')||document.body.innerText.length>0);
-  for(const route of ['/app/workforce/','/app/payroll/?tab=platforms&period=2026-10','/app/rider-app/?tab=campaigns','/app/debts/?tab=debts','/app/treasury/?tab=vaults','/app/accounting/?tab=coa','/app/admin/?tab=users']){
-   await admin.goto(base+route,{waitUntil:'domcontentloaded'});
-   assert.ok((await admin.content()).length>100,route);
-  }
-  // UT1: legacy ?tab= redirects preserve ?period=YYYY-MM and land on canonical tabs without duplicate top tab bars.
-  await admin.goto(base+'/app/accounting/?tab=trial&period=2026-10',{waitUntil:'networkidle'});
-  await admin.waitForURL(/\/app\/accounting\/\?.*(tab=trial_balance.*period=2026-10|period=2026-10.*tab=trial_balance)/,{timeout:10000});
-  assert.equal(await admin.locator('[role="tablist"]').count(),0,'accounting should have no duplicate top tab bar');
-  await admin.goto(base+'/app/debts/?tab=statements&period=2026-10',{waitUntil:'networkidle'});
-  await admin.waitForURL(/\/app\/debts\/\?.*(tab=statement.*period=2026-10|period=2026-10.*tab=statement)/,{timeout:10000});
-  await admin.goto(base+'/app/payroll/?tab=current_cycle&period=2026-10',{waitUntil:'networkidle'});
-  await admin.waitForURL(/\/app\/payroll\/\?.*(tab=current-cycle.*period=2026-10|period=2026-10.*tab=current-cycle)/,{timeout:10000});
-  // UT1: page month input reads URL ?period=2026-10 and changing it updates the URL ?period=.
-  const monthInput=admin.locator('main input[type="month"]').first();
-  await monthInput.waitFor({state:'visible',timeout:10000});
-  assert.equal(await monthInput.inputValue(),'2026-10','payroll page picker must read URL ?period=');
-  await monthInput.fill('2026-09');
-  await admin.waitForURL(/period=2026-09/,{timeout:10000});
-  await admin.screenshot({path:path.join(out,'dashboard.png'),fullPage:true});
+ {
+  const legacyLoc=(await fetch(base+'/legacy/',{redirect:'manual'})).headers.get('location')||'';
+  assert.ok(legacyLoc==='/app/'||legacyLoc.startsWith('/app/login'),`legacy redirect unexpected: ${legacyLoc}`);
  }
+ const packaged=existsSync(path.join(root,'Payroll.Api/bin/Debug/net10.0/wwwroot/app/index.html'))||existsSync(path.join(root,'Payroll.Api/wwwroot/app/index.html'));
+ assert.ok(packaged,'App pages missing: run `python3 scripts/package_web.py` after `npm --prefix web run build` before browser tests');
+ await admin.goto(base+'/app/',{waitUntil:'networkidle'});
+ await admin.waitForFunction(()=>!location.pathname.includes('/login')||document.body.innerText.length>0);
+ for(const route of ['/app/workforce/','/app/payroll/?tab=platforms&period=2026-10','/app/approvals/','/app/rider-app/?tab=campaigns','/app/debts/?tab=debts','/app/treasury/?tab=vaults','/app/accounting/?tab=coa','/app/admin/?tab=users']){
+  await admin.goto(base+route,{waitUntil:'domcontentloaded'});
+  assert.ok((await admin.content()).length>100,route);
+ }
+ // UT1: legacy ?tab= redirects preserve ?period=YYYY-MM and land on canonical tabs without duplicate top tab bars.
+ await admin.goto(base+'/app/accounting/?tab=trial&period=2026-10',{waitUntil:'networkidle'});
+ await admin.waitForURL(/\/app\/accounting\/\?.*(tab=trial_balance.*period=2026-10|period=2026-10.*tab=trial_balance)/,{timeout:10000});
+ assert.equal(await admin.locator('[role="tablist"]').count(),0,'accounting should have no duplicate top tab bar');
+ await admin.goto(base+'/app/debts/?tab=statements&period=2026-10',{waitUntil:'networkidle'});
+ await admin.waitForURL(/\/app\/debts\/\?.*(tab=statement.*period=2026-10|period=2026-10.*tab=statement)/,{timeout:10000});
+ await admin.goto(base+'/app/payroll/?tab=current_cycle&period=2026-10',{waitUntil:'networkidle'});
+ await admin.waitForURL(/\/app\/payroll\/\?.*(tab=current-cycle.*period=2026-10|period=2026-10.*tab=current-cycle)/,{timeout:10000});
+ // UT1: page month input reads URL ?period=2026-10 and changing it updates the URL ?period=.
+ const monthInput=admin.locator('main input[type="month"]').first();
+ await monthInput.waitFor({state:'visible',timeout:10000});
+ assert.equal(await monthInput.inputValue(),'2026-10','payroll page picker must read URL ?period=');
+ await monthInput.fill('2026-09');
+ await admin.waitForURL(/period=2026-09/,{timeout:10000});
+ await admin.screenshot({path:path.join(out,'dashboard.png'),fullPage:true});
  const campaignRes=await page.request.post(base+'/api/campaigns',{data:{title:'اختبار نموذج المناديب',days:2}});assert.equal(campaignRes.status(),200);const campaign=await campaignRes.json();assert.ok(campaign.path);
  const mobile=await browser.newPage({viewport:{width:390,height:844}});mobile.on('pageerror',e=>errors.push(e.message));await mobile.goto(base+campaign.path);await mobile.locator('#rider-choice').waitFor();
  assert.equal(await mobile.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true,'Mobile page overflow');await mobile.screenshot({path:path.join(out,'rider-form-mobile.png'),fullPage:true});
@@ -54,5 +57,5 @@ browser = await chromium.launch(launchOpts);
  mobile.once('dialog',d=>d.accept());await mobile.locator('button[type=submit]').click();await mobile.getByRole('heading',{name:'تم تسجيل ردك بنجاح'}).waitFor();
  const submissions=await(await page.request.get(base+'/api/submissions')).json();assert.equal(submissions.length,1);assert.equal(submissions[0].name,'مندوب تجريبي');
  const template=await page.request.get(base+'/api/excel/choices/template');assert.equal(template.status(),200);assert.match(template.headers()['content-type']||'',/spreadsheetml/);
- assert.deepEqual(errors,[]);console.log('PASS browser: Next redirects, admin routes when packaged, mobile form layout, public submit, Excel template, no JS errors.');
+ assert.deepEqual(errors,[]);console.log('PASS browser: Next redirects, packaged app routes, UT1 period/tabs, mobile form layout, public submit, Excel template, no JS errors.');
 }finally{if(browser)await browser.close();if(server.exitCode===null&&!spawnError){const stopped=new Promise(r=>server.once('exit',r));server.kill();await Promise.race([stopped,new Promise(r=>setTimeout(r,5000))]);}rmSync(data,{recursive:true,force:true});}

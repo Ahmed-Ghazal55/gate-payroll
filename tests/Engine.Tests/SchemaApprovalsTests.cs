@@ -102,10 +102,10 @@ public sealed class SchemaApprovalsTests
     {
         using var f=new PayFixture();
         f.Store.Write((c,tx)=>{
-            var maker=Store.Get(c,"synthetic-pay-maker","user",tx)??new(){["id"]="synthetic-pay-maker",["username"]="synthetic-pay-maker"};
-            maker["role"]="Admin";Store.Save(c,"user",maker,tx);
-            Store.Save(c,"approval_limit",new(){["rank"]="A",["department"]="FIN",["limitSar"]=1234,["updatedBy"]="synthetic-pay-maker"},tx);
-            Store.Save(c,"sla_policy",new(){["requestType"]="default",["workingDays"]=2,["updatedBy"]="synthetic-pay-maker"},tx);
+            var maker=UserAccess.Find(c,"synthetic-pay-maker",tx)??Store.Get(c,"synthetic-pay-maker","user",tx)??new JsonObject{["id"]="synthetic-pay-maker",["username"]="synthetic-pay-maker",["role"]="Admin"};
+            maker["role"]="Admin";maker["status"]=maker.S("status","active");Store.Save(c,"user",maker,tx);
+            ApprovalsArea.PutLimits(c,tx,PayFixture.Maker,new(){["items"]=new JsonArray(new JsonObject{["rank"]="A",["department"]="FIN",["limitSar"]=1234})});
+            ApprovalsArea.PutSla(c,tx,PayFixture.Maker,new(){["items"]=new JsonArray(new JsonObject{["requestType"]="default",["workingDays"]=2})});
             AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-pay-maker",["from"]="2026-01-01",["to"]="2026-12-31",["reason"]="table read",["scope"]=AccessPolicy.ScopePayApprovals});
             Store.Save(c,"approval_request",new()
             {

@@ -80,6 +80,67 @@ public sealed class SalSimulationsTests
     }
 
     [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void CreateSimulationReturnsServerId(bool sqlServer)
+    {
+        var c=MoneySchemaFixture.Payments(sqlServer);
+        using(c)
+        {
+            SchemaSalPayRun.Ensure(c);
+            if(SchemaSql.IsSql(c))
+                SchemaSql.Exec(c,null,"IF OBJECT_ID(N'dbo.records',N'U') IS NULL CREATE TABLE dbo.records(id nvarchar(128) NOT NULL PRIMARY KEY, kind nvarchar(40) NOT NULL, body nvarchar(max) NOT NULL);");
+            else
+                MoneySchemaFixture.Exec(c,null,"CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL)");
+            string company=MoneySchemaFixture.Company(c);
+            var admin=UserAccess.Principal(new JsonObject{["username"]="sim-create",["role"]="Admin"});
+            using var tx=c.BeginTransaction();
+            var created=SalSimulations.Create(c,tx,admin,new JsonObject
+            {
+                ["companyId"]=company,["app"]="ninja",["periodMonth"]="2026-11"
+            });
+            Assert.AreEqual(1m,created.N("runMode"));
+            Assert.IsFalse(string.IsNullOrWhiteSpace(created.S("id")));
+            Assert.IsTrue(created["allowedActions"]!.AsArray().Any(a=>a?.ToString()=="discard_simulation"));
+            Assert.AreEqual("2026-11-01",created.S("periodMonth"));
+            Assert.AreEqual(1L,Convert.ToInt64(MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(1) FROM sal_pay_run WHERE id=@id AND run_mode=1",("@id",created.S("id")))!));
+            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalSimulations.Create(c,tx,admin,new JsonObject
+            {
+                ["companyId"]=company,["app"]="ninja",["periodMonth"]="2026-11"
+            })).Status);
+            tx.Commit();
+        }
+    }
+
+    [TestMethod]
+    public void CreateRouteRequiresSimulationPermission()
+    {
+        // HRSpecialist has no pay.manage — isolate salaries.simulation.run vs promote routes.
+        var runner=UserAccess.Principal(new JsonObject
+        {
+            ["username"]="sim-runner",["role"]="HRSpecialist",
+            ["customPermissions"]=new JsonArray(SalSimulations.RunPermission)
+        });
+        var viewer=UserAccess.Principal(new JsonObject
+        {
+            ["username"]="sim-viewer",["role"]="HRSpecialist",
+            ["customPermissions"]=new JsonArray("payroll.view")
+        });
+        var promoter=UserAccess.Principal(new JsonObject
+        {
+            ["username"]="sim-promoter",["role"]="HRSpecialist",
+            ["customPermissions"]=new JsonArray(SalSimulations.PromotePermission)
+        });
+        Assert.IsTrue(AccessPolicy.Allowed(runner,"POST","/api/sal/simulations"));
+        Assert.IsFalse(AccessPolicy.Allowed(runner,"GET","/api/sal/simulations"));
+        Assert.IsFalse(AccessPolicy.Allowed(viewer,"POST","/api/sal/simulations"));
+        Assert.IsTrue(AccessPolicy.Allowed(runner,"POST","/api/sal/simulations/x/discard"));
+        Assert.IsFalse(AccessPolicy.Allowed(runner,"GET","/api/sal/simulations/x/promote-diff"));
+        Assert.IsTrue(AccessPolicy.Allowed(promoter,"GET","/api/sal/simulations/x/promote-diff"));
+        Assert.IsFalse(AccessPolicy.Allowed(promoter,"POST","/api/sal/simulations"));
+    }
+
+    [TestMethod]
     public void PlatformScopeIsRequiredOnLoad()
     {
         var (c,company,run)=SeedSim();

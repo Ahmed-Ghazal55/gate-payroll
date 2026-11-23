@@ -269,6 +269,13 @@ function HeaderInner({
   // Shortcuts list gated by can()
   const shortcutItems = [
     {
+      id: 'approvals-inbox',
+      label: 'صندوق الاعتمادات',
+      href: '/approvals/',
+      icon: <ClipboardCheck size={15} className="text-[var(--accent)]" />,
+      visible: can('approvals.view') || can('approvals.decide'),
+    },
+    {
       id: 'monthly-cycle',
       label: 'تصفية شهرية',
       href: '/payroll/?tab=cycle',
@@ -407,10 +414,10 @@ function HeaderInner({
             />
           </div>
 
-          {/* Approvals Count Link */}
+          {/* Approvals Count Link → /approvals/ (U-W3-01 / U-W3-12) */}
           {approvalCount > 0 && (
             <Link
-              href={withPeriod('/debts/')}
+              href="/approvals/"
               title={`${approvalCount} معاملات بانتظار الاعتماد`}
               className="hidden sm:inline-flex items-center gap-1 px-2.5 py-1 text-xs font-semibold rounded-lg bg-[var(--warning)]/15 text-[var(--warning)] hover:bg-[var(--warning)]/25 transition"
             >

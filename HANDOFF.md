@@ -11,17 +11,20 @@
 ## Goal now
 TRIAL1: local integration of W2/W3 branches for Ghazal to try invoices, pay cycle, balances. Never push / never main / never live DB.
 
-## Done (S1F)
-- HIGH: `web/src/app/imports/page.tsx` catalog uploads; sidebar «استيراد الملفات»; payroll `import_operations` → `/app/imports`.
-- MEDIUM: `tests/Engine.Tests/ImportPlanTests.cs` (6 assertions, no ImportExecutor).
-- LOW: `erp.sync.run` hidden/deprecated in editor; sync-baseline out of contract/e2e; `/api/imports/*` keep note.
-- Commits: `e407495`, `6da0233`, `ef2a5d2`. Report: `~/.cache/agents-runs/cursor-S1F-report.md`.
+## Done (W3AC)
+- `POST /api/sal/simulations` create (AccessPolicy + OpenAPI + contract) with create/duplicate tests.
+- Payroll shells redirect to `/payroll/?tab=…`; sidebar no longer uses `/payroll/{app}` for active apps.
+- SimulationBanner binds `rows`/`simNet`/`liveNet` and journal `side`/`amount` shapes; client `createSimulation`.
+- Approvals maker-checker empty copy; CoA column filters; Jahez error message polish.
+- Verify: web 143/143; `api:check` OK; `npm build` OK; sqltest Failed:0 Passed:955.
+- Commits on branch (local only). Report: `~/.cache/agents-runs/cursor-W3AC-report.md`.
 
 ## How to verify
 ```bash
-dotnet build Payroll.Api/Payroll.Api.csproj
-dotnet test tests/Engine.Tests/Engine.Tests.csproj -p:SkipFrontendBuild=true
+npm --prefix web test
+npm --prefix web run api:check
 npm --prefix web run build
+~/.cache/agents-runs/sqltest.sh /home/ghazal/Projects/active/gate-payroll-w3a
 ```
 
 ## Open for Ghazal

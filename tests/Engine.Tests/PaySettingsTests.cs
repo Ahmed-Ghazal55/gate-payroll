@@ -13,10 +13,12 @@ public sealed class PayFixture:IDisposable
     public PayFixture()
     {
         Store=new Store(DirectoryPath);
-        // money-core: SchemaApprovals bridges only existing document users — never invents auth.user rows.
+        // money-core + admin: SchemaApprovals bridges only existing document users; seed once with status=active.
         Store.Write((c,tx)=>{
-            Store.Save(c,"user",new(){["id"]="synthetic-pay-maker",["username"]="synthetic-pay-maker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5},tx);
-            Store.Save(c,"user",new(){["id"]="synthetic-pay-checker",["username"]="synthetic-pay-checker",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=5},tx);
+            if(UserAccess.Find(c,"synthetic-pay-maker",tx)==null)
+                Store.Save(c,"user",new(){["id"]="synthetic-pay-maker",["username"]="synthetic-pay-maker",["role"]="Admin",["status"]="active",["department"]="FIN",["rankLevel"]=5},tx);
+            if(UserAccess.Find(c,"synthetic-pay-checker",tx)==null)
+                Store.Save(c,"user",new(){["id"]="synthetic-pay-checker",["username"]="synthetic-pay-checker",["role"]="FinancialAccountant",["status"]="active",["department"]="FIN",["rankLevel"]=5},tx);
             return true;
         });
     }

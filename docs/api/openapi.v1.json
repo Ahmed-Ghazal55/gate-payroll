@@ -25685,6 +25685,36 @@
         }
       }
     },
+    "/api/sal/simulations": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Create a simulation pay run (no live effects)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/sal/simulations/{id}/journal-preview": {
       "get": {
         "tags": [

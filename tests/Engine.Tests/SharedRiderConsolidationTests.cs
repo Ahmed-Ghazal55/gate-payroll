@@ -35,6 +35,7 @@ public sealed class SharedRiderConsolidationTests
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>SharedRiderConsolidation.Release(c,tx,actor,rider,period,reason))).Status);
         // Bypass / self-approval must not unlock release.
         f.Store.Write((c,tx)=>{
+            Store.Save(c,"user",new(){["id"]="u-shared-checker",["username"]="synthetic-checker",["role"]="Admin",["customPermissions"]=new JsonArray(ApprovalsArea.DualSharedRiderRelease,"approvals.decide")},tx);
             Store.Save(c,"user",new(){["id"]="u-shared-maker",["username"]="synthetic-hold-maker",["role"]="Admin",["customPermissions"]=new JsonArray(ApprovalsArea.DualSharedRiderRelease,"approvals.decide")},tx);
             Store.Save(c,"user",new(){["id"]="u-shared-checker",["username"]="synthetic-checker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5,["customPermissions"]=new JsonArray(ApprovalsArea.DualSharedRiderRelease,"approvals.decide")},tx);
             AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-hold-maker",["from"]=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"),["to"]=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).AddDays(7).ToString("yyyy-MM-dd"),["reason"]="shared rider bypass",["scope"]=ApprovalsArea.DualSharedRiderRelease});

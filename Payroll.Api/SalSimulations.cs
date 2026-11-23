@@ -11,6 +11,45 @@ public static class SalSimulations
     public const string RunPermission="salaries.simulation.run",PromotePermission="pay.manage";
     const byte StatusActive=1,StatusCancelled=4,RunModeSimulation=1,RunModeLive=0;
 
+    /// <summary>Create an empty simulation pay run (run_mode=1). One active simulation per company/app/month.</summary>
+    public static JsonObject Create(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)
+    {
+        AccessPolicy.Demand(actor,RunPermission);
+        PayValues.Fields(input,"companyId","app","periodMonth");
+        string companyKey=input.Required("companyId");
+        string company=FinancialCore.FindSponsor(companyKey)?.Id??companyKey;
+        string app=PayPlatforms.App(input.Required("app"));
+        string periodRaw=J.Period(input.Required("periodMonth"));
+        string periodMonth=periodRaw.Length==7?periodRaw+"-01":periodRaw.Length>=10?periodRaw[..10]:periodRaw;
+        FinancialScopes.DemandSponsor(actor,company);
+        var platform=PayPlatforms.For(app);
+        J.Need(FinancialScopes.Platform(actor,platform.Platform),"المنصة خارج نطاق المستخدم.",403);
+        object? existing=SchemaSql.Scalar(c,tx,$"""
+            SELECT id FROM {SchemaSql.Q(c,"sal","pay_run")}
+            WHERE company_id=@c AND app_code=@app AND period_month=@pm AND run_mode=@rm AND status<>@cancelled
+            """,("@c",company),("@app",app),("@pm",periodMonth),("@rm",RunModeSimulation),("@cancelled",StatusCancelled));
+        J.Need(existing==null,"توجد محاكاة نشطة لنفس التطبيق والشركة والشهر؛ ألغها أولًا قبل بدء محاكاة جديدة.",409);
+        bool payoutBlocked=input.B("payoutBlocked");
+        string id=SchemaSql.GuidText(SchemaSql.NewId());
+        string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
+        string by=actor.Identity!.Name!;
+        SchemaSql.Exec(c,tx,$"""
+            INSERT INTO {SchemaSql.Q(c,"sal","pay_run")}
+            (id,period_month,app_code,company_id,stage,status,run_mode,payout_blocked,currency_code,capture_state,created_by,created_at)
+            VALUES(@id,@pm,@app,@c,0,@st,@rm,@pb,'SAR',0,@by,@at)
+            """,("@id",id),("@pm",periodMonth),("@app",app),("@c",company),
+            ("@st",StatusActive),("@rm",RunModeSimulation),("@pb",payoutBlocked?1:0),
+            ("@by",by),("@at",now));
+        Store.Audit(c,tx,"sal.simulation_created",id,by);
+        var run=new JsonObject
+        {
+            ["id"]=id,["companyId"]=company,["app"]=app,["periodMonth"]=periodMonth,
+            ["status"]=StatusActive,["runMode"]=1,["payoutBlocked"]=payoutBlocked,
+            ["noteAr"]="محاكاة جديدة — بلا ترحيل ولا أثر على الأرصدة."
+        };
+        return WithActions(c,tx,actor,run,run);
+    }
+
     public static JsonObject JournalPreview(DbConnection c,ClaimsPrincipal actor,string id)
     {
         AccessPolicy.Demand(actor,RunPermission);
@@ -225,6 +264,11 @@ public static class SalSimulations
     public static void Map(RouteGroupBuilder api,Store store)
     {
         // Dual-store path: when sal.pay_run exists on the connection used by Store, prefer SQL; otherwise report clear 501 until money schema is wired into Store.Ensure.
+        api.MapPost("/sal/simulations",(JsonObject? input,HttpContext ctx)=>store.Write((c,tx)=>
+        {
+            EnsureSalSchema(c,tx);
+            return Create(c,tx,ctx.User,input??new JsonObject());
+        })).WithTags("Payroll").WithSummary("Create a simulation pay run (no live effects)");
         api.MapGet("/sal/simulations/{id}/journal-preview",(string id,HttpContext ctx)=>store.Read(c=>
         {
             EnsureSalSchema(c);

@@ -200,6 +200,8 @@ public static partial class AccessPolicy
         if(path=="/api/audit")return method=="GET"&&(Has("audit.view")||Has("admin.audit.view"));
         if(path.StartsWith("/api/admin/org/approval-limits",StringComparison.Ordinal)||path.StartsWith("/api/admin/org/sla-policies",StringComparison.Ordinal))
             return (method=="GET"||method=="PUT")&&(Has("admin.org.manage")||Has("org.manage"));
+        if(path=="/api/sal/simulations")
+            return method=="POST"&&Has("salaries.simulation.run");
         if(path.StartsWith("/api/sal/simulations/",StringComparison.Ordinal))
             return path.EndsWith("/journal-preview",StringComparison.Ordinal)||path.EndsWith("/discard",StringComparison.Ordinal)
                 ?(method=="GET"||method=="POST")&&Has("salaries.simulation.run")
@@ -310,7 +312,7 @@ public static partial class AccessPolicy
         Demand(actor,permission);
         string? dual=dualPermission??ApprovalsArea.ResolveDual(request);
         if(ApprovalsArea.RequiresDual(dual))Demand(actor,dual!);
-        string name=actor.Identity?.Name??"";
+        string maker=request.S("requestedBy",request.S("createdBy"));
         // BR §35 / M-0672: maker≠checker only for dedicated dual money-out / shared-rider codes.
         // M-0667: SystemAdmin self-approval still goes through Independent so the monthly audit report records it.
         if(ApprovalsArea.RequiresDual(dual)||actor.IsInRole("SystemAdmin"))

@@ -59,6 +59,9 @@ import { RiderPicker } from '../../components/ui/RiderPicker';
 import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import { ConfigListsPanel } from '../../features/admin/ConfigListsPanel';
 import { ApprovalBypassPanel } from '../../features/admin/ApprovalBypassPanel';
+import { AdminSettingsPanel } from '../../features/admin/AdminSettingsPanel';
+import { AdminReadSummaryPanel } from '../../features/admin/AdminReadSummaryPanel';
+import { ScreenShell } from '../../components/ui/ScreenShell';
 import { RolePermissionsEditor, UserAccessDialog, type AccessCatalog, type AccessUser } from '../../features/admin/UserAccessDialog';
 import type {
   OrgCatalog,
@@ -1486,23 +1489,17 @@ function AdminPageInner() {
       {/* ======================================================== */}
       {/* Tab 4: إعدادات المنظومة                                    */}
       {/* ======================================================== */}
-      {activeTab === 'settings' && (
-        <div className="space-y-6">
-          <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-3">
-            <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-              إعدادات المنظومة
-            </h3>
-            <p className="text-xs text-[var(--muted)]">
-              إعدادات إشعارات تطبيق المناديب تُدار من شاشة «إعدادات التطبيق» داخل قسم تطبيق المناديب والنماذج — وليست نموذجًا وهميًا هنا.
-            </p>
-            <Link
-              href="/rider-app/?tab=settings"
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold"
-            >
-              فتح إعدادات التطبيق
-            </Link>
-          </div>
-        </div>
+      {activeTab === 'settings' && <AdminSettingsPanel />}
+
+      {activeTab === 'read_summary' && <AdminReadSummaryPanel />}
+      {activeTab === 'notify_settings' && (
+        <ScreenShell title="إعدادات الإشعارات والمهام" description="مصفوفة التنبيهات وإرسال الإشعارات والمهام التشغيلية." />
+      )}
+      {activeTab === 'archive' && (
+        <ScreenShell title="الأرشفة" description="سياسات الاحتفاظ وطلبات استرجاع العرض للبيانات الأقدم من ثلاث سنوات." />
+      )}
+      {activeTab === 'staff_chat' && (
+        <ScreenShell title="محادثة الموظفين" description="قنوات الإدارة والأقسام مع إشراف ومنع الفيديو." />
       )}
 
       {/* Add User Dialog */}

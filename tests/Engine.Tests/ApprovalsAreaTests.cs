@@ -44,7 +44,7 @@ public sealed class ApprovalsAreaTests
             ["createdAt"]=DateTimeOffset.UtcNow.AddDays(-10).ToString("O")
         };
         f.Store.Write((c,tx)=>{
-            Store.Save(c,"user",new(){["id"]="other",["username"]="other",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=3},tx);
+            Store.Save(c,"user",new(){["id"]="other",["username"]="other",["role"]="FinancialAccountant",["status"]="active",["department"]="FIN",["rankLevel"]=3},tx);
             Store.Save(c,"approval_request",old,tx);ApprovalsArea.EscalateOverdue(c,tx);return true;
         });
         Assert.AreEqual("escalated",f.Store.Read(c=>Store.Get(c,old.S("id"),"approval_request")!.S("status")));
@@ -115,7 +115,7 @@ public sealed class ApprovalsAreaTests
             ["sponsorId"]=company,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")
         };
         f.Store.Write((c,tx)=>{
-            Store.Save(c,"user",new(){["id"]="other",["username"]="other",["role"]="FinancialAccountant",["department"]="OPS",["rankLevel"]=2},tx);
+            Store.Save(c,"user",new(){["id"]="other",["username"]="other",["role"]="FinancialAccountant",["status"]="active",["department"]="OPS",["rankLevel"]=2},tx);
             Store.Save(c,"approval_request",req,tx);return true;
         });
         JsonObject ScopeUser(string name,string dept,int rank)=>new()

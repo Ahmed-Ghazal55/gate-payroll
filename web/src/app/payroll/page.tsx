@@ -92,6 +92,7 @@ import { PaySettingsEditorModal } from '../../features/payroll/PaySettingsEditor
 import { PaySettingsCycleReview } from '../../features/payroll/PaySettingsCycleReview';
 import { RiderAssignmentsWorkspace } from '../../features/payroll/RiderAssignmentsWorkspace';
 import { RuleRecordWorkspace } from '../../features/payroll/RuleRecordWorkspace';
+import { SimulationBanner, SIMULATION_BLOCKED_HINT } from '../../components/payroll/SimulationBanner';
 import {
   createEmptyTermsForm,
   createEmptySchemeForm,
@@ -268,6 +269,66 @@ function PayrollPageInner() {
   const { period: selectedPeriod, setPeriod: setSelectedPeriod } = usePeriod();
   const [selectedCompany, setSelectedCompany] = useState<string>('all');
   const [searchQuery, setSearchQuery] = useState<string>('');
+  const [simBusy, setSimBusy] = useState(false);
+  const [simTick, setSimTick] = useState(0);
+  const runMode = searchParams?.get('runMode') || 'live';
+  const simulationId = searchParams?.get('simulationId') || '';
+  const payoutBlocked = searchParams?.get('payoutBlocked') === '1';
+  const isSimulation = runMode === 'simulation' && Boolean(simulationId);
+
+  const clearSimulationUrl = useCallback(() => {
+    const params = new URLSearchParams(searchParams?.toString() || '');
+    params.delete('runMode');
+    params.delete('simulationId');
+    params.delete('payoutBlocked');
+    router.replace(`${pathname || '/payroll/'}?${params.toString()}`, { scroll: false });
+    setSimTick((n) => n + 1);
+  }, [pathname, router, searchParams]);
+
+  const startSimulation = useCallback(async () => {
+    if (!can('salaries.simulation.run')) {
+      showToast('لا تملك صلاحية تشغيل المحاكاة', 'warning');
+      return;
+    }
+    if (selectedPlatform === 'amazon') {
+      showToast('أمازون مؤجّل حتى تتوفر فاتورة عيّنة', 'warning');
+      return;
+    }
+    const companyId = selectedCompany !== 'all' ? selectedCompany : 'BW';
+    setSimBusy(true);
+    try {
+      const created = await api.createSimulation({
+        companyId,
+        app: appSlug,
+        periodMonth: selectedPeriod,
+        payoutBlocked: false,
+      });
+      const id = String(created.id || '');
+      if (!id) throw new Error('لم يُرجع الخادم معرّف المحاكاة');
+      const params = new URLSearchParams(searchParams?.toString() || '');
+      params.set('runMode', 'simulation');
+      params.set('simulationId', id);
+      if (created.payoutBlocked === true || created.payoutBlocked === 1) params.set('payoutBlocked', '1');
+      else params.delete('payoutBlocked');
+      router.replace(`${pathname || '/payroll/'}?${params.toString()}`, { scroll: false });
+      showToast('تم إنشاء محاكاة جديدة', 'success');
+      setSimTick((n) => n + 1);
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر إنشاء المحاكاة', 'error');
+    } finally {
+      setSimBusy(false);
+    }
+  }, [
+    can,
+    selectedPlatform,
+    selectedCompany,
+    appSlug,
+    selectedPeriod,
+    searchParams,
+    pathname,
+    router,
+    showToast,
+  ]);
 
   useEffect(() => {
     if (tabFromUrl && tabFromUrl !== mainTab) {
@@ -2076,17 +2137,50 @@ function PayrollPageInner() {
         eyebrow={PAYROLL_TAB_LABELS[mainTab]}
         description="إدارة ومراجعة فواتير المنصات، الدورة القائمة الفعالة للرواتب، محرر الأنظمة الداخلية، الاستقطاعات، واعتماد ملفات الصرف."
         primaryAction={
+          can('salaries.simulation.run') && selectedPlatform !== 'amazon'
+            ? {
+                label: simBusy ? 'جاري إنشاء المحاكاة…' : 'بدء محاكاة جديدة',
+                onClick: () => void startSimulation(),
+                disabled: simBusy,
+              }
+            : mainTab === 'platforms' &&
+                selectedPlatform === 'ninja' &&
+                canShowImportStep(NINJA_OPS_IMPORT, { isAdmin, can })
+              ? {
+                  label: 'استيراد تشغيل نينجا',
+                  icon: <Upload size={16} />,
+                  onClick: () => setOpsImportStep(NINJA_OPS_IMPORT),
+                }
+              : undefined
+        }
+        moreActions={
+          can('salaries.simulation.run') &&
+          selectedPlatform !== 'amazon' &&
           mainTab === 'platforms' &&
           selectedPlatform === 'ninja' &&
           canShowImportStep(NINJA_OPS_IMPORT, { isAdmin, can })
-            ? {
-                label: 'استيراد تشغيل نينجا',
-                icon: <Upload size={16} />,
-                onClick: () => setOpsImportStep(NINJA_OPS_IMPORT),
-              }
+            ? [
+                {
+                  label: 'استيراد تشغيل نينجا',
+                  icon: <Upload size={16} />,
+                  onClick: () => setOpsImportStep(NINJA_OPS_IMPORT),
+                },
+              ]
             : undefined
         }
       />
+      {isSimulation ? (
+        <div key={simTick} className="space-y-2">
+          <SimulationBanner
+            simulationId={simulationId}
+            payoutBlocked={payoutBlocked}
+            onChanged={clearSimulationUrl}
+          />
+          <p className="text-xs text-[var(--warning)]" title={SIMULATION_BLOCKED_HINT}>
+            تصدير البنك وترحيل القيود وإرسال إشعار المندوب: {SIMULATION_BLOCKED_HINT}
+          </p>
+        </div>
+      ) : null}
       {opsImportStep && (
         <ImportUploadDialog
           open={Boolean(opsImportStep)}

@@ -27,8 +27,8 @@ public sealed class ApprovalBypassTests
         using var f=new PayFixture();
         string name=PayFixture.Maker.Identity!.Name!;
         f.Store.Write((c,tx)=>{
-            var maker=Store.Get(c,"synthetic-pay-maker","user",tx)??new(){["id"]="synthetic-pay-maker",["username"]=name};
-            maker["role"]="Admin";maker["department"]="FIN";Store.Save(c,"user",maker,tx);return true;
+            var maker=UserAccess.Find(c,name,tx)??Store.Get(c,"synthetic-pay-maker","user",tx)??new JsonObject{["id"]="synthetic-pay-maker",["username"]=name,["role"]="Admin"};
+            maker["role"]="Admin";maker["department"]="FIN";maker["status"]=maker.S("status","active");Store.Save(c,"user",maker,tx);return true;
         });
         var grant=f.Store.Write((c,tx)=>AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]=name,["from"]=Day(0),["to"]=Day(3),["reason"]="temporary grant"}));
         f.Store.Write((c,tx)=>AccessPolicy.RevokeBypass(c,tx,PayFixture.Maker,grant.S("id")));

@@ -388,8 +388,21 @@ async function handleRequest<T>(endpoint: string, options: RequestInit = {}): Pr
   }
 
   if (!res.ok) {
-    const payload: ApiErrorPayload = await res.json().catch(() => ({ error: 'حدث خطأ في معالجة الطلب' }));
-    throw new ApiError(payload.error || 'فشل الطلب', res.status, payload.code);
+    const payload = (await res.json().catch(() => ({ error: 'حدث خطأ في معالجة الطلب' }))) as ApiErrorPayload & {
+      message?: string;
+    };
+    const raw = payload.error as unknown;
+    const nested =
+      raw && typeof raw === 'object' && typeof (raw as { message?: unknown }).message === 'string'
+        ? String((raw as { message: string }).message)
+        : '';
+    const message =
+      typeof raw === 'string' && raw.trim()
+        ? raw
+        : nested ||
+          (typeof payload.message === 'string' && payload.message.trim() ? payload.message : '') ||
+          'فشل الطلب';
+    throw new ApiError(message, res.status, payload.code);
   }
 
   // If blob response
@@ -1240,16 +1253,113 @@ export const api = {
     return handleRequest<any>(`/finance/statement/rider/${encodeURIComponent(iqama)}/simple?${q.toString()}`);
   },
 
-  getApprovals: (params?: { department?: string; status?: string }) => {
+  getApprovals: (params?: {
+    module?: string;
+    department?: string;
+    status?: string;
+    mineOnly?: boolean;
+    page?: number;
+    pageSize?: number;
+  }) => {
     const q = new URLSearchParams();
+    if (params?.module) q.set('module', params.module);
     if (params?.department) q.set('department', params.department);
     if (params?.status) q.set('status', params.status);
+    if (params?.mineOnly) q.set('mineOnly', 'true');
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
     const qs = q.toString() ? `?${q.toString()}` : '';
     return handleRequest<ApprovalRequest[]>(`/approvals${qs}`);
   },
 
-  decideApproval: (id: string, input: { decision: 'approved' | 'rejected' | 'suspended'; note?: string }) =>
+  decideApproval: (
+    id: string,
+    input: { decision: 'approve' | 'reject' | 'approved' | 'rejected' | 'suspended'; note?: string; reason?: string }
+  ) =>
     handleRequest<{ ok: boolean }>(`/approvals/${id}/decide`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  getAdminSettings: () => handleRequest<Record<string, unknown>>('/admin/settings'),
+  putAdminSettings: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/admin/settings', { method: 'PUT', body: JSON.stringify(input) }),
+  getAdminSelfApprovals: (params?: { from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<Array<Record<string, unknown>>>(`/admin/audit/self-approvals${qs}`);
+  },
+  getAdminReadSummary: (params?: { from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<Array<Record<string, unknown>>>(`/admin/read-summary${qs}`);
+  },
+  getAdminNotifySettings: () => handleRequest<Record<string, unknown>>('/admin/notify-settings'),
+  putAdminNotifySettings: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/admin/notify-settings', { method: 'PUT', body: JSON.stringify(input) }),
+  getOrgApprovalLimits: () => handleRequest<Record<string, unknown>>('/admin/org/approval-limits'),
+  putOrgApprovalLimits: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/admin/org/approval-limits', { method: 'PUT', body: JSON.stringify(input) }),
+  getOrgSlaPolicies: () => handleRequest<Record<string, unknown>>('/admin/org/sla-policies'),
+  putOrgSlaPolicies: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/admin/org/sla-policies', { method: 'PUT', body: JSON.stringify(input) }),
+
+  getFinanceCoa: (params?: { inactive?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.inactive) q.set('inactive', 'true');
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<Record<string, unknown>>(`/finance/coa${qs}`);
+  },
+  createFinanceCoa: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/finance/coa', { method: 'POST', body: JSON.stringify(input) }),
+  updateFinanceCoa: (code: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/finance/coa/${encodeURIComponent(code)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  deactivateFinanceCoa: (code: string) =>
+    handleRequest<Record<string, unknown>>(`/finance/coa/${encodeURIComponent(code)}/deactivate`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  reactivateFinanceCoa: (code: string) =>
+    handleRequest<Record<string, unknown>>(`/finance/coa/${encodeURIComponent(code)}/reactivate`, {
+      method: 'POST',
+      body: '{}',
+    }),
+
+  createSimulation: (input: {
+    companyId: string;
+    app: string;
+    periodMonth: string;
+    payoutBlocked?: boolean;
+  }) =>
+    handleRequest<Record<string, unknown>>('/sal/simulations', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getSimulationJournalPreview: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/sal/simulations/${encodeURIComponent(id)}/journal-preview`),
+  discardSimulation: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/sal/simulations/${encodeURIComponent(id)}/discard`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  getSimulationPromoteDiff: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/sal/simulations/${encodeURIComponent(id)}/promote-diff`),
+  promoteSimulation: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/sal/simulations/${encodeURIComponent(id)}/promote-real`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  getUserEffectivePermissions: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/users/${encodeURIComponent(id)}/effective-permissions`),
+  copyUserPermissions: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/users/${encodeURIComponent(id)}/copy-permissions`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
