@@ -1199,6 +1199,8 @@ export interface paths {
                             schema: string;
                             roundId: string;
                             title: string;
+                            titleEn?: string;
+                            titleUr?: string;
                             noticeAr?: string;
                             noticeEn?: string;
                             noticeUr?: string;
@@ -1507,6 +1509,8 @@ export interface paths {
                             schema: string;
                             roundId: string;
                             title: string;
+                            titleEn?: string;
+                            titleUr?: string;
                             noticeAr?: string;
                             noticeEn?: string;
                             noticeUr?: string;
@@ -17834,6 +17838,8 @@ export interface paths {
                             sections?: {
                                 key: string;
                                 title: string;
+                                titleEn?: string;
+                                titleUr?: string;
                                 kind: string;
                                 sharingToken: string;
                                 added?: string[];
@@ -17907,6 +17913,8 @@ export interface paths {
                             sections?: {
                                 key: string;
                                 title: string;
+                                titleEn?: string;
+                                titleUr?: string;
                                 kind: string;
                                 sharingToken: string;
                                 added?: string[];
@@ -17990,6 +17998,8 @@ export interface paths {
                             sections?: {
                                 key: string;
                                 title: string;
+                                titleEn?: string;
+                                titleUr?: string;
                                 kind: string;
                                 sharingToken: string;
                                 added?: string[];
@@ -18196,6 +18206,8 @@ export interface paths {
                             sections?: {
                                 key: string;
                                 title: string;
+                                titleEn?: string;
+                                titleUr?: string;
                                 kind: string;
                                 sharingToken: string;
                                 added?: string[];
@@ -19144,6 +19156,8 @@ export interface paths {
                             sections?: {
                                 key: string;
                                 title: string;
+                                titleEn?: string;
+                                titleUr?: string;
                                 kind: string;
                                 sharingToken: string;
                                 added?: string[];

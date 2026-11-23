@@ -4,12 +4,12 @@ namespace Payroll;
 public static partial class ApiContracts
 {
     static OpenApiSchema EvaluationStaff() => O(new() { ["id"] = S(), ["name"] = S(), ["cities"] = A(S()), ["departments"] = A(S()), ["roles"] = A(S()), ["apps"] = A(S()), ["active"] = B(), ["excluded"] = B(), ["pendingRoleApproval"] = B(), ["allCities"] = B(), ["allApps"] = B() }, "id", "name", "cities", "departments", "roles", "apps");
-    static OpenApiSchema EvaluationSection() => O(new() { ["key"] = S(), ["title"] = S(), ["kind"] = S(), ["sharingToken"] = S(), ["added"] = A(S()), ["removed"] = A(S()), ["staff"] = A(EvaluationStaff()) }, "key", "title", "kind", "sharingToken");
+    static OpenApiSchema EvaluationSection() => O(new() { ["key"] = S(), ["title"] = S(), ["titleEn"] = S(), ["titleUr"] = S(), ["kind"] = S(), ["sharingToken"] = S(), ["added"] = A(S()), ["removed"] = A(S()), ["staff"] = A(EvaluationStaff()) }, "key", "title", "kind", "sharingToken");
     static OpenApiSchema EvaluationRound() => O(new() { ["id"] = S(), ["title"] = S(), ["status"] = S(), ["kind"] = S(), ["schema"] = S(), ["sharingToken"] = S(), ["staff"] = A(EvaluationStaff()), ["cities"] = A(S()), ["apps"] = A(S()), ["sections"] = A(EvaluationSection()), ["createdAt"] = S(), ["updatedAt"] = S(), ["schemaVersion"] = N(), ["allowedActions"] = A(S()) }, "id", "title", "status", "sharingToken", "staff", "cities", "apps", "allowedActions");
     static OpenApiSchema EvaluationLabel() => O(new() { ["id"] = S(), ["labelAr"] = S(), ["labelEn"] = S(), ["labelUr"] = S() }, "id", "labelAr", "labelEn", "labelUr");
     static OpenApiSchema EvaluationSchema() => O(new()
     {
-        ["schema"] = S(), ["roundId"] = S(), ["title"] = S(), ["noticeAr"] = S(), ["noticeEn"] = S(), ["noticeUr"] = S(),
+        ["schema"] = S(), ["roundId"] = S(), ["title"] = S(), ["titleEn"] = S(), ["titleUr"] = S(), ["noticeAr"] = S(), ["noticeEn"] = S(), ["noticeUr"] = S(),
         ["cities"] = A(S()), ["apps"] = A(S()), ["staff"] = A(EvaluationStaff()), ["identityFields"] = A(EvaluationLabel()),
         ["staffRatingMin"] = N(), ["staffRatingMax"] = N(), ["appRatingMin"] = N(), ["appRatingMax"] = N(),
         ["staffDimensions"] = A(EvaluationLabel()), ["staffReasons"] = A(EvaluationLabel()), ["appReasons"] = A(EvaluationLabel()), ["factors"] = A(EvaluationLabel()),

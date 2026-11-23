@@ -103,6 +103,13 @@ public sealed class EvaluationSectionTests
         Assert.AreEqual(tokens.Length, tokens.Distinct(StringComparer.Ordinal).Count());
         Assert.AreNotEqual(round.S("sharingToken"), tokens[0]);
         Assert.IsFalse(keys.Any(k => k.Contains("operations", StringComparison.Ordinal)));
+        var keeta = Section(round, "app:Keeta");
+        Assert.AreEqual("تطبيق كيتا", keeta.S("title"));
+        Assert.AreEqual("Keeta app", keeta.S("titleEn"));
+        Assert.IsTrue(keeta.S("titleUr").Length > 0);
+        var schema = f.Store.Read(c => EvaluationSurvey.Schema(EvaluationSurvey.ByToken(c, keeta.S("sharingToken"))));
+        Assert.AreEqual("تطبيق كيتا", schema.S("title"));
+        Assert.AreEqual("Keeta app", schema.S("titleEn"));
     }
 
     [TestMethod]

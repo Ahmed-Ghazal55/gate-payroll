@@ -22,6 +22,8 @@ public static partial class EvaluationSurvey
             ["schema"] = section == null ? "evaluation-v1" : "evaluation-section-v1",
             ["roundId"] = round.S("id"),
             ["title"] = section == null ? round.S("title") : section.S("title"),
+            ["titleEn"] = section == null ? round.S("title") : (section.S("titleEn") is { Length: > 0 } te ? te : section.S("title")),
+            ["titleUr"] = section == null ? round.S("title") : (section.S("titleUr") is { Length: > 0 } tu ? tu : section.S("title")),
             ["noticeAr"] = "التقييمات والشكاوى سرية وتراجعها الإدارة فقط؛ لا يطلع المشرفون على الأسماء أو الإجابات.",
             ["noticeEn"] = "Ratings and complaints are confidential and reviewed by management only. Supervisors cannot see names or answers.",
             ["noticeUr"] = "درجہ بندی اور شکایات خفیہ ہیں اور صرف انتظامیہ دیکھ سکتی ہے۔ سپروائزر نام یا جوابات نہیں دیکھ سکتے۔",

@@ -23,6 +23,35 @@ public static partial class EvaluationSurvey
         ("dept:support", "الكول سنتر والدعم الفني", DeptSupport)
     ];
 
+    /// <summary>Arabic-first section titles (UI platform names); English/Urdu for the rider form.</summary>
+    public static (string Ar, string En, string Ur) SectionTitles(string key)
+    {
+        if (key.StartsWith("app:", StringComparison.Ordinal))
+        {
+            var (ar, en, ur) = PlatformTitle(key["app:".Length..]);
+            return ("تطبيق " + ar, en + " app", ur + " ایپ");
+        }
+        return key switch
+        {
+            "dept:movement" => (DeptMovement, "Movement & vehicles", "نقل و گاڑیاں"),
+            "dept:finance" => (DeptFinance, "Finance & accounts", "مالیہ اور حسابات"),
+            "dept:hr" => (DeptHr, "Human resources", "انسانی وسائل"),
+            "dept:support" => ("الكول سنتر والدعم الفني", "Call centre & support", "کال سینٹر اور سپورٹ"),
+            _ => (key, key, key)
+        };
+    }
+
+    static (string Ar, string En, string Ur) PlatformTitle(string platform) => platform switch
+    {
+        "Jahez" => ("جاهز", "Jahez", "جاہز"),
+        "Keeta" => ("كيتا", "Keeta", "کیٹا"),
+        "HungerStation" => ("هنقرستيشن", "HungerStation", "ہنگر اسٹیشن"),
+        "Ninja" => ("نينجا", "Ninja", "ننجا"),
+        "Chefz" => ("ذا شفز", "The Chefz", "دی شیفز"),
+        "Amazon" => ("أمازون", "Amazon", "ایمیزون"),
+        _ => (platform, platform, platform)
+    };
+
     public static bool IsSectioned(JsonObject round) =>
         round["sections"] is JsonArray sections && sections.Count > 0;
 
@@ -58,12 +87,15 @@ public static partial class EvaluationSurvey
         return ids.Select(id => all[id]);
     }
 
-    static JsonObject BuildSection(string key, string title, string kind, IEnumerable<JsonObject> roundStaff, string[]? added = null, string[]? removed = null)
+    static JsonObject BuildSection(string key, string kind, IEnumerable<JsonObject> roundStaff, string[]? added = null, string[]? removed = null)
     {
+        var titles = SectionTitles(key);
         var section = new JsonObject
         {
             ["key"] = key,
-            ["title"] = title,
+            ["title"] = titles.Ar,
+            ["titleEn"] = titles.En,
+            ["titleUr"] = titles.Ur,
             ["kind"] = kind,
             ["sharingToken"] = CampaignLinks.NewToken(),
             ["added"] = Array(added ?? []),
@@ -78,9 +110,9 @@ public static partial class EvaluationSurvey
     {
         var sections = new JsonArray();
         foreach (var dept in DepartmentSections)
-            sections.Add(BuildSection(dept.Key, dept.Title, "dept", staff));
+            sections.Add(BuildSection(dept.Key, "dept", staff));
         foreach (var platform in PayPlatforms.Table.Select(p => p.Platform))
-            sections.Add(BuildSection("app:" + platform, "تطبيق " + platform, "app", staff));
+            sections.Add(BuildSection("app:" + platform, "app", staff));
         return sections;
     }
 
@@ -91,10 +123,13 @@ public static partial class EvaluationSurvey
         var refreshed = new JsonArray();
         foreach (var prior in round["sections"]!.AsArray().OfType<JsonObject>())
         {
+            var titles = SectionTitles(prior.S("key"));
             var section = new JsonObject
             {
                 ["key"] = prior.S("key"),
-                ["title"] = prior.S("title"),
+                ["title"] = prior.S("title") is { Length: > 0 } t ? t : titles.Ar,
+                ["titleEn"] = prior.S("titleEn") is { Length: > 0 } te ? te : titles.En,
+                ["titleUr"] = prior.S("titleUr") is { Length: > 0 } tu ? tu : titles.Ur,
                 ["kind"] = prior.S("kind"),
                 ["sharingToken"] = prior.S("sharingToken"),
                 ["added"] = prior["added"]?.DeepClone() ?? new JsonArray(),

@@ -979,6 +979,12 @@
                     "title": {
                       "type": "string"
                     },
+                    "titleEn": {
+                      "type": "string"
+                    },
+                    "titleUr": {
+                      "type": "string"
+                    },
                     "noticeAr": {
                       "type": "string"
                     },
@@ -1606,6 +1612,12 @@
                       "type": "string"
                     },
                     "title": {
+                      "type": "string"
+                    },
+                    "titleEn": {
+                      "type": "string"
+                    },
+                    "titleUr": {
                       "type": "string"
                     },
                     "noticeAr": {
@@ -29107,6 +29119,12 @@
                             "title": {
                               "type": "string"
                             },
+                            "titleEn": {
+                              "type": "string"
+                            },
+                            "titleUr": {
+                              "type": "string"
+                            },
                             "kind": {
                               "type": "string"
                             },
@@ -29351,6 +29369,12 @@
                             "type": "string"
                           },
                           "title": {
+                            "type": "string"
+                          },
+                          "titleEn": {
+                            "type": "string"
+                          },
+                          "titleUr": {
                             "type": "string"
                           },
                           "kind": {
@@ -29598,6 +29622,12 @@
                             "type": "string"
                           },
                           "title": {
+                            "type": "string"
+                          },
+                          "titleEn": {
+                            "type": "string"
+                          },
+                          "titleUr": {
                             "type": "string"
                           },
                           "kind": {
@@ -30107,6 +30137,12 @@
                             "type": "string"
                           },
                           "title": {
+                            "type": "string"
+                          },
+                          "titleEn": {
+                            "type": "string"
+                          },
+                          "titleUr": {
                             "type": "string"
                           },
                           "kind": {
@@ -32731,6 +32767,12 @@
                             "type": "string"
                           },
                           "title": {
+                            "type": "string"
+                          },
+                          "titleEn": {
+                            "type": "string"
+                          },
+                          "titleUr": {
                             "type": "string"
                           },
                           "kind": {
