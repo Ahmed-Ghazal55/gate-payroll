@@ -1101,7 +1101,7 @@ export function EvaluationsTab() {
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {selectedRound && (
+            {selectedRound && roundSections.length === 0 && (
               <>
                 <button
                   type="button"
@@ -1279,7 +1279,6 @@ export function EvaluationsTab() {
                     <div className="flex flex-wrap items-start justify-between gap-2">
                       <div>
                         <div className="text-sm font-bold text-[var(--ink)]">{section.title}</div>
-                        <div className="text-[11px] text-[var(--muted)] font-mono">{section.key}</div>
                       </div>
                       <div className="flex flex-wrap items-center gap-1.5">
                         <span className="rounded-full bg-[var(--raised)] px-2 py-0.5 text-[10px] font-bold num">
