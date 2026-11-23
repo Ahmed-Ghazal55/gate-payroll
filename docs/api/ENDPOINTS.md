@@ -412,8 +412,9 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/admin/settings` | Payroll.Api/AdminSettings.cs:79 | see AccessPolicy + handler | web | keep |
 | GET | `/api/audit` | Payroll.Api/AuditApi.cs:193 | Admin / SuperAdmin | web | keep |
 | GET | `/api/auth/status` | Payroll.Api/Program.cs:106 | public (rider portal: own authenticated rider) | web | keep |
-| GET | `/api/chat/channels` | Payroll.Api/StaffChatApi.cs:226 | see AccessPolicy + handler | none | keep |
-| GET | `/api/chat/channels/{id}/messages` | Payroll.Api/StaffChatApi.cs:234 | see AccessPolicy + handler | none | keep |
+| GET | `/api/chat/channels` | Payroll.Api/StaffChatApi.cs | see AccessPolicy + handler | none | keep |
+| GET | `/api/chat/channels/{id}/media/{messageId}` | Payroll.Api/StaffChatApi.cs | see AccessPolicy + handler | none | keep |
+| GET | `/api/chat/channels/{id}/messages` | Payroll.Api/StaffChatApi.cs | see AccessPolicy + handler | none | keep |
 | GET | `/api/config/lists` | Payroll.Api/ConfigLists.cs:183 | see AccessPolicy + handler | web | keep |
 | GET | `/api/config/lists/{group}` | Payroll.Api/ConfigLists.cs:184 | see AccessPolicy + handler | web | keep |
 | GET | `/api/health` | Payroll.Api/Program.cs:105 | see AccessPolicy + handler | web | keep |
@@ -437,7 +438,8 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/rider-form.js` | Payroll.Api/Program.cs:319 | public (rider portal: own authenticated rider) | web | keep |
 | POST | `/api/admin/approval-bypass` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:85 | see AccessPolicy + handler | web | keep |
 | POST | `/api/admin/approval-bypass/{id}/revoke` | Payroll.Api/AccessPolicy.ApprovalBypass.cs:86 | see AccessPolicy + handler | web | keep |
-| POST | `/api/admin/archive/restore-request` | Payroll.Api/ArchiveApi.cs:157 | see AccessPolicy + handler | none | keep |
+| POST | `/api/admin/archive/restore-request` | Payroll.Api/ArchiveApi.cs | see AccessPolicy + handler | none | keep |
+| POST | `/api/admin/archive/restore-view` | Payroll.Api/ArchiveApi.cs | see AccessPolicy + handler | none | keep |
 | POST | `/api/auth/2fa/backup-codes` | Payroll.Api/Auth2faApi.cs:327 | public (rider portal: own authenticated rider) | web | keep |
 | POST | `/api/auth/2fa/reset` | Payroll.Api/Auth2faApi.cs:329 | public (rider portal: own authenticated rider) | web | keep |
 | POST | `/api/auth/2fa/setup` | Payroll.Api/Auth2faApi.cs:323 | public (rider portal: own authenticated rider) | web | keep |
@@ -445,9 +447,9 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/auth/login` | Payroll.Api/Program.cs:117 | public (rider portal: own authenticated rider) | web | keep |
 | POST | `/api/auth/logout` | Payroll.Api/Program.cs:142 | public (rider portal: own authenticated rider) | web | keep |
 | POST | `/api/auth/setup` | Payroll.Api/Program.cs:107 | public (rider portal: own authenticated rider) | web | keep |
-| POST | `/api/chat/channels` | Payroll.Api/StaffChatApi.cs:232 | see AccessPolicy + handler | none | keep |
-| POST | `/api/chat/channels/{id}/attachments` | Payroll.Api/StaffChatApi.cs:238 | see AccessPolicy + handler | none | keep |
-| POST | `/api/chat/channels/{id}/messages` | Payroll.Api/StaffChatApi.cs:236 | see AccessPolicy + handler | none | keep |
+| POST | `/api/chat/channels` | Payroll.Api/StaffChatApi.cs | see AccessPolicy + handler | none | keep |
+| POST | `/api/chat/channels/{id}/attachments` | Payroll.Api/StaffChatApi.cs | see AccessPolicy + handler | none | keep |
+| POST | `/api/chat/channels/{id}/messages` | Payroll.Api/StaffChatApi.cs | see AccessPolicy + handler | none | keep |
 | POST | `/api/config/lists/{group}/fields` | Payroll.Api/ConfigLists.cs:187 | see AccessPolicy + handler | web | keep |
 | POST | `/api/config/lists/{group}/items` | Payroll.Api/ConfigLists.cs:185 | see AccessPolicy + handler | web | keep |
 | POST | `/api/config/lists/{group}/items/{code}/approve` | Payroll.Api/ConfigLists.cs:186 | see AccessPolicy + handler | web | keep |
