@@ -10,8 +10,9 @@ public static partial class EvaluationSurvey
     public static JsonObject Edit(DbConnection c, DbTransaction tx, string token, JsonObject input, string authenticatedIqama, Store? store = null, AttachmentWriteBatch? attachments = null)
     {
         var round = ByToken(c, token, tx);
+        var section = ActiveSection(round);
         string iqama = J.Iqama(authenticatedIqama);
-        string id = ReplyId(round.S("id"), iqama);
+        string id = section == null ? ReplyId(round.S("id"), iqama) : ReplyId(round.S("id"), section.S("key"), iqama);
         var reply = Store.Get(c, id, ResponseKind, tx) ?? throw new ApiError("الرد غير موجود.", 404, "not_found");
         J.Need(reply.S("iqama") == iqama, "هوية المندوب لا تطابق الرد.", "identity_mismatch", 403);
         J.Need(round.S("status") == "open", "الجولة مغلقة للتعديل.", "round_closed", 409);
@@ -25,6 +26,8 @@ public static partial class EvaluationSurvey
         var appInput = WithPreservedAttachments(reply, input, false);
         reply["staffAnswers"] = Answers(round, staffInput, true, reply.S("city"), store, c, tx, id, ref replyBytes, attachments);
         reply["appAnswers"] = Answers(round, appInput, false, reply.S("city"), store, c, tx, id, ref replyBytes, attachments);
+        if (section != null && section.S("kind") == "app")
+            reply["financeAnswer"] = ParseFinanceAnswer(input, store, c, tx, id, ref replyBytes, attachments);
         reply["editCount"] = edits + 1;
         reply["updatedAt"] = Now();
         if (reply.S("editReceipt") == "") reply["editReceipt"] = NewEditReceipt();
@@ -35,6 +38,12 @@ public static partial class EvaluationSurvey
             bool exists = Store.ListWhere(c, RiderAsks.ServiceKind, tx, null, ("evaluationResponseId", id))
                 .Any(r => r["payload"].S("targetId") == answer.S("staffId"));
             if (!exists) CreateComplaint(c, tx, reply, answer);
+        }
+        if (reply["financeAnswer"] is JsonObject finance && finance.B("complaint"))
+        {
+            bool exists = Store.ListWhere(c, RiderAsks.ServiceKind, tx, null, ("evaluationResponseId", id))
+                .Any(r => r["payload"].S("targetKind") == "department");
+            if (!exists) CreateFinanceComplaint(c, tx, reply, finance);
         }
         Store.Audit(c, tx, "evaluation.edited", id + "#" + reply.N("editCount"), "rider-app");
         int remaining = MaxEdits - (int)reply.N("editCount");

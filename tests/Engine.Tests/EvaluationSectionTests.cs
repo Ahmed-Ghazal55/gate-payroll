@@ -1,0 +1,289 @@
+using System.Security.Claims;
+using System.Text.Json.Nodes;
+using Microsoft.VisualStudio.TestTools.UnitTesting;
+using Payroll;
+
+[TestClass]
+public sealed class EvaluationSectionTests
+{
+    static readonly ClaimsPrincipal Admin = PayFixture.Maker;
+
+    static JsonObject Person(string name, string dept, string city = "Synthetic city", string[]? apps = null, bool allApps = false, bool allCities = false) => new()
+    {
+        ["name"] = name,
+        ["cities"] = new JsonArray(city),
+        ["departments"] = new JsonArray(dept),
+        ["roles"] = new JsonArray("Synthetic role"),
+        ["apps"] = new JsonArray((apps ?? ["Ninja"]).Select(a => (JsonNode?)a).ToArray()),
+        ["allApps"] = allApps,
+        ["allCities"] = allCities,
+        ["active"] = true
+    };
+
+    static JsonObject OpenSectionedRound(PayFixture f) => f.Store.Write((c, tx) =>
+    {
+        EvaluationSurvey.ImportStaff(c, tx, Admin, new()
+        {
+            ["staff"] = new JsonArray(
+                Person("Synthetic movement", EvaluationSurvey.DeptMovement, apps: []),
+                Person("Synthetic finance person", EvaluationSurvey.DeptFinance, apps: []),
+                Person("Synthetic hr", EvaluationSurvey.DeptHr, apps: []),
+                Person("Synthetic support", EvaluationSurvey.DeptSupport, city: "Remote office", apps: [], allCities: true),
+                Person("Synthetic ops ninja", EvaluationSurvey.DeptOperations, apps: ["Ninja"]),
+                Person("Synthetic ops all", EvaluationSurvey.DeptOperations, apps: [], allApps: true),
+                Person("Synthetic other city", EvaluationSurvey.DeptMovement, city: "Other city", apps: []))
+        });
+        var round = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Synthetic sectioned round" });
+        return EvaluationSurvey.Transition(c, tx, Admin, round.S("id"), "open");
+    });
+
+    static JsonObject Section(JsonObject round, string key) =>
+        round["sections"]!.AsArray().OfType<JsonObject>().Single(s => s.S("key") == key);
+
+    static string[] MemberIds(JsonObject section) =>
+        section["staff"]!.AsArray().OfType<JsonObject>().Select(s => s.S("id")).ToArray();
+
+    static string NameOf(JsonObject round, string staffId) =>
+        round["staff"]!.AsArray().OfType<JsonObject>().Single(s => s.S("id") == staffId).S("name");
+
+    static JsonObject SectionReply(JsonObject section, string iqama = "2000000091", string city = "Synthetic city")
+    {
+        var staffCards = section["staff"]!.AsArray().OfType<JsonObject>()
+            .Where(s => EvaluationSurvey.ServesCity(s, city))
+            .Select(s => (JsonNode?)new JsonObject
+            {
+                ["staffId"] = s.S("id"),
+                ["ratings"] = new JsonObject(EvaluationSurvey.StaffDimensions.Select(k => KeyValuePair.Create<string, JsonNode?>(k, JsonValue.Create(8))))
+            }).ToArray();
+        var input = new JsonObject
+        {
+            ["iqama"] = iqama,
+            ["name"] = "Synthetic rider",
+            ["city"] = city,
+            ["nationality"] = "Synthetic nationality",
+            ["workApps"] = new JsonArray("Ninja"),
+            ["staffAnswers"] = new JsonArray(staffCards),
+            ["appAnswers"] = new JsonArray()
+        };
+        if (section.S("kind") == "app")
+        {
+            string platform = section.S("key")["app:".Length..];
+            input["appAnswers"] = new JsonArray(new JsonObject
+            {
+                ["app"] = platform,
+                ["overall"] = 4,
+                ["factorRatings"] = new JsonObject { ["orderVolume"] = 3 },
+                ["notes"] = "Synthetic app note"
+            });
+            input["financeAnswer"] = new JsonObject
+            {
+                ["overall"] = 5,
+                ["factorRatings"] = new JsonObject { ["responsiveness"] = 4, ["accuracy"] = 5 },
+                ["notes"] = "Synthetic finance note"
+            };
+        }
+        return input;
+    }
+
+    [TestMethod]
+    public void CreateRoundBuildsDepartmentAndAppSectionsWithOwnTokens()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f);
+        Assert.IsTrue(EvaluationSurvey.IsSectioned(round));
+        var keys = round["sections"]!.AsArray().OfType<JsonObject>().Select(s => s.S("key")).ToArray();
+        CollectionAssert.Contains(keys, "dept:movement");
+        CollectionAssert.Contains(keys, "dept:finance");
+        CollectionAssert.Contains(keys, "dept:hr");
+        CollectionAssert.Contains(keys, "dept:support");
+        foreach (var platform in PayPlatforms.Table.Select(p => p.Platform))
+            CollectionAssert.Contains(keys, "app:" + platform);
+        var tokens = round["sections"]!.AsArray().OfType<JsonObject>().Select(s => s.S("sharingToken")).ToArray();
+        Assert.IsTrue(tokens.All(t => t.Length == 64 && t.All(Uri.IsHexDigit)));
+        Assert.AreEqual(tokens.Length, tokens.Distinct(StringComparer.Ordinal).Count());
+        Assert.AreNotEqual(round.S("sharingToken"), tokens[0]);
+        Assert.IsFalse(keys.Any(k => k.Contains("operations", StringComparison.Ordinal)));
+    }
+
+    [TestMethod]
+    public void SectionMembershipUsesAppsAllAppsDepartmentAndCity()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f);
+        var movementNames = MemberIds(Section(round, "dept:movement")).Select(id => NameOf(round, id)).ToArray();
+        CollectionAssert.Contains(movementNames, "Synthetic movement");
+        CollectionAssert.Contains(movementNames, "Synthetic other city");
+        CollectionAssert.DoesNotContain(movementNames, "Synthetic ops ninja");
+
+        var ninjaNames = MemberIds(Section(round, "app:Ninja")).Select(id => NameOf(round, id)).ToArray();
+        CollectionAssert.Contains(ninjaNames, "Synthetic ops ninja");
+        CollectionAssert.Contains(ninjaNames, "Synthetic ops all");
+        CollectionAssert.DoesNotContain(ninjaNames, "Synthetic movement");
+
+        var supportSchema = f.Store.Read(c => EvaluationSurvey.Schema(EvaluationSurvey.ByToken(c, Section(round, "dept:support").S("sharingToken")), "Synthetic city"));
+        Assert.IsTrue(supportSchema["staff"]!.AsArray().OfType<JsonObject>().Any(s => s.S("name") == "Synthetic support"));
+        Assert.AreEqual("dept:support", supportSchema.S("sectionKey"));
+        Assert.IsFalse(supportSchema.B("includeFinanceCard"));
+        Assert.HasCount(0, supportSchema["apps"]!.AsArray());
+
+        var appSchema = f.Store.Read(c => EvaluationSurvey.Schema(EvaluationSurvey.ByToken(c, Section(round, "app:Ninja").S("sharingToken")), "Synthetic city"));
+        Assert.IsTrue(appSchema.B("includeFinanceCard"));
+        Assert.AreEqual(1, appSchema["apps"]!.AsArray().Count);
+        Assert.AreEqual("Ninja", appSchema["apps"]![0]!.ToString());
+        Assert.IsTrue(appSchema["financeReasons"]!.AsArray().OfType<JsonObject>().Any(r => r.S("id") == "not_dealt_finance"));
+    }
+
+    [TestMethod]
+    public void SectionOverridesAddAndRemoveStaff()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f);
+        string movementId = round["staff"]!.AsArray().OfType<JsonObject>().Single(s => s.S("name") == "Synthetic movement").S("id");
+        string financeId = round["staff"]!.AsArray().OfType<JsonObject>().Single(s => s.S("name") == "Synthetic finance person").S("id");
+        var updated = f.Store.Write((c, tx) =>
+        {
+            EvaluationSurvey.AddSectionStaff(c, tx, Admin, round.S("id"), "dept:finance", movementId);
+            EvaluationSurvey.RemoveSectionStaff(c, tx, Admin, round.S("id"), "dept:finance", financeId);
+            return EvaluationSurvey.Round(c, round.S("id"), tx);
+        });
+        var members = MemberIds(Section(updated, "dept:finance"));
+        CollectionAssert.Contains(members, movementId);
+        CollectionAssert.DoesNotContain(members, financeId);
+    }
+
+    [TestMethod]
+    public void ImportAndPutStaffAcceptAllApps()
+    {
+        using var f = new PayFixture();
+        f.Store.Write((c, tx) => EvaluationSurvey.ImportStaff(c, tx, Admin, new()
+        {
+            ["staff"] = new JsonArray(Person("Synthetic ops all", EvaluationSurvey.DeptOperations, apps: [], allApps: true))
+        }));
+        var staff = f.Store.Read(c => Store.List(c, EvaluationSurvey.StaffKind)).Single();
+        Assert.IsTrue(staff.B("allApps"));
+        var put = f.Store.Write((c, tx) => EvaluationSurvey.PutStaff(c, tx, Admin, staff.S("id"), new()
+        {
+            ["name"] = "Synthetic ops all",
+            ["cities"] = new JsonArray("Synthetic city"),
+            ["departments"] = new JsonArray(EvaluationSurvey.DeptOperations),
+            ["roles"] = new JsonArray("Synthetic role"),
+            ["apps"] = new JsonArray("Ninja"),
+            ["allApps"] = false,
+            ["active"] = true
+        }));
+        Assert.IsFalse(put.B("allApps"));
+        CollectionAssert.AreEqual(new[] { "Ninja" }, put["apps"]!.AsArray().Select(x => x!.ToString()).ToArray());
+    }
+
+    [TestMethod]
+    public void SectionReplyIsUniquePerSectionAndFinanceCardValidated()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f);
+        var hr = Section(round, "dept:hr");
+        var ninja = Section(round, "app:Ninja");
+        string hrToken = hr.S("sharingToken");
+        string appToken = ninja.S("sharingToken");
+
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, hrToken, SectionReply(hr)));
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, appToken, SectionReply(ninja)));
+        Assert.HasCount(2, f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)));
+        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, hrToken, SectionReply(hr))));
+
+        var badFinance = SectionReply(ninja, "2000000092");
+        badFinance["financeAnswer"] = new JsonObject { ["overall"] = 6 };
+        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, appToken, badFinance)));
+
+        var reasonOk = SectionReply(ninja, "2000000093");
+        reasonOk["financeAnswer"] = new JsonObject { ["reason"] = "not_dealt_finance", ["notes"] = "" };
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, appToken, reasonOk));
+        var stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single(r => r.S("iqama") == "2000000093");
+        Assert.AreEqual("app:Ninja", stored.S("sectionKey"));
+        Assert.AreEqual("not_dealt_finance", stored["financeAnswer"]!.S("reason"));
+    }
+
+    [TestMethod]
+    public void DeleteRoundRemovesRepliesFilesAndComplaintsWithTitleConfirm()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f);
+        var hr = Section(round, "dept:hr");
+        var input = SectionReply(hr);
+        input["staffAnswers"]![0]!["complaint"] = true;
+        input["staffAnswers"]![0]!["complaintDetails"] = "Synthetic complaint details";
+        // Stage a tiny attachment meta row + file so delete must clear disk.
+        f.Store.Write((c, tx) =>
+        {
+            EvaluationSurvey.Submit(c, tx, hr.S("sharingToken"), input);
+            return 0;
+        });
+        Assert.HasCount(1, f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)));
+        Assert.HasCount(1, f.Store.Read(c => Store.List(c, RiderAsks.ServiceKind)));
+
+        Assert.Throws<ApiError>(() => f.Store.Write((c, tx) =>
+            EvaluationSurvey.DeleteRound(c, tx, Admin, round.S("id"), new() { ["title"] = "Wrong title" }, f.Store)));
+
+        var result = f.Store.Write((c, tx) =>
+            EvaluationSurvey.DeleteRound(c, tx, Admin, round.S("id"), new() { ["title"] = "Synthetic sectioned round" }, f.Store));
+        Assert.AreEqual(1m, result.N("repliesDeleted"));
+        Assert.AreEqual(1m, result.N("complaintsDeleted"));
+        Assert.IsNull(f.Store.Read(c => Store.Get(c, round.S("id"), EvaluationSurvey.RoundKind)));
+        Assert.HasCount(0, f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)));
+        Assert.HasCount(0, f.Store.Read(c => Store.List(c, RiderAsks.ServiceKind)));
+    }
+
+    [TestMethod]
+    public void LegacyRoundWithoutSectionsKeepsCombinedPath()
+    {
+        using var f = new PayFixture();
+        var round = f.Store.Write((c, tx) =>
+        {
+            EvaluationSurvey.ImportStaff(c, tx, Admin, new()
+            {
+                ["staff"] = new JsonArray(Person("Synthetic movement", EvaluationSurvey.DeptMovement, apps: ["Ninja"]))
+            });
+            var created = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Legacy synthetic round" });
+            created.Remove("sections");
+            Store.Save(c, EvaluationSurvey.RoundKind, created, tx);
+            return EvaluationSurvey.Transition(c, tx, Admin, created.S("id"), "open");
+        });
+        Assert.IsFalse(EvaluationSurvey.IsSectioned(round));
+        var schema = EvaluationSurvey.Schema(round, "Synthetic city");
+        Assert.IsFalse(schema.ContainsKey("sectionKey"));
+        Assert.IsTrue(schema["apps"]!.AsArray().Count >= 1);
+        var input = new JsonObject
+        {
+            ["iqama"] = "2000000091",
+            ["name"] = "Synthetic rider",
+            ["city"] = "Synthetic city",
+            ["nationality"] = "Synthetic nationality",
+            ["workApps"] = new JsonArray("Ninja"),
+            ["staffAnswers"] = new JsonArray(round["staff"]!.AsArray().OfType<JsonObject>().Select(s => (JsonNode?)new JsonObject
+            {
+                ["staffId"] = s.S("id"),
+                ["ratings"] = new JsonObject(EvaluationSurvey.StaffDimensions.Select(k => KeyValuePair.Create<string, JsonNode?>(k, JsonValue.Create(7))))
+            }).ToArray()),
+            ["appAnswers"] = new JsonArray(round["apps"]!.AsArray().Select(a => (JsonNode?)new JsonObject { ["app"] = a!.ToString(), ["reason"] = "not_worked" }).ToArray())
+        };
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, round.S("sharingToken"), input));
+        Assert.HasCount(1, f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)));
+    }
+
+    [TestMethod]
+    public void RiderMobileListingExcludesSectionedRounds()
+    {
+        using var f = new PayFixture();
+        var sectioned = OpenSectionedRound(f);
+        var legacy = f.Store.Write((c, tx) =>
+        {
+            var created = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Legacy open round" });
+            created.Remove("sections");
+            Store.Save(c, EvaluationSurvey.RoundKind, created, tx);
+            return EvaluationSurvey.Transition(c, tx, Admin, created.S("id"), "open");
+        });
+        var listed = f.Store.Read(c => Store.ListWhere(c, EvaluationSurvey.RoundKind, null, null, ("status", "open"))
+            .Where(r => !EvaluationSurvey.IsSectioned(r)).Select(r => r.S("id")).ToArray());
+        CollectionAssert.Contains(listed, legacy.S("id"));
+        CollectionAssert.DoesNotContain(listed, sectioned.S("id"));
+    }
+}

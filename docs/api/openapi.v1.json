@@ -1054,6 +1054,9 @@
                           },
                           "allCities": {
                             "type": "boolean"
+                          },
+                          "allApps": {
+                            "type": "boolean"
                           }
                         }
                       }
@@ -1175,6 +1178,67 @@
                       }
                     },
                     "factors": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "sectionKey": {
+                      "type": "string"
+                    },
+                    "sectionKind": {
+                      "type": "string"
+                    },
+                    "includeFinanceCard": {
+                      "type": "boolean"
+                    },
+                    "financeFactors": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "financeReasons": {
                       "type": "array",
                       "items": {
                         "required": [
@@ -1619,6 +1683,9 @@
                           },
                           "allCities": {
                             "type": "boolean"
+                          },
+                          "allApps": {
+                            "type": "boolean"
                           }
                         }
                       }
@@ -1740,6 +1807,67 @@
                       }
                     },
                     "factors": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "sectionKey": {
+                      "type": "string"
+                    },
+                    "sectionKind": {
+                      "type": "string"
+                    },
+                    "includeFinanceCard": {
+                      "type": "boolean"
+                    },
+                    "financeFactors": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "financeReasons": {
                       "type": "array",
                       "items": {
                         "required": [
@@ -28695,6 +28823,9 @@
                       },
                       "allCities": {
                         "type": "boolean"
+                      },
+                      "allApps": {
+                        "type": "boolean"
                       }
                     }
                   }
@@ -28738,6 +28869,101 @@
                     },
                     "excluded": {
                       "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/staff/{id}": {
+      "put": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Update one evaluation staff card",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "name",
+                    "cities",
+                    "departments",
+                    "roles",
+                    "apps"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "departments": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "excluded": {
+                      "type": "boolean"
+                    },
+                    "pendingRoleApproval": {
+                      "type": "boolean"
+                    },
+                    "allCities": {
+                      "type": "boolean"
+                    },
+                    "allApps": {
+                      "type": "boolean"
                     }
                   }
                 }
@@ -28845,6 +29071,9 @@
                             },
                             "allCities": {
                               "type": "boolean"
+                            },
+                            "allApps": {
+                              "type": "boolean"
                             }
                           }
                         }
@@ -28859,6 +29088,105 @@
                         "type": "array",
                         "items": {
                           "type": "string"
+                        }
+                      },
+                      "sections": {
+                        "type": "array",
+                        "items": {
+                          "required": [
+                            "key",
+                            "title",
+                            "kind",
+                            "sharingToken"
+                          ],
+                          "type": "object",
+                          "properties": {
+                            "key": {
+                              "type": "string"
+                            },
+                            "title": {
+                              "type": "string"
+                            },
+                            "kind": {
+                              "type": "string"
+                            },
+                            "sharingToken": {
+                              "type": "string"
+                            },
+                            "added": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "removed": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "staff": {
+                              "type": "array",
+                              "items": {
+                                "required": [
+                                  "id",
+                                  "name",
+                                  "cities",
+                                  "departments",
+                                  "roles",
+                                  "apps"
+                                ],
+                                "type": "object",
+                                "properties": {
+                                  "id": {
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "type": "string"
+                                  },
+                                  "cities": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "departments": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "roles": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "apps": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  },
+                                  "active": {
+                                    "type": "boolean"
+                                  },
+                                  "excluded": {
+                                    "type": "boolean"
+                                  },
+                                  "pendingRoleApproval": {
+                                    "type": "boolean"
+                                  },
+                                  "allCities": {
+                                    "type": "boolean"
+                                  },
+                                  "allApps": {
+                                    "type": "boolean"
+                                  }
+                                }
+                              }
+                            }
+                          }
                         }
                       },
                       "createdAt": {
@@ -28989,6 +29317,9 @@
                           },
                           "allCities": {
                             "type": "boolean"
+                          },
+                          "allApps": {
+                            "type": "boolean"
                           }
                         }
                       }
@@ -29003,6 +29334,105 @@
                       "type": "array",
                       "items": {
                         "type": "string"
+                      }
+                    },
+                    "sections": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key",
+                          "title",
+                          "kind",
+                          "sharingToken"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "sharingToken": {
+                            "type": "string"
+                          },
+                          "added": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "removed": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "staff": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "name",
+                                "cities",
+                                "departments",
+                                "roles",
+                                "apps"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "cities": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "departments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "roles": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "apps": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "active": {
+                                  "type": "boolean"
+                                },
+                                "excluded": {
+                                  "type": "boolean"
+                                },
+                                "pendingRoleApproval": {
+                                  "type": "boolean"
+                                },
+                                "allCities": {
+                                  "type": "boolean"
+                                },
+                                "allApps": {
+                                  "type": "boolean"
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     },
                     "createdAt": {
@@ -29134,6 +29564,9 @@
                           },
                           "allCities": {
                             "type": "boolean"
+                          },
+                          "allApps": {
+                            "type": "boolean"
                           }
                         }
                       }
@@ -29150,6 +29583,105 @@
                         "type": "string"
                       }
                     },
+                    "sections": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key",
+                          "title",
+                          "kind",
+                          "sharingToken"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "sharingToken": {
+                            "type": "string"
+                          },
+                          "added": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "removed": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "staff": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "name",
+                                "cities",
+                                "departments",
+                                "roles",
+                                "apps"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "cities": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "departments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "roles": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "apps": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "active": {
+                                  "type": "boolean"
+                                },
+                                "excluded": {
+                                  "type": "boolean"
+                                },
+                                "pendingRoleApproval": {
+                                  "type": "boolean"
+                                },
+                                "allCities": {
+                                  "type": "boolean"
+                                },
+                                "allApps": {
+                                  "type": "boolean"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
                     "createdAt": {
                       "type": "string"
                     },
@@ -29164,6 +29696,260 @@
                       "items": {
                         "type": "string"
                       }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Delete evaluation round after typing its title",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "repliesDeleted",
+                    "attachmentsDeleted",
+                    "complaintsDeleted"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "repliesDeleted": {
+                      "type": "number"
+                    },
+                    "attachmentsDeleted": {
+                      "type": "number"
+                    },
+                    "complaintsDeleted": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}/sections/{sectionKey}/staff/{staffId}": {
+      "post": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Add staff override to an evaluation section",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sectionKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "staffId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "name",
+                    "cities",
+                    "departments",
+                    "roles",
+                    "apps"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "departments": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "excluded": {
+                      "type": "boolean"
+                    },
+                    "pendingRoleApproval": {
+                      "type": "boolean"
+                    },
+                    "allCities": {
+                      "type": "boolean"
+                    },
+                    "allApps": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Remove staff override from an evaluation section",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "sectionKey",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "staffId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "name",
+                    "cities",
+                    "departments",
+                    "roles",
+                    "apps"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "name": {
+                      "type": "string"
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "departments": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "roles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "active": {
+                      "type": "boolean"
+                    },
+                    "excluded": {
+                      "type": "boolean"
+                    },
+                    "pendingRoleApproval": {
+                      "type": "boolean"
+                    },
+                    "allCities": {
+                      "type": "boolean"
+                    },
+                    "allApps": {
+                      "type": "boolean"
                     }
                   }
                 }
@@ -29287,6 +30073,9 @@
                           },
                           "allCities": {
                             "type": "boolean"
+                          },
+                          "allApps": {
+                            "type": "boolean"
                           }
                         }
                       }
@@ -29301,6 +30090,105 @@
                       "type": "array",
                       "items": {
                         "type": "string"
+                      }
+                    },
+                    "sections": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key",
+                          "title",
+                          "kind",
+                          "sharingToken"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "sharingToken": {
+                            "type": "string"
+                          },
+                          "added": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "removed": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "staff": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "name",
+                                "cities",
+                                "departments",
+                                "roles",
+                                "apps"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "cities": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "departments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "roles": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "apps": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "active": {
+                                  "type": "boolean"
+                                },
+                                "excluded": {
+                                  "type": "boolean"
+                                },
+                                "pendingRoleApproval": {
+                                  "type": "boolean"
+                                },
+                                "allCities": {
+                                  "type": "boolean"
+                                },
+                                "allApps": {
+                                  "type": "boolean"
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     },
                     "createdAt": {
@@ -29337,6 +30225,20 @@
             "name": "id",
             "in": "path",
             "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "supervisorId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "department",
+            "in": "query",
             "schema": {
               "type": "string"
             }
@@ -29377,6 +30279,12 @@
                             "type": "string"
                           },
                           "roundId": {
+                            "type": "string"
+                          },
+                          "sectionKey": {
+                            "type": "string"
+                          },
+                          "sectionTitle": {
                             "type": "string"
                           },
                           "schemaVersion": {
@@ -29573,6 +30481,49 @@
                                   "items": {
                                     "type": "object"
                                   }
+                                }
+                              }
+                            }
+                          },
+                          "financeAnswer": {
+                            "type": "object",
+                            "properties": {
+                              "reason": {
+                                "type": "string"
+                              },
+                              "overall": {
+                                "type": "number"
+                              },
+                              "factorRatings": {
+                                "type": "object",
+                                "properties": {
+                                  "responsiveness": {
+                                    "type": "number"
+                                  },
+                                  "accuracy": {
+                                    "type": "number"
+                                  },
+                                  "correctionSpeed": {
+                                    "type": "number"
+                                  },
+                                  "clarity": {
+                                    "type": "number"
+                                  }
+                                }
+                              },
+                              "notes": {
+                                "type": "string"
+                              },
+                              "complaint": {
+                                "type": "boolean"
+                              },
+                              "complaintDetails": {
+                                "type": "string"
+                              },
+                              "attachments": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object"
                                 }
                               }
                             }
@@ -31513,6 +32464,9 @@
                           },
                           "allCities": {
                             "type": "boolean"
+                          },
+                          "allApps": {
+                            "type": "boolean"
                           }
                         }
                       }
@@ -31527,6 +32481,105 @@
                       "type": "array",
                       "items": {
                         "type": "string"
+                      }
+                    },
+                    "sections": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key",
+                          "title",
+                          "kind",
+                          "sharingToken"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "title": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "sharingToken": {
+                            "type": "string"
+                          },
+                          "added": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "removed": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "staff": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "name",
+                                "cities",
+                                "departments",
+                                "roles",
+                                "apps"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "name": {
+                                  "type": "string"
+                                },
+                                "cities": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "departments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "roles": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "apps": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "active": {
+                                  "type": "boolean"
+                                },
+                                "excluded": {
+                                  "type": "boolean"
+                                },
+                                "pendingRoleApproval": {
+                                  "type": "boolean"
+                                },
+                                "allCities": {
+                                  "type": "boolean"
+                                },
+                                "allApps": {
+                                  "type": "boolean"
+                                }
+                              }
+                            }
+                          }
+                        }
                       }
                     },
                     "createdAt": {

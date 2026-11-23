@@ -1215,6 +1215,7 @@ export interface paths {
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
+                                allApps?: boolean;
                             }[];
                             identityFields?: {
                                 id: string;
@@ -1245,6 +1246,21 @@ export interface paths {
                                 labelUr: string;
                             }[];
                             factors: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            sectionKey?: string;
+                            sectionKind?: string;
+                            includeFinanceCard?: boolean;
+                            financeFactors?: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            financeReasons?: {
                                 id: string;
                                 labelAr: string;
                                 labelEn: string;
@@ -1507,6 +1523,7 @@ export interface paths {
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
+                                allApps?: boolean;
                             }[];
                             identityFields?: {
                                 id: string;
@@ -1537,6 +1554,21 @@ export interface paths {
                                 labelUr: string;
                             }[];
                             factors: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            sectionKey?: string;
+                            sectionKind?: string;
+                            includeFinanceCard?: boolean;
+                            financeFactors?: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            financeReasons?: {
                                 id: string;
                                 labelAr: string;
                                 labelEn: string;
@@ -17643,6 +17675,7 @@ export interface paths {
                             excluded?: boolean;
                             pendingRoleApproval?: boolean;
                             allCities?: boolean;
+                            allApps?: boolean;
                         }[];
                     };
                 };
@@ -17699,6 +17732,60 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forms/evaluations/staff/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update one evaluation staff card */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            cities: string[];
+                            departments: string[];
+                            roles: string[];
+                            apps: string[];
+                            active?: boolean;
+                            excluded?: boolean;
+                            pendingRoleApproval?: boolean;
+                            allCities?: boolean;
+                            allApps?: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forms/evaluations/rounds": {
         parameters: {
             query?: never;
@@ -17740,9 +17827,31 @@ export interface paths {
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
+                                allApps?: boolean;
                             }[];
                             cities: string[];
                             apps: string[];
+                            sections?: {
+                                key: string;
+                                title: string;
+                                kind: string;
+                                sharingToken: string;
+                                added?: string[];
+                                removed?: string[];
+                                staff?: {
+                                    id: string;
+                                    name: string;
+                                    cities: string[];
+                                    departments: string[];
+                                    roles: string[];
+                                    apps: string[];
+                                    active?: boolean;
+                                    excluded?: boolean;
+                                    pendingRoleApproval?: boolean;
+                                    allCities?: boolean;
+                                    allApps?: boolean;
+                                }[];
+                            }[];
                             createdAt?: string;
                             updatedAt?: string;
                             schemaVersion?: number;
@@ -17791,9 +17900,31 @@ export interface paths {
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
+                                allApps?: boolean;
                             }[];
                             cities: string[];
                             apps: string[];
+                            sections?: {
+                                key: string;
+                                title: string;
+                                kind: string;
+                                sharingToken: string;
+                                added?: string[];
+                                removed?: string[];
+                                staff?: {
+                                    id: string;
+                                    name: string;
+                                    cities: string[];
+                                    departments: string[];
+                                    roles: string[];
+                                    apps: string[];
+                                    active?: boolean;
+                                    excluded?: boolean;
+                                    pendingRoleApproval?: boolean;
+                                    allCities?: boolean;
+                                    allApps?: boolean;
+                                }[];
+                            }[];
                             createdAt?: string;
                             updatedAt?: string;
                             schemaVersion?: number;
@@ -17852,9 +17983,31 @@ export interface paths {
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
+                                allApps?: boolean;
                             }[];
                             cities: string[];
                             apps: string[];
+                            sections?: {
+                                key: string;
+                                title: string;
+                                kind: string;
+                                sharingToken: string;
+                                added?: string[];
+                                removed?: string[];
+                                staff?: {
+                                    id: string;
+                                    name: string;
+                                    cities: string[];
+                                    departments: string[];
+                                    roles: string[];
+                                    apps: string[];
+                                    active?: boolean;
+                                    excluded?: boolean;
+                                    pendingRoleApproval?: boolean;
+                                    allCities?: boolean;
+                                    allApps?: boolean;
+                                }[];
+                            }[];
                             createdAt?: string;
                             updatedAt?: string;
                             schemaVersion?: number;
@@ -17866,7 +18019,125 @@ export interface paths {
         };
         put?: never;
         post?: never;
-        delete?: never;
+        /** Delete evaluation round after typing its title */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            repliesDeleted: number;
+                            attachmentsDeleted: number;
+                            complaintsDeleted: number;
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forms/evaluations/rounds/{id}/sections/{sectionKey}/staff/{staffId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add staff override to an evaluation section */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    sectionKey: string;
+                    staffId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            cities: string[];
+                            departments: string[];
+                            roles: string[];
+                            apps: string[];
+                            active?: boolean;
+                            excluded?: boolean;
+                            pendingRoleApproval?: boolean;
+                            allCities?: boolean;
+                            allApps?: boolean;
+                        };
+                    };
+                };
+            };
+        };
+        /** Remove staff override from an evaluation section */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    sectionKey: string;
+                    staffId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            name: string;
+                            cities: string[];
+                            departments: string[];
+                            roles: string[];
+                            apps: string[];
+                            active?: boolean;
+                            excluded?: boolean;
+                            pendingRoleApproval?: boolean;
+                            allCities?: boolean;
+                            allApps?: boolean;
+                        };
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -17918,9 +18189,31 @@ export interface paths {
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
+                                allApps?: boolean;
                             }[];
                             cities: string[];
                             apps: string[];
+                            sections?: {
+                                key: string;
+                                title: string;
+                                kind: string;
+                                sharingToken: string;
+                                added?: string[];
+                                removed?: string[];
+                                staff?: {
+                                    id: string;
+                                    name: string;
+                                    cities: string[];
+                                    departments: string[];
+                                    roles: string[];
+                                    apps: string[];
+                                    active?: boolean;
+                                    excluded?: boolean;
+                                    pendingRoleApproval?: boolean;
+                                    allCities?: boolean;
+                                    allApps?: boolean;
+                                }[];
+                            }[];
                             createdAt?: string;
                             updatedAt?: string;
                             schemaVersion?: number;
@@ -17946,7 +18239,10 @@ export interface paths {
         /** Page evaluation replies */
         get: {
             parameters: {
-                query?: never;
+                query?: {
+                    supervisorId?: string;
+                    department?: string;
+                };
                 header?: never;
                 path: {
                     id: string;
@@ -17965,6 +18261,8 @@ export interface paths {
                             items: {
                                 id: string;
                                 roundId: string;
+                                sectionKey?: string;
+                                sectionTitle?: string;
                                 schemaVersion?: number;
                                 iqama: string;
                                 name: string;
@@ -18028,6 +18326,20 @@ export interface paths {
                                     complaintDetails?: string;
                                     attachments?: Record<string, never>[];
                                 }[];
+                                financeAnswer?: {
+                                    reason?: string;
+                                    overall?: number;
+                                    factorRatings?: {
+                                        responsiveness?: number;
+                                        accuracy?: number;
+                                        correctionSpeed?: number;
+                                        clarity?: number;
+                                    };
+                                    notes?: string;
+                                    complaint?: boolean;
+                                    complaintDetails?: string;
+                                    attachments?: Record<string, never>[];
+                                };
                                 createdAt: string;
                             }[];
                             total: number;
@@ -18746,9 +19058,31 @@ export interface paths {
                                 excluded?: boolean;
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
+                                allApps?: boolean;
                             }[];
                             cities: string[];
                             apps: string[];
+                            sections?: {
+                                key: string;
+                                title: string;
+                                kind: string;
+                                sharingToken: string;
+                                added?: string[];
+                                removed?: string[];
+                                staff?: {
+                                    id: string;
+                                    name: string;
+                                    cities: string[];
+                                    departments: string[];
+                                    roles: string[];
+                                    apps: string[];
+                                    active?: boolean;
+                                    excluded?: boolean;
+                                    pendingRoleApproval?: boolean;
+                                    allCities?: boolean;
+                                    allApps?: boolean;
+                                }[];
+                            }[];
                             createdAt?: string;
                             updatedAt?: string;
                             schemaVersion?: number;

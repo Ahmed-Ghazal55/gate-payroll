@@ -10,18 +10,28 @@ public static partial class EvaluationSurvey
     public static JsonObject Schema(JsonObject round, string? city = null)
     {
         if (!string.IsNullOrEmpty(city)) J.Need(Strings(round, "cities").Contains(city), "مدينة غير موجودة في الجولة.");
-        return new()
+        var section = ActiveSection(round);
+        var staffSource = section == null
+            ? round["staff"]!.AsArray().OfType<JsonObject>()
+            : SectionMembers(round, section);
+        var apps = section == null
+            ? round["apps"]!.DeepClone()
+            : section.S("kind") == "app" ? Array(new[] { section.S("key")["app:".Length..] }) : new JsonArray();
+        var schema = new JsonObject
         {
-            ["schema"] = "evaluation-v1", ["roundId"] = round.S("id"), ["title"] = round.S("title"),
+            ["schema"] = section == null ? "evaluation-v1" : "evaluation-section-v1",
+            ["roundId"] = round.S("id"),
+            ["title"] = section == null ? round.S("title") : section.S("title"),
             ["noticeAr"] = "التقييمات والشكاوى سرية وتراجعها الإدارة فقط؛ لا يطلع المشرفون على الأسماء أو الإجابات.",
             ["noticeEn"] = "Ratings and complaints are confidential and reviewed by management only. Supervisors cannot see names or answers.",
             ["noticeUr"] = "درجہ بندی اور شکایات خفیہ ہیں اور صرف انتظامیہ دیکھ سکتی ہے۔ سپروائزر نام یا جوابات نہیں دیکھ سکتے۔",
-            ["cities"] = round["cities"]!.DeepClone(), ["apps"] = round["apps"]!.DeepClone(),
-            ["staff"] = Array(round["staff"]!.AsArray().OfType<JsonObject>().Where(s => string.IsNullOrEmpty(city) || ServesCity(s, city)).Select(s => new JsonObject
+            ["cities"] = round["cities"]!.DeepClone(), ["apps"] = apps,
+            ["staff"] = Array(staffSource.Where(s => string.IsNullOrEmpty(city) || ServesCity(s, city)).Select(s => new JsonObject
             {
                 // Remote staff are listed under every work city, so older clients that filter by cities still show them.
                 ["id"] = s.S("id"), ["name"] = s.S("name"), ["cities"] = s.B("allCities") ? round["cities"]!.DeepClone() : s["cities"]!.DeepClone(), ["departments"] = s["departments"]!.DeepClone(),
-                ["apps"] = s["apps"]!.DeepClone(), ["roles"] = s.B("pendingRoleApproval") ? new JsonArray("بانتظار موافقة غزال") : s["roles"]!.DeepClone()
+                ["apps"] = s["apps"]!.DeepClone(), ["roles"] = s.B("pendingRoleApproval") ? new JsonArray("بانتظار موافقة غزال") : s["roles"]!.DeepClone(),
+                ["allApps"] = s.B("allApps"), ["allCities"] = s.B("allCities")
             })),
             ["identityFields"] = Array(new[] {
                 Label("iqama", "رقم الإقامة", "Iqama", "اقامہ نمبر"), Label("name", "الاسم", "Name", "نام"),
@@ -58,14 +68,24 @@ public static partial class EvaluationSurvey
             }),
             ["allowedActions"] = new JsonArray("submit")
         };
+        if (section != null)
+        {
+            schema["sectionKey"] = section.S("key");
+            schema["sectionKind"] = section.S("kind");
+            schema["includeFinanceCard"] = section.S("kind") == "app";
+            schema["financeFactors"] = Array(new[] {
+                Label("responsiveness", "تجاوب القسم المالي مع استفساراتك وشكاواك", "Finance responsiveness", "مالیہ کا جواب"),
+                Label("accuracy", "احتساب الراتب بدون أخطاء", "Salary accuracy", "تنخواہ کی درستگی"),
+                Label("correctionSpeed", "سرعة تعديل الأخطاء والفروقات بعد الإبلاغ", "Correction speed", "درستگی کی رفتار"),
+                Label("clarity", "وضوح تفاصيل الراتب والخصومات", "Pay clarity", "تنخواہ کی وضاحت")
+            });
+            schema["financeReasons"] = Array(new[] {
+                Label("not_dealt_finance", "لم أتعامل مع القسم المالي", "Did not deal with finance", "مالیہ سے معاملہ نہیں ہوا")
+            });
+        }
+        return schema;
     }
-    static JsonObject RoundView(JsonObject round, HttpContext ctx)
-    {
-        var view = round.Clone();
-        view["allowedActions"] = CanView(ctx.User) && AccessPolicy.Has(ctx.User, "forms.manage")
-            ? Array(round.S("status") switch { "draft" => new[] { "open", "refresh-staff" }, "open" => new[] { "pause", "close", "refresh-staff" }, "paused" => new[] { "open", "close", "refresh-staff" }, _ => System.Array.Empty<string>() }) : new JsonArray();
-        return view;
-    }
+    static JsonObject RoundView(JsonObject round, HttpContext ctx) => RoundViewDoc(round, ctx.User);
     static JsonObject FilterStatistics(JsonObject stats, string dimension)
     {
         string field = dimension switch { "city" => "byCity", "app" => "byApp", "supervisor" => "bySupervisor", "nationality" => "byNationality", "factors" => "factorAverages", "trend" => "dailyTrend", _ => throw new ApiError("نوع إحصاء غير صالح.") };
@@ -103,9 +123,15 @@ public static partial class EvaluationSurvey
         // Flat api.Map* paths (not MapGroup) so tools/api_inventory.py can index them.
         api.MapGet("/forms/evaluations/staff", (HttpContext ctx) => { Demand(ctx.User); return store.Read(c => Store.List(c, StaffKind)); }).WithTags("Forms and responses").WithSummary("List evaluation staff cards");
         api.MapPost("/forms/evaluations/staff/import", (JsonObject input, HttpContext ctx) => store.Write((c, tx) => ImportStaff(c, tx, ctx.User, input))).WithTags("Forms and responses").WithSummary("Import evaluation staff cards");
+        api.MapPut("/forms/evaluations/staff/{id}", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) => PutStaff(c, tx, ctx.User, id, input))).WithTags("Forms and responses").WithSummary("Update one evaluation staff card");
         api.MapGet("/forms/evaluations/rounds", (HttpContext ctx) => { Demand(ctx.User); return store.Read(c => Store.List(c, RoundKind).Select(r => RoundView(r, ctx)).ToList()); }).WithTags("Forms and responses").WithSummary("List evaluation rounds");
         api.MapPost("/forms/evaluations/rounds", (JsonObject input, HttpContext ctx) => store.Write((c, tx) => RoundView(CreateRound(c, tx, ctx.User, input), ctx))).WithTags("Forms and responses").WithSummary("Create evaluation round");
         api.MapGet("/forms/evaluations/rounds/{id}", (string id, HttpContext ctx) => { Demand(ctx.User); return store.Read(c => RoundView(Round(c, id), ctx)); }).WithTags("Forms and responses").WithSummary("Read evaluation round");
+        api.MapDelete("/forms/evaluations/rounds/{id}", (string id, [Microsoft.AspNetCore.Mvc.FromBody] JsonObject input, HttpContext ctx) => store.Write((c, tx) => DeleteRound(c, tx, ctx.User, id, input ?? new JsonObject(), store))).WithTags("Forms and responses").WithSummary("Delete evaluation round after typing its title");
+        api.MapPost("/forms/evaluations/rounds/{id}/sections/{sectionKey}/staff/{staffId}", (string id, string sectionKey, string staffId, HttpContext ctx) =>
+            store.Write((c, tx) => AddSectionStaff(c, tx, ctx.User, id, Uri.UnescapeDataString(sectionKey), staffId))).WithTags("Forms and responses").WithSummary("Add staff override to an evaluation section");
+        api.MapDelete("/forms/evaluations/rounds/{id}/sections/{sectionKey}/staff/{staffId}", (string id, string sectionKey, string staffId, HttpContext ctx) =>
+            store.Write((c, tx) => RemoveSectionStaff(c, tx, ctx.User, id, Uri.UnescapeDataString(sectionKey), staffId))).WithTags("Forms and responses").WithSummary("Remove staff override from an evaluation section");
         api.MapPost("/forms/evaluations/rounds/{id}/{action}", (string id, string action, HttpContext ctx) => store.Write((c, tx) => RoundView(action == "refresh-staff" ? RefreshStaff(c, tx, ctx.User, id) : Transition(c, tx, ctx.User, id, action switch { "open" => "open", "pause" => "paused", "close" => "closed", _ => throw new ApiError("إجراء غير معروف.", 404) }), ctx))).WithTags("Forms and responses").WithSummary("Open, pause, close or refresh staff of an evaluation round");
         api.MapGet("/forms/evaluations/rounds/{id}/responses", (string id, string? supervisorId, string? department, HttpContext ctx) => store.Read(c => ApiPagination.Apply(Responses(c, ctx.User, id, supervisorId, department), ctx.Request.Query, always: true,
             whitelist: new HashSet<string>(StringComparer.Ordinal) { "id", "iqama", "name", "city", "nationality", "phone", "companyId", "createdAt", "workApps" }))).WithTags("Forms and responses").WithSummary("Page evaluation replies");
@@ -130,7 +156,7 @@ public static partial class EvaluationSurvey
         app.MapGet("/api/rider-mobile/evaluations", (HttpContext ctx) =>
         {
             MobileSessions.Authenticate(store, ctx);
-            return store.Read(c => Store.ListWhere(c, RoundKind, null, null, ("status", "open")).Select(r =>
+            return store.Read(c => Store.ListWhere(c, RoundKind, null, null, ("status", "open")).Where(r => !IsSectioned(r)).Select(r =>
             {
                 string token = r.S("sharingToken");
                 string hosted = CampaignLinks.Base(app.Configuration, ctx) + "/rider-form.html?evaluation=" + Uri.EscapeDataString(token);
@@ -159,8 +185,9 @@ public static partial class EvaluationSurvey
             WriteWithAttachments(store, (c, tx, batch) =>
             {
                 var round = ByToken(c, token, tx);
+                var section = ActiveSection(round);
                 string iqama = J.Iqama(input.Required("iqama"));
-                string id = ReplyId(round.S("id"), iqama);
+                string id = section == null ? ReplyId(round.S("id"), iqama) : ReplyId(round.S("id"), section.S("key"), iqama);
                 var reply = Store.Get(c, id, ResponseKind, tx) ?? throw new ApiError("الرد غير موجود.", 404, "not_found");
                 // Possession of the random edit receipt is the only public proof — never ReplyId or a typed iqama alone.
                 if (!ReceiptEquals(input.S("receipt"), reply.S("editReceipt")))
