@@ -112,7 +112,7 @@ function ibanPayload(form:HTMLFormElement){const v=(n:string)=>((form.elements.n
 interface EvalLabel{id:string;labelAr:string;labelEn:string;labelUr:string}
 interface EvalStaff{id:string;name:string;cities:string[];departments:string[];roles:string[];apps:string[];active?:boolean;excluded?:boolean;pendingRoleApproval?:boolean}
 interface PublicField{id:string;type:string;labelAr:string;labelEn:string;labelUr:string;required:boolean;options:{value:string;labelAr:string;labelEn:string;labelUr:string}[]}
-interface PublicForm{cities?:{ar:string;en:string}[];title?:string;titleAr?:string;titleEn?:string;titleUr?:string;descriptionAr?:string;descriptionEn?:string;descriptionUr?:string;noticeAr?:string;noticeEn?:string;noticeUr?:string;schema:string;fields?:(PublicField|string)[];roundId?:string;apps?:string[];staff?:EvalStaff[];staffRatingMin?:number;staffRatingMax?:number;appRatingMin?:number;appRatingMax?:number;staffDimensions?:EvalLabel[];staffReasons?:EvalLabel[];appReasons?:EvalLabel[];factors?:EvalLabel[];uploadsPolicyPending?:boolean;sectionKey?:string;sectionKind?:string;includeFinanceCard?:boolean;financeFactors?:EvalLabel[];financeReasons?:EvalLabel[]}
+interface PublicForm{cities?:{ar:string;en:string}[];title?:string;titleAr?:string;titleEn?:string;titleUr?:string;descriptionAr?:string;descriptionEn?:string;descriptionUr?:string;noticeAr?:string;noticeEn?:string;noticeUr?:string;schema:string;fields?:(PublicField|string)[];roundId?:string;apps?:string[];staff?:EvalStaff[];staffRatingMin?:number;staffRatingMax?:number;appRatingMin?:number;appRatingMax?:number;staffDimensions?:EvalLabel[];staffReasons?:EvalLabel[];appReasons?:EvalLabel[];factors?:EvalLabel[];uploadsPolicyPending?:boolean;sectionKey?:string}
 const container=document.querySelector<HTMLElement>('#public-content')!;
 const searchParams=new URLSearchParams(location.search);
 const evalQueryToken=searchParams.get('evaluation')||(location.pathname.endsWith('rider-form.html')?searchParams.get('token'):null);
@@ -120,19 +120,15 @@ const evalPath=location.pathname.startsWith('/evaluations/')||Boolean(evalQueryT
 const token=evalQueryToken||location.pathname.split('/').pop()!;
 const custom=location.pathname.startsWith('/questionnaires/'),inquiry=location.pathname==='/inquiry'&&!evalPath;
 let language:Language='ar',formData:PublicForm|null=null,receipt='',failure=false;
-function evaluationForm(){return evalPath||formData?.schema==='evaluation-v1'||formData?.schema==='evaluation-section-v1';}
+function evaluationForm(){return evalPath||formData?.schema==='evaluation-v1';}
 const EVAL_IDENTITY_KEY='gate_eval_identity_v1';
-const EVAL_CHIPS={staff:['متعاون ويرد بسرعة','يحل المشاكل من أول مرة','محترم في التعامل','لا يرد على الاتصالات أو الرسائل'],finance:['الراتب ناقص أو فيه خصم غير مفهوم','تأخر الصرف','تأخر تعديل الفرق بعد الإبلاغ','لا يوجد رد على استفسار الراتب','الحساب واضح وصحيح'],app:['الطلبات قليلة','أوقات الشفتات غير مناسبة','مشاكل في التطبيق نفسه','خدمة عملاء المنصة لا ترد','الشغل يستاهل']};
-function evalChipHtml(kind:'staff'|'finance'|'app',target:'notes'|'complaint'){return `<div class="small muted">اضغط لإضافة ملاحظة</div><div style="display:flex;flex-wrap:wrap;gap:6px;margin:6px 0">${(EVAL_CHIPS[kind]||[]).map(c=>`<button type="button" class="secondary eval-chip" data-eval-chip="${escapeText(c)}" data-chip-kind="${kind}" data-chip-target="${target}" style="padding:4px 8px;font-size:11px;border-radius:999px">${escapeText(c)}</button>`).join('')}</div>`;}
 const EVAL_APP_LABELS:Record<string,Record<Language,string>>={Jahez:{ar:'جاهز',en:'Jahez',ur:'جاہز'},Keeta:{ar:'كيتا',en:'Keeta',ur:'کیٹا'},HungerStation:{ar:'هنقرستيشن',en:'HungerStation',ur:'ہنگر اسٹیشن'},Ninja:{ar:'نينجا',en:'Ninja',ur:'ننجا'},Chefz:{ar:'ذا شفز',en:'The Chefz',ur:'دی شیفز'},Amazon:{ar:'أمازون',en:'Amazon',ur:'ایمیزون'}};
 const NAT_KEYS=['nat_sa','nat_eg','nat_ye','nat_sd','nat_pk','nat_in','nat_bd','nat_sy','nat_jo','nat_ph'];
 function evalAppLabel(a:string){return EVAL_APP_LABELS[a]?.[language]||a;}
 function normalizeAsciiDigits(raw:string){return String(raw||'').replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x0660)).replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-0x06F0)).trim();}
 interface EvalStaffDraft{reason:string;ratings:Record<string,number>;notes:string;complaint:boolean;complaintDetails:string}
 interface EvalAppDraft{reason:string;overall:number;factorRatings:Record<string,number>;notes:string}
-interface EvalFinanceDraft{reason:string;overall:number;factorRatings:Record<string,number>;notes:string;complaint:boolean;complaintDetails:string}
-const evalState:{page:1|2;iqama:string;name:string;city:string;nationality:string;phone:string;workApps:string[];deptFilter:string;appFilter:string;staffAnswers:Record<string,EvalStaffDraft>;appAnswers:Record<string,EvalAppDraft>;financeAnswer:EvalFinanceDraft;error:string}={page:1,iqama:'',name:'',city:'',nationality:'',phone:'',workApps:[],deptFilter:'ALL',appFilter:'ALL',staffAnswers:{},appAnswers:{},financeAnswer:{reason:'',overall:0,factorRatings:{},notes:'',complaint:false,complaintDetails:''},error:''};
-function isEvalFinanceDone():boolean{const a=evalState.financeAnswer;if(a.complaint&&(a.complaintDetails||'').trim().length<5)return false;if(a.reason!=='')return (formData?.financeReasons||[]).some(r=>r.id===a.reason);const v=Number(a.overall);return Number.isInteger(v)&&v>=1&&v<=5;}
+const evalState:{page:1|2;iqama:string;name:string;city:string;nationality:string;phone:string;workApps:string[];deptFilter:string;appFilter:string;staffAnswers:Record<string,EvalStaffDraft>;appAnswers:Record<string,EvalAppDraft>;error:string}={page:1,iqama:'',name:'',city:'',nationality:'',phone:'',workApps:[],deptFilter:'ALL',appFilter:'ALL',staffAnswers:{},appAnswers:{},error:''};
 function evalCityList():string[]{return ((formData?.cities as unknown[])||[]).map(c=>typeof c==='string'?c:(c as {ar:string}).ar).filter(Boolean);}
 function evalCityStaff():EvalStaff[]{if(!evalState.city)return [];return (formData?.staff||[]).filter(s=>!s.excluded&&(s.cities||[]).includes(evalState.city));}
 function isEvalStaffDone(s:EvalStaff):boolean{const a=evalState.staffAnswers[s.id];if(!a)return false;if(a.complaint&&(a.complaintDetails||'').trim().length<5)return false;if(a.reason!=='')return (formData?.staffReasons||[]).some(r=>r.id===a.reason);return (formData?.staffDimensions||[]).every(d=>{const v=Number(a.ratings?.[d.id]);return Number.isInteger(v)&&v>=(formData?.staffRatingMin??1)&&v<=(formData?.staffRatingMax??10);});}
@@ -281,30 +277,9 @@ function renderEvaluation(){
        </div>
       </div>`:''}
       <label style="margin-top:8px;display:block">${escapeText(t('notes'))}<textarea rows="2" maxlength="2000" data-app-notes="${escapeText(app)}">${escapeText(ans.notes)}</textarea></label>
-      ${evalChipHtml('app','notes')}
      </article>`;
     }).join('')}
    </div>
-   ${formData?.includeFinanceCard?`<article class="panel" id="eval-finance-card" data-testid="eval-finance-card" style="padding:12px;border:1px solid var(--line,#d6cfc2);border-radius:12px;margin-top:12px">
-     <h3 style="margin:0 0 8px;font-size:16px">المالية والحسابات</h3>
-     <label style="display:block">${escapeText(t('skipLabel'))}
-      <select id="eval-finance-reason">
-       <option value="" ${evalState.financeAnswer.reason===''?'selected':''}>★ تقييم القسم المالي</option>
-       ${(formData.financeReasons||[]).map(r=>`<option value="${escapeText(r.id)}" ${evalState.financeAnswer.reason===r.id?'selected':''}>${escapeText(localized(r,'label'))}</option>`).join('')}
-      </select>
-     </label>
-     ${evalState.financeAnswer.reason===''?`<div style="margin-top:8px">
-      <div class="small" style="display:flex;justify-content:space-between;margin-bottom:4px"><span>${escapeText(t('starsLabel'))}</span><strong class="number">${evalState.financeAnswer.overall?`${evalState.financeAnswer.overall} / 5 ★`:'—'}</strong></div>
-      <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px">
-       ${[1,2,3,4,5].map(star=>`<button type="button" class="${evalState.financeAnswer.overall===star?'':'secondary'}" data-finance-star="${star}" aria-pressed="${evalState.financeAnswer.overall===star}" style="padding:6px 2px;font-size:12px">${star} ★</button>`).join('')}
-      </div>
-      <div style="margin-top:10px;display:grid;gap:8px">
-       ${(formData.financeFactors||[]).map(f=>{const stars=evalState.financeAnswer.factorRatings[f.id]||0;return `<div><div class="small" style="display:flex;justify-content:space-between;margin-bottom:2px"><span>${escapeText(localized(f,'label'))}</span><strong class="number">${stars?`${stars} / 5 ★`:'—'}</strong></div><div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px">${[1,2,3,4,5].map(star=>`<button type="button" class="${stars===star?'':'secondary'}" data-finance-factor="${escapeText(f.id)}" data-stars="${star}" style="padding:4px 2px;font-size:11px">${star} ★</button>`).join('')}</div></div>`;}).join('')}
-      </div>
-     </div>`:''}
-     <label style="margin-top:8px;display:block">${escapeText(t('notes'))}<textarea rows="2" maxlength="2000" id="eval-finance-notes">${escapeText(evalState.financeAnswer.notes)}</textarea></label>
-     ${evalChipHtml('finance','notes')}
-    </article>`:''}
    <div class="public-error" id="form-error" role="alert">${escapeText(evalState.error)}</div>
    <div class="row-actions" style="margin-top:12px;justify-content:space-between">
     <button type="button" class="secondary" id="eval-prev-btn">${escapeText(t('prev'))}</button>
@@ -339,19 +314,9 @@ function renderEvaluation(){
  form.querySelectorAll<HTMLButtonElement>('[data-app-star]').forEach(btn=>btn.addEventListener('click',()=>{const app=btn.dataset.appStar!,stars=Number(btn.dataset.stars);const a=ensureEvalApp(app);a.reason='';a.overall=stars;evalState.error='';renderPublic();}));
  form.querySelectorAll<HTMLButtonElement>('[data-app-factor-star]').forEach(btn=>btn.addEventListener('click',()=>{const app=btn.dataset.appFactorStar!,factorId=btn.dataset.factorId!,stars=Number(btn.dataset.stars);const a=ensureEvalApp(app);a.reason='';if(a.factorRatings[factorId]===stars)delete a.factorRatings[factorId];else a.factorRatings[factorId]=stars;evalState.error='';renderPublic();}));
  form.querySelectorAll<HTMLTextAreaElement>('[data-app-notes]').forEach(ta=>ta.addEventListener('input',()=>{ensureEvalApp(ta.dataset.appNotes!).notes=ta.value;}));
- form.querySelectorAll<HTMLButtonElement>('[data-eval-chip]').forEach(btn=>btn.addEventListener('click',()=>{
-  const chip=btn.dataset.evalChip||'',target=btn.dataset.chipTarget||'notes',kind=btn.dataset.chipKind||'';
-  if(kind==='finance'){const cur=target==='complaint'?evalState.financeAnswer.complaintDetails:evalState.financeAnswer.notes;const next=cur?`${cur}\n${chip}`:chip;if(target==='complaint')evalState.financeAnswer.complaintDetails=next;else evalState.financeAnswer.notes=next;renderPublic();return;}
-  if(kind==='app'){const app=apps[0];if(!app)return;const a=ensureEvalApp(app);a.notes=a.notes?`${a.notes}\n${chip}`:chip;renderPublic();}
- }));
- form.querySelector<HTMLSelectElement>('#eval-finance-reason')?.addEventListener('change',e=>{evalState.financeAnswer.reason=(e.target as HTMLSelectElement).value;if(evalState.financeAnswer.reason){evalState.financeAnswer.overall=0;evalState.financeAnswer.factorRatings={};}renderPublic();});
- form.querySelectorAll<HTMLButtonElement>('[data-finance-star]').forEach(btn=>btn.addEventListener('click',()=>{evalState.financeAnswer.reason='';evalState.financeAnswer.overall=Number(btn.dataset.financeStar);renderPublic();}));
- form.querySelectorAll<HTMLButtonElement>('[data-finance-factor]').forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.financeFactor!,stars=Number(btn.dataset.stars);evalState.financeAnswer.reason='';if(evalState.financeAnswer.factorRatings[id]===stars)delete evalState.financeAnswer.factorRatings[id];else evalState.financeAnswer.factorRatings[id]=stars;renderPublic();}));
- form.querySelector<HTMLTextAreaElement>('#eval-finance-notes')?.addEventListener('input',e=>{evalState.financeAnswer.notes=(e.target as HTMLTextAreaElement).value;});
  form.onsubmit=async e=>{
   e.preventDefault();
   if(!apps.every(isEvalAppDone)){evalState.error=t('unansweredApps');renderPublic();return;}
-  if(formData?.includeFinanceCard&&!isEvalFinanceDone()){evalState.error='أجب عن بطاقة المالية';renderPublic();return;}
   const btn=form.querySelector<HTMLButtonElement>('#eval-submit-btn')!;btn.disabled=true;
   const cs=evalCityStaff();
   const payload:Record<string,unknown>={
@@ -359,7 +324,6 @@ function renderEvaluation(){
    staffAnswers:cs.map(s=>{const a=ensureEvalStaff(s.id);return {staffId:s.id,reason:a.reason,...(a.reason===''?{ratings:a.ratings}:{}),notes:a.notes.trim(),complaint:Boolean(a.complaint),complaintDetails:a.complaint?a.complaintDetails.trim():'',attachments:[]};}),
    appAnswers:apps.map(app=>{const a=ensureEvalApp(app);return {app,reason:a.reason,...(a.reason===''?{overall:a.overall,factorRatings:a.factorRatings}:{}),notes:a.notes.trim(),attachments:[]};})
   };
-  if(formData?.includeFinanceCard){const a=evalState.financeAnswer;payload.financeAnswer={reason:a.reason,...(a.reason===''?{overall:a.overall,factorRatings:a.factorRatings}:{}),notes:a.notes.trim(),complaint:Boolean(a.complaint),complaintDetails:a.complaint?a.complaintDetails.trim():'',attachments:[]};}
   try{
    try{localStorage.setItem(EVAL_IDENTITY_KEY,JSON.stringify({iqama:payload.iqama,name:payload.name,nationality:payload.nationality,phone:payload.phone,workApps:payload.workApps}));}catch{}
    const survey=getSurveySession();
@@ -409,6 +373,15 @@ renderPublic();if(!inquiry){
    const sess=getSurveySession();
    const initPath=evalPath?((sess?.accessToken&&searchParams.get('mode')==='app'?'/api/rider-mobile/evaluations/':'/api/public/evaluations/')+encodeURIComponent(token)):'/api/public/'+(custom?'questionnaires/':'forms/')+encodeURIComponent(token);
    formData=await request(initPath);
+   // Sectioned rounds use the web client only; keep launch/session in sessionStorage for the hand-off.
+   if(formData?.sectionKey){
+    const q=new URLSearchParams();
+    q.set('evaluation',token);
+    const mode=searchParams.get('mode');
+    if(mode)q.set('mode',mode);
+    location.replace('/app/evaluation/?'+q.toString()+(location.hash||''));
+    return;
+   }
    renderPublic();
   }catch{failure=true;renderPublic();}
  })();

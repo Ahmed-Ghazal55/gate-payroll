@@ -657,7 +657,7 @@ export function EvaluationsTab() {
     const token = sectionToken || round?.sharingToken;
     if (!token) return '';
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${origin}/rider-form.html?evaluation=${encodeURIComponent(token)}`;
+    return `${origin}/app/evaluation/?evaluation=${encodeURIComponent(token)}`;
   };
 
   const copyPublicLink = async (sectionToken?: string) => {

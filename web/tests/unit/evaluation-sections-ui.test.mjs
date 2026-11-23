@@ -41,9 +41,11 @@ describe('EV5 S3 section public form', () => {
     assert.match(flow, /eval-finance-card/);
   });
 
-  it('server-hosted rider form also supports section finance card and chips', () => {
+  it('server-hosted rider form redirects section tokens to the web client', () => {
     const rider = readRepo('RiderForm/src/rider-form.ts');
-    assert.match(rider, /includeFinanceCard|financeAnswer|evaluation-section-v1/);
-    assert.match(rider, /eval_chip_|suggestedChip|مالية/);
+    assert.match(rider, /sectionKey/);
+    assert.match(rider, /location\.replace/);
+    assert.match(rider, /\/app\/evaluation\/\?/);
+    assert.doesNotMatch(rider, /eval-finance-card/);
   });
 });

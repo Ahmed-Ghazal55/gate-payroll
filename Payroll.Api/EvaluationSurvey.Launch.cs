@@ -37,7 +37,12 @@ public static partial class EvaluationSurvey
         };
         Store.Save(c, LaunchKind, row, tx);
         // Put the one-time code in the URL fragment so proxies never log it on the document request.
-        string url = publicBaseUrl.TrimEnd('/') + "/rider-form.html?evaluation=" + Uri.EscapeDataString(sharingToken)
+        // Section tokens open the web sectioned client; legacy round tokens keep the rider-form two-page path.
+        bool sectionLink = ActiveSection(round) != null;
+        string formPath = sectionLink
+            ? "/app/evaluation/?evaluation="
+            : "/rider-form.html?evaluation=";
+        string url = publicBaseUrl.TrimEnd('/') + formPath + Uri.EscapeDataString(sharingToken)
             + "&mode=app#launch=" + Uri.EscapeDataString(code);
         return new() { ["url"] = url };
     }
