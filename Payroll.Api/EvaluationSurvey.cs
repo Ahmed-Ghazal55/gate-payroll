@@ -322,12 +322,12 @@ public static partial class EvaluationSurvey
         var staff = Round(c, response.S("roundId"), tx)["staff"]!.AsArray().OfType<JsonObject>().SingleOrDefault(s => s.S("id") == request["payload"].S("targetId"));
         return staff != null && (scope.Length == 0 || Strings(staff, "apps").All(scope.Contains));
     }
-    public static List<JsonObject> Responses(DbConnection c, ClaimsPrincipal user, string id)
+    public static List<JsonObject> Responses(DbConnection c, ClaimsPrincipal user, string id, string? supervisorId = null, string? department = null)
     {
         Demand(user); Round(c, id);
         var scope = user.FindAll("finance.platforms").Select(p => p.Value).ToArray();
         var round = Round(c, id);
-        return Store.ListWhere(c, ResponseKind, null, null, ("roundId", id)).Where(r => InScope(c, user, r)).Select(r =>
+        var rows = Store.ListWhere(c, ResponseKind, null, null, ("roundId", id)).Where(r => InScope(c, user, r)).Select(r =>
         {
             if (AccessPolicy.Administrator(user) || scope.Length == 0) return r;
             r["appAnswers"] = Array(r["appAnswers"]!.AsArray().OfType<JsonObject>().Where(a => scope.Contains(a.S("app"))));
@@ -335,6 +335,15 @@ public static partial class EvaluationSurvey
             r["staffAnswers"] = Array(r["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => ids.Contains(a.S("staffId"))));
             return r;
         }).ToList();
+        if (!string.IsNullOrEmpty(supervisorId))
+            rows = rows.Where(r => r["staffAnswers"]!.AsArray().OfType<JsonObject>().Any(a => a.S("staffId") == supervisorId && a.S("reason") == "")).ToList();
+        if (!string.IsNullOrEmpty(department))
+        {
+            var deptIds = round["staff"]!.AsArray().OfType<JsonObject>()
+                .Where(s => Strings(s, "departments").Contains(department!)).Select(s => s.S("id")).ToHashSet();
+            rows = rows.Where(r => r["staffAnswers"]!.AsArray().OfType<JsonObject>().Any(a => deptIds.Contains(a.S("staffId")) && a.S("reason") == "")).ToList();
+        }
+        return rows;
     }
     public static JsonObject Statistics(DbConnection c, ClaimsPrincipal user, string id, string? city = null, string? nationalityId = null)
     {

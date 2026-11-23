@@ -26,6 +26,57 @@ public static partial class ApiContracts
         ["dimensions"] = A(O(new() { ["key"] = S(), ["count"] = N(), ["average"] = new OpenApiSchema { Type = JsonSchemaType.Number | JsonSchemaType.Null } }, "key", "count", "average")),
         ["distribution"] = A(O(new() { ["stars"] = N(), ["count"] = N() }, "stars", "count"))
     }, "key");
+    static OpenApiSchema NullableNumber() => new() { Type = JsonSchemaType.Number | JsonSchemaType.Null };
+    static OpenApiSchema EvaluationDrillDown() => O(new()
+    {
+        ["target"] = S(), ["city"] = S(), ["app"] = S(), ["department"] = S(), ["supervisorId"] = S(), ["nationalityId"] = S()
+    }, "target");
+    static OpenApiSchema EvaluationFactorStat() => O(new() { ["key"] = S(), ["count"] = N(), ["average"] = NullableNumber() }, "key", "count");
+    static OpenApiSchema EvaluationSupervisorScorecardItem() => O(new()
+    {
+        ["staffId"] = S(), ["name"] = S(), ["department"] = S(), ["replyCount"] = N(), ["complaintCount"] = N(),
+        ["complaintRate"] = NullableNumber(), ["average"] = NullableNumber(), ["rankInDepartment"] = NullableNumber(),
+        ["changeVsPrevious"] = NullableNumber(), ["lowSample"] = B(), ["identityVisible"] = B(),
+        ["dimensions"] = A(O(new() { ["key"] = S(), ["count"] = N(), ["average"] = NullableNumber() }, "key", "count")),
+        ["drillDown"] = EvaluationDrillDown()
+    }, "staffId", "name", "replyCount", "lowSample", "identityVisible", "dimensions");
+    static OpenApiSchema EvaluationSupervisorScorecard() => O(new()
+    {
+        ["roundId"] = S(), ["totalResponses"] = N(), ["confidenceNoteAr"] = S(), ["labelsAr"] = StringMap(),
+        ["items"] = A(EvaluationSupervisorScorecardItem()), ["allowedActions"] = A(S())
+    }, "roundId", "totalResponses", "confidenceNoteAr", "items", "allowedActions");
+    static OpenApiSchema EvaluationAppScorecardItem() => O(new()
+    {
+        ["app"] = S(), ["replyCount"] = N(), ["average"] = NullableNumber(), ["netScore"] = NullableNumber(),
+        ["distribution"] = A(O(new() { ["stars"] = N(), ["count"] = N() }, "stars", "count")),
+        ["topFactors"] = A(EvaluationFactorStat()), ["bottomFactors"] = A(EvaluationFactorStat()),
+        ["lowSample"] = B(), ["identityVisible"] = B(), ["drillDown"] = EvaluationDrillDown()
+    }, "app", "replyCount", "distribution", "topFactors", "bottomFactors", "lowSample", "identityVisible");
+    static OpenApiSchema EvaluationAppScorecard() => O(new()
+    {
+        ["roundId"] = S(), ["totalResponses"] = N(), ["confidenceNoteAr"] = S(), ["labelsAr"] = StringMap(),
+        ["items"] = A(EvaluationAppScorecardItem()), ["allowedActions"] = A(S())
+    }, "roundId", "totalResponses", "confidenceNoteAr", "items", "allowedActions");
+    static OpenApiSchema EvaluationHeatmap() => O(new()
+    {
+        ["roundId"] = S(), ["totalResponses"] = N(), ["dimensions"] = A(S()), ["confidenceNoteAr"] = S(), ["labelsAr"] = StringMap(),
+        ["cells"] = A(O(new()
+        {
+            ["staffId"] = S(), ["name"] = S(), ["dimension"] = S(), ["replyCount"] = N(), ["average"] = NullableNumber(),
+            ["lowSample"] = B(), ["identityVisible"] = B(), ["drillDown"] = EvaluationDrillDown()
+        }, "staffId", "dimension", "replyCount", "lowSample", "identityVisible")),
+        ["allowedActions"] = A(S())
+    }, "roundId", "totalResponses", "dimensions", "confidenceNoteAr", "cells", "allowedActions");
+    static OpenApiSchema EvaluationCityAppMatrix() => O(new()
+    {
+        ["roundId"] = S(), ["totalResponses"] = N(), ["cities"] = A(S()), ["apps"] = A(S()), ["confidenceNoteAr"] = S(), ["labelsAr"] = StringMap(),
+        ["cells"] = A(O(new()
+        {
+            ["city"] = S(), ["app"] = S(), ["replyCount"] = N(), ["average"] = NullableNumber(),
+            ["lowSample"] = B(), ["identityVisible"] = B(), ["drillDown"] = EvaluationDrillDown()
+        }, "city", "app", "replyCount", "lowSample", "identityVisible")),
+        ["allowedActions"] = A(S())
+    }, "roundId", "totalResponses", "cities", "apps", "confidenceNoteAr", "cells", "allowedActions");
     static OpenApiSchema? EvaluationResponse(string method, string path)
     {
         bool get = method == "GET";
@@ -36,6 +87,11 @@ public static partial class ApiContracts
             if (path.EndsWith("/responses", StringComparison.Ordinal)) return Page(EvaluationReply());
             if (path.EndsWith("/statistics/{dimension}", StringComparison.Ordinal)) return O(new() { ["roundId"] = S(), ["totalResponses"] = N(), ["items"] = A(EvaluationBucket()) }, "roundId", "totalResponses", "items");
             if (path.EndsWith("/statistics", StringComparison.Ordinal)) return O(new() { ["roundId"] = S(), ["totalResponses"] = N(), ["byCity"] = A(EvaluationBucket()), ["byApp"] = A(EvaluationBucket()), ["bySupervisor"] = A(EvaluationBucket()), ["byNationality"] = A(EvaluationBucket()), ["factorAverages"] = A(EvaluationBucket()), ["dailyTrend"] = A(EvaluationBucket()) }, "roundId", "totalResponses", "byCity", "byApp", "bySupervisor", "byNationality", "factorAverages", "dailyTrend");
+            if (path.Contains("/scorecards/", StringComparison.Ordinal) && path.EndsWith("/export", StringComparison.Ordinal)) return null;
+            if (path.EndsWith("/scorecards/supervisors", StringComparison.Ordinal)) return EvaluationSupervisorScorecard();
+            if (path.EndsWith("/scorecards/apps", StringComparison.Ordinal)) return EvaluationAppScorecard();
+            if (path.EndsWith("/scorecards/heatmap", StringComparison.Ordinal)) return EvaluationHeatmap();
+            if (path.EndsWith("/scorecards/city-app", StringComparison.Ordinal)) return EvaluationCityAppMatrix();
             if (path.EndsWith("/export", StringComparison.Ordinal)) return null;
             return get && path.EndsWith("/rounds", StringComparison.Ordinal) ? A(EvaluationRound()) : EvaluationRound();
         }

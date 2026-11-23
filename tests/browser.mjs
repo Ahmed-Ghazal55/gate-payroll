@@ -61,6 +61,10 @@ browser = await chromium.launch(launchOpts);
  await mobile.locator('#commission-confirm').click();
  assert.equal(await mobile.locator('[name=workSystem][value=commission]').isChecked(),true);
  mobile.once('dialog',d=>d.accept());await mobile.locator('button[type=submit]').click();await mobile.getByRole('heading',{name:'تم تسجيل ردك بنجاح'}).waitFor();
+ // DV1 (Ghazal 2026-11-23): the same device cannot submit a second reply for a different Iqama.
+ await mobile.reload();await mobile.locator('#rider-choice').waitFor();await mobile.locator('#device-notice:not([hidden])').waitFor();
+ await mobile.locator('[name=iqama]').fill('2000000099');await mobile.locator('[name=name]').fill('Other Person');await mobile.locator('[name=workSystem][value=tiers]').check();await mobile.locator('button[type=submit]').click();
+ assert.match(await mobile.locator('#form-error').innerText(),/من هذا الجهاز/);
  const submissions=await(await page.request.get(base+'/api/submissions')).json();assert.equal(submissions.length,1);assert.equal(submissions[0].name,'مندوب تجريبي');
  const template=await page.request.get(base+'/api/excel/choices/template');assert.equal(template.status(),200);assert.match(template.headers()['content-type']||'',/spreadsheetml/);
  assert.deepEqual(errors,[]);console.log('PASS browser: Next redirects, admin routes when packaged, mobile form layout, public submit, Excel template, no JS errors.');

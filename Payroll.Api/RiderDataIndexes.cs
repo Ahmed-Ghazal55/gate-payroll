@@ -62,7 +62,11 @@ public static class RiderDataIndexes
         Idx("ix_custom_form_open_expiry", ["rec_status", "rec_expires_at", "rec_target", "rec_target_iqama"], "custom_form"),
     ];
 
-    static readonly HashSet<string> AllowedKinds = new(Indexes.Select(i => i.KindLiteral), StringComparer.Ordinal);
+    // evaluation_response index is created at Store startup (not the rider maintenance job);
+    // keep its kind literal so ListWhere can use the filtered index.
+    static readonly HashSet<string> AllowedKinds = new(
+        Indexes.Select(i => i.KindLiteral).Append("evaluation_response"),
+        StringComparer.Ordinal);
 
     static readonly Dictionary<string, string> JsonFieldExpressions = new(StringComparer.Ordinal)
     {
@@ -81,6 +85,8 @@ public static class RiderDataIndexes
         ["targetSponsorId"] = "CONVERT(nvarchar(128),COALESCE(JSON_VALUE(body,'$.targetCompanyId'),JSON_VALUE(body,'$.targetSponsorId')))",
         ["target"] = "CONVERT(nvarchar(64),COALESCE(JSON_VALUE(body,'$.target'),JSON_VALUE(body,'$.targetAudience')))",
         ["targetAudience"] = "CONVERT(nvarchar(64),COALESCE(JSON_VALUE(body,'$.target'),JSON_VALUE(body,'$.targetAudience')))",
+        // Matches Store.cs rec_round_id / ix_evaluation_response_round (startup computed column).
+        ["roundId"] = "CONVERT(nvarchar(128),JSON_VALUE(body,'$.roundId'))",
     };
 
     static IndexSpec Idx(string name, string[] columns, string kind)

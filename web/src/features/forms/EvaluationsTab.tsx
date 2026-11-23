@@ -41,6 +41,10 @@ import {
   FACTOR_LABELS_AR,
   ROUND_STATUS_LABELS_AR,
 } from './evaluation-helpers';
+import {
+  EvaluationScorecardsPanel,
+  type ScorecardDrillDown,
+} from './EvaluationScorecardsPanel';
 
 export {
   STAFF_DIMENSION_LABELS_AR,
@@ -175,13 +179,36 @@ export function EvaluationsTab() {
         city: cityFilter !== 'ALL' ? cityFilter : undefined,
         nationalityId: nationalityFilter !== 'ALL' ? nationalityFilter : undefined,
       };
+      // Merge bar filters into the replies table contract so scorecard drill-down lands on the same set.
+      const barFilters: { col: string; op: string; value: string }[] = [];
+      if (cityFilter !== 'ALL') barFilters.push({ col: 'city', op: 'eq', value: cityFilter });
+      if (nationalityFilter !== 'ALL')
+        barFilters.push({ col: 'nationality', op: 'eq', value: nationalityFilter });
+      if (appFilter !== 'ALL') barFilters.push({ col: 'workApps', op: 'contains', value: appFilter });
+      let mergedFilters = responsesServerQuery.filtersParam;
+      if (barFilters.length > 0) {
+        try {
+          const existing = mergedFilters ? JSON.parse(mergedFilters) : [];
+          const list = Array.isArray(existing) ? existing : [];
+          const keys = new Set(barFilters.map((f) => f.col));
+          mergedFilters = JSON.stringify([
+            ...list.filter((f: { col?: string }) => !keys.has(String(f.col || ''))),
+            ...barFilters,
+          ]);
+        } catch {
+          mergedFilters = JSON.stringify(barFilters);
+        }
+      }
       const [loadedStats, loadedResponses] = await Promise.all([
         api.getEvaluationStatistics(selectedRound.id, statsFilters),
         api.getEvaluationResponses(selectedRound.id, {
           page: responsesPage,
           pageSize: responsesPageSize,
-          filters: responsesServerQuery.filtersParam,
+          filters: mergedFilters,
           sort: responsesServerQuery.sortParam,
+          // H3: scorecard drill-down lands on the same supervisor/department reply set.
+          supervisorId: supervisorFilter !== 'ALL' ? supervisorFilter : undefined,
+          department: departmentFilter !== 'ALL' ? departmentFilter : undefined,
         }),
       ]);
       setStats(loadedStats);
@@ -201,6 +228,9 @@ export function EvaluationsTab() {
     responsesServerQuery.sortParam,
     cityFilter,
     nationalityFilter,
+    appFilter,
+    supervisorFilter,
+    departmentFilter,
     toast,
   ]);
 
@@ -427,6 +457,30 @@ export function EvaluationsTab() {
       0
     );
   }, [stats]);
+
+  const scorecardFilters = useMemo(
+    () => ({
+      city: cityFilter !== 'ALL' ? cityFilter : undefined,
+      app: appFilter !== 'ALL' ? appFilter : undefined,
+      department: departmentFilter !== 'ALL' ? departmentFilter : undefined,
+      supervisorId: supervisorFilter !== 'ALL' ? supervisorFilter : undefined,
+      nationalityId: nationalityFilter !== 'ALL' ? nationalityFilter : undefined,
+    }),
+    [cityFilter, appFilter, departmentFilter, supervisorFilter, nationalityFilter]
+  );
+
+  const handleScorecardDrillDown = useCallback((next: ScorecardDrillDown) => {
+    if (next.city) setCityFilter(next.city);
+    if (next.app) setAppFilter(next.app);
+    if (next.department) setDepartmentFilter(next.department);
+    if (next.supervisorId) setSupervisorFilter(next.supervisorId);
+    if (next.nationalityId) setNationalityFilter(next.nationalityId);
+    requestAnimationFrame(() => {
+      document
+        .querySelector('[data-testid="eval-responses-table-section"]')
+        ?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+  }, []);
 
   const handleStaffFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -1057,6 +1111,16 @@ export function EvaluationsTab() {
               icon={ShieldAlert}
             />
           </div>
+
+          {selectedRound && (
+            <EvaluationScorecardsPanel
+              roundId={selectedRound.id}
+              canExport={canExportEvaluations}
+              filters={scorecardFilters}
+              onDrillDown={handleScorecardDrillDown}
+              onToast={(message, tone) => toast(message, tone || 'info')}
+            />
+          )}
 
           {/* Charts Grid: City & Nationality */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

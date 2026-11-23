@@ -10,6 +10,7 @@ public static partial class ApiContracts
     static OpenApiSchema A(IOpenApiSchema item)=>new(){Type=JsonSchemaType.Array,Items=item};
     static OpenApiSchema O(Dictionary<string,IOpenApiSchema> properties,params string[] required)=>new(){Type=JsonSchemaType.Object,Properties=properties,Required=new HashSet<string>(required),AdditionalPropertiesAllowed=true};
     static OpenApiSchema Free()=>O([]);
+    static OpenApiSchema StringMap()=>new(){Type=JsonSchemaType.Object,AdditionalProperties=S()};
     static OpenApiSchema Page(IOpenApiSchema item)=>O(new(){["items"]=A(item),["total"]=N(),["page"]=N(),["pageSize"]=N()},"items","total","page","pageSize");
     static OpenApiSchema OpsRow(params (string Key,OpenApiSchema Schema)[] fields)
     {
