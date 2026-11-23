@@ -119,7 +119,25 @@ public static class TreasuryVaultCountsApi
         string maker=row.S("createdBy");
         J.Need(AccessPolicy.Independent(actor,maker,"treasury.vault_count_approve",c,tx,row,scope:AccessPolicy.ScopeTreasuryVaultCount),
             "لا يجوز اعتماد جرد أنشأته؛ يلزم مراجع مستقل (صانع ≠ معتمد).",403);
-        decimal variance=row.N("variance");
+        string companyId=row.S("companyId");
+        DateOnly countedOn=ParseDay(row.S("countedOn"));
+        DateOnly periodMonth=new(countedOn.Year,countedOn.Month,1);
+        string boxAccountId;
+        using(var cmd=Store.Command(c,tx,$"SELECT account_id FROM {SchemaSql.Q(c,"treasury","cash_box")} WHERE id=@id",("@id",row.S("cashBoxId"))))
+            boxAccountId=cmd.ExecuteScalar()?.ToString()??throw new ApiError("حساب الخزنة غير موجود.",409);
+        // Later posted lines after the count date also block approve (not only create).
+        J.Need(!HasPostedLinesAfter(c,tx,companyId,boxAccountId,countedOn),
+            "توجد قيود مرحّلة بعد تاريخ الجرد؛ لا يُعتمد الجرد حتى يُزال الفرق أو يُختَم الحد.",409);
+        // Recompute book/variance at approve — a line dated on/before count posted after create must change the journal.
+        decimal book=BookBalanceAsOf(c,tx,companyId,boxAccountId,periodMonth,countedOn);
+        decimal counted=J.Money(row.N("countedAmount"));
+        decimal variance=J.Money(counted-book);
+        SchemaSql.Exec(c,tx,$"""
+            UPDATE {SchemaSql.Q(c,"treasury","vault_count")}
+            SET book_balance=@book,updated_at={SchemaSql.NowLiteral(c)}
+            WHERE id=@id
+            """,("@id",id),("@book",book));
+        row["bookBalance"]=book;row["variance"]=variance;
         string? journalId=null;
         // Workflow column approved_by is a GUID (no FK); keep a stable id for the approver.
         string approverId=SchemaSql.GuidText(SchemaSql.NewId());
