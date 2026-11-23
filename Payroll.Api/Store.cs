@@ -51,11 +51,15 @@ public sealed partial class Store
             CREATE INDEX IF NOT EXISTS ix_advance_req_iqama ON records(json_extract(body,'$.riderIqama')) WHERE kind='advance_request';
             CREATE INDEX IF NOT EXISTS ix_push_outbox_status ON records(json_extract(body,'$.status'),json_extract(body,'$.createdAt')) WHERE kind='push_outbox';
             CREATE INDEX IF NOT EXISTS ix_audit_at ON records(json_extract(body,'$.at'),id) WHERE kind='audit';
+            CREATE INDEX IF NOT EXISTS ix_evaluation_response_round ON records(json_extract(body,'$.roundId')) WHERE kind='evaluation_response';
             """ : """
             IF OBJECT_ID(N'dbo.records', N'U') IS NULL
               CREATE TABLE dbo.records(id nvarchar(128) NOT NULL PRIMARY KEY, kind nvarchar(40) NOT NULL, body nvarchar(max) NOT NULL CHECK(ISJSON(body)=1));
             IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('dbo.records') AND name='ix_records_kind')
               CREATE INDEX ix_records_kind ON dbo.records(kind);
+            IF COL_LENGTH('dbo.records','rec_round_id') IS NULL ALTER TABLE dbo.records ADD rec_round_id AS CONVERT(nvarchar(128),JSON_VALUE(body,'$.roundId'));
+            IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('dbo.records') AND name='ix_evaluation_response_round')
+              CREATE INDEX ix_evaluation_response_round ON dbo.records(rec_round_id) WHERE kind='evaluation_response';
             """;
         SchemaSql.WithMigrationLock(c,(conn,tx)=>
         {

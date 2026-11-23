@@ -22,11 +22,19 @@ public static partial class EvaluationSurvey
         if (!string.IsNullOrEmpty(filter.City)) rows = rows.Where(r => r.S("city") == filter.City).ToList();
         if (!string.IsNullOrEmpty(filter.NationalityId))
             rows = rows.Where(r => r.S("nationalityId") == filter.NationalityId || r.S("nationality") == filter.NationalityId).ToList();
+        // Same rule as the replies table: keep a reply only when workApps contains the platform.
         if (!string.IsNullOrEmpty(filter.App))
-            rows = rows.Where(r => Strings(r, "workApps").Contains(filter.App!)
-                || r["appAnswers"]!.AsArray().OfType<JsonObject>().Any(a => a.S("app") == filter.App)).ToList();
+            rows = rows.Where(r => Strings(r, "workApps").Contains(filter.App!)).ToList();
         if (!string.IsNullOrEmpty(filter.SupervisorId))
             rows = rows.Where(r => r["staffAnswers"]!.AsArray().OfType<JsonObject>().Any(a => a.S("staffId") == filter.SupervisorId)).ToList();
+        if (!string.IsNullOrEmpty(filter.Department))
+        {
+            var deptIds = Round(c, id)["staff"]!.AsArray().OfType<JsonObject>()
+                .Where(s => Strings(s, "departments").Contains(filter.Department!)).Select(s => s.S("id")).ToHashSet();
+            // Count only replies that rated someone in the department (skipped cards do not count).
+            rows = rows.Where(r => r["staffAnswers"]!.AsArray().OfType<JsonObject>()
+                .Any(a => deptIds.Contains(a.S("staffId")) && a.S("reason") == "")).ToList();
+        }
         return rows;
     }
 
@@ -48,10 +56,15 @@ public static partial class EvaluationSurvey
     static JsonObject? PreviousRound(DbConnection c, JsonObject current)
     {
         string created = current.S("createdAt");
-        return Store.List(c, RoundKind)
-            .Where(r => r.S("id") != current.S("id") && string.CompareOrdinal(r.S("createdAt"), created) < 0)
-            .OrderByDescending(r => r.S("createdAt"))
-            .FirstOrDefault();
+        string id = current.S("id");
+        bool sqlite = c is Microsoft.Data.Sqlite.SqliteConnection;
+        string createdExpr = sqlite ? "json_extract(body,'$.createdAt')" : "CONVERT(nvarchar(40),JSON_VALUE(body,'$.createdAt'))";
+        string sql = sqlite
+            ? $"SELECT body FROM records WHERE kind=@kind AND id<>@id AND {createdExpr}<@created ORDER BY {createdExpr} DESC LIMIT 1"
+            : $"SELECT TOP (1) body FROM records WHERE kind=@kind AND id<>@id AND {createdExpr}<@created ORDER BY {createdExpr} DESC";
+        using var cmd = Store.Command(c, null, sql, ("@kind", RoundKind), ("@id", id), ("@created", created));
+        using var reader = cmd.ExecuteReader();
+        return reader.Read() ? System.Text.Json.Nodes.JsonNode.Parse(reader.GetString(0))!.AsObject() : null;
     }
 
     static Dictionary<string, decimal> PreviousStaffAverages(DbConnection c, ClaimsPrincipal user, JsonObject? previous, ScorecardFilter filter)
@@ -89,7 +102,7 @@ public static partial class EvaluationSurvey
         var staffCards = round["staff"]!.AsArray().OfType<JsonObject>().Where(s => StaffMatches(s, filter)).ToList();
         var answers = rows.SelectMany(r => r["staffAnswers"]!.AsArray().OfType<JsonObject>()).ToList();
 
-        var drafts = staffCards.Select(staff =>
+        var drafts = staffCards.SelectMany(staff =>
         {
             string sid = staff.S("id");
             var cards = answers.Where(a => a.S("staffId") == sid).ToList();
@@ -97,9 +110,23 @@ public static partial class EvaluationSurvey
             int n = rated.Count;
             int complaints = rated.Count(a => a.B("complaint"));
             var overall = Round2(rated.Select(a => StaffDimensions.Average(d => a["ratings"]!.N(d))));
-            string dept = Strings(staff, "departments").FirstOrDefault() ?? "";
+            var depts = Strings(staff, "departments");
+            if (!string.IsNullOrEmpty(filter.Department))
+                depts = depts.Where(d => d == filter.Department).ToArray();
+            if (depts.Length == 0) depts = [""];
             decimal? change = overall != null && prevAvgs.TryGetValue(sid, out var prev) ? Math.Round(overall.Value - prev, 2, MidpointRounding.AwayFromZero) : null;
-            return new
+            var dimensions = StaffDimensions.Select(d =>
+            {
+                var dimAvg = Round2(rated.Select(a => a["ratings"]!.N(d)));
+                return new JsonObject
+                {
+                    ["key"] = d,
+                    ["count"] = n,
+                    ["average"] = dimAvg == null ? null : JsonValue.Create(dimAvg.Value)
+                };
+            }).ToList();
+            // One card row per department membership so rank uses the filtered department.
+            return depts.Select(dept => new
             {
                 Staff = staff,
                 Sid = sid,
@@ -108,35 +135,27 @@ public static partial class EvaluationSurvey
                 Complaints = complaints,
                 Average = overall,
                 Change = change,
-                Dimensions = StaffDimensions.Select(d =>
-                {
-                    var dimAvg = Round2(rated.Select(a => a["ratings"]!.N(d)));
-                    return new JsonObject
-                    {
-                        ["key"] = d,
-                        ["count"] = n,
-                        ["average"] = dimAvg == null ? null : JsonValue.Create(dimAvg.Value)
-                    };
-                }).ToList()
-            };
+                Dimensions = dimensions
+            });
         }).ToList();
 
-        // Dense rank within department among those with an average (higher = better).
-        var ranks = new Dictionary<string, int>(StringComparer.Ordinal);
+        // Dense rank within each department among those with an average (higher = better).
+        var ranks = new Dictionary<(string Sid, string Dept), int>();
         foreach (var deptGroup in drafts.Where(d => d.Average != null).GroupBy(d => d.Dept))
         {
             int rank = 0; decimal? last = null;
             foreach (var row in deptGroup.OrderByDescending(d => d.Average!.Value).ThenBy(d => d.Staff.S("name"), StringComparer.Ordinal))
             {
                 if (last == null || row.Average != last) { rank++; last = row.Average; }
-                ranks[row.Sid] = rank;
+                ranks[(row.Sid, row.Dept)] = rank;
             }
         }
 
         var items = drafts.Select(d =>
         {
             int n = d.ReplyCount;
-            return new JsonObject
+            bool identityVisible = n >= IdentityMinReplies;
+            var item = new JsonObject
             {
                 ["staffId"] = d.Sid,
                 ["name"] = d.Staff.S("name"),
@@ -145,13 +164,14 @@ public static partial class EvaluationSurvey
                 ["complaintCount"] = d.Complaints,
                 ["complaintRate"] = n == 0 ? null : JsonValue.Create(Math.Round((decimal)d.Complaints / n, 2, MidpointRounding.AwayFromZero)),
                 ["average"] = d.Average == null ? null : JsonValue.Create(d.Average.Value),
-                ["rankInDepartment"] = ranks.TryGetValue(d.Sid, out var rk) ? rk : null,
+                ["rankInDepartment"] = ranks.TryGetValue((d.Sid, d.Dept), out var rk) ? rk : null,
                 ["changeVsPrevious"] = d.Change == null ? null : JsonValue.Create(d.Change.Value),
                 ["lowSample"] = n > 0 && n < LowSampleThreshold,
-                ["identityVisible"] = n >= IdentityMinReplies,
-                ["dimensions"] = Array(d.Dimensions),
-                ["drillDown"] = DrillDown("replies", filter, supervisorId: d.Sid)
+                ["identityVisible"] = identityVisible,
+                ["dimensions"] = Array(d.Dimensions)
             };
+            if (identityVisible) item["drillDown"] = DrillDown("replies", filter, supervisorId: d.Sid);
+            return item;
         }).OrderBy(i => i.S("department"), StringComparer.Ordinal).ThenBy(i => i.S("name"), StringComparer.Ordinal).ToList();
 
         bool anyLow = items.Any(i => i.B("lowSample"));
@@ -182,13 +202,6 @@ public static partial class EvaluationSurvey
         Demand(user);
         var round = Round(c, id);
         var rows = FilteredReplies(c, user, id, filter);
-        // Department filter restricts to replies that rated someone in that department.
-        if (!string.IsNullOrEmpty(filter.Department))
-        {
-            var ids = round["staff"]!.AsArray().OfType<JsonObject>()
-                .Where(s => Strings(s, "departments").Contains(filter.Department!)).Select(s => s.S("id")).ToHashSet();
-            rows = rows.Where(r => r["staffAnswers"]!.AsArray().OfType<JsonObject>().Any(a => ids.Contains(a.S("staffId")))).ToList();
-        }
         var apps = Strings(round, "apps").Where(a => string.IsNullOrEmpty(filter.App) || a == filter.App).ToList();
         var answers = rows.SelectMany(r => r["appAnswers"]!.AsArray().OfType<JsonObject>()).ToList();
         var items = apps.Select(platform =>
@@ -214,19 +227,26 @@ public static partial class EvaluationSurvey
                 };
             }).Where(f => f.N("count") > 0).ToList();
             var ordered = factorRows.OrderByDescending(f => f.N("average")).ToList();
-            return new JsonObject
+            int topN = Math.Min(3, (ordered.Count + 1) / 2);
+            int bottomN = Math.Min(3, ordered.Count / 2);
+            var top = ordered.Take(topN).ToList();
+            var topKeys = top.Select(f => f.S("key")).ToHashSet(StringComparer.Ordinal);
+            var bottom = ordered.OrderBy(f => f.N("average")).Where(f => !topKeys.Contains(f.S("key"))).Take(bottomN).ToList();
+            bool identityVisible = n >= IdentityMinReplies;
+            var item = new JsonObject
             {
                 ["app"] = platform,
                 ["replyCount"] = n,
                 ["average"] = Round2(rated.Select(a => a.N("overall"))) is { } avg ? JsonValue.Create(avg) : null,
                 ["distribution"] = Array(dist),
                 ["netScore"] = n == 0 ? null : JsonValue.Create(Math.Round(high - low, 2, MidpointRounding.AwayFromZero)),
-                ["topFactors"] = Array(ordered.Take(3)),
-                ["bottomFactors"] = Array(ordered.OrderBy(f => f.N("average")).Take(3)),
+                ["topFactors"] = Array(top),
+                ["bottomFactors"] = Array(bottom),
                 ["lowSample"] = n > 0 && n < LowSampleThreshold,
-                ["identityVisible"] = n >= IdentityMinReplies,
-                ["drillDown"] = DrillDown("replies", filter, app: platform)
+                ["identityVisible"] = identityVisible
             };
+            if (identityVisible) item["drillDown"] = DrillDown("replies", filter, app: platform);
+            return item;
         }).ToList();
         bool anyLow = items.Any(i => i.B("lowSample"));
         return new()
@@ -265,7 +285,8 @@ public static partial class EvaluationSurvey
             int n = rated.Count;
             foreach (var d in StaffDimensions)
             {
-                cells.Add(new JsonObject
+                bool identityVisible = n >= IdentityMinReplies;
+                var cell = new JsonObject
                 {
                     ["staffId"] = sid,
                     ["name"] = staff.S("name"),
@@ -273,9 +294,10 @@ public static partial class EvaluationSurvey
                     ["replyCount"] = n,
                     ["average"] = n == 0 ? null : JsonValue.Create(Round2(rated.Select(a => a["ratings"]!.N(d)))),
                     ["lowSample"] = n > 0 && n < LowSampleThreshold,
-                    ["identityVisible"] = n >= IdentityMinReplies,
-                    ["drillDown"] = DrillDown("replies", filter, supervisorId: sid)
-                });
+                    ["identityVisible"] = identityVisible
+                };
+                if (identityVisible) cell["drillDown"] = DrillDown("replies", filter, supervisorId: sid);
+                cells.Add(cell);
             }
         }
         bool anyLow = cells.Any(i => i.B("lowSample"));
@@ -298,12 +320,6 @@ public static partial class EvaluationSurvey
         Demand(user);
         var round = Round(c, id);
         var rows = FilteredReplies(c, user, id, filter);
-        if (!string.IsNullOrEmpty(filter.Department))
-        {
-            var ids = round["staff"]!.AsArray().OfType<JsonObject>()
-                .Where(s => Strings(s, "departments").Contains(filter.Department!)).Select(s => s.S("id")).ToHashSet();
-            rows = rows.Where(r => r["staffAnswers"]!.AsArray().OfType<JsonObject>().Any(a => ids.Contains(a.S("staffId")))).ToList();
-        }
         var cities = rows.Select(r => r.S("city")).Where(x => x != "").Distinct(StringComparer.Ordinal).OrderBy(x => x, StringComparer.Ordinal).ToList();
         if (!string.IsNullOrEmpty(filter.City)) cities = cities.Where(x => x == filter.City).ToList();
         var apps = Strings(round, "apps").Where(a => string.IsNullOrEmpty(filter.App) || a == filter.App).ToList();
@@ -315,16 +331,18 @@ public static partial class EvaluationSurvey
                 .SelectMany(r => r["appAnswers"]!.AsArray().OfType<JsonObject>())
                 .Where(a => a.S("app") == platform && a.S("reason") == "").ToList();
             int n = rated.Count;
-            cells.Add(new JsonObject
+            bool identityVisible = n >= IdentityMinReplies;
+            var cell = new JsonObject
             {
                 ["city"] = cityName,
                 ["app"] = platform,
                 ["replyCount"] = n,
                 ["average"] = Round2(rated.Select(a => a.N("overall"))) is { } avg ? JsonValue.Create(avg) : null,
                 ["lowSample"] = n > 0 && n < LowSampleThreshold,
-                ["identityVisible"] = n >= IdentityMinReplies,
-                ["drillDown"] = DrillDown("replies", filter, app: platform, city: cityName)
-            });
+                ["identityVisible"] = identityVisible
+            };
+            if (identityVisible) cell["drillDown"] = DrillDown("replies", filter, app: platform, city: cityName);
+            cells.Add(cell);
         }
         bool anyLow = cells.Any(i => i.B("lowSample"));
         return new()
