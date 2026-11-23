@@ -1,7 +1,5 @@
-'use client';
-
-import { PlatformPayrollPage } from '../../../features/payroll/PlatformPayrollPage';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <PlatformPayrollPage app="jahez" />;
+  redirect('/payroll/?tab=platforms&app=jahez');
 }

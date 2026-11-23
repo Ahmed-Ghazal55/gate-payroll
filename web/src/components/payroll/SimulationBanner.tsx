@@ -77,11 +77,14 @@ export function SimulationBanner({ simulationId, payoutBlocked, onChanged }: Sim
     setBusy('diff');
     try {
       const diff = await api.getSimulationPromoteDiff(simulationId);
-      const rows = Array.isArray((diff as { items?: unknown[] }).items)
-        ? ((diff as { items: Array<Record<string, unknown>> }).items)
-        : Array.isArray(diff)
-          ? (diff as Array<Record<string, unknown>>)
-          : [];
+      const body = diff as { rows?: unknown[]; items?: unknown[] };
+      const rows = Array.isArray(body.rows)
+        ? (body.rows as Array<Record<string, unknown>>)
+        : Array.isArray(body.items)
+          ? (body.items as Array<Record<string, unknown>>)
+          : Array.isArray(diff)
+            ? (diff as Array<Record<string, unknown>>)
+            : [];
       setDiffRows(rows);
       setConfirmPromote(true);
     } catch (err: unknown) {
@@ -107,12 +110,36 @@ export function SimulationBanner({ simulationId, payoutBlocked, onChanged }: Sim
 
 
   const diffCols = [
-    { key: 'label', header: 'البند', type: 'text' as const, getValue: (row: Record<string, unknown>) => String(row.labelAr ?? row.field ?? row.key ?? '—') },
-    { key: 'simulation', header: 'محاكاة', type: 'text' as const, getValue: (row: Record<string, unknown>) => (typeof row.simulation === 'number' ? formatSar(row.simulation) : String(row.simulation ?? '—')) },
-    { key: 'live', header: 'حي', type: 'text' as const, getValue: (row: Record<string, unknown>) => (typeof row.live === 'number' ? formatSar(row.live) : String(row.live ?? '—')) },
+    {
+      key: 'label',
+      header: 'المندوب / التغيير',
+      type: 'text' as const,
+      getValue: (row: Record<string, unknown>) =>
+        String(row.erpRiderId ?? row.labelAr ?? row.field ?? row.key ?? '—') +
+        (row.changeAr || row.change ? ` · ${String(row.changeAr ?? row.change)}` : ''),
+    },
+    {
+      key: 'simulation',
+      header: 'محاكاة',
+      type: 'number' as const,
+      getValue: (row: Record<string, unknown>) =>
+        Number(row.simNet ?? row.simulation ?? 0),
+    },
+    {
+      key: 'live',
+      header: 'حي',
+      type: 'number' as const,
+      getValue: (row: Record<string, unknown>) => Number(row.liveNet ?? row.live ?? 0),
+    },
   ];
   const diffFilter = useTableAutoFilter(diffRows, diffCols);
-  const previewLines = preview?.lines ?? [];
+  const previewLines = (preview?.lines ?? []).map((line) => ({
+    ...line,
+    accountCode: line.accountCode ?? (line as { accountHint?: string }).accountHint,
+    accountNameAr: line.accountNameAr ?? (line as { labelAr?: string }).labelAr,
+    debit: line.debit ?? ((line as { side?: string }).side === 'debit' ? Number((line as { amount?: number }).amount ?? 0) : 0),
+    credit: line.credit ?? ((line as { side?: string }).side === 'credit' ? Number((line as { amount?: number }).amount ?? 0) : 0),
+  }));
   const previewCols = [
     { key: 'account', header: 'الحساب', type: 'text' as const, getValue: (line: NonNullable<PreviewBody['lines']>[number]) => String(line.accountNameAr ?? line.accountCode ?? '—') },
     { key: 'debit', header: 'مدين', type: 'number' as const, getValue: (line: NonNullable<PreviewBody['lines']>[number]) => Number(line.debit ?? 0) },
@@ -254,13 +281,14 @@ export function SimulationBanner({ simulationId, payoutBlocked, onChanged }: Sim
               ) : (
                 diffFilter.rows.map((row, idx) => (
                   <tr key={idx} className="border-t border-[var(--line)]">
-                    <td className="p-2">{String(row.labelAr ?? row.field ?? row.key ?? '—')}</td>
-                    <td className="p-2 num">
-                      {typeof row.simulation === 'number' ? formatSar(row.simulation) : String(row.simulation ?? '—')}
+                    <td className="p-2">
+                      {String(row.erpRiderId ?? row.labelAr ?? row.field ?? row.key ?? '—')}
+                      {row.changeAr || row.change ? (
+                        <span className="block text-[10px] text-[var(--muted)]">{String(row.changeAr ?? row.change)}</span>
+                      ) : null}
                     </td>
-                    <td className="p-2 num">
-                      {typeof row.live === 'number' ? formatSar(row.live) : String(row.live ?? '—')}
-                    </td>
+                    <td className="p-2 num">{formatSar(Number(row.simNet ?? row.simulation ?? 0))}</td>
+                    <td className="p-2 num">{formatSar(Number(row.liveNet ?? row.live ?? 0))}</td>
                   </tr>
                 ))
               )}

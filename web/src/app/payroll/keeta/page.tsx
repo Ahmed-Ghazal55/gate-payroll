@@ -1,7 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { PlatformPayrollPage } from '../../../features/payroll/PlatformPayrollPage';
-
+/** Shell hidden until platform page is complete — working workspace only. */
 export default function Page() {
-  return <PlatformPayrollPage app="keeta" />;
+  redirect('/payroll/?tab=platforms&app=keeta');
 }

@@ -11,11 +11,15 @@ const approvals = readFileSync(path.join(root, 'src/app/approvals/page.tsx'), 'u
 const admin = readFileSync(path.join(root, 'src/app/admin/page.tsx'), 'utf8');
 const coa = readFileSync(path.join(root, 'src/features/accounting/CoaManagePanel.tsx'), 'utf8');
 const sim = readFileSync(path.join(root, 'src/components/payroll/SimulationBanner.tsx'), 'utf8');
+const platformPay = readFileSync(path.join(root, 'src/features/payroll/PlatformPayrollPage.tsx'), 'utf8');
+const payrollPage = readFileSync(path.join(root, 'src/app/payroll/page.tsx'), 'utf8');
+const keetaPage = readFileSync(path.join(root, 'src/app/payroll/keeta/page.tsx'), 'utf8');
 const money = readFileSync(path.join(root, 'src/lib/money.ts'), 'utf8');
 const api = readFileSync(path.join(root, 'src/lib/api.ts'), 'utf8');
 const payReview = readFileSync(path.join(root, '../Payroll.Api/PayReviewDraft.cs'), 'utf8');
 const browser = readFileSync(path.join(root, '../tests/browser.mjs'), 'utf8');
 const riderApp = readFileSync(path.join(root, 'src/app/rider-app/page.tsx'), 'utf8');
+const salSims = readFileSync(path.join(root, '../Payroll.Api/SalSimulations.cs'), 'utf8');
 
 function appRoutes() {
   const routes = new Set();
@@ -72,6 +76,8 @@ test('U-W3-12 approvals buttons call decide endpoint and honor allowedActions', 
   assert.match(approvals, /allowedActions/);
   assert.match(approvals, /approve|reject|suspend/);
   assert.match(approvals, /شرط الشخصين/);
+  assert.match(approvals, /MAKER_CHECKER_AR/);
+  assert.match(approvals, /EmptyState/);
   assert.match(approvals, /formatSar/);
   assert.match(api, /\/approvals\/\$\{/);
 });
@@ -99,7 +105,17 @@ test('U-W3-21 simulation banner discard/promote use allowedActions and Arabic co
   assert.match(sim, /discardSimulation|promoteSimulation/);
   assert.match(sim, /وضع المحاكاة \(بيانات حية — بدون ترحيل\)/);
   assert.match(sim, /غير متاح في وضع المحاكاة/);
+  assert.match(api, /createSimulation/);
+  assert.match(api, /\/sal\/simulations['"`]/);
   assert.match(api, /\/sal\/simulations\//);
+  assert.match(salSims, /MapPost\("\/sal\/simulations"/);
+  assert.match(payrollPage, /api\.createSimulation/);
+  assert.match(payrollPage, /SimulationBanner/);
+  assert.doesNotMatch(payrollPage, /sim-\$\{|sim-\$\{app\}/);
+  assert.doesNotMatch(platformPay, /مسار الشاشة الجانبي جاهز|sim-\$\{/);
+  assert.match(keetaPage, /redirect\(/);
+  assert.doesNotMatch(sidebar, /href:\s*'\/payroll\/keeta'/);
+  assert.match(sidebar, /\/payroll\/\?tab=platforms&app=keeta/);
 });
 
 test('money formatter and follow-ups', () => {

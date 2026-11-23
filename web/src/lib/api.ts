@@ -387,8 +387,21 @@ async function handleRequest<T>(endpoint: string, options: RequestInit = {}): Pr
   }
 
   if (!res.ok) {
-    const payload: ApiErrorPayload = await res.json().catch(() => ({ error: 'حدث خطأ في معالجة الطلب' }));
-    throw new ApiError(payload.error || 'فشل الطلب', res.status, payload.code);
+    const payload = (await res.json().catch(() => ({ error: 'حدث خطأ في معالجة الطلب' }))) as ApiErrorPayload & {
+      message?: string;
+    };
+    const raw = payload.error as unknown;
+    const nested =
+      raw && typeof raw === 'object' && typeof (raw as { message?: unknown }).message === 'string'
+        ? String((raw as { message: string }).message)
+        : '';
+    const message =
+      typeof raw === 'string' && raw.trim()
+        ? raw
+        : nested ||
+          (typeof payload.message === 'string' && payload.message.trim() ? payload.message : '') ||
+          'فشل الطلب';
+    throw new ApiError(message, res.status, payload.code);
   }
 
   // If blob response
@@ -1316,6 +1329,16 @@ export const api = {
       body: '{}',
     }),
 
+  createSimulation: (input: {
+    companyId: string;
+    app: string;
+    periodMonth: string;
+    payoutBlocked?: boolean;
+  }) =>
+    handleRequest<Record<string, unknown>>('/sal/simulations', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
   getSimulationJournalPreview: (id: string) =>
     handleRequest<Record<string, unknown>>(`/sal/simulations/${encodeURIComponent(id)}/journal-preview`),
   discardSimulation: (id: string) =>

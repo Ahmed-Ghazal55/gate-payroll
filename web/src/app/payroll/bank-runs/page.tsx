@@ -1,7 +1,5 @@
-'use client';
-
-import { PlatformPayrollPage } from '../../../features/payroll/PlatformPayrollPage';
+import { redirect } from 'next/navigation';
 
 export default function Page() {
-  return <PlatformPayrollPage app="bank-runs" />;
+  redirect('/payroll/?tab=bank');
 }
