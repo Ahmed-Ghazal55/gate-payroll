@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:46759/"
+      "url": "http://127.0.0.1:40405/"
     }
   ],
   "paths": {
@@ -922,6 +922,993 @@
         "responses": {
           "200": {
             "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/public/evaluations/{token}": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Public evaluation schema",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "schema",
+                    "roundId",
+                    "title",
+                    "staff",
+                    "cities",
+                    "apps",
+                    "staffDimensions",
+                    "staffReasons",
+                    "appReasons",
+                    "factors",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "schema": {
+                      "type": "string"
+                    },
+                    "roundId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "noticeAr": {
+                      "type": "string"
+                    },
+                    "noticeEn": {
+                      "type": "string"
+                    },
+                    "noticeUr": {
+                      "type": "string"
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "staff": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "name",
+                          "cities",
+                          "departments",
+                          "roles",
+                          "apps"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "cities": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "departments": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "roles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "apps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "excluded": {
+                            "type": "boolean"
+                          },
+                          "pendingRoleApproval": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "identityFields": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "staffRatingMin": {
+                      "type": "number"
+                    },
+                    "staffRatingMax": {
+                      "type": "number"
+                    },
+                    "appRatingMin": {
+                      "type": "number"
+                    },
+                    "appRatingMax": {
+                      "type": "number"
+                    },
+                    "staffDimensions": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "staffReasons": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "appReasons": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "factors": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "factorMode": {
+                      "type": "string"
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
+                    },
+                    "uploadsPolicyPending": {
+                      "type": "boolean"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "attachmentLimits": {
+                      "type": "object",
+                      "properties": {
+                        "imagesPerCard": {
+                          "type": "number"
+                        },
+                        "voicePerCard": {
+                          "type": "number"
+                        },
+                        "voiceSeconds": {
+                          "type": "number"
+                        },
+                        "replyBytes": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Submit public evaluation reply",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "receipt",
+                    "allowedActions",
+                    "editPolicyPending"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "receipt": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Edit public evaluation reply with receipt",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "receipt",
+                    "allowedActions",
+                    "editPolicyPending"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "receipt": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/evaluations": {
+      "get": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Open evaluation rounds for signed-in rider",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "required": [
+                      "id",
+                      "title",
+                      "token",
+                      "schema"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "token": {
+                        "type": "string"
+                      },
+                      "schema": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/evaluations/{token}/launch": {
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Issue one-time hosted evaluation launch URL",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "url"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "url": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/public/evaluations/{token}/session": {
+      "post": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Exchange one-time launch code for survey-scoped session",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "accessToken",
+                    "iqama",
+                    "expiresAt"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "accessToken": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "expiresAt": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/rider-mobile/evaluations/{token}": {
+      "get": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Evaluation schema for signed-in rider",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "schema",
+                    "roundId",
+                    "title",
+                    "staff",
+                    "cities",
+                    "apps",
+                    "staffDimensions",
+                    "staffReasons",
+                    "appReasons",
+                    "factors",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "schema": {
+                      "type": "string"
+                    },
+                    "roundId": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "noticeAr": {
+                      "type": "string"
+                    },
+                    "noticeEn": {
+                      "type": "string"
+                    },
+                    "noticeUr": {
+                      "type": "string"
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "staff": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "name",
+                          "cities",
+                          "departments",
+                          "roles",
+                          "apps"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "cities": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "departments": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "roles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "apps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "excluded": {
+                            "type": "boolean"
+                          },
+                          "pendingRoleApproval": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "identityFields": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "staffRatingMin": {
+                      "type": "number"
+                    },
+                    "staffRatingMax": {
+                      "type": "number"
+                    },
+                    "appRatingMin": {
+                      "type": "number"
+                    },
+                    "appRatingMax": {
+                      "type": "number"
+                    },
+                    "staffDimensions": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "staffReasons": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "appReasons": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "factors": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "factorMode": {
+                      "type": "string"
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
+                    },
+                    "uploadsPolicyPending": {
+                      "type": "boolean"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "attachmentLimits": {
+                      "type": "object",
+                      "properties": {
+                        "imagesPerCard": {
+                          "type": "number"
+                        },
+                        "voicePerCard": {
+                          "type": "number"
+                        },
+                        "voiceSeconds": {
+                          "type": "number"
+                        },
+                        "replyBytes": {
+                          "type": "number"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Submit evaluation reply as signed-in rider",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "receipt",
+                    "allowedActions",
+                    "editPolicyPending"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "receipt": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Riders"
+        ],
+        "summary": "Edit evaluation reply as signed-in rider",
+        "parameters": [
+          {
+            "name": "token",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "receipt",
+                    "allowedActions",
+                    "editPolicyPending"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "receipt": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -27637,6 +28624,2072 @@
         }
       }
     },
+    "/api/forms/evaluations/staff": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "List evaluation staff cards",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "required": [
+                      "id",
+                      "name",
+                      "cities",
+                      "departments",
+                      "roles",
+                      "apps"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "name": {
+                        "type": "string"
+                      },
+                      "cities": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "departments": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "roles": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "apps": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "active": {
+                        "type": "boolean"
+                      },
+                      "excluded": {
+                        "type": "boolean"
+                      },
+                      "pendingRoleApproval": {
+                        "type": "boolean"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/staff/import": {
+      "post": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Import evaluation staff cards",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "imported",
+                    "excluded"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "imported": {
+                      "type": "number"
+                    },
+                    "excluded": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "List evaluation rounds",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "required": [
+                      "id",
+                      "title",
+                      "status",
+                      "sharingToken",
+                      "staff",
+                      "cities",
+                      "apps",
+                      "allowedActions"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "title": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "kind": {
+                        "type": "string"
+                      },
+                      "schema": {
+                        "type": "string"
+                      },
+                      "sharingToken": {
+                        "type": "string"
+                      },
+                      "staff": {
+                        "type": "array",
+                        "items": {
+                          "required": [
+                            "id",
+                            "name",
+                            "cities",
+                            "departments",
+                            "roles",
+                            "apps"
+                          ],
+                          "type": "object",
+                          "properties": {
+                            "id": {
+                              "type": "string"
+                            },
+                            "name": {
+                              "type": "string"
+                            },
+                            "cities": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "departments": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "roles": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "apps": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            },
+                            "active": {
+                              "type": "boolean"
+                            },
+                            "excluded": {
+                              "type": "boolean"
+                            },
+                            "pendingRoleApproval": {
+                              "type": "boolean"
+                            }
+                          }
+                        }
+                      },
+                      "cities": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "apps": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      },
+                      "createdAt": {
+                        "type": "string"
+                      },
+                      "updatedAt": {
+                        "type": "string"
+                      },
+                      "schemaVersion": {
+                        "type": "number"
+                      },
+                      "allowedActions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Create evaluation round",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "title",
+                    "status",
+                    "sharingToken",
+                    "staff",
+                    "cities",
+                    "apps",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "sharingToken": {
+                      "type": "string"
+                    },
+                    "staff": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "name",
+                          "cities",
+                          "departments",
+                          "roles",
+                          "apps"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "cities": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "departments": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "roles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "apps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "excluded": {
+                            "type": "boolean"
+                          },
+                          "pendingRoleApproval": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "schemaVersion": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Read evaluation round",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "title",
+                    "status",
+                    "sharingToken",
+                    "staff",
+                    "cities",
+                    "apps",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "sharingToken": {
+                      "type": "string"
+                    },
+                    "staff": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "name",
+                          "cities",
+                          "departments",
+                          "roles",
+                          "apps"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "cities": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "departments": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "roles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "apps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "excluded": {
+                            "type": "boolean"
+                          },
+                          "pendingRoleApproval": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "schemaVersion": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}/{action}": {
+      "post": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Open, pause or close evaluation round",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "action",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "title",
+                    "status",
+                    "sharingToken",
+                    "staff",
+                    "cities",
+                    "apps",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "sharingToken": {
+                      "type": "string"
+                    },
+                    "staff": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "name",
+                          "cities",
+                          "departments",
+                          "roles",
+                          "apps"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "cities": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "departments": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "roles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "apps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "excluded": {
+                            "type": "boolean"
+                          },
+                          "pendingRoleApproval": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "schemaVersion": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}/responses": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Page evaluation replies",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "total",
+                    "page",
+                    "pageSize"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "roundId",
+                          "iqama",
+                          "name",
+                          "city",
+                          "nationality",
+                          "workApps",
+                          "staffAnswers",
+                          "appAnswers",
+                          "createdAt"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "roundId": {
+                            "type": "string"
+                          },
+                          "schemaVersion": {
+                            "type": "number"
+                          },
+                          "iqama": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "city": {
+                            "type": "string"
+                          },
+                          "nationality": {
+                            "type": "string"
+                          },
+                          "phone": {
+                            "type": "string"
+                          },
+                          "workApps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "identityVerified": {
+                            "type": "boolean"
+                          },
+                          "staffAnswers": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "staffId": {
+                                  "type": "string"
+                                },
+                                "app": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "ratings": {
+                                  "type": "object",
+                                  "properties": {
+                                    "professional": {
+                                      "type": "number"
+                                    },
+                                    "treatment": {
+                                      "type": "number"
+                                    },
+                                    "support": {
+                                      "type": "number"
+                                    },
+                                    "responseSpeed": {
+                                      "type": "number"
+                                    },
+                                    "problemSolving": {
+                                      "type": "number"
+                                    }
+                                  }
+                                },
+                                "overall": {
+                                  "type": "number"
+                                },
+                                "factorRatings": {
+                                  "type": "object",
+                                  "properties": {
+                                    "orderVolume": {
+                                      "type": "number"
+                                    },
+                                    "fairPay": {
+                                      "type": "number"
+                                    },
+                                    "workingHours": {
+                                      "type": "number"
+                                    },
+                                    "shiftTimes": {
+                                      "type": "number"
+                                    },
+                                    "flexibility": {
+                                      "type": "number"
+                                    },
+                                    "customerService": {
+                                      "type": "number"
+                                    },
+                                    "appProblems": {
+                                      "type": "number"
+                                    },
+                                    "worthIt": {
+                                      "type": "number"
+                                    }
+                                  }
+                                },
+                                "notes": {
+                                  "type": "string"
+                                },
+                                "complaint": {
+                                  "type": "boolean"
+                                },
+                                "complaintDetails": {
+                                  "type": "string"
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "appAnswers": {
+                            "type": "array",
+                            "items": {
+                              "type": "object",
+                              "properties": {
+                                "staffId": {
+                                  "type": "string"
+                                },
+                                "app": {
+                                  "type": "string"
+                                },
+                                "reason": {
+                                  "type": "string"
+                                },
+                                "ratings": {
+                                  "type": "object",
+                                  "properties": {
+                                    "professional": {
+                                      "type": "number"
+                                    },
+                                    "treatment": {
+                                      "type": "number"
+                                    },
+                                    "support": {
+                                      "type": "number"
+                                    },
+                                    "responseSpeed": {
+                                      "type": "number"
+                                    },
+                                    "problemSolving": {
+                                      "type": "number"
+                                    }
+                                  }
+                                },
+                                "overall": {
+                                  "type": "number"
+                                },
+                                "factorRatings": {
+                                  "type": "object",
+                                  "properties": {
+                                    "orderVolume": {
+                                      "type": "number"
+                                    },
+                                    "fairPay": {
+                                      "type": "number"
+                                    },
+                                    "workingHours": {
+                                      "type": "number"
+                                    },
+                                    "shiftTimes": {
+                                      "type": "number"
+                                    },
+                                    "flexibility": {
+                                      "type": "number"
+                                    },
+                                    "customerService": {
+                                      "type": "number"
+                                    },
+                                    "appProblems": {
+                                      "type": "number"
+                                    },
+                                    "worthIt": {
+                                      "type": "number"
+                                    }
+                                  }
+                                },
+                                "notes": {
+                                  "type": "string"
+                                },
+                                "complaint": {
+                                  "type": "boolean"
+                                },
+                                "complaintDetails": {
+                                  "type": "string"
+                                },
+                                "attachments": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}/statistics": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Evaluation statistics for charts",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "roundId",
+                    "totalResponses",
+                    "byCity",
+                    "byApp",
+                    "bySupervisor",
+                    "byNationality",
+                    "factorAverages",
+                    "dailyTrend"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "roundId": {
+                      "type": "string"
+                    },
+                    "totalResponses": {
+                      "type": "number"
+                    },
+                    "byCity": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          },
+                          "responseCount": {
+                            "type": "number"
+                          },
+                          "complaintCount": {
+                            "type": "number"
+                          },
+                          "ratedCount": {
+                            "type": "number"
+                          },
+                          "skippedCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "staffRatedCount": {
+                            "type": "number"
+                          },
+                          "appRatedCount": {
+                            "type": "number"
+                          },
+                          "staffAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "appAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "dimensions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count",
+                                "average"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "distribution": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "stars",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "stars": {
+                                  "type": "number"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "byApp": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          },
+                          "responseCount": {
+                            "type": "number"
+                          },
+                          "complaintCount": {
+                            "type": "number"
+                          },
+                          "ratedCount": {
+                            "type": "number"
+                          },
+                          "skippedCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "staffRatedCount": {
+                            "type": "number"
+                          },
+                          "appRatedCount": {
+                            "type": "number"
+                          },
+                          "staffAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "appAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "dimensions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count",
+                                "average"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "distribution": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "stars",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "stars": {
+                                  "type": "number"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "bySupervisor": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          },
+                          "responseCount": {
+                            "type": "number"
+                          },
+                          "complaintCount": {
+                            "type": "number"
+                          },
+                          "ratedCount": {
+                            "type": "number"
+                          },
+                          "skippedCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "staffRatedCount": {
+                            "type": "number"
+                          },
+                          "appRatedCount": {
+                            "type": "number"
+                          },
+                          "staffAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "appAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "dimensions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count",
+                                "average"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "distribution": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "stars",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "stars": {
+                                  "type": "number"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "byNationality": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          },
+                          "responseCount": {
+                            "type": "number"
+                          },
+                          "complaintCount": {
+                            "type": "number"
+                          },
+                          "ratedCount": {
+                            "type": "number"
+                          },
+                          "skippedCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "staffRatedCount": {
+                            "type": "number"
+                          },
+                          "appRatedCount": {
+                            "type": "number"
+                          },
+                          "staffAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "appAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "dimensions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count",
+                                "average"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "distribution": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "stars",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "stars": {
+                                  "type": "number"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "factorAverages": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          },
+                          "responseCount": {
+                            "type": "number"
+                          },
+                          "complaintCount": {
+                            "type": "number"
+                          },
+                          "ratedCount": {
+                            "type": "number"
+                          },
+                          "skippedCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "staffRatedCount": {
+                            "type": "number"
+                          },
+                          "appRatedCount": {
+                            "type": "number"
+                          },
+                          "staffAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "appAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "dimensions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count",
+                                "average"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "distribution": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "stars",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "stars": {
+                                  "type": "number"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "dailyTrend": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          },
+                          "responseCount": {
+                            "type": "number"
+                          },
+                          "complaintCount": {
+                            "type": "number"
+                          },
+                          "ratedCount": {
+                            "type": "number"
+                          },
+                          "skippedCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "staffRatedCount": {
+                            "type": "number"
+                          },
+                          "appRatedCount": {
+                            "type": "number"
+                          },
+                          "staffAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "appAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "dimensions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count",
+                                "average"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "distribution": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "stars",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "stars": {
+                                  "type": "number"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}/statistics/{dimension}": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Evaluation statistics by dimension",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "dimension",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "roundId",
+                    "totalResponses",
+                    "items"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "roundId": {
+                      "type": "string"
+                    },
+                    "totalResponses": {
+                      "type": "number"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "key"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "key": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "count": {
+                            "type": "number"
+                          },
+                          "responseCount": {
+                            "type": "number"
+                          },
+                          "complaintCount": {
+                            "type": "number"
+                          },
+                          "ratedCount": {
+                            "type": "number"
+                          },
+                          "skippedCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "staffRatedCount": {
+                            "type": "number"
+                          },
+                          "appRatedCount": {
+                            "type": "number"
+                          },
+                          "staffAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "appAverage": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "reasons": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          },
+                          "dimensions": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count",
+                                "average"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "distribution": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "stars",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "stars": {
+                                  "type": "number"
+                                },
+                                "count": {
+                                  "type": "number"
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/rounds/{id}/export": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Export evaluation replies workbook",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/forms/evaluations/attachments/{attachmentId}": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Play or download an evaluation attachment",
+        "parameters": [
+          {
+            "name": "attachmentId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "title",
+                    "status",
+                    "sharingToken",
+                    "staff",
+                    "cities",
+                    "apps",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "title": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "schema": {
+                      "type": "string"
+                    },
+                    "sharingToken": {
+                      "type": "string"
+                    },
+                    "staff": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "name",
+                          "cities",
+                          "departments",
+                          "roles",
+                          "apps"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "cities": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "departments": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "roles": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "apps": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "excluded": {
+                            "type": "boolean"
+                          },
+                          "pendingRoleApproval": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "updatedAt": {
+                      "type": "string"
+                    },
+                    "schemaVersion": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/inquiry-access": {
       "post": {
         "tags": [
@@ -31171,39 +34224,39 @@
       },
       "AnonymousTypeOfstringAndstringAndstringAndstringAndstring": {
         "required": [
-          "iqama",
-          "scope",
-          "code",
-          "expiresAt",
-          "url"
+          "id",
+          "title",
+          "token",
+          "schema",
+          "hostedUrl"
         ],
         "type": "object",
         "properties": {
-          "iqama": {
+          "id": {
             "type": [
               "null",
               "string"
             ]
           },
-          "scope": {
+          "title": {
             "type": [
               "null",
               "string"
             ]
           },
-          "code": {
+          "token": {
             "type": [
               "null",
               "string"
             ]
           },
-          "expiresAt": {
+          "schema": {
             "type": [
               "null",
               "string"
             ]
           },
-          "url": {
+          "hostedUrl": {
             "type": [
               "null",
               "string"

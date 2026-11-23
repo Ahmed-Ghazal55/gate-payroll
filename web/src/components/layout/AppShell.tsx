@@ -18,14 +18,20 @@ export function AppShell({ children }: AppShellProps) {
   const [company, setCompany] = useState('all');
 
   const isAuthPage =
-    Boolean(pathname && (pathname.includes('/login') || pathname.includes('/setup')));
+    Boolean(
+      pathname &&
+        (pathname.includes('/login') ||
+          pathname.includes('/setup') ||
+          pathname.includes('/evaluation'))
+    );
 
   if (isAuthPage) {
+    const isEval = Boolean(pathname && pathname.includes('/evaluation'));
     return (
       <AuthProvider>
         <ToastProvider>
           <div className="min-h-screen bg-[var(--bg)] text-[var(--ink)] antialiased flex flex-col justify-center items-center p-4">
-            <main id="main-content" className="w-full max-w-md">
+            <main id="main-content" className={isEval ? 'w-full max-w-2xl' : 'w-full max-w-md'}>
               {children}
             </main>
           </div>

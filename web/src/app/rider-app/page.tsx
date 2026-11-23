@@ -18,8 +18,8 @@ import { SettingsPanel } from '../../features/rider-app/SettingsPanel';
 
 // Same permissions as the sidebar entries and the API route policy (AccessPolicy.cs).
 const TAB_PERMISSIONS: Record<RiderAppTab, string[]> = {
-  campaigns: ['forms.view'],
-  responses: ['forms.view'],
+  campaigns: ['forms.view', 'forms.evaluations.view'],
+  responses: ['forms.view', 'forms.evaluations.view'],
   builder: ['forms.view'],
   accounts: ['mobile.sessions', 'inquiry.issue'],
   broadcasts: ['mobile.broadcast'],

@@ -9,6 +9,24 @@ export interface RiderSession {
 const STORAGE_KEY = 'gate_rider_mob';
 let inMemorySession: RiderSession | null = null;
 let sessionLoaded = false;
+let sensitiveSessionClear: (() => void) | null = null;
+
+/** Register a callback for logout, session expiry, and rider identity change. */
+export function registerSensitiveSessionClear(fn: () => void): void {
+  sensitiveSessionClear = fn;
+}
+
+function notifySensitiveSessionClear(
+  previous: RiderSession | null,
+  next: RiderSession | null
+): void {
+  if (!sensitiveSessionClear) return;
+  const identityChanged =
+    !!previous?.iqama && !!next?.iqama && previous.iqama !== next.iqama;
+  if (!next || identityChanged) {
+    sensitiveSessionClear();
+  }
+}
 
 export async function loadSession(): Promise<RiderSession | null> {
   try {
@@ -43,6 +61,7 @@ export function getSession(): RiderSession | null {
 }
 
 export async function setSession(s: RiderSession | null): Promise<void> {
+  const previous = inMemorySession;
   inMemorySession = s;
   sessionLoaded = true;
   try {
@@ -62,6 +81,7 @@ export async function setSession(s: RiderSession | null): Promise<void> {
       localStorage.removeItem(STORAGE_KEY);
     }
   }
+  notifySensitiveSessionClear(previous, s);
 }
 
 let activeFcmToken: string = '';

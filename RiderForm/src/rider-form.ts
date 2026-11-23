@@ -18,6 +18,52 @@ Object.assign(dictionaries.ur,{iban_form:'آئی بین کی معلومات',iba
 Object.assign(dictionaries.ar,{leave_form:'طلب إجازة سنوية',leave_submit:'إرسال طلب الإجازة',leaveType:'نوع الإجازة',leave_annual:'إجازة سنوية',leave_emergency:'إجازة اضطرارية',leave_unpaid:'إجازة بدون راتب',startDate:'تاريخ بداية الإجازة',endDate:'تاريخ نهاية الإجازة',destination:'وجهة الإجازة',inside_ksa:'داخل المملكة',outside_ksa:'خارج المملكة (سفر)',leaveReason:'سبب الإجازة والملاحظات',appSessionVerified:'تم تعبئة رقم الإقامة تلقائياً من جلستك النشطة في التطبيق'});
 Object.assign(dictionaries.en,{leave_form:'Annual leave request',leave_submit:'Submit leave request',leaveType:'Leave type',leave_annual:'Annual leave',leave_emergency:'Emergency leave',leave_unpaid:'Unpaid leave',startDate:'Start date',endDate:'End date',destination:'Destination',inside_ksa:'Inside Saudi Arabia',outside_ksa:'Outside Saudi Arabia (Travel)',leaveReason:'Reason and notes',appSessionVerified:'Iqama pre-filled automatically from your active app session'});
 Object.assign(dictionaries.ur,{leave_form:'سالانہ چھٹی کی درخواست',leave_submit:'چھٹی کی درخواست جمع کریں',leaveType:'چھٹی کی قسم',leave_annual:'سالانہ چھٹی',leave_emergency:'ہنگامی چھٹی',leave_unpaid:'بلا معاوضہ چھٹی',startDate:'شروع ہونے کی تاریخ',endDate:'ختم ہونے کی تاریخ',destination:'مقام',inside_ksa:'سعودی عرب کے اندر',outside_ksa:'بیرون ملک سفر',leaveReason:'چھٹی کی وجہ اور نوٹس',appSessionVerified:'آپ کے فعال ایپ سیشن سے اقامہ نمبر خودکار درج کیا گیا ہے'});
+// Supervisors & platforms evaluation survey (schema evaluation-v1) in 3 languages.
+Object.assign(dictionaries.ar,{
+ eval_form:'تقييم المشرفين والمنصات',eval_submit:'إرسال التقييم',eval_page1:'الصفحة 1 من 2 — تقييم المشرفين والموظفين',eval_page2:'الصفحة 2 من 2 — تقييم منصات العمل',
+ eval_next:'التالي: تقييم المنصات ←',eval_prev:'→ السابق: بطاقات المشرفين',eval_identity:'بيانات المندوب الأساسية',eval_nationality:'الجنسية',eval_nationalityPlaceholder:'اختر أو اكتب الجنسية',
+ eval_pickCity:'اختر مدينة العمل لعرض بطاقات المشرفين والموظفين',eval_allDepts:'كل الأقسام',eval_allApps:'كل المنصات',eval_cardsProgress:'البطاقات المجابة',
+ eval_rateMode:'تقييم (1–10)',eval_appRateMode:'تقييم بالنجوم (1–5)',eval_skipLabel:'أو اختر سبب عدم التقييم',eval_notes:'ملاحظات إضافية (اختياري)',
+ eval_complaintBtn:'🛡️ تقديم شكوى سرية على هذه البطاقة',eval_complaintActive:'🛡️ شكوى سرية مفعّلة (تراجعها الإدارة فقط)',eval_complaintDetails:'تفاصيل الشكوى السرية (مطلوب، 5 أحرف على الأقل)',
+ eval_factorsTitle:'عوامل المنصة (اختياري، نجمة إلى 5 لكل عامل)',eval_starsLabel:'التقييم العام للمنصة (من 1 إلى 5 نجوم)',eval_factorOptional:'اختياري',
+ eval_unansweredStaff:'أجب عن جميع بطاقات المشرفين والموظفين في مدينتك قبل الانتقال للصفحة التالية (قيّم الأبعاد الخمسة أو اختر سبب عدم التعامل).',
+ eval_unansweredApps:'أجب عن جميع بطاقات المنصات قبل الإرسال (اختر التقييم بالنجوم أو سبب عدم العمل عليها).',
+ eval_missingIdentity:'أكمل رقم الإقامة (10 أرقام)، الاسم، مدينة العمل، الجنسية، ومنصة عمل واحدة على الأقل.',
+ eval_missingComplaint:'اكتب تفاصيل الشكوى السرية (5 أحرف على الأقل) لكل بطاقة فعّلت فيها الشكوى.',
+ eval_uploadsPending:'ملاحظة: إرفاق الصور والملاحظات الصوتية ينتظر اعتماد سياسة الاحتفاظ؛ يمكنك كتابة كل التفاصيل نصيًا.',
+ eval_answeredBadge:'✓ مكتملة',eval_pendingBadge:'مطلوب الإجابة',eval_roles:'المهام والأدوار',eval_dept:'القسم',
+ nat_sa:'سعودي',nat_eg:'مصري',nat_ye:'يمني',nat_sd:'سوداني',nat_pk:'باكستاني',nat_in:'هندي',nat_bd:'بنغلاديشي',nat_sy:'سوري',nat_jo:'أردني',nat_ph:'فلبيني',nat_other:'أخرى'
+});
+Object.assign(dictionaries.en,{
+ eval_form:'Supervisors & Platforms Evaluation',eval_submit:'Submit Evaluation',eval_page1:'Page 1 of 2 — Supervisors & Staff Evaluation',eval_page2:'Page 2 of 2 — Work Platforms Evaluation',
+ eval_next:'Next: Evaluate Platforms →',eval_prev:'← Previous: Staff Cards',eval_identity:'Rider Basic Details',eval_nationality:'Nationality',eval_nationalityPlaceholder:'Select or type nationality',
+ eval_pickCity:'Choose your work city to display supervisor and staff cards',eval_allDepts:'All departments',eval_allApps:'All platforms',eval_cardsProgress:'Answered cards',
+ eval_rateMode:'Rate (1–10)',eval_appRateMode:'Star rating (1–5)',eval_skipLabel:'Or choose a reason not to rate',eval_notes:'Additional notes (optional)',
+ eval_complaintBtn:'🛡️ File a confidential complaint on this card',eval_complaintActive:'🛡️ Confidential complaint active (management only)',eval_complaintDetails:'Confidential complaint details (required, min 5 characters)',
+ eval_factorsTitle:'Platform factors (optional, 1 to 5 stars each)',eval_starsLabel:'Overall platform rating (1 to 5 stars)',eval_factorOptional:'Optional',
+ eval_unansweredStaff:'Please answer every staff card in your city before continuing (rate all 5 dimensions or choose a skip reason).',
+ eval_unansweredApps:'Please answer every platform card before submitting (choose a star rating or a skip reason).',
+ eval_missingIdentity:'Complete your 10-digit Iqama, full name, work city, nationality, and at least one current work platform.',
+ eval_missingComplaint:'Enter confidential complaint details (at least 5 characters) for every card marked with a complaint.',
+ eval_uploadsPending:'Note: Image and voice attachments await retention policy approval; please write your full details in text.',
+ eval_answeredBadge:'✓ Answered',eval_pendingBadge:'Required',eval_roles:'Roles',eval_dept:'Department',
+ nat_sa:'Saudi',nat_eg:'Egyptian',nat_ye:'Yemeni',nat_sd:'Sudanese',nat_pk:'Pakistani',nat_in:'Indian',nat_bd:'Bangladeshi',nat_sy:'Syrian',nat_jo:'Jordanian',nat_ph:'Filipino',nat_other:'Other'
+});
+Object.assign(dictionaries.ur,{
+ eval_form:'سپروائزرز اور پلیٹ فارمز کی درجہ بندی',eval_submit:'درجہ بندی جمع کریں',eval_page1:'صفحہ 1 از 2 — سپروائزرز اور عملے کی درجہ بندی',eval_page2:'صفحہ 2 از 2 — کام کے پلیٹ فارمز کی درجہ بندی',
+ eval_next:'اگلا: پلیٹ فارمز کی درجہ بندی ←',eval_prev:'→ پچھلا: عملے کے کارڈز',eval_identity:'رائیڈر کی بنیادی معلومات',eval_nationality:'قومیت',eval_nationalityPlaceholder:'قومیت منتخب کریں یا لکھیں',
+ eval_pickCity:'سپروائزرز اور عملے کے کارڈز دیکھنے کے لیے کام کا شہر منتخب کریں',eval_allDepts:'تمام شعبے',eval_allApps:'تمام پلیٹ فارمز',eval_cardsProgress:'مکمل کردہ کارڈز',
+ eval_rateMode:'درجہ بندی (1–10)',eval_appRateMode:'ستاروں کی درجہ بندی (1–5)',eval_skipLabel:'یا درجہ بندی نہ کرنے کی وجہ منتخب کریں',eval_notes:'اضافی نوٹس (اختیاری)',
+ eval_complaintBtn:'🛡️ اس کارڈ پر خفیہ شکایت درج کریں',eval_complaintActive:'🛡️ خفیہ شکایت فعال ہے (صرف انتظامیہ کے لیے)',eval_complaintDetails:'خفیہ شکایت کی تفصیل (لازمی، کم از کم 5 حروف)',
+ eval_factorsTitle:'پلیٹ فارم عوامل (اختیاری، ہر عامل 1 سے 5 ستارے)',eval_starsLabel:'پلیٹ فارم کی مجموعی درجہ بندی (1 سے 5 ستارے)',eval_factorOptional:'اختیاری',
+ eval_unansweredStaff:'اگلے صفحے پر جانے سے پہلے اپنے شہر کے تمام عملے کے کارڈز کا جواب دیں (پانچوں سوالات کی درجہ بندی کریں یا وجہ منتخب کریں)۔',
+ eval_unansweredApps:'جمع کرنے سے پہلے تمام پلیٹ فارم کارڈز کا جواب دیں (ستارے منتخب کریں یا کام نہ کرنے کی وجہ منتخب کریں)۔',
+ eval_missingIdentity:'اپنا 10 ہندسوں کا اقامہ، پورا نام، کام کا شہر، قومیت اور کم از کم ایک موجودہ پلیٹ فارم مکمل کریں۔',
+ eval_missingComplaint:'جس کارڈ پر شکایت منتخب کی ہے اس کی تفصیل (کم از کم 5 حروف) درج کریں۔',
+ eval_uploadsPending:'نوٹ: تصاویر اور صوتی نوٹس محفوظ رکھنے کی پالیسی کی منظوری کے منتظر ہیں؛ براہ کرم تفصیل تحریری طور پر لکھیں۔',
+ eval_answeredBadge:'✓ مکمل',eval_pendingBadge:'جواب لازمی',eval_roles:'ذمہ داریاں',eval_dept:'شعبہ',
+ nat_sa:'سعودی',nat_eg:'مصری',nat_ye:'یمنی',nat_sd:'سوڈانی',nat_pk:'پاکستانی',nat_in:'بھارتی',nat_bd:'بنگلہ دیشی',nat_sy:'شامی',nat_jo:'اردنی',nat_ph:'فلپائنی',nat_other:'دیگر'
+});
 // Only banks that open individual accounts and receive salary transfers (same list as IbanChoices.SalaryBanks).
 const BANKS:{code:string;ar:string;en:string;swift:string}[]=[{code:'80',ar:'مصرف الراجحي',en:'Al Rajhi Bank',swift:'RJHI'},{code:'10',ar:'البنك الأهلي السعودي',en:'Saudi National Bank (SNB)',swift:'NCBK'},{code:'05',ar:'مصرف الإنماء',en:'Alinma Bank',swift:'INMA'},{code:'20',ar:'بنك الرياض',en:'Riyad Bank',swift:'RIBL'},{code:'15',ar:'بنك البلاد',en:'Bank Albilad',swift:'ALBI'},{code:'45',ar:'البنك السعودي الأول (ساب)',en:'Saudi Awwal Bank (SAB)',swift:'SABB'},{code:'30',ar:'البنك العربي الوطني',en:'Arab National Bank',swift:'ARNB'},{code:'55',ar:'البنك السعودي الفرنسي',en:'Banque Saudi Fransi',swift:'BSFR'},{code:'60',ar:'بنك الجزيرة',en:'Bank AlJazira',swift:'BJAZ'},{code:'65',ar:'البنك السعودي للاستثمار',en:'Saudi Investment Bank',swift:'SIBC'},{code:'90',ar:'بنك الخليج الدولي (ميم)',en:'Gulf International Bank (meem)',swift:'GULF'},{code:'78',ar:'STC Bank',en:'STC Bank',swift:'STCJ'},{code:'36',ar:'بنك D360',en:'D360 Bank',swift:'DBAK'},{code:'93',ar:'بنك فيجن',en:'Vision Bank',swift:'VIIO'},{code:'95',ar:'الإمارات دبي الوطني',en:'Emirates NBD',swift:'EBIL'}];
 const RETIRED_BANKS=['40','50'];
@@ -25,8 +71,12 @@ const PLATFORMS=['keeta','hungerstation','ninja','amazon','chefz','jahez','other
 function ibanForm(){return formData?.schema==='iban-v1';}
 function leaveForm(){return formData?.schema==='annual-leave-v1';}
 function leaveFields(){return `<label>${t('iqama')}<input name="iqama" required inputmode="numeric" pattern="[0-9]{10}" minlength="10" maxlength="10" dir="ltr" placeholder="${t('iqamaPlaceholder')}" autocomplete="off"><span class="field-note">${t('iqamaHint')}</span></label><label>${t('name')}<input name="name" required maxlength="150" autocomplete="name" placeholder="${t('namePlaceholder')}"><span class="field-note">${t('nameHint')}</span></label><label>${t('leaveType')}<select name="leaveType" required><option value="annual">${t('leave_annual')}</option><option value="emergency">${t('leave_emergency')}</option><option value="unpaid">${t('leave_unpaid')}</option></select></label><label>${t('startDate')}<input name="startDate" type="date" required></label><label>${t('endDate')}<input name="endDate" type="date" required></label><fieldset class="choice-options"><legend>${t('destination')}</legend><label class="check"><input type="radio" name="destination" value="inside_ksa" checked required>${t('inside_ksa')}</label><label class="check"><input type="radio" name="destination" value="outside_ksa" required>${t('outside_ksa')}</label></fieldset><label>${t('contactPhone')}<input name="contactPhone" type="tel" dir="ltr" inputmode="tel" maxlength="16" placeholder="${t('localPhone')}"></label><label>${t('leaveReason')}<input name="reason" required minlength="2" maxlength="1000"></label>`;}
+const SURVEY_SESSION_KEY='gate_eval_survey';
 function getAppSession():{iqama:string;name?:string;accessToken?:string}|null{try{const h=new URLSearchParams(location.hash.slice(1));if(h.get('app_iqama'))return {iqama:h.get('app_iqama')!,name:h.get('app_name')||undefined};const raw=sessionStorage.getItem('gate_rider_mob')||localStorage.getItem('gate_rider_mob');return raw?JSON.parse(raw):null;}catch{return null;}}
-function applyAppSessionPrefill(form:HTMLFormElement){const sess=getAppSession();if(!sess?.iqama||!/^[0-9]{10}$/.test(sess.iqama))return;const iq=form.elements.namedItem('iqama') as HTMLInputElement|null;if(iq&&!iq.value){iq.value=sess.iqama;iq.readOnly=true;const note=iq.parentElement?.querySelector('.field-note');if(note)note.textContent='✓ '+t('appSessionVerified');if(!custom&&!leaveForm())void lookupChoice(sess.iqama,form).catch(()=>{});}const nm=form.elements.namedItem('name') as HTMLInputElement|null;if(nm&&!nm.value&&sess.name)nm.value=sess.name;}
+/** Evaluation survey page: only an eves_ token in a dedicated sessionStorage key — never the app rmob_ session. */
+function getSurveySession():{iqama?:string;name?:string;accessToken:string}|null{try{const raw=sessionStorage.getItem(SURVEY_SESSION_KEY);if(!raw)return null;const parsed=JSON.parse(raw) as {iqama?:string;name?:string;accessToken?:string};if(typeof parsed?.accessToken!=='string'||!parsed.accessToken.startsWith('eves_'))return null;return {iqama:parsed.iqama,name:parsed.name,accessToken:parsed.accessToken};}catch{return null;}}
+function saveSurveySession(accessToken:string,iqama?:string){if(!accessToken.startsWith('eves_'))return;try{sessionStorage.setItem(SURVEY_SESSION_KEY,JSON.stringify({accessToken,iqama:iqama||undefined}));}catch{}}
+function applyAppSessionPrefill(form:HTMLFormElement){if(evaluationForm())return;const sess=getAppSession();if(!sess?.iqama||!/^[0-9]{10}$/.test(sess.iqama))return;const iq=form.elements.namedItem('iqama') as HTMLInputElement|null;if(iq&&!iq.value){iq.value=sess.iqama;iq.readOnly=true;const note=iq.parentElement?.querySelector('.field-note');if(note)note.textContent='✓ '+t('appSessionVerified');if(!custom&&!leaveForm())void lookupChoice(sess.iqama,form).catch(()=>{});}const nm=form.elements.namedItem('name') as HTMLInputElement|null;if(nm&&!nm.value&&sess.name)nm.value=sess.name;}
 function bankLabel(b:{ar:string;en:string;swift:string}){return `${language==='ar'?b.ar:b.en} — ${b.swift}`;}
 // Normalize what riders type or paste: Arabic digits, spaces, dashes, a leading SA.
 function ibanBody(raw:string){let s=raw.replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x0660)).replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-0x06F0)).toUpperCase().replace(/[^0-9A-Z]/g,'');if(s.startsWith('IBAN'))s=s.slice(4);if(s.startsWith('SA'))s=s.slice(2);return s;}
@@ -41,12 +91,31 @@ function cityLabel(c:{ar:string;en:string}){return language==='ar'?c.ar:c.en;}
 // Hidden canonical values (bank code, Arabic city) drive the visible, language-specific search boxes.
 function syncChoiceLabels(form:HTMLFormElement){const bank=BANKS.find(b=>b.code===(form.elements.namedItem('bankCode') as HTMLInputElement|null)?.value),city=(formData?.cities||[]).find(c=>c.ar===(form.elements.namedItem('city') as HTMLInputElement|null)?.value);const bs=form.elements.namedItem('bankSearch') as HTMLInputElement|null,cs=form.elements.namedItem('citySearch') as HTMLInputElement|null;if(bs)bs.value=bank?bankLabel(bank):'';if(cs)cs.value=city?cityLabel(city):'';}
 function ibanPayload(form:HTMLFormElement){const v=(n:string)=>((form.elements.namedItem(n) as HTMLInputElement|null)?.value||'').trim();return {iqama:v('iqama'),name:v('name'),phone:v('phone'),city:v('city'),iban:'SA'+ibanBody(v('ibanBody')),bankCode:v('bankCode'),platforms:[...form.querySelectorAll<HTMLInputElement>('[name=platforms]:checked')].map(x=>x.value)};}
+interface EvalLabel{id:string;labelAr:string;labelEn:string;labelUr:string}
+interface EvalStaff{id:string;name:string;cities:string[];departments:string[];roles:string[];apps:string[];active?:boolean;excluded?:boolean;pendingRoleApproval?:boolean}
 interface PublicField{id:string;type:string;labelAr:string;labelEn:string;labelUr:string;required:boolean;options:{value:string;labelAr:string;labelEn:string;labelUr:string}[]}
-interface PublicForm{cities?:{ar:string;en:string}[];title?:string;titleAr?:string;titleEn?:string;titleUr?:string;descriptionAr?:string;descriptionEn?:string;descriptionUr?:string;schema:string;fields?:(PublicField|string)[]}
+interface PublicForm{cities?:{ar:string;en:string}[];title?:string;titleAr?:string;titleEn?:string;titleUr?:string;descriptionAr?:string;descriptionEn?:string;descriptionUr?:string;noticeAr?:string;noticeEn?:string;noticeUr?:string;schema:string;fields?:(PublicField|string)[];roundId?:string;apps?:string[];staff?:EvalStaff[];staffRatingMin?:number;staffRatingMax?:number;appRatingMin?:number;appRatingMax?:number;staffDimensions?:EvalLabel[];staffReasons?:EvalLabel[];appReasons?:EvalLabel[];factors?:EvalLabel[];uploadsPolicyPending?:boolean}
 const container=document.querySelector<HTMLElement>('#public-content')!;
-const token=location.pathname.split('/').pop()!;
-const custom=location.pathname.startsWith('/questionnaires/'),inquiry=location.pathname==='/inquiry';
+const searchParams=new URLSearchParams(location.search);
+const evalQueryToken=searchParams.get('evaluation')||(location.pathname.endsWith('rider-form.html')?searchParams.get('token'):null);
+const evalPath=location.pathname.startsWith('/evaluations/')||Boolean(evalQueryToken);
+const token=evalQueryToken||location.pathname.split('/').pop()!;
+const custom=location.pathname.startsWith('/questionnaires/'),inquiry=location.pathname==='/inquiry'&&!evalPath;
 let language:Language='ar',formData:PublicForm|null=null,receipt='',failure=false;
+function evaluationForm(){return evalPath||formData?.schema==='evaluation-v1';}
+const EVAL_APP_LABELS:Record<string,Record<Language,string>>={Jahez:{ar:'جاهز',en:'Jahez',ur:'جاہز'},Keeta:{ar:'كيتا',en:'Keeta',ur:'کیٹا'},HungerStation:{ar:'هنقرستيشن',en:'HungerStation',ur:'ہنگر اسٹیشن'},Ninja:{ar:'نينجا',en:'Ninja',ur:'ننجا'},Chefz:{ar:'ذا شفز',en:'The Chefz',ur:'دی شیفز'},Amazon:{ar:'أمازون',en:'Amazon',ur:'ایمیزون'}};
+const NAT_KEYS=['nat_sa','nat_eg','nat_ye','nat_sd','nat_pk','nat_in','nat_bd','nat_sy','nat_jo','nat_ph'];
+function evalAppLabel(a:string){return EVAL_APP_LABELS[a]?.[language]||a;}
+function normalizeAsciiDigits(raw:string){return String(raw||'').replace(/[٠-٩]/g,d=>String(d.charCodeAt(0)-0x0660)).replace(/[۰-۹]/g,d=>String(d.charCodeAt(0)-0x06F0)).trim();}
+interface EvalStaffDraft{reason:string;ratings:Record<string,number>;notes:string;complaint:boolean;complaintDetails:string}
+interface EvalAppDraft{reason:string;overall:number;factorRatings:Record<string,number>;notes:string}
+const evalState:{page:1|2;iqama:string;name:string;city:string;nationality:string;phone:string;workApps:string[];deptFilter:string;appFilter:string;staffAnswers:Record<string,EvalStaffDraft>;appAnswers:Record<string,EvalAppDraft>;error:string}={page:1,iqama:'',name:'',city:'',nationality:'',phone:'',workApps:[],deptFilter:'ALL',appFilter:'ALL',staffAnswers:{},appAnswers:{},error:''};
+function evalCityList():string[]{return ((formData?.cities as unknown[])||[]).map(c=>typeof c==='string'?c:(c as {ar:string}).ar).filter(Boolean);}
+function evalCityStaff():EvalStaff[]{if(!evalState.city)return [];return (formData?.staff||[]).filter(s=>!s.excluded&&(s.cities||[]).includes(evalState.city));}
+function isEvalStaffDone(s:EvalStaff):boolean{const a=evalState.staffAnswers[s.id];if(!a)return false;if(a.complaint&&(a.complaintDetails||'').trim().length<5)return false;if(a.reason!=='')return (formData?.staffReasons||[]).some(r=>r.id===a.reason);return (formData?.staffDimensions||[]).every(d=>{const v=Number(a.ratings?.[d.id]);return Number.isInteger(v)&&v>=(formData?.staffRatingMin??1)&&v<=(formData?.staffRatingMax??10);});}
+function isEvalAppDone(app:string):boolean{const a=evalState.appAnswers[app];if(!a)return false;if(a.reason!=='')return (formData?.appReasons||[]).some(r=>r.id===a.reason);const v=Number(a.overall);return Number.isInteger(v)&&v>=(formData?.appRatingMin??1)&&v<=(formData?.appRatingMax??5);}
+function ensureEvalStaff(id:string):EvalStaffDraft{if(!evalState.staffAnswers[id])evalState.staffAnswers[id]={reason:'',ratings:{},notes:'',complaint:false,complaintDetails:''};return evalState.staffAnswers[id];}
+function ensureEvalApp(app:string):EvalAppDraft{if(!evalState.appAnswers[app])evalState.appAnswers[app]={reason:'',overall:0,factorRatings:{},notes:''};return evalState.appAnswers[app];}
 interface ChoiceReceipt{iqama:string;name:string;workSystem:string;status:string;submittedAt:string;version:number;ibanLast4?:string;bankCode?:string}
 let editMode=false,editedSuccess=false,responseVersion=1,recordedChoice='';
 let previousChoice:Record<string,string>|null=null,receiptData:ChoiceReceipt|null=null;
@@ -61,17 +130,192 @@ function acceptLookup(d:any){const stored=d.iqama?loadEditToken(d.iqama):'';if(s
 async function lookupChoice(iqama:string,form:HTMLFormElement){const sequence=++lookupSequence;const d=await request('/api/public/forms/'+encodeURIComponent(token)+'/lookup',{iqama});if(sequence!==lookupSequence||!form.isConnected||(form.elements.namedItem('iqama') as HTMLInputElement).value!==iqama)return;acceptLookup(d);}
 function bindChoiceLookup(form:HTMLFormElement){if(custom)return;const iqama=form.elements.namedItem('iqama') as HTMLInputElement;iqama.addEventListener('input',()=>{clearTimeout(lookupTimer);lookupSequence++;if(editMode){for(const key of ['city','phone']){const el=form.elements.namedItem(key) as HTMLInputElement|null;if(el)el.value='';}(form.elements.namedItem('name') as HTMLInputElement).value='';form.querySelectorAll<HTMLInputElement>('[name=workSystem],[name=platforms]').forEach(x=>x.checked=false);for(const key of ['ibanBody','bankCode','bankSearch','city','citySearch']){const el=form.elements.namedItem(key) as HTMLInputElement|null;if(el){el.value='';delete el.dataset.touched;}}}editMode=false;previousChoice=null;recordedChoice='';responseVersion=1;updateEditNotice();if(/^[0-9]{10}$/.test(iqama.value)){const value=iqama.value;lookupTimer=setTimeout(()=>{void lookupChoice(value,form).catch(e=>{if(form.isConnected&&(form.elements.namedItem('iqama') as HTMLInputElement).value===value)form.querySelector('#form-error')!.textContent=(e as Error).message;});},300);}});}
 function downloadReceipt(){if(!receiptData)return;const d=receiptData,line='====================================================';const text=[line,t('receiptTitle'),line,`${t('name')}: ${d.name}`,`${t('iqama')}: ${d.iqama}`,(ibanForm()?`${t('iban')}: SA •••• ${d.ibanLast4||''}`:`${t('system')}: ${t(d.workSystem)}`),`${t('receipt')}: ${receipt}`,`${t('submissionDate')}: ${new Date(d.submittedAt).toLocaleString(language)}`,`${t('status')}: ${t(d.status)}`,`${t('version')}: ${d.version}`,line,t('retainReceipt'),line].join('\r\n');const url=URL.createObjectURL(new Blob(['\uFEFF',text],{type:'text/plain;charset=utf-8'}));const link=document.createElement('a');link.href=url;link.download=`${ibanForm()?'ايصال_الايبان':'اشعار_تسجيل_الرواتب'}_${d.iqama}.txt`;document.body.append(link);link.click();link.remove();setTimeout(()=>URL.revokeObjectURL(url),1000);}
-function renderSuccess(){container.innerHTML=`<div class="success-symbol">✓</div><h2>${t(editedSuccess?'editedSuccess':'recorded')}</h2><p>${t('receipt')}</p><div class="link-box edit-credentials">${escapeText(receipt)}</div>${!custom?`<div class="row-actions"><button id="btn-download-receipt" class="secondary">📄 ${t('downloadReceipt')}</button><button id="btn-edit-choice" class="secondary">${t('editChoice')}</button></div><div id="success-error" role="alert" class="public-error"></div>`:''}`;container.querySelector('#btn-download-receipt')?.addEventListener('click',downloadReceipt);container.querySelector<HTMLButtonElement>('#btn-edit-choice')?.addEventListener('click',async event=>{const b=event.currentTarget as HTMLButtonElement;b.disabled=true;try{const d=await request('/api/public/forms/'+encodeURIComponent(token)+'/lookup',{iqama:receiptData!.iqama});receipt='';acceptLookup(d);renderPublic();}catch(e){container.querySelector('#success-error')!.textContent=(e as Error).message;b.disabled=false;}});}
+function renderSuccess(){container.innerHTML=`<div class="success-symbol">✓</div><h2>${t(editedSuccess?'editedSuccess':'recorded')}</h2><p>${t('receipt')}</p><div class="link-box edit-credentials">${escapeText(receipt)}</div>${!custom&&!evaluationForm()?`<div class="row-actions"><button id="btn-download-receipt" class="secondary">📄 ${t('downloadReceipt')}</button><button id="btn-edit-choice" class="secondary">${t('editChoice')}</button></div><div id="success-error" role="alert" class="public-error"></div>`:''}`;container.querySelector('#btn-download-receipt')?.addEventListener('click',downloadReceipt);container.querySelector<HTMLButtonElement>('#btn-edit-choice')?.addEventListener('click',async event=>{const b=event.currentTarget as HTMLButtonElement;b.disabled=true;try{const d=await request('/api/public/forms/'+encodeURIComponent(token)+'/lookup',{iqama:receiptData!.iqama});receipt='';acceptLookup(d);renderPublic();}catch(e){container.querySelector('#success-error')!.textContent=(e as Error).message;b.disabled=false;}});}
 try{const saved=localStorage.getItem('gate-language');if(saved==='en'||saved==='ur')language=saved;const savedTheme=localStorage.getItem('gate-theme');if(savedTheme){document.documentElement.dataset.theme=savedTheme==='dark'?'dim':savedTheme;}else if(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches){document.documentElement.dataset.theme='dim';}else{document.documentElement.dataset.theme='sand';}}catch{document.documentElement.dataset.theme='sand';}
-const t=(key:string)=>{const d=dictionaries[language];return (ibanForm()&&d['iban_'+key])||(leaveForm()&&d['leave_'+key])||d[key]||key;};
+const t=(key:string)=>{const d=dictionaries[language];return (evaluationForm()&&d['eval_'+key])||(ibanForm()&&d['iban_'+key])||(leaveForm()&&d['leave_'+key])||d[key]||key;};
 const escapeText=(v:unknown):string=>String(v??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]!));
 function localized(obj:object,key:string):string{return String((obj as Record<string,unknown>)[key+({ar:'Ar',en:'En',ur:'Ur'}[language])]||(obj as Record<string,unknown>)[key+'Ar']||'');}
 function layout(){document.documentElement.lang=language;document.documentElement.dir=language==='en'?'ltr':'rtl';document.title=t(inquiry?'inquiry':'form')+' | '+t('brand');document.querySelector('#brand-title')!.textContent=t('brand');document.querySelector('#brand-subtitle')!.textContent=t(inquiry?'inquiry':'form');document.querySelector('#public-tools')!.innerHTML=`<div class="language-pills" aria-label="Language">${(['ar','en','ur'] as Language[]).map(l=>`<button type="button" data-lang="${l}" aria-pressed="${l===language}">${{ar:'العربية',en:'English',ur:'اردو'}[l]}</button>`).join('')}</div><select id="public-theme" class="theme-control" aria-label="${t('theme')}">${['sand','light','dim'].map(v=>`<option value="${v}" ${(v===document.documentElement.dataset.theme||(v==='dim'&&document.documentElement.dataset.theme==='dark'))?'selected':''}>${t(v)}</option>`).join('')}</select>`;}
-class PublicRequestError extends Error{constructor(public status:number,public data:any){super(t(status===409?'conflict':status===429?'rate':status===401?'denied':status===404?'unavailable':'failed'));}}
-async function request(path:string,payload?:object):Promise<any>{const r=await fetch(path,payload?{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(payload)}:{});const d=await r.json().catch(()=>({}));if(!r.ok)throw new PublicRequestError(r.status,d);return d;}
+class PublicRequestError extends Error{constructor(public status:number,public data:any){super(data?.error||t(status===409?'conflict':status===429?'rate':status===401?'denied':status===404?'unavailable':'failed'));}}
+async function request(path:string,payload?:object):Promise<any>{const survey=evaluationForm()?getSurveySession():null;const sess=survey||(!evaluationForm()?getAppSession():null);const headers:Record<string,string>={...(payload?{'Content-Type':'application/json'}:{}),...(sess?.accessToken&&path.startsWith('/api/rider-mobile/')?{Authorization:'Bearer '+sess.accessToken}:{})};const r=await fetch(path,payload?{method:'POST',headers,body:JSON.stringify(payload)}:{headers});const d=await r.json().catch(()=>({}));if(!r.ok)throw new PublicRequestError(r.status,d);return d;}
+function renderEvaluation(){
+ if(!formData)return;
+ const sess=getSurveySession();
+ if(sess?.iqama&&!evalState.iqama)evalState.iqama=sess.iqama;
+ if(sess?.name&&!evalState.name)evalState.name=sess.name;
+ const cities=evalCityList();
+ if(!evalState.city&&cities.length===1)evalState.city=cities[0];
+ const cityStaff=evalCityStaff();
+ const depts=[...new Set(cityStaff.flatMap(s=>s.departments||[]))];
+ const staffApps=[...new Set(cityStaff.flatMap(s=>s.apps||[]))];
+ const visibleStaff=cityStaff.filter(s=>(evalState.deptFilter==='ALL'||(s.departments||[]).includes(evalState.deptFilter))&&(evalState.appFilter==='ALL'||(s.apps||[]).includes(evalState.appFilter)));
+ const answeredStaff=cityStaff.filter(isEvalStaffDone).length;
+ const apps=formData.apps||[];
+ const answeredApps=apps.filter(isEvalAppDone).length;
+ const notice=localized(formData,'notice')||formData.noticeAr||'';
+ const nats=NAT_KEYS.map(k=>t(k));
+ const page1Html=`
+  <div id="eval-page-1" data-eval-page="1">
+   <div class="notice" style="margin-bottom:12px"><strong>1 / 2</strong> · ${escapeText(t('page1'))}</div>
+   <fieldset class="choice-options" style="margin-bottom:14px">
+    <legend>${escapeText(t('identity'))}</legend>
+    <label>${escapeText(t('iqama'))}<input name="iqama" id="eval-iqama" required inputmode="numeric" pattern="[0-9]{10}" minlength="10" maxlength="10" dir="ltr" value="${escapeText(evalState.iqama)}" ${sess?.iqama?'readonly':''} placeholder="${escapeText(t('iqamaPlaceholder'))}" autocomplete="off"><span class="field-note">${escapeText(sess?.iqama?'✓ '+t('appSessionVerified'):t('iqamaHint'))}</span></label>
+    <label>${escapeText(t('name'))}<input name="name" id="eval-name" required maxlength="200" autocomplete="name" value="${escapeText(evalState.name)}" placeholder="${escapeText(t('namePlaceholder'))}"></label>
+    <label>${escapeText(t('city'))}<select name="city" id="eval-city" required><option value="">— ${escapeText(t('pickCity'))} —</option>${cities.map(c=>`<option value="${escapeText(c)}" ${c===evalState.city?'selected':''}>${escapeText(c)}</option>`).join('')}</select></label>
+    <label>${escapeText(t('nationality'))}<input name="nationality" id="eval-nationality" list="eval-nat-options" required maxlength="100" value="${escapeText(evalState.nationality)}" placeholder="${escapeText(t('nationalityPlaceholder'))}"><datalist id="eval-nat-options">${nats.map(n=>`<option value="${escapeText(n)}"></option>`).join('')}</datalist></label>
+    <label>${escapeText(t('contactPhone'))} (${escapeText(t('optional'))})<input name="phone" id="eval-phone" type="tel" dir="ltr" inputmode="tel" maxlength="16" value="${escapeText(evalState.phone)}" placeholder="${escapeText(t('localPhone'))}"></label>
+    <div>
+     <div class="small" style="font-weight:700;margin-bottom:6px">${escapeText(t('platforms'))} (${escapeText(t('multi'))}) *</div>
+     <div style="display:flex;flex-wrap:wrap;gap:8px">${apps.map(a=>`<label class="check" style="margin:0"><input type="checkbox" name="workApps" value="${escapeText(a)}" ${evalState.workApps.includes(a)?'checked':''}>${escapeText(evalAppLabel(a))}</label>`).join('')}</div>
+    </div>
+   </fieldset>
+   ${!evalState.city?`<div class="notice">${escapeText(t('pickCity'))}</div>`:`
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;margin-bottom:10px">
+     <strong>${escapeText(t('cardsProgress'))}: <span class="number" id="eval-staff-progress">${answeredStaff} / ${cityStaff.length}</span></strong>
+     <div style="display:flex;gap:6px;flex-wrap:wrap">
+      ${depts.length>1?`<select id="eval-dept-filter" aria-label="${escapeText(t('dept'))}"><option value="ALL">${escapeText(t('allDepts'))}</option>${depts.map(d=>`<option value="${escapeText(d)}" ${d===evalState.deptFilter?'selected':''}>${escapeText(d)}</option>`).join('')}</select>`:''}
+      ${staffApps.length>1?`<select id="eval-app-filter" aria-label="${escapeText(t('platforms'))}"><option value="ALL">${escapeText(t('allApps'))}</option>${staffApps.map(a=>`<option value="${escapeText(a)}" ${a===evalState.appFilter?'selected':''}>${escapeText(evalAppLabel(a))}</option>`).join('')}</select>`:''}
+     </div>
+    </div>
+    <div id="eval-staff-cards" style="display:flex;flex-direction:column;gap:12px">
+     ${visibleStaff.map(s=>{
+      const ans=ensureEvalStaff(s.id);
+      const done=isEvalStaffDone(s);
+      const roles=s.pendingRoleApproval?['بانتظار موافقة غزال']:(s.roles||[]);
+      return `<article class="panel" data-staff-card="${escapeText(s.id)}" style="padding:12px;border:1px solid ${done?'var(--good,#2e7d32)':'var(--line,#d6cfc2)'};border-radius:12px">
+       <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;flex-wrap:wrap">
+        <div>
+         <h3 style="margin:0;font-size:16px">${escapeText(s.name)}</h3>
+         <div class="muted small" style="margin-top:4px">${(s.departments||[]).map(d=>escapeText(d)).join(' · ')}${(s.apps||[]).length?' — '+(s.apps||[]).map(a=>escapeText(evalAppLabel(a))).join('، '):''}</div>
+         ${roles.length?`<div class="muted small" style="margin-top:2px">${escapeText(t('roles'))}: ${escapeText(roles.join(' · '))}</div>`:''}
+        </div>
+        <span class="small" style="font-weight:700">${escapeText(done?t('answeredBadge'):t('pendingBadge'))}</span>
+       </div>
+       <label style="margin-top:8px;display:block">${escapeText(t('skipLabel'))}
+        <select data-staff-reason="${escapeText(s.id)}">
+         <option value="" ${ans.reason===''?'selected':''}>★ ${escapeText(t('rateMode'))}</option>
+         ${(formData?.staffReasons||[]).map(r=>`<option value="${escapeText(r.id)}" ${ans.reason===r.id?'selected':''}>${escapeText(localized(r,'label'))}</option>`).join('')}
+        </select>
+       </label>
+       ${ans.reason===''?`<div style="margin-top:8px;display:flex;flex-direction:column;gap:8px">
+        ${(formData?.staffDimensions||[]).map(dim=>{
+         const cur=ans.ratings[dim.id]||0;
+         return `<div data-staff-dim="${escapeText(dim.id)}">
+          <div class="small" style="display:flex;justify-content:space-between;margin-bottom:4px"><span>${escapeText(localized(dim,'label'))}</span><strong class="number">${cur?`${cur} / 10`:'—'}</strong></div>
+          <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px">
+           ${Array.from({length:10},(_,i)=>i+1).map(n=>`<button type="button" class="${cur===n?'':'secondary'}" data-staff-rate="${escapeText(s.id)}" data-dim="${escapeText(dim.id)}" data-score="${n}" aria-pressed="${cur===n}" style="padding:6px 2px;font-size:12px">${n}</button>`).join('')}
+          </div>
+         </div>`;
+        }).join('')}
+       </div>`:''}
+       <label style="margin-top:8px;display:block">${escapeText(t('notes'))}<textarea rows="2" maxlength="2000" data-staff-notes="${escapeText(s.id)}">${escapeText(ans.notes)}</textarea></label>
+       <div style="margin-top:8px">
+        <button type="button" class="secondary" data-staff-complaint-btn="${escapeText(s.id)}" aria-pressed="${ans.complaint}">${escapeText(ans.complaint?t('complaintActive'):t('complaintBtn'))}</button>
+        ${ans.complaint?`<label style="margin-top:6px;display:block">${escapeText(t('complaintDetails'))}<textarea rows="2" minlength="5" maxlength="2000" data-staff-complaint-text="${escapeText(s.id)}" required>${escapeText(ans.complaintDetails)}</textarea></label>`:''}
+       </div>
+      </article>`;
+     }).join('')}
+    </div>
+   `}
+   ${formData.uploadsPolicyPending?`<p class="muted small" style="margin-top:8px">${escapeText(t('uploadsPending'))}</p>`:''}
+   <div class="public-error" id="form-error" role="alert">${escapeText(evalState.error)}</div>
+   <div class="row-actions" style="margin-top:12px;justify-content:flex-end">
+    <button type="button" id="eval-next-btn">${escapeText(t('next'))}</button>
+   </div>
+  </div>`;
+ const page2Html=`
+  <div id="eval-page-2" data-eval-page="2">
+   <div class="notice" style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:6px">
+    <span><strong>2 / 2</strong> · ${escapeText(t('page2'))}</span>
+    <span>${escapeText(t('cardsProgress'))}: <strong class="number" id="eval-app-progress">${answeredApps} / ${apps.length}</strong></span>
+   </div>
+   <div id="eval-app-cards" style="display:flex;flex-direction:column;gap:12px">
+    ${apps.map(app=>{
+     const ans=ensureEvalApp(app);
+     const done=isEvalAppDone(app);
+     return `<article class="panel" data-app-card="${escapeText(app)}" style="padding:12px;border:1px solid ${done?'var(--good,#2e7d32)':'var(--line,#d6cfc2)'};border-radius:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+       <h3 style="margin:0;font-size:16px">${escapeText(evalAppLabel(app))}</h3>
+       <span class="small" style="font-weight:700">${escapeText(done?t('answeredBadge'):t('pendingBadge'))}</span>
+      </div>
+      <label style="margin-top:8px;display:block">${escapeText(t('skipLabel'))}
+       <select data-app-reason="${escapeText(app)}">
+        <option value="" ${ans.reason===''?'selected':''}>★ ${escapeText(t('appRateMode'))}</option>
+        ${(formData?.appReasons||[]).map(r=>`<option value="${escapeText(r.id)}" ${ans.reason===r.id?'selected':''}>${escapeText(localized(r,'label'))}</option>`).join('')}
+       </select>
+      </label>
+      ${ans.reason===''?`<div style="margin-top:8px">
+       <div class="small" style="display:flex;justify-content:space-between;margin-bottom:4px"><span>${escapeText(t('starsLabel'))}</span><strong class="number">${ans.overall?`${ans.overall} / 5 ★`:'—'}</strong></div>
+       <div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px">
+        ${[1,2,3,4,5].map(star=>`<button type="button" class="${ans.overall===star?'':'secondary'}" data-app-star="${escapeText(app)}" data-stars="${star}" aria-pressed="${ans.overall===star}" style="padding:6px 2px;font-size:12px">${star} ★</button>`).join('')}
+       </div>
+       <div style="margin-top:10px">
+        <div class="small" style="font-weight:700;margin-bottom:6px">${escapeText(t('factorsTitle'))} <span class="muted">(${escapeText(t('factorOptional'))})</span></div>
+        <div style="display:grid;gap:8px">
+         ${(formData?.factors||[]).map(f=>{const stars=ans.factorRatings[f.id]||0;return `<div data-app-factor-row="${escapeText(app)}" data-factor-id="${escapeText(f.id)}"><div class="small" style="display:flex;justify-content:space-between;margin-bottom:2px"><span>${escapeText(localized(f,'label'))}</span><strong class="number">${stars?`${stars} / 5 ★`:'—'}</strong></div><div style="display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:4px">${[1,2,3,4,5].map(star=>`<button type="button" class="${stars===star?'':'secondary'}" data-app-factor-star="${escapeText(app)}" data-factor-id="${escapeText(f.id)}" data-stars="${star}" aria-pressed="${stars===star}" style="padding:4px 2px;font-size:11px">${star} ★</button>`).join('')}</div></div>`;}).join('')}
+        </div>
+       </div>
+      </div>`:''}
+      <label style="margin-top:8px;display:block">${escapeText(t('notes'))}<textarea rows="2" maxlength="2000" data-app-notes="${escapeText(app)}">${escapeText(ans.notes)}</textarea></label>
+     </article>`;
+    }).join('')}
+   </div>
+   <div class="public-error" id="form-error" role="alert">${escapeText(evalState.error)}</div>
+   <div class="row-actions" style="margin-top:12px;justify-content:space-between">
+    <button type="button" class="secondary" id="eval-prev-btn">${escapeText(t('prev'))}</button>
+    <button type="submit" id="eval-submit-btn">${escapeText(t('submit'))}</button>
+   </div>
+  </div>`;
+ container.innerHTML=`<h2>${escapeText(formData.title||t('form'))}</h2>${notice?`<div class="notice" id="eval-confidential-notice">🛡️ ${escapeText(notice)}</div>`:''}<form id="rider-evaluation" class="public-form" novalidate>${evalState.page===1?page1Html:page2Html}</form>`;
+ const form=container.querySelector<HTMLFormElement>('#rider-evaluation')!;
+ form.querySelector<HTMLInputElement>('#eval-iqama')?.addEventListener('input',e=>{evalState.iqama=normalizeAsciiDigits((e.target as HTMLInputElement).value);evalState.error='';});
+ form.querySelector<HTMLInputElement>('#eval-name')?.addEventListener('input',e=>{evalState.name=(e.target as HTMLInputElement).value;evalState.error='';});
+ form.querySelector<HTMLSelectElement>('#eval-city')?.addEventListener('change',e=>{evalState.city=(e.target as HTMLSelectElement).value;evalState.deptFilter='ALL';evalState.appFilter='ALL';evalState.error='';renderPublic();});
+ form.querySelector<HTMLInputElement>('#eval-nationality')?.addEventListener('input',e=>{evalState.nationality=(e.target as HTMLInputElement).value;evalState.error='';});
+ form.querySelector<HTMLInputElement>('#eval-phone')?.addEventListener('input',e=>{evalState.phone=(e.target as HTMLInputElement).value;});
+ form.querySelectorAll<HTMLInputElement>('[name=workApps]').forEach(chk=>chk.addEventListener('change',()=>{const v=chk.value;if(chk.checked){if(!evalState.workApps.includes(v))evalState.workApps.push(v);}else{evalState.workApps=evalState.workApps.filter(a=>a!==v);}evalState.error='';}));
+ form.querySelector<HTMLSelectElement>('#eval-dept-filter')?.addEventListener('change',e=>{evalState.deptFilter=(e.target as HTMLSelectElement).value;renderPublic();});
+ form.querySelector<HTMLSelectElement>('#eval-app-filter')?.addEventListener('change',e=>{evalState.appFilter=(e.target as HTMLSelectElement).value;renderPublic();});
+ form.querySelectorAll<HTMLSelectElement>('[data-staff-reason]').forEach(sel=>sel.addEventListener('change',()=>{const id=sel.dataset.staffReason!;const a=ensureEvalStaff(id);a.reason=sel.value;if(a.reason!=='')a.ratings={};evalState.error='';renderPublic();}));
+ form.querySelectorAll<HTMLButtonElement>('[data-staff-rate]').forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.staffRate!,dim=btn.dataset.dim!,score=Number(btn.dataset.score);const a=ensureEvalStaff(id);a.reason='';a.ratings[dim]=score;evalState.error='';renderPublic();}));
+ form.querySelectorAll<HTMLTextAreaElement>('[data-staff-notes]').forEach(ta=>ta.addEventListener('input',()=>{ensureEvalStaff(ta.dataset.staffNotes!).notes=ta.value;}));
+ form.querySelectorAll<HTMLButtonElement>('[data-staff-complaint-btn]').forEach(btn=>btn.addEventListener('click',()=>{const id=btn.dataset.staffComplaintBtn!;const a=ensureEvalStaff(id);a.complaint=!a.complaint;if(!a.complaint)a.complaintDetails='';evalState.error='';renderPublic();}));
+ form.querySelectorAll<HTMLTextAreaElement>('[data-staff-complaint-text]').forEach(ta=>ta.addEventListener('input',()=>{ensureEvalStaff(ta.dataset.staffComplaintText!).complaintDetails=ta.value;evalState.error='';}));
+ form.querySelector<HTMLButtonElement>('#eval-next-btn')?.addEventListener('click',()=>{
+  const iq=normalizeAsciiDigits(evalState.iqama);
+  if(!/^[0-9]{10}$/.test(iq)||!evalState.name.trim()||!evalState.city||!evalState.nationality.trim()||evalState.workApps.length===0){evalState.error=t('missingIdentity');renderPublic();return;}
+  const cs=evalCityStaff();
+  if(cs.some(s=>{const a=evalState.staffAnswers[s.id];return a?.complaint&&(a.complaintDetails||'').trim().length<5;})){evalState.error=t('missingComplaint');evalState.deptFilter='ALL';evalState.appFilter='ALL';renderPublic();return;}
+  if(!cs.every(isEvalStaffDone)){evalState.error=t('unansweredStaff');evalState.deptFilter='ALL';evalState.appFilter='ALL';renderPublic();return;}
+  evalState.error='';evalState.page=2;renderPublic();
+ });
+ form.querySelector<HTMLButtonElement>('#eval-prev-btn')?.addEventListener('click',()=>{evalState.error='';evalState.page=1;renderPublic();});
+ form.querySelectorAll<HTMLSelectElement>('[data-app-reason]').forEach(sel=>sel.addEventListener('change',()=>{const app=sel.dataset.appReason!;const a=ensureEvalApp(app);a.reason=sel.value;if(a.reason!==''){a.overall=0;a.factorRatings={};}evalState.error='';renderPublic();}));
+ form.querySelectorAll<HTMLButtonElement>('[data-app-star]').forEach(btn=>btn.addEventListener('click',()=>{const app=btn.dataset.appStar!,stars=Number(btn.dataset.stars);const a=ensureEvalApp(app);a.reason='';a.overall=stars;evalState.error='';renderPublic();}));
+ form.querySelectorAll<HTMLButtonElement>('[data-app-factor-star]').forEach(btn=>btn.addEventListener('click',()=>{const app=btn.dataset.appFactorStar!,factorId=btn.dataset.factorId!,stars=Number(btn.dataset.stars);const a=ensureEvalApp(app);a.reason='';if(a.factorRatings[factorId]===stars)delete a.factorRatings[factorId];else a.factorRatings[factorId]=stars;evalState.error='';renderPublic();}));
+ form.querySelectorAll<HTMLTextAreaElement>('[data-app-notes]').forEach(ta=>ta.addEventListener('input',()=>{ensureEvalApp(ta.dataset.appNotes!).notes=ta.value;}));
+ form.onsubmit=async e=>{
+  e.preventDefault();
+  if(!apps.every(isEvalAppDone)){evalState.error=t('unansweredApps');renderPublic();return;}
+  const btn=form.querySelector<HTMLButtonElement>('#eval-submit-btn')!;btn.disabled=true;
+  const cs=evalCityStaff();
+  const payload={
+   iqama:normalizeAsciiDigits(evalState.iqama),name:evalState.name.trim(),city:evalState.city,nationality:evalState.nationality.trim(),phone:evalState.phone.trim(),workApps:evalState.workApps,
+   staffAnswers:cs.map(s=>{const a=ensureEvalStaff(s.id);return {staffId:s.id,reason:a.reason,...(a.reason===''?{ratings:a.ratings}:{}),notes:a.notes.trim(),complaint:Boolean(a.complaint),complaintDetails:a.complaint?a.complaintDetails.trim():'',attachments:[]};}),
+   appAnswers:apps.map(app=>{const a=ensureEvalApp(app);return {app,reason:a.reason,...(a.reason===''?{overall:a.overall,factorRatings:a.factorRatings}:{}),notes:a.notes.trim(),attachments:[]};})
+  };
+  try{
+   const survey=getSurveySession();
+   const useMob=Boolean(survey?.accessToken&&searchParams.get('mode')==='app');
+   const endpoint=(useMob?'/api/rider-mobile/evaluations/':'/api/public/evaluations/')+encodeURIComponent(token);
+   const res=await request(endpoint,payload);
+   receipt=res.receipt;renderPublic();
+  }catch(err){evalState.error=(err as Error).message;btn.disabled=false;renderPublic();}
+ };
+}
 function resourcePanel(){const dialog=document.querySelector<HTMLDialogElement>('#resource-dialog')!;dialog.innerHTML=`<div class="modal-head"><h2>${t('guideTitle')}</h2><button type="button" id="close-resource" class="ghost">${t('close')}</button></div><div class="comparison"><article><h3>${t('tiers')}</h3><p>${t('tiersInfo')}</p></article><article><h3>${t('commission')}</h3><p>${t('commissionInfo')}</p></article></div><div class="notice">${t('guideNote')}</div>`;dialog.querySelector<HTMLButtonElement>('#close-resource')!.onclick=()=>dialog.close();dialog.showModal();}
 function bindValidity(form:HTMLFormElement){for(const field of form.querySelectorAll<HTMLInputElement|HTMLSelectElement>('input,select')){if(['ibanBody','bankCode','bankSearch','city','citySearch','platforms'].includes(field.name))continue;field.oninvalid=()=>field.setCustomValidity(t(field.name==='iqama'?'invalidIqama':field.name==='phone'&&!inquiry?'invalidPhone':'required'));field.oninput=()=>field.setCustomValidity('');}}
-function renderPublic(){layout();if(receipt){renderSuccess();return;}if(failure){container.innerHTML=`<h2>${t('unavailable')}</h2><p>${t('failed')}</p>`;return;}if(inquiry){renderInquiry();return;}if(!formData){container.innerHTML=`<p>${t('loading')}</p>`;return;}
+function renderPublic(){layout();if(receipt){renderSuccess();return;}if(failure){container.innerHTML=`<h2>${t('unavailable')}</h2><p>${t('failed')}</p>`;return;}if(inquiry){renderInquiry();return;}if(!formData){container.innerHTML=`<p>${t('loading')}</p>`;return;}if(evaluationForm()){renderEvaluation();return;}
  const title=custom?localized(formData,'title'):formData.title||t('form');let fields='';
  if(ibanForm())fields=ibanFields();else if(leaveForm())fields=leaveFields();else if(!custom)fields=`<button type="button" class="secondary resource-button" id="open-resource">${t('guide')}</button><label>${t('iqama')}<input name="iqama" required inputmode="numeric" pattern="[0-9]{10}" minlength="10" maxlength="10" dir="ltr" placeholder="${t('iqamaPlaceholder')}" autocomplete="off"><span class="field-note">${t('iqamaHint')}</span></label><label>${t('name')}<input name="name" required maxlength="150" autocomplete="name" placeholder="${t('namePlaceholder')}"><span class="field-note">${t('nameHint')}</span></label><fieldset class="choice-options"><legend>${t('system')}</legend>${['tiers','commission'].map(v=>`<label class="check"><input type="radio" name="workSystem" value="${v}" required>${t(v)}</label>`).join('')}</fieldset>`;
  else fields=(formData.fields||[]).filter((f):f is PublicField=>typeof f!=='string').map(f=>{const label=escapeText(localized(f,'label')),required=f.required?'required':'';if(f.type==='radio')return `<fieldset class="choice-options"><legend>${label}</legend>${f.options.map(o=>`<label class="check"><input type="radio" name="${f.id}" value="${escapeText(o.value)}" ${required}>${escapeText(localized(o,'label'))}</label>`).join('')}</fieldset>`;if(f.type==='select')return `<label>${label}<select name="${f.id}" ${required}><option value="">${t('select')}</option>${f.options.map(o=>`<option value="${escapeText(o.value)}">${escapeText(localized(o,'label'))}</option>`).join('')}</select></label>`;return `<label>${label}<input name="${f.id}" type="${['number','date'].includes(f.type)?f.type:'text'}" ${f.type==='number'?'step="any"':''} ${f.type==='iqama'?'pattern="[0-9]{10}" inputmode="numeric" maxlength="10"':''} ${f.type==='phone'?'inputmode="tel" dir="ltr"':''} maxlength="2000" ${required}></label>`;}).join('');
@@ -89,4 +333,23 @@ function renderPublic(){layout();if(receipt){renderSuccess();return;}if(failure)
 function renderInquiry(){container.innerHTML=`<h2>${t('inquiry')}</h2><form id="private-inquiry" class="public-form"><label>${t('iqama')}<input name="iqama" pattern="[0-9]{10}" maxlength="10" inputmode="numeric" required dir="ltr"></label><label>${t('phone')}<input name="phoneLast4" pattern="[0-9]{4}" maxlength="4" required inputmode="numeric" dir="ltr"></label><label>${t('code')}<input name="code" required maxlength="64" autocomplete="off" dir="ltr"><span class="field-note">${t('codeHint')}</span></label><label>${t('scope')}<select name="scope"><option value="payslip">${t('payslip')}</option><option value="debt">${t('debt')}</option></select></label><label>${t('period')}<input name="period" type="month" value="${new Date().toISOString().slice(0,7)}" required></label><button>${t('query')}</button><div role="alert" id="form-error" class="public-error"></div></form><div id="inquiry-result"></div>`;const form=container.querySelector<HTMLFormElement>('form')!;bindValidity(form);form.onsubmit=async e=>{e.preventDefault();const data=Object.fromEntries(new FormData(form)) as Record<string,string>;const button=form.querySelector('button')!;button.disabled=true;try{const d=await request('/api/public/inquiry/'+data.scope,data);const rows=d.debts||d.result?.lines||[];container.querySelector('#inquiry-result')!.innerHTML=`<h3>${t('statement')}</h3>${data.scope==='payslip'&&!d.available?`<p>${t('none')}</p>`:`<div class="notice">${t(data.scope==='debt'?'totalRemaining':'payable')}: ${escapeText(d.totalRemaining??d.result?.payable)}</div><div class="table-wrap"><table><thead><tr><th>${t(data.scope==='debt'?'category':'item')}</th><th>${t(data.scope==='debt'?'remaining':'amount')}</th></tr></thead><tbody>${rows.map((r:Record<string,unknown>)=>`<tr><td>${escapeText(data.scope==='debt'?r.category:r.description)}</td><td>${escapeText(data.scope==='debt'?r.remainingBalance:r.amount)}</td></tr>`).join('')}</tbody></table></div>`}`;}catch(err){form.querySelector('#form-error')!.textContent=(err as Error).message;}finally{button.disabled=false;}};}
 document.addEventListener('click',event=>{const b=(event.target as HTMLElement).closest<HTMLElement>('[data-lang]');if(!b)return;const current=container.querySelector<HTMLFormElement>('form');const values=current?new FormData(current):null;language=b.dataset.lang as Language;try{localStorage.setItem('gate-language',language)}catch{}renderPublic();if(values){for(const [name,value]of values){const el=container.querySelector<HTMLInputElement|HTMLSelectElement>(`[name="${CSS.escape(name)}"]`);if(!el)continue;if(el.type==='radio'){container.querySelectorAll<HTMLInputElement>(`[name="${CSS.escape(name)}"]`).forEach(x=>x.checked=x.value===value);}else if(el.type==='checkbox'){container.querySelectorAll<HTMLInputElement>(`[name="${CSS.escape(name)}"]`).forEach(x=>x.checked=values.getAll(name).includes(x.value));}else el.value=String(value);}const f=container.querySelector<HTMLFormElement>('#rider-choice');if(f&&ibanForm()){syncChoiceLabels(f);f.querySelector('[name=ibanBody]')?.dispatchEvent(new Event('input'));}}});
 document.addEventListener('change',e=>{const el=e.target as HTMLSelectElement;if(el.id==='public-theme'){document.documentElement.dataset.theme=el.value;try{localStorage.setItem('gate-theme',el.value)}catch{}}});try{if(!localStorage.getItem('gate-theme')&&window.matchMedia){window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change',e=>{if(!localStorage.getItem('gate-theme')){const next=e.matches?'dim':'sand';document.documentElement.dataset.theme=next;const el=document.querySelector<HTMLSelectElement>('#public-theme');if(el)el.value=next;}});}}catch{}
-renderPublic();if(!inquiry)void request('/api/public/'+(custom?'questionnaires/':'forms/')+encodeURIComponent(token)).then(d=>{formData=d;renderPublic();}).catch(()=>{failure=true;renderPublic();});
+renderPublic();if(!inquiry){
+ void (async()=>{
+  try{
+   const hashParams=new URLSearchParams(location.hash.startsWith('#')?location.hash.slice(1):location.hash);
+   const launchCode=hashParams.get('launch');
+   if(evalPath&&launchCode){
+    const exchanged=await fetch('/api/public/evaluations/'+encodeURIComponent(token)+'/session',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({code:launchCode})}).then(async r=>{const d=await r.json().catch(()=>({}));if(!r.ok)throw new Error(d.error||t('unavailable'));return d;});
+    if(typeof exchanged.accessToken==='string'&&exchanged.accessToken.startsWith('eves_'))saveSurveySession(exchanged.accessToken,exchanged.iqama||undefined);
+    hashParams.delete('launch');
+    const nextHash=hashParams.toString();
+    const clean=location.pathname+(searchParams.toString()?'?'+searchParams.toString():'')+(nextHash?'#'+nextHash:'');
+    history.replaceState(null,'',clean);
+   }
+   const sess=getSurveySession();
+   const initPath=evalPath?((sess?.accessToken&&searchParams.get('mode')==='app'?'/api/rider-mobile/evaluations/':'/api/public/evaluations/')+encodeURIComponent(token)):'/api/public/'+(custom?'questionnaires/':'forms/')+encodeURIComponent(token);
+   formData=await request(initPath);
+   renderPublic();
+  }catch{failure=true;renderPublic();}
+ })();
+}

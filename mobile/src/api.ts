@@ -4,7 +4,8 @@ import { getSession, setSession } from './state';
 export async function api<T = any>(path: string, body?: any): Promise<T> {
   const session = getSession();
   const headers: Record<string, string> = {
-    'Content-Type': 'application/json'
+    'Content-Type': 'application/json',
+    'X-Rider-App-Capabilities': 'evaluation-web'
   };
   if (session?.accessToken) {
     headers['Authorization'] = 'Bearer ' + session.accessToken;

@@ -239,7 +239,30 @@ function renderActiveCampaignsCard(formsCatalog: any): string {
         .map(c => {
           const title = pickLang(c, 'title') || c.title || '';
           const isIban = c.schema === 'iban-v1';
+          const isEval = c.schema === 'evaluation-v1';
           const cities: any[] = Array.isArray(c.cities) ? c.cities : [];
+          if (isEval) {
+            if (c.alreadySubmitted) {
+              return `
+                <div style="border-bottom:1px solid var(--line);padding:10px 0" data-eval-campaign="${esc(c.token)}">
+                  <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+                    <strong>${esc(title)}</strong>
+                    <span class="tag good">✓ ${esc(t('evalAnsweredBadge'))}</span>
+                  </div>
+                </div>
+              `;
+            }
+            // Open via one-time launch URL from the API — never put the app session token in a URL.
+            return `
+              <div style="border-bottom:1px solid var(--line);padding:10px 0" data-eval-campaign="${esc(c.token)}">
+                <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+                  <strong>📋 ${esc(title)}</strong>
+                  <span class="tag warn">${esc(t('evalTitle'))}</span>
+                </div>
+                <button type="button" class="small good" data-eval-launch="${esc(c.token)}">${esc(t('evalOpenHosted') || 'فتح نموذج التقييم')}</button>
+              </div>
+            `;
+          }
           return `
             <div style="border-bottom:1px solid var(--line);padding:10px 0">
               <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
