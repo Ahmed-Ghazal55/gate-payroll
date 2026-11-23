@@ -346,8 +346,7 @@ public sealed class SalWc4dFixesTests
         Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM sal_shared_rider_hold WHERE erp_rider_id=@r AND status='open'",("@r",rider)));
         Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM sal_shared_rider_hold_app ha INNER JOIN sal_shared_rider_hold h ON h.id=ha.hold_id WHERE h.erp_rider_id=@r AND ha.app_code='keeta' AND ha.received=1",("@r",rider)));
         Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM sal_shared_rider_hold_app ha INNER JOIN sal_shared_rider_hold h ON h.id=ha.hold_id WHERE h.erp_rider_id=@r AND ha.app_code='ninja' AND ha.received=1",("@r",rider)));
-        SalDebtConfirm.Confirm(c,tx,actor,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})});
-        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)})).Status);
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalDebtConfirm.Confirm(c,tx,actor,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})})).Status);
         tx.Commit();
     }
 
@@ -367,8 +366,7 @@ public sealed class SalWc4dFixesTests
         SalEvidence.Gross(c,tx,ninja,rider,200m);
         string riderId=Calc(c,tx,actor,ninja,Rider(rider)).S("id");
         Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM sal_shared_rider_hold WHERE erp_rider_id=@r AND status='open'",("@r",rider)));
-        SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})});
-        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)})).Status);
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})})).Status);
         tx.Commit();
     }
 

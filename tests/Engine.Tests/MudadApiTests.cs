@@ -7,11 +7,12 @@ using Claim=System.Security.Claims.Claim;
 [TestClass]
 public sealed class MudadApiTests
 {
-    static ClaimsPrincipal Actor(params string[] permissions)
+    static ClaimsPrincipal Actor(string companyId,params string[] permissions)
     {
         var id=new ClaimsIdentity("synthetic");
         id.AddClaim(new Claim(ClaimTypes.Name,MoneySchemaFixture.Id()));
         id.AddClaim(new Claim(ClaimTypes.Role,"FinancialAccountant"));
+        id.AddClaim(new Claim("finance.sponsorIds",companyId));
         foreach(string p in permissions)id.AddClaim(new Claim("permission",p));
         return new ClaimsPrincipal(id);
     }
@@ -36,7 +37,7 @@ public sealed class MudadApiTests
     {
         using var c=Open(sqlServer);
         string company=MoneySchemaFixture.Company(c);
-        var actor=Actor("people.mudad.manage","salaries.mudad.edit","pay.manage");
+        var actor=Actor(company,"people.mudad.manage","salaries.mudad.edit","pay.manage");
         using var tx=c.BeginTransaction();
         var upload=MudadApi.Upload(c,tx,actor,new JsonObject
         {
@@ -83,7 +84,7 @@ public sealed class MudadApiTests
     {
         using var c=Open(false);
         string company=MoneySchemaFixture.Company(c);
-        var actor=Actor("people.mudad.manage","salaries.mudad.edit");
+        var actor=Actor(company,"people.mudad.manage","salaries.mudad.edit");
         string hash=new string('b',64);
         using(var tx=c.BeginTransaction())
         {

@@ -502,13 +502,10 @@ public sealed class SalWc4bFixesTests
             })
         });
         string riderId=calc["riders"]![0]!["id"]!.GetValue<string>();
-        SalDebtConfirm.Confirm(c,tx,maker,run,new JsonObject
+        // RWC4a3F §40.6: open shared hold blocks debt confirm (approve already blocked via DemandApprovable).
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalDebtConfirm.Confirm(c,tx,maker,run,new JsonObject
         {
             ["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})
-        });
-        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalSalaryApprove.Approve(c,tx,checker,run,new JsonObject
-        {
-            ["payRunRiderIds"]=new JsonArray(riderId)
         })).Status);
         tx.Commit();
     }

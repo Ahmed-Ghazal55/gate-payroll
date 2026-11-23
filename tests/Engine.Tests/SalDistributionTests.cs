@@ -94,13 +94,13 @@ public sealed class SalDistributionTests
                 ["itemId"]=tga,
                 ["allocations"]=new JsonArray(
                     new JsonObject{["bearer"]="rider",["erpRiderId"]=riderA,["amount"]=40,["fromDate"]="2026-10-01",["toDate"]="2026-10-10"},
-                    new JsonObject{["bearer"]="rider",["erpRiderId"]=riderB,["amount"]=0,["fromDate"]="2026-10-11",["toDate"]="2026-10-31"},
-                    new JsonObject{["bearer"]="company",["amount"]=0}
+                    new JsonObject{["bearer"]="rider",["erpRiderId"]=riderB,["amount"]=30,["fromDate"]="2026-10-11",["toDate"]="2026-10-31"},
+                    new JsonObject{["bearer"]="company",["amount"]=30}
                 )
             });
             Assert.AreEqual(100m,result.N("allocatedTotal"));
             Assert.AreEqual(3,result["bearers"]!.AsArray().Count);
-            Assert.AreEqual(60m,result["bearers"]!.AsArray().OfType<JsonObject>().Last().N("amount"));
+            Assert.AreEqual(30m,result["bearers"]!.AsArray().OfType<JsonObject>().Last().N("amount"));
             Assert.IsTrue(result["allowedActions"]!.AsArray().Any(a=>a?.ToString()=="allocate_tga"));
             Assert.AreEqual(3L,Convert.ToInt64(MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(1) FROM sal_item_bearer WHERE item_id=@id",("@id",tga))!));
             tx.Commit();
