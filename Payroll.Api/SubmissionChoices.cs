@@ -10,6 +10,12 @@ namespace Payroll;
 public static class SubmissionChoices
 {
     public static int Version(JsonObject d) => (int)d.N("version", 1);
+    /// <summary>Ghazal 2026-11-23: a rider may edit a work-system choice at most 3 times per form cycle.
+    /// A new monthly link starts a new campaign (new count); closing and reopening the same link starts a new cycle.</summary>
+    public const int MaxEdits = 3;
+    public static int Cycle(JsonObject campaign) => (int)campaign.N("cycle", 1);
+    public static int EditsUsed(JsonObject d, JsonObject campaign) => (int)d.N("editCycle", 1) == Cycle(campaign) ? (int)d.N("editCount", 0) : 0;
+    public static int EditsLeft(JsonObject d, JsonObject campaign) => Math.Max(0, MaxEdits - EditsUsed(d, campaign));
     /// <summary>Staff projection: drop the edit-token hash and mask IBAN (and history) unless the caller has <see cref="WorkforceApi.PermIban"/>.</summary>
     public static JsonObject PublicAdmin(JsonObject d, ClaimsPrincipal? user = null)
     {
@@ -104,14 +110,16 @@ public static class SubmissionChoices
     {
         // Public lookup never returns phone or IBAN of any rider (H20 / public edit IDOR).
         var result=new JsonObject() { ["alreadySubmitted"]=true,["iqama"]=d.S("iqama"),["name"]=d.S("name"),["currentChoice"]=d.S("workSystem"),["version"]=Version(d),["message"]="سبق لك تسجيل اختيار. يمكنك تعديله أدناه مباشرة." };
+        if(campaign!=null){result["editsLeft"]=EditsLeft(d,campaign);result["maxEdits"]=MaxEdits;}
         foreach(string f in campaign==null?[]:CampaignOperations.Fields(campaign))
             if(f is not ("phone" or "iban")) result[f]=d.S(f);
         return result;
     }
-    static JsonObject Receipt(JsonObject d, string? editToken = null)
+    static JsonObject Receipt(JsonObject d, string? editToken = null, JsonObject? campaign = null)
     {
         var result = new JsonObject { ["receipt"]=d.S("id"),["iqama"]=d.S("iqama"),["name"]=d.S("name"),["workSystem"]=d.S("workSystem"),["isEdited"]=d.B("isEdited"),["version"]=Version(d),["status"]=d.S("status"),["submittedAt"]=d.S("updatedAt",d.S("createdAt")),["message"]=d.B("isEdited")?"تم تعديل اختيارك بنجاح.":"تم تسجيل اختيارك بنجاح." };
         if (editToken != null) result["editToken"] = editToken;
+        if (campaign != null) { result["editsLeft"] = EditsLeft(d, campaign); result["maxEdits"] = MaxEdits; }
         return result;
     }
     public static void Map(WebApplication app,Store store,Func<string,JsonObject> campaignLookup)
@@ -134,7 +142,8 @@ public static class SubmissionChoices
                 var d=new JsonObject { ["id"]=Guid.NewGuid().ToString("N"),["campaignId"]=campaign.S("id"),["schema"]="work-choice-v1",["iqama"]=choice.Iqama,["name"]=choice.Name,["workSystem"]=choice.WorkSystem,["status"]="pending",["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["version"]=1,["isEdited"]=false,["history"]=new JsonArray() };
                 foreach(var field in answers)d[field.Key]=field.Value?.DeepClone();
                 string editToken=IssueEditToken(d);
-                Store.Save(c,"submission",d,tx);Store.Audit(c,tx,"submission.received",d.S("id"),"public-form");return Results.Ok(Receipt(d, editToken));
+                Store.Save(c,"submission",d,tx);d["editCycle"]=Cycle(campaign);d["editCount"]=0;
+                Store.Audit(c,tx,"submission.received",d.S("id"),"public-form");return Results.Ok(Receipt(d, editToken, campaign));
             });
         }).WithTags("Forms and responses").WithSummary("Submit public forms {token}").RequireRateLimiting("sensitive");
         // Retain the v0.5.1 recovery route for already-loaded legacy clients only.
@@ -154,8 +163,9 @@ public static class SubmissionChoices
                 RequireEditToken(d, input.S("editToken"));
                 J.Need(input.S("receipt")=="" || input.S("receipt")==d.S("id"),"رقم الإيصال لا يطابق الإقامة والحملة.");CheckVersion(d,input);
                 bool changed=d.S("name")!=choice.Name || d.S("workSystem")!=choice.WorkSystem || answers.Any(p=>d.S(p.Key)!=p.Value?.ToString());
-                if(changed){ArchiveAndEdit(d,choice);foreach(var field in answers)d[field.Key]=field.Value?.DeepClone();Store.Audit(c,tx,"submission.edited",d.S("id"),"public-form");Store.Save(c,"submission",d,tx);}
-                return Results.Ok(Receipt(d, input.S("editToken")));
+                if(changed){int used=EditsUsed(d,campaign);if(used>=MaxEdits)return Results.Json(new JsonObject{["error"]="وصلت للحد الأقصى لتعديل اختيارك ("+MaxEdits+" مرات) في هذا النموذج.",["code"]="edit_limit",["editsLeft"]=0,["maxEdits"]=MaxEdits},statusCode:409);
+                    ArchiveAndEdit(d,choice);foreach(var field in answers)d[field.Key]=field.Value?.DeepClone();d["editCycle"]=Cycle(campaign);d["editCount"]=used+1;Store.Audit(c,tx,"submission.edited",d.S("id")+"#"+(used+1),"public-form");Store.Save(c,"submission",d,tx);}
+                return Results.Ok(Receipt(d, input.S("editToken"), campaign));
             });
         }).WithTags("Forms and responses").WithSummary("Submit public forms {token} edit").RequireRateLimiting("sensitive");
     }

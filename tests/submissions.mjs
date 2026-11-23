@@ -50,6 +50,10 @@ try{
  const results=await Promise.all(['Concurrent Alpha','Concurrent Beta'].map(name=>fetch(base+pub+'/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,editToken,version:3,name})})));
  assert.deepEqual(results.map(r=>r.status).sort(),[200,409]);checks+=2;
  // Callers may omit version; both sequential writes with the editToken must be archived, never lost.
+ const limited=await Promise.all(['Simple Alpha','Simple Beta'].map(name=>fetch(base+pub+'/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,editToken,name})})));
+ // Ghazal 2026-11-23: at most 3 edits per form cycle; closing and reopening the form starts a new count.
+ assert.ok(limited.every(r=>r.status===409));const lim=await limited[0].json();assert.equal(lim.code,'edit_limit');assert.equal(lim.editsLeft,0);checks+=2;
+ for(const status of ['closed','open']){const r=await fetch(base+'/api/campaigns/'+campaign.id,{method:'PUT',headers:{'Content-Type':'application/json',Cookie:adminCookie},body:JSON.stringify({status})});assert.equal(r.status,200);}
  const simple=await Promise.all(['Simple Alpha','Simple Beta'].map(name=>fetch(base+pub+'/edit',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...form,editToken,name})})));
  assert.ok(simple.every(r=>r.status===200));checks+=2;row=(await req('/api/submissions'))[0];assert.equal(row.version,6);assert.equal(row.history.length,5);assert.deepEqual(row.history.map(h=>h.version),[1,2,3,4,5]);assert.equal(row.history[2].reviewNote,'Optional checked note');
  const duplicates=await Promise.all(Array.from({length:2},()=>fetch(base+pub,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(form)})));assert.ok(duplicates.every(r=>r.status===409));checks+=2;assert.equal((await req('/api/submissions')).length,1);
