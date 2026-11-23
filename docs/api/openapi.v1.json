@@ -1051,6 +1051,9 @@
                           },
                           "pendingRoleApproval": {
                             "type": "boolean"
+                          },
+                          "allCities": {
+                            "type": "boolean"
                           }
                         }
                       }
@@ -1612,6 +1615,9 @@
                             "type": "boolean"
                           },
                           "pendingRoleApproval": {
+                            "type": "boolean"
+                          },
+                          "allCities": {
                             "type": "boolean"
                           }
                         }
@@ -28686,6 +28692,9 @@
                       },
                       "pendingRoleApproval": {
                         "type": "boolean"
+                      },
+                      "allCities": {
+                        "type": "boolean"
                       }
                     }
                   }
@@ -28833,6 +28842,9 @@
                             },
                             "pendingRoleApproval": {
                               "type": "boolean"
+                            },
+                            "allCities": {
+                              "type": "boolean"
                             }
                           }
                         }
@@ -28973,6 +28985,9 @@
                             "type": "boolean"
                           },
                           "pendingRoleApproval": {
+                            "type": "boolean"
+                          },
+                          "allCities": {
                             "type": "boolean"
                           }
                         }
@@ -29116,6 +29131,9 @@
                           },
                           "pendingRoleApproval": {
                             "type": "boolean"
+                          },
+                          "allCities": {
+                            "type": "boolean"
                           }
                         }
                       }
@@ -29160,7 +29178,7 @@
         "tags": [
           "Forms and responses"
         ],
-        "summary": "Open, pause or close evaluation round",
+        "summary": "Open, pause, close or refresh staff of an evaluation round",
         "parameters": [
           {
             "name": "id",
@@ -29265,6 +29283,9 @@
                             "type": "boolean"
                           },
                           "pendingRoleApproval": {
+                            "type": "boolean"
+                          },
+                          "allCities": {
                             "type": "boolean"
                           }
                         }
@@ -31488,6 +31509,9 @@
                             "type": "boolean"
                           },
                           "pendingRoleApproval": {
+                            "type": "boolean"
+                          },
+                          "allCities": {
                             "type": "boolean"
                           }
                         }

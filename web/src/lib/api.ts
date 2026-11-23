@@ -2417,7 +2417,7 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ title }),
     }),
-  transitionEvaluationRound: (id: string, action: 'open' | 'pause' | 'close') =>
+  transitionEvaluationRound: (id: string, action: 'open' | 'pause' | 'close' | 'refresh-staff') =>
     handleRequest<EvaluationRoundItem>(
       `/forms/evaluations/rounds/${encodeURIComponent(id)}/${encodeURIComponent(action)}`,
       { method: 'POST', body: JSON.stringify({}) }

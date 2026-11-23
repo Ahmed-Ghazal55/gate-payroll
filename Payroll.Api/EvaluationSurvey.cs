@@ -133,7 +133,9 @@ public static partial class EvaluationSurvey
             // Seed has no ids: deterministic keys make repeat imports idempotent and merge multi-role people.
             string id = "evstaff:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(name.Normalize().ToUpperInvariant()))).ToLowerInvariant();
             var prior = imported.GetValueOrDefault(id) ?? Store.Get(c, id, StaffKind, tx);
-            var doc = new JsonObject { ["id"] = id, ["name"] = name, ["active"] = raw.NullableBool("active") ?? true, ["excluded"] = raw.B("excluded"), ["pendingRoleApproval"] = raw.B("pendingRoleApproval") };
+            var doc = new JsonObject { ["id"] = id, ["name"] = name, ["active"] = raw.NullableBool("active") ?? true, ["excluded"] = raw.B("excluded"), ["pendingRoleApproval"] = raw.B("pendingRoleApproval"),
+                // Remote teams (call centre, technical support) serve riders in every work city; their own office is not a work city.
+                ["allCities"] = raw.NullableBool("allCities") ?? prior?.NullableBool("allCities") ?? false };
             foreach (string field in new[] { "cities", "departments", "roles", "apps" })
                 doc[field] = Array(Strings(raw, field).Concat(prior == null ? [] : Strings(prior, field)).Distinct(StringComparer.Ordinal));
             J.Need(Strings(doc, "apps").All(a => PayPlatforms.Table.Any(p => p.Platform == a)), "استخدم معرفات المنصات المعتمدة في ملف الاستيراد.");
@@ -157,11 +159,33 @@ public static partial class EvaluationSurvey
             ["id"] = "evround:" + Guid.NewGuid().ToString("N"), ["kind"] = "evaluation", ["schema"] = "evaluation-v1",
             ["title"] = Text(input, "title", 200, true), ["status"] = "draft", ["createdAt"] = Now(),
             ["sharingToken"] = CampaignLinks.NewToken(), ["staff"] = Array(staff),
-            ["apps"] = Array(PayPlatforms.Table.Select(a => a.Platform)), ["cities"] = Array(staff.SelectMany(s => Strings(s, "cities")).Distinct()),
+            ["apps"] = Array(PayPlatforms.Table.Select(a => a.Platform)), ["cities"] = Array(WorkCities(staff)),
             ["schemaVersion"] = 1
         };
+        J.Need(Strings(round, "cities").Length > 0, "لا توجد مدينة عمل: كل الموظفين معلّمون «كل المدن».");
         Store.Save(c, RoundKind, round, tx);
         Store.Audit(c, tx, "evaluation.created", round.S("id"), user.Identity!.Name!);
+        return round;
+    }
+    /// <summary>Work cities a rider can pick: cities of city-bound staff, minus the offices of remote (all-cities) staff.</summary>
+    public static string[] WorkCities(IEnumerable<JsonObject> staff)
+    {
+        var list = staff.ToList();
+        var offices = list.Where(s => s.B("allCities")).SelectMany(s => Strings(s, "cities")).ToHashSet(StringComparer.Ordinal);
+        return list.Where(s => !s.B("allCities")).SelectMany(s => Strings(s, "cities")).Where(c => !offices.Contains(c)).Distinct(StringComparer.Ordinal).ToArray();
+    }
+    public static bool ServesCity(JsonObject staff, string city) => staff.B("allCities") || Strings(staff, "cities").Contains(city);
+    /// <summary>Re-reads the current staff list into an unclosed round. Existing replies keep their answers; a later edit must answer the city's current cards.</summary>
+    public static JsonObject RefreshStaff(DbConnection c, DbTransaction tx, ClaimsPrincipal user, string id)
+    {
+        Demand(user, true); var round = Round(c, id, tx);
+        J.Need(round.S("status") is "draft" or "open" or "paused", "لا يمكن تحديث موظفي جولة مغلقة.", "round_closed", 409);
+        var staff = Store.List(c, StaffKind, tx).Where(s => (s.NullableBool("active") ?? true) && !s.B("excluded")).ToList();
+        J.Need(staff.Count > 0, "استورد قائمة الموظفين أولًا.");
+        var cities = WorkCities(staff);
+        J.Need(cities.Length > 0, "لا توجد مدينة عمل: كل الموظفين معلّمون «كل المدن».");
+        round["staff"] = Array(staff); round["cities"] = Array(cities); round["updatedAt"] = Now();
+        Store.Save(c, RoundKind, round, tx); Store.Audit(c, tx, "evaluation.staff_refreshed", id, user.Identity!.Name!);
         return round;
     }
     public static JsonObject Transition(DbConnection c, DbTransaction tx, ClaimsPrincipal user, string id, string status)
@@ -206,7 +230,7 @@ public static partial class EvaluationSurvey
     static JsonArray Answers(JsonObject round, JsonObject input, bool staff, string city, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes, AttachmentWriteBatch? batch)
     {
         string field = staff ? "staffAnswers" : "appAnswers", key = staff ? "staffId" : "app";
-        var expected = staff ? round["staff"]!.AsArray().OfType<JsonObject>().Where(s => Strings(s, "cities").Contains(city)).Select(s => s.S("id")).ToArray() : Strings(round, "apps");
+        var expected = staff ? round["staff"]!.AsArray().OfType<JsonObject>().Where(s => ServesCity(s, city)).Select(s => s.S("id")).ToArray() : Strings(round, "apps");
         var cards = Cards(input, field);
         J.Need(cards.Count == expected.Length && cards.Select(a => a.S(key)).Distinct().Count() == expected.Length && cards.All(a => expected.Contains(a.S(key))), "أجب عن كل بطاقة مرة واحدة.", "cards_incomplete");
         var clean = new JsonArray();

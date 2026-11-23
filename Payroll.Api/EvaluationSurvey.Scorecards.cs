@@ -41,7 +41,7 @@ public static partial class EvaluationSurvey
     static bool StaffMatches(JsonObject staff, ScorecardFilter filter)
     {
         if (!string.IsNullOrEmpty(filter.SupervisorId) && staff.S("id") != filter.SupervisorId) return false;
-        if (!string.IsNullOrEmpty(filter.City) && !Strings(staff, "cities").Contains(filter.City!)) return false;
+        if (!string.IsNullOrEmpty(filter.City) && !ServesCity(staff, filter.City!)) return false;
         if (!string.IsNullOrEmpty(filter.App) && !Strings(staff, "apps").Contains(filter.App!)) return false;
         if (!string.IsNullOrEmpty(filter.Department) && !Strings(staff, "departments").Contains(filter.Department!)) return false;
         return true;

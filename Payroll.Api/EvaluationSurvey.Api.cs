@@ -17,9 +17,10 @@ public static partial class EvaluationSurvey
             ["noticeEn"] = "Ratings and complaints are confidential and reviewed by management only. Supervisors cannot see names or answers.",
             ["noticeUr"] = "درجہ بندی اور شکایات خفیہ ہیں اور صرف انتظامیہ دیکھ سکتی ہے۔ سپروائزر نام یا جوابات نہیں دیکھ سکتے۔",
             ["cities"] = round["cities"]!.DeepClone(), ["apps"] = round["apps"]!.DeepClone(),
-            ["staff"] = Array(round["staff"]!.AsArray().OfType<JsonObject>().Where(s => string.IsNullOrEmpty(city) || Strings(s, "cities").Contains(city)).Select(s => new JsonObject
+            ["staff"] = Array(round["staff"]!.AsArray().OfType<JsonObject>().Where(s => string.IsNullOrEmpty(city) || ServesCity(s, city)).Select(s => new JsonObject
             {
-                ["id"] = s.S("id"), ["name"] = s.S("name"), ["cities"] = s["cities"]!.DeepClone(), ["departments"] = s["departments"]!.DeepClone(),
+                // Remote staff are listed under every work city, so older clients that filter by cities still show them.
+                ["id"] = s.S("id"), ["name"] = s.S("name"), ["cities"] = s.B("allCities") ? round["cities"]!.DeepClone() : s["cities"]!.DeepClone(), ["departments"] = s["departments"]!.DeepClone(),
                 ["apps"] = s["apps"]!.DeepClone(), ["roles"] = s.B("pendingRoleApproval") ? new JsonArray("بانتظار موافقة غزال") : s["roles"]!.DeepClone()
             })),
             ["identityFields"] = Array(new[] {
@@ -62,7 +63,7 @@ public static partial class EvaluationSurvey
     {
         var view = round.Clone();
         view["allowedActions"] = CanView(ctx.User) && AccessPolicy.Has(ctx.User, "forms.manage")
-            ? Array(round.S("status") switch { "draft" => new[] { "open" }, "open" => new[] { "pause", "close" }, "paused" => new[] { "open", "close" }, _ => System.Array.Empty<string>() }) : new JsonArray();
+            ? Array(round.S("status") switch { "draft" => new[] { "open", "refresh-staff" }, "open" => new[] { "pause", "close", "refresh-staff" }, "paused" => new[] { "open", "close", "refresh-staff" }, _ => System.Array.Empty<string>() }) : new JsonArray();
         return view;
     }
     static JsonObject FilterStatistics(JsonObject stats, string dimension)
@@ -105,7 +106,7 @@ public static partial class EvaluationSurvey
         api.MapGet("/forms/evaluations/rounds", (HttpContext ctx) => { Demand(ctx.User); return store.Read(c => Store.List(c, RoundKind).Select(r => RoundView(r, ctx)).ToList()); }).WithTags("Forms and responses").WithSummary("List evaluation rounds");
         api.MapPost("/forms/evaluations/rounds", (JsonObject input, HttpContext ctx) => store.Write((c, tx) => RoundView(CreateRound(c, tx, ctx.User, input), ctx))).WithTags("Forms and responses").WithSummary("Create evaluation round");
         api.MapGet("/forms/evaluations/rounds/{id}", (string id, HttpContext ctx) => { Demand(ctx.User); return store.Read(c => RoundView(Round(c, id), ctx)); }).WithTags("Forms and responses").WithSummary("Read evaluation round");
-        api.MapPost("/forms/evaluations/rounds/{id}/{action}", (string id, string action, HttpContext ctx) => store.Write((c, tx) => RoundView(Transition(c, tx, ctx.User, id, action switch { "open" => "open", "pause" => "paused", "close" => "closed", _ => throw new ApiError("إجراء غير معروف.", 404) }), ctx))).WithTags("Forms and responses").WithSummary("Open, pause or close evaluation round");
+        api.MapPost("/forms/evaluations/rounds/{id}/{action}", (string id, string action, HttpContext ctx) => store.Write((c, tx) => RoundView(action == "refresh-staff" ? RefreshStaff(c, tx, ctx.User, id) : Transition(c, tx, ctx.User, id, action switch { "open" => "open", "pause" => "paused", "close" => "closed", _ => throw new ApiError("إجراء غير معروف.", 404) }), ctx))).WithTags("Forms and responses").WithSummary("Open, pause, close or refresh staff of an evaluation round");
         api.MapGet("/forms/evaluations/rounds/{id}/responses", (string id, string? supervisorId, string? department, HttpContext ctx) => store.Read(c => ApiPagination.Apply(Responses(c, ctx.User, id, supervisorId, department), ctx.Request.Query, always: true,
             whitelist: new HashSet<string>(StringComparer.Ordinal) { "id", "iqama", "name", "city", "nationality", "phone", "companyId", "createdAt", "workApps" }))).WithTags("Forms and responses").WithSummary("Page evaluation replies");
         api.MapGet("/forms/evaluations/rounds/{id}/statistics", (string id, string? city, string? nationalityId, HttpContext ctx) => store.Read(c => Statistics(c, ctx.User, id, city, nationalityId))).WithTags("Forms and responses").WithSummary("Evaluation statistics for charts");
