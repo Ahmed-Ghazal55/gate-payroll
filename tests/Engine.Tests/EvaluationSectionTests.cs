@@ -233,6 +233,29 @@ public sealed class EvaluationSectionTests
     }
 
     [TestMethod]
+    public void KeptAttachmentMustBelongToThisReply()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f);
+        var hr = Section(round, "dept:hr");
+        var input = SectionReply(hr);
+        string staffId = input["staffAnswers"]![0]!.S("staffId");
+        f.Store.Write((c, tx) =>
+        {
+            // Another reply's file: a client must not be able to reference it by id.
+            Store.Save(c, EvaluationSurvey.AttachmentKind, new JsonObject
+            {
+                ["id"] = "evatt:synthetic-foreign", ["replyId"] = "evreply:someone-else", ["cardKey"] = "staffId", ["cardId"] = staffId,
+                ["kind"] = "image", ["fileName"] = "x.jpg", ["contentType"] = "image/jpeg", ["sizeBytes"] = 10, ["relativePath"] = "none", ["createdAt"] = "2026-11-24T00:00:00Z"
+            }, tx);
+            return 0;
+        });
+        input["staffAnswers"]![0]!["attachments"] = new JsonArray(new JsonObject { ["id"] = "evatt:synthetic-foreign" });
+        var error = Assert.Throws<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, hr.S("sharingToken"), input)));
+        Assert.AreEqual("attachment_invalid", error.Code);
+    }
+
+    [TestMethod]
     public void LegacyRoundWithoutSectionsKeepsCombinedPath()
     {
         using var f = new PayFixture();

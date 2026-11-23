@@ -293,7 +293,7 @@ public static partial class EvaluationSurvey
             if (card["attachments"] is JsonArray arr && arr.Count > 0)
             {
                 if (arr.All(x => x is JsonObject o && o.S("id") != "" && o.S("dataBase64") == ""))
-                    answer["attachments"] = arr.DeepClone();
+                    answer["attachments"] = PreservedAttachments(c, tx, replyId, key, card.S(key), arr);
                 else
                 {
                     J.Need(store != null && c != null && tx != null && batch != null, "رفع المرفقات غير متاح.", "attachment_unavailable");

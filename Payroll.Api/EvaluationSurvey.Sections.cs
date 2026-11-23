@@ -195,7 +195,7 @@ public static partial class EvaluationSurvey
         int complaintsDeleted = 0;
         foreach (var reply in replies)
         {
-            foreach (var complaint in Store.List(c, RiderAsks.ServiceKind, tx).Where(r => r.S("evaluationResponseId") == reply.S("id")).ToList())
+            foreach (var complaint in Store.ListWhere(c, RiderAsks.ServiceKind, tx, null, ("evaluationResponseId", reply.S("id"))).ToList())
             {
                 using var del = Store.Command(c, tx, "DELETE FROM records WHERE id=@id AND kind=@kind", ("@id", complaint.S("id")), ("@kind", RiderAsks.ServiceKind));
                 del.ExecuteNonQuery();
@@ -266,7 +266,7 @@ public static partial class EvaluationSurvey
         if (card["attachments"] is JsonArray arr && arr.Count > 0)
         {
             if (arr.All(x => x is JsonObject o && o.S("id") != "" && o.S("dataBase64") == ""))
-                answer["attachments"] = arr.DeepClone();
+                answer["attachments"] = PreservedAttachments(c, tx, replyId, "finance", "finance", arr);
             else
             {
                 J.Need(store != null && c != null && tx != null && batch != null, "رفع المرفقات غير متاح.", "attachment_unavailable");
