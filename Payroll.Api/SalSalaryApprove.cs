@@ -52,10 +52,12 @@ public static class SalSalaryApprove
 
             // RWC4a1 New HIGH: post entitlement and recoveries separately so −30 does not leave orphan 212103 credit.
             PostEntitlementAccrual(c,tx,actor,run,rider);
+            // RWC4a3F H8 §22.9.2: protected salary operating legs (full D/fuel credit + unrecovered 512121).
+            PostKeetaProtected(c,tx,actor,run,rider);
             PostPersonalRecoveries(c,tx,actor,run,rider);
             // RWC4m2: reverse shared L1 duplicates once per cleared hold even when payable boost is 0.
             PostSharedDuplicatesOnce(c,tx,actor,run,rider);
-            if(net<0&&!keetaIneligible)
+            if(net<0&&!rider.B("protectedSalary"))
                 negDebt=CreateNegativeCarryover(c,tx,actor,run,rider,now);
             payableId=CreatePayable(c,tx,actor,run,rider,now);
 
@@ -70,7 +72,75 @@ public static class SalSalaryApprove
         Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","pay_run")} SET stage=CASE WHEN stage<9 THEN 9 ELSE stage END,updated_by=@by,updated_at=@at WHERE id=@id",
             ("@by",actor.Identity!.Name!),("@at",now),("@id",payRunId));
         Store.Audit(c,tx,"sal.salary_approved",payRunId,actor.Identity!.Name!);
-        return new(){["payRunId"]=payRunId,["rows"]=outRows,["allowedActions"]=new JsonArray("export_bank_file")};
+        // RWC4a3F LOW: no W2 bank-file writer yet (U-W2-17) — never advertise export_bank_file.
+        return new(){["payRunId"]=payRunId,["rows"]=outRows,["allowedActions"]=new JsonArray()};
+    }
+
+    /// <summary>RWC4a3F H8 / §22.9.2: for each operating item post Dr recovered(212103)+Dr unrecovered(512121) / Cr control account for the full amount.
+    /// Vehicle → 421101 car / 421102 bike; fuel → 112511; housing → 421401. Excluded from PostPersonalRecoveries.</summary>
+    static void PostKeetaProtected(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider)
+    {
+        if(!string.Equals(run.S("app"),"keeta",StringComparison.OrdinalIgnoreCase))return;
+        bool protectedSalary=rider.B("protectedSalary")
+            ||(rider.B("keetaIneligible")&&string.Equals(rider.S("schemeType"),"salary",StringComparison.OrdinalIgnoreCase));
+        if(!protectedSalary)return;
+        using var cmd=c.CreateCommand();cmd.Transaction=tx;
+        cmd.CommandText=$"""
+            SELECT item_code,amount,account_code,affects_net FROM {SchemaSql.Q(c,"sal","pay_run_item")}
+            WHERE pay_run_rider_id=@r AND amount>0 AND stage_code='level1'
+              AND (item_code IN ('fuel','vehicle','housing') OR item_code LIKE 'fuel_%' OR item_code LIKE 'vehicle_%' OR item_code LIKE 'housing_%')
+            ORDER BY line_no
+            """;
+        Add(cmd,"@r",rider.S("id"));
+        using var r=cmd.ExecuteReader();
+        var rows=new List<(string Code,decimal Amount,string Account,bool Affects)>();
+        while(r.Read())
+            rows.Add((r["item_code"].ToString()!,Convert.ToDecimal(r["amount"]),r["account_code"].ToString()!,Convert.ToInt32(r["affects_net"])==1));
+        r.Close();
+        if(rows.Count==0)return;
+        // Group recovered + unrecovered by base code so one journal credits the full control amount.
+        var groups=new Dictionary<string,(decimal Recovered,decimal Unrecovered,string Account)>(StringComparer.Ordinal);
+        foreach(var row in rows)
+        {
+            string baseCode=row.Code.EndsWith("_unrecovered",StringComparison.Ordinal)?row.Code[..^"_unrecovered".Length]:row.Code;
+            groups.TryGetValue(baseCode,out var g);
+            if(row.Affects)g.Recovered=J.Money(g.Recovered+row.Amount);
+            else g.Unrecovered=J.Money(g.Unrecovered+row.Amount);
+            if(row.Account is {Length:>0}&&!string.Equals(row.Account,"512121",StringComparison.Ordinal))
+                g.Account=row.Account;
+            else if(g.Account is not {Length:>0})
+                g.Account=ProtectedControlAccount(baseCode,rider);
+            groups[baseCode]=g;
+        }
+        Guid company=Guid.Parse(run.S("companyId"));
+        Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
+        Guid payableAcc=AccountId(c,tx,"212103");
+        Guid unrecoveredAcc=AccountId(c,tx,"512121");
+        Guid? erpRider=Guid.TryParse(rider.S("erpRiderId"),out var er)?er:null;
+        foreach(var (code,g) in groups)
+        {
+            decimal full=J.Money(g.Recovered+g.Unrecovered);
+            if(full<=0)continue;
+            string ctrl=g.Account is {Length:>0}?g.Account:ProtectedControlAccount(code,rider);
+            Guid creditAcc=AccountId(c,tx,ctrl);
+            var lines=new List<JournalPosting.Line>();
+            if(g.Recovered>0)lines.Add(new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),g.Recovered,0m,"استرداد محمي كيتا",null,erpRider));
+            if(g.Unrecovered>0)lines.Add(new(unrecoveredAcc,SchemaOrgCostCentre.NoneId,run.S("app"),g.Unrecovered,0m,"غير مسترد §22.9.2",null,erpRider));
+            lines.Add(new(creditAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,full,"استقطاع محمي كيتا",null,erpRider));
+            JournalPosting.Post(c,tx,new JournalPosting.Draft(
+                company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                "sal_pay_run_rider",SchemaSql.NewId(),"salary_keeta_protected",(byte)run.N("runMode"),run.B("payoutBlocked"),
+                actor.Identity!.Name!,lines));
+        }
+    }
+
+    static string ProtectedControlAccount(string baseCode,JsonObject rider)
+    {
+        if(baseCode.StartsWith("fuel",StringComparison.OrdinalIgnoreCase))return "112511";
+        if(baseCode.StartsWith("housing",StringComparison.OrdinalIgnoreCase))return "421401";
+        string vehicleType=rider.S("vehicleType","car").ToLowerInvariant();
+        return vehicleType is "bike" or "motorcycle" or "scooter"?"421102":"421101";
     }
 
     public static void Map(RouteGroupBuilder api,Store store)
@@ -470,7 +540,7 @@ public static class SalSalaryApprove
     {
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
         cmd.CommandText=$"""
-            SELECT id,erp_rider_id,gross,commission,salary_net,old_debt_instalment,debt_confirm_status,salary_approved_at,keeta_ineligible,created_by
+            SELECT id,erp_rider_id,gross,commission,salary_net,old_debt_instalment,debt_confirm_status,salary_approved_at,keeta_ineligible,protected_salary,created_by
             FROM {SchemaSql.Q(c,"sal","pay_run_rider")} WHERE id=@id AND pay_run_id=@run
             """;
         Add(cmd,"@id",riderId);Add(cmd,"@run",payRunId);
@@ -485,9 +555,11 @@ public static class SalSalaryApprove
             ["debtConfirmStatus"]=r["debt_confirm_status"].ToString()!,
             ["salaryApprovedAt"]=r["salary_approved_at"] is DBNull?"":r["salary_approved_at"].ToString()!,
             ["keetaIneligible"]=Convert.ToInt32(r["keeta_ineligible"])==1,
+            ["protectedSalary"]=Convert.ToInt32(r["protected_salary"])==1,
             ["createdBy"]=r["created_by"] is DBNull?"":r["created_by"].ToString()!
         };
     }
+
 
     static Guid ResolvePeriod(DbConnection c,DbTransaction tx,string companyId,string month)
     {
