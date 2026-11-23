@@ -20,6 +20,7 @@ public static class SchemaAuthCatalog
         EnsureRolePermission(c,tx);
         EnsureUser(c,tx);
         EnsureUserPermission(c,tx);
+        SchemaAuthTotp.Ensure(c,tx);
         SeedCatalog(c,tx);
         EnsureDualControlPermissions(c,tx);
     }

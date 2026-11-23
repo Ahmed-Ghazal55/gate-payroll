@@ -126,6 +126,11 @@ public static class UserAccess
         new("admin.settings.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة إعدادات النظام", "قراءة وحفظ إعدادات النظام في المرجع."),
         new("admin.notify.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة إعدادات الإشعارات", "مصفوفة التنبيهات وقنوات الإشعار."),
         new("admin.org.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة حدود الاعتماد وسياسات المهلة", "حدود الرتب وسياسات التصعيد."),
+        new("admin.archive.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة الأرشفة وطلبات الاستعادة", "سياسات الأرشفة وطلب عرض تدقيق مؤقت للقراءة فقط دون حذف."),
+        new("chat.view", "Admin", "إدارة المستخدمين والأدوار والنظام", "عرض محادثة الموظفين", "قراءة قنوات ورسائل محادثة الموظفين ضمن النطاق."),
+        new("chat.post", "Admin", "إدارة المستخدمين والأدوار والنظام", "إرسال في محادثة الموظفين", "نشر رسائل ومرفقات ضمن حدود الوسائط."),
+        new("chat.moderate", "Admin", "إدارة المستخدمين والأدوار والنظام", "إشراف محادثة الموظفين", "إخفاء وتثبيت ومنع مستخدمين داخل المحادثة."),
+        new("chat.admin", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة قنوات المحادثة", "إنشاء القنوات والعضوية ونطاق الشركة."),
         new("notify.send.general", "Admin", "إدارة المستخدمين والأدوار والنظام", "إرسال إشعار عام", "بث إشعار عام للأدوار أو الأقسام."),
         new("notify.send.custom", "Admin", "إدارة المستخدمين والأدوار والنظام", "إرسال إشعار مخصص", "إشعار لمستخدمين محددين."),
         new("tasks.assign", "Admin", "إدارة المستخدمين والأدوار والنظام", "تعيين المهام", "إنشاء وتعيين مهام تشغيلية."),
@@ -579,6 +584,14 @@ public static class UserAccess
         if (u == null || !Roles.Contains(Role(u)) || Status(u) != "active" || (context.Principal!.FindFirst("securityVersion") is { } version && version.Value != u.S("securityVersion")))
         { context.RejectPrincipal(); await context.HttpContext.SignOutAsync(); return; }
         // Upgrade legacy administrator cookies without invalidating a working production session.
+        // Keep enrollment-only sessions until 2FA is verified (past the 14-day window).
+        if(context.Principal!.HasClaim(Auth2faApi.EnrollmentClaim,"true")
+           &&store.Read(c=>Auth2faApi.LoginBlocked(c,store.DirectoryPath,u)))
+        {
+            context.ReplacePrincipal(Auth2faApi.EnrollmentPrincipal(u));
+            context.ShouldRenew=false;
+            return;
+        }
         context.ReplacePrincipal(store.Read(c=>Principal(WithRole(c,null,u))));
         context.ShouldRenew = false;
     }

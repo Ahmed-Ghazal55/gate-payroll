@@ -128,13 +128,31 @@ app.MapPost("/api/auth/login", async (JsonObject input, HttpContext ctx) =>
             Store.Save(c,"user",current,tx); return true; });
         return Results.Json(ApiErrors.Body(401, "اسم المستخدم أو كلمة المرور غير صحيحة."), statusCode: 401);
     }
-    var loggedIn = store.Write((c,tx) => {
+    string? secondFactor = input.S("code");
+    if (string.IsNullOrWhiteSpace(secondFactor)) secondFactor = input.S("totpCode");
+    JsonObject login = store.Write((c,tx) => {
         var current = Store.Get(c, user!.S("id"), "user", tx)!;
         J.Need(UserAccess.Status(current)=="active", "الحساب غير متاح.");
-        current["failedLogins"]=0; current["lockedUntil"]="";
-        current["lastLoginAt"]=Now(); Store.Save(c,"user",current,tx); Store.Audit(c,tx,"admin.login",current.S("id"),current.S("username"));return current;
+        var gate = Auth2faApi.CompletePasswordLogin(c, tx, store.DirectoryPath, current, string.IsNullOrWhiteSpace(secondFactor) ? null : secondFactor);
+        if (gate.S("mode") != "challenge")
+        {
+            current["failedLogins"]=0; current["lockedUntil"]="";
+            current["lastLoginAt"]=Now(); Store.Save(c,"user",current,tx);
+            Store.Audit(c,tx,gate.B("enrollmentOnly")?"admin.login_enrollment":"admin.login",current.S("id"),current.S("username"));
+            gate["user"] = current;
+        }
+        return gate;
     });
-    await SignIn(ctx, loggedIn); return Results.Ok(UserAccess.Public(loggedIn));
+    if (login.S("mode") == "challenge")
+        return Results.Json(new { requiresTwoFactor = true, messageAr = login.S("messageAr", "أدخل رمز التحقق الثنائي أو رمزاً احتياطياً.") }, statusCode: 401);
+    var loggedIn = login["user"] as JsonObject ?? throw new ApiError("تعذّر إكمال الدخول.",500);
+    if (login.B("enrollmentOnly"))
+        await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, Auth2faApi.EnrollmentPrincipal(loggedIn));
+    else
+        await SignIn(ctx, loggedIn);
+    var body = UserAccess.Public(loggedIn);
+    if (login.B("enrollmentOnly")) { body["enrollmentOnly"] = true; body["messageAr"] = "أكمل إعداد التحقق الثنائي قبل استخدام النظام."; }
+    return Results.Ok(body);
 }).WithTags("Administration").WithSummary("Submit auth login").RequireRateLimiting("sensitive");
 app.MapPost("/api/auth/logout", async (HttpContext ctx) => { await ctx.SignOutAsync(); return Results.Ok(); }).WithTags("Administration").WithSummary("Submit auth logout");
 var api = app.MapGroup("/api").RequireAuthorization();
@@ -177,9 +195,12 @@ ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);
 TestSeed.Map(api, store, app.Environment);
 UserAccess.Map(api, store);
+Auth2faApi.Map(api, store);
 AuditApi.Map(api, store);
 AdminSettings.Map(api, store);
+ArchiveApi.Map(api, store);
 NotifyTasksApi.Map(api, store);
+StaffChatApi.Map(api, store);
 AccessPolicy.MapBypass(api, store);
 RiderDirectory.Map(api, store);
 Debts.Map(api, store);

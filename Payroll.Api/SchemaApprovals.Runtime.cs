@@ -314,6 +314,9 @@ public static partial class SchemaApprovals
             ("@at",row.S("decidedAt",DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture))),
             ("@out",outcome),("@snap",snapshot),("@grant",bypass));
         row["id"]=sqlId;
+        var request=GetRequest(c,tx,SchemaSql.GuidText(reqGuid));
+        if(request!=null&&string.Equals(request.S("kind"),ArchiveApi.ApprovalKind,StringComparison.OrdinalIgnoreCase))
+            ArchiveApi.ApplyApproval(c,tx,SchemaSql.GuidText(reqGuid),outcome,row.S("decidedBy","system"));
     }
 
     public static List<JsonObject> ListBypassGrants(DbConnection c,DbTransaction? tx)

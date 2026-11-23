@@ -49,11 +49,29 @@ public static partial class AccessPolicy
         if(user.Identity?.IsAuthenticated!=true)return false;
         // A temporary password opens nothing but the screen that replaces it, for administrators too.
         if(user.HasClaim("mustChangePassword","true"))return path is "/api/me" or "/api/me/password" or "/api/auth/logout";
+        // Enrollment-only session after the 14-day 2FA window: setup/verify only (no business APIs).
+        if(Auth2faApi.IsEnrollmentOnly(user))
+        {
+            if(path is "/api/me" or "/api/auth/logout")return method=="GET"||path=="/api/auth/logout"&&method=="POST";
+            if(path.StartsWith("/api/auth/2fa",StringComparison.Ordinal))
+            {
+                if(method!="POST")return false;
+                if(path.EndsWith("/reset",StringComparison.Ordinal))return false;
+                return path.EndsWith("/setup",StringComparison.Ordinal)||path.EndsWith("/verify",StringComparison.Ordinal)||path.EndsWith("/backup-codes",StringComparison.Ordinal);
+            }
+            return false;
+        }
         if(Administrator(user))return true;
         bool Get(string prefix)=>method=="GET"&&path.StartsWith(prefix,StringComparison.Ordinal);
         bool Has(string permission)=>AccessPolicy.Has(user,permission);
         if(path is "/api/me" or "/api/roles-catalog")return method=="GET";
         if(path=="/api/me/password")return method=="POST";
+        if(path.StartsWith("/api/auth/2fa",StringComparison.Ordinal))
+        {
+            if(method!="POST")return false;
+            if(path.EndsWith("/reset",StringComparison.Ordinal))return Has("users.manage");
+            return true; // self setup/verify/backup for authenticated users
+        }
         if(path.StartsWith("/api/roles/",StringComparison.Ordinal))return false;
         if(path.StartsWith("/api/config/lists",StringComparison.Ordinal))return method=="GET"||method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return method is "GET" or "POST" or "PUT"&&Has("users.manage"); // Handlers guard escalation and self-edit.
@@ -263,6 +281,21 @@ public static partial class AccessPolicy
         if(path=="/api/admin/read-summary")return method=="GET"&&Has("admin.read_summary.view");
         if(path=="/api/admin/settings")return (method=="GET"||method=="PUT")&&Has("admin.settings.manage");
         if(path=="/api/admin/notify-settings")return (method=="GET"||method=="PUT")&&Has("admin.notify.manage");
+        if(path=="/api/admin/archive/policies")return method=="GET"&&Has("admin.archive.manage");
+        if(path=="/api/admin/archive/restore-request"||path=="/api/admin/archive/restore-view")return method=="POST"&&Has("admin.archive.manage");
+        if(path.StartsWith("/api/chat",StringComparison.Ordinal))
+        {
+            if(method=="GET")
+            {
+                if(path.Contains("/media/",StringComparison.Ordinal))return Has("chat.view")||Has("chat.post")||Has("chat.moderate")||Has("chat.admin");
+                return Has("chat.view")||Has("chat.post")||Has("chat.moderate")||Has("chat.admin");
+            }
+            if(method!="POST")return false;
+            if(path=="/api/chat/channels")return Has("chat.admin");
+            if(path.EndsWith("/attachments",StringComparison.Ordinal)||path.EndsWith("/messages",StringComparison.Ordinal))
+                return Has("chat.post")||Has("chat.moderate")||Has("chat.admin");
+            return Has("chat.moderate")||Has("chat.admin");
+        }
         if(path=="/api/notify/send")return method=="POST"&&(Has("notify.send.general")||Has("notify.send.custom"));
         if(path=="/api/tasks"||path.StartsWith("/api/tasks/",StringComparison.Ordinal))
             return method=="GET"?(Has("tasks.assign")||Has("tasks.manage")):(method is "POST" or "PUT")&&(Has("tasks.assign")||Has("tasks.manage"));
