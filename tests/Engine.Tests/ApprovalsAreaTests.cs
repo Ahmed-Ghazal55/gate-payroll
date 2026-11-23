@@ -43,7 +43,10 @@ public sealed class ApprovalsAreaTests
             ["targetDepartment"]="FIN",["requiredRankLevel"]=1,
             ["createdAt"]=DateTimeOffset.UtcNow.AddDays(-10).ToString("O")
         };
-        f.Store.Write((c,tx)=>{Store.Save(c,"approval_request",old,tx);ApprovalsArea.EscalateOverdue(c,tx);return true;});
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,"user",new(){["id"]="other",["username"]="other",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=3},tx);
+            Store.Save(c,"approval_request",old,tx);ApprovalsArea.EscalateOverdue(c,tx);return true;
+        });
         Assert.AreEqual("escalated",f.Store.Read(c=>Store.Get(c,old.S("id"),"approval_request")!.S("status")));
         Assert.AreNotEqual("approved",f.Store.Read(c=>Store.Get(c,old.S("id"),"approval_request")!.S("status")));
     }
@@ -58,7 +61,10 @@ public sealed class ApprovalsAreaTests
             ["id"]="synthetic-decide-request",["kind"]="generic",["status"]="pending",["requestedBy"]="synthetic-pay-maker",
             ["targetDepartment"]="FIN",["fromDepartment"]="OPS",["requiredRankLevel"]=1,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")
         };
-        f.Store.Write((c,tx)=>{Store.Save(c,"approval_request",req,tx);return true;});
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,"user",new(){["id"]="synthetic-pay-checker",["username"]="synthetic-pay-checker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5},tx);
+            Store.Save(c,"approval_request",req,tx);return true;
+        });
         var decided=f.Store.Write((c,tx)=>ApprovalsArea.Decide(c,tx,checker,req.S("id"),new(){["decision"]="approve",["note"]="ok"}));
         Assert.AreEqual("approved",decided.S("status"));
         Assert.AreEqual(0,decided["allowedActions"]!.AsArray().Count);
@@ -108,7 +114,10 @@ public sealed class ApprovalsAreaTests
             ["fromDepartment"]="OPS",["targetDepartment"]="FIN",["requiredRankLevel"]=4,["amountSar"]=10,
             ["sponsorId"]=company,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")
         };
-        f.Store.Write((c,tx)=>{Store.Save(c,"approval_request",req,tx);return true;});
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,"user",new(){["id"]="other",["username"]="other",["role"]="FinancialAccountant",["department"]="OPS",["rankLevel"]=2},tx);
+            Store.Save(c,"approval_request",req,tx);return true;
+        });
         JsonObject ScopeUser(string name,string dept,int rank)=>new()
         {
             ["username"]=name,["role"]="FinancialAccountant",["department"]=dept,["rankLevel"]=rank,

@@ -124,6 +124,15 @@ public static partial class AccessPolicy
         if(path is "/api/finance/bank-file/preview" or "/api/finance/bank-file/export")return method=="POST"&&Has("finance.bankfile.export")&&Has("payroll.view");
         if(path is "/api/finance/trial-balance" or "/api/finance/income-statement")return method=="GET"&&Has("treasury.journals");
         if(path=="/api/finance/catalog")return method=="GET"&&(Has("debts.view")||Has("treasury.view"));
+        if(path=="/api/finance/coa"||path.StartsWith("/api/finance/coa/",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("accounting.chart.view")||Has("treasury.view");
+            if(method=="DELETE")return false;
+            if(method=="PUT")return Has("accounting.chart.edit");
+            if(method!="POST")return false;
+            if(path.EndsWith("/deactivate",StringComparison.Ordinal)||path.EndsWith("/reactivate",StringComparison.Ordinal))return Has("accounting.chart.deactivate");
+            return path=="/api/finance/coa"&&Has("accounting.chart.create");
+        }
         if(path.StartsWith("/api/finance/opening/",StringComparison.Ordinal))return Has("treasury.opening");
         if(path.StartsWith("/api/finance/legacy-cash-allocation/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
         if(path.StartsWith("/api/finance/jahez-handovers/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.jahez.receive")&&(path.EndsWith("/confirm",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal));
@@ -150,6 +159,7 @@ public static partial class AccessPolicy
             return (path.EndsWith("/payout",StringComparison.Ordinal)||path.EndsWith("/request-payout",StringComparison.Ordinal))&&Has("advances.payout");
         }
         if(path.StartsWith("/api/approvals",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&path.EndsWith("/decide",StringComparison.Ordinal)&&Has("approvals.decide");
+        if(path=="/api/audit")return method=="GET"&&(Has("audit.view")||Has("admin.audit.view"));
         if(path.StartsWith("/api/admin/org/approval-limits",StringComparison.Ordinal)||path.StartsWith("/api/admin/org/sla-policies",StringComparison.Ordinal))
             return (method=="GET"||method=="PUT")&&(Has("admin.org.manage")||Has("org.manage"));
         if(path.StartsWith("/api/sal/simulations/",StringComparison.Ordinal))
@@ -174,7 +184,6 @@ public static partial class AccessPolicy
                 return Has("pay.approve")||Has("pay.manage");
             return method=="POST"&&Has("pay.manage");
         }
-        if(path=="/api/audit")return method=="GET"&&Has("audit.view");
         // DELETE / campaign PUT stay admin-only (blanket deny). forms.delete is deprecated and unused.
         if(method=="DELETE"||path.EndsWith("/delete-preview",StringComparison.Ordinal)||path=="/api/submissions/bulk-delete"||method=="PUT"&&path.StartsWith("/api/campaigns/",StringComparison.Ordinal))return false;
         if(method=="POST"&&path.StartsWith("/api/notifications/center/",StringComparison.Ordinal)&&path.EndsWith("/toggle-todo",StringComparison.Ordinal))return true; // Handler checks view permission or ownership and visibility.
@@ -194,7 +203,9 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/promissory-notes",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
         if(path.StartsWith("/api/payroll",StringComparison.Ordinal))return method=="GET"?Has("payroll.view"):method=="POST"&&path=="/api/payroll/approve"&&Has("payroll.approve");
         if(path.StartsWith("/api/ledger",StringComparison.Ordinal))return method=="GET"&&Has("payroll.view");
-        if(path=="/api/payments")return method=="POST"&&Has("payments.record");
+        if(path.StartsWith("/api/payments/",StringComparison.Ordinal))return PaymentsApi.Allowed(user,method,path);
+        // RWP1: legacy POST /api/payments posted money-out with payments.record and no dual approval (M-0672).
+        if(path=="/api/payments")return false;
         if(path=="/api/adjustments")return method=="POST"&&Has("adjustments.create");
         if(path.StartsWith("/api/policies",StringComparison.Ordinal))return method=="GET"?Has("policies.view"):Has("policies.manage");
         if((method=="GET"&&path=="/api/imports")||path=="/api/template.csv")return Has("imports.view");
@@ -206,6 +217,15 @@ public static partial class AccessPolicy
         // GET builder list is forms.view; create/publish/close stay forms.manage.
         if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))
             return method=="GET"?Has("forms.view"):Has("forms.manage");
+        if(path=="/api/admin/audit/self-approvals")return method=="GET"&&Has("admin.audit.view");
+        if(path=="/api/admin/read-summary")return method=="GET"&&Has("admin.read_summary.view");
+        if(path=="/api/admin/settings")return (method=="GET"||method=="PUT")&&Has("admin.settings.manage");
+        if(path=="/api/admin/notify-settings")return (method=="GET"||method=="PUT")&&Has("admin.notify.manage");
+        if(path=="/api/notify/send")return method=="POST"&&(Has("notify.send.general")||Has("notify.send.custom"));
+        if(path=="/api/tasks"||path.StartsWith("/api/tasks/",StringComparison.Ordinal))
+            return method=="GET"?(Has("tasks.assign")||Has("tasks.manage")):(method is "POST" or "PUT")&&(Has("tasks.assign")||Has("tasks.manage"));
+        if(path.StartsWith("/api/users/",StringComparison.Ordinal)&&path.EndsWith("/effective-permissions",StringComparison.Ordinal))return method=="GET"&&Has("users.manage");
+        if(path.StartsWith("/api/users/",StringComparison.Ordinal)&&path.EndsWith("/copy-permissions",StringComparison.Ordinal))return method=="POST"&&Has("users.manage");
         return false;
     }
     /// <summary>BR §35 / M-0672: permission-only in general; two-person only when the server-derived dual code

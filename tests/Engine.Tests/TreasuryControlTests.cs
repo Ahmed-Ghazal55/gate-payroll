@@ -16,27 +16,14 @@ public sealed class TreasuryControlTests
             new JsonObject{["accountCode"]="MAIN.TR",["sponsorId"]=owner,["accountType"]="Asset",["debit"]=Math.Max(0,balance),["credit"]=Math.Max(0,-balance)},
             new JsonObject{["accountCode"]="3101",["sponsorId"]=owner,["accountType"]="Equity",["debit"]=Math.Max(0,-balance),["credit"]=Math.Max(0,balance)})},tx);return true;
     });
-    [TestMethod] public void LegacyCashIsClosedOnceWithoutDuplicatingNewChildrenOrRewritingOldDocument()
+    [TestMethod] public void LegacyCashAllocationPostingIsGone()
     {
-        Run(store=>{Legacy(store,1000);string original=store.Read(c=>Store.Get(c,"legacy-main-tr","journal")!.ToJsonString());
-            store.Read(c=>{Assert.ThrowsExactly<ApiError>(()=>TreasuryEntries.ValidateOpening(c,null,new JsonArray(new JsonObject{["accountCode"]="MAIN.TR.DEBT",["sponsorCode"]="TR",["verifiedBalance"]=500,["sourceRef"]="bad",["notes"]="Reviewed"})));return true;});
-            var input=new JsonObject{["debtBalance"]=500,["settlementBalance"]=300,["feeBalance"]=200,["sourceRef"]="allocate",["notes"]="Verified physical count and purpose evidence"};
-            var result=store.Write((c,tx)=>LegacyCashAllocation.Post(c,tx,input,Actor("finance")));Assert.AreEqual(0m,result.N("equityAdjustment"));
-            store.Read(c=>{Assert.AreEqual(original,Store.Get(c,"legacy-main-tr","journal")!.ToJsonString());Assert.AreEqual(0m,AccountingPolicy.Balance(c,null,"MAIN.TR"));Assert.AreEqual(500m,AccountingPolicy.Balance(c,null,"MAIN.TR.DEBT"));Assert.AreEqual(300m,AccountingPolicy.Balance(c,null,"MAIN.TR.SET"));Assert.AreEqual(200m,AccountingPolicy.Balance(c,null,"MAIN.TR.FEE"));return true;});
-            Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>LegacyCashAllocation.Post(c,tx,input,Actor("finance"))));
-        });
-    }
-    [TestMethod] public void LegacyAllocationUsesFinalVerifiedBalancesAndDoesNotRepeatExistingChildMoney()
-    {
-        Run(store=>{Legacy(store,1000);AccountingPostingTests.SeedCash(store,"MAIN.TR.SET",500);
-            var result=store.Write((c,tx)=>LegacyCashAllocation.Post(c,tx,new(){["debtBalance"]=500,["settlementBalance"]=800,["feeBalance"]=200,["sourceRef"]="existing-child",["notes"]="Current child receipts counted separately"},Actor("finance")));
-            Assert.AreEqual(1500m,result.N("currentTotal"));Assert.AreEqual(0m,result.N("equityAdjustment"));Assert.AreEqual(800m,store.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.TR.SET")));
-        });
-    }
-    [TestMethod] public void NegativeLegacyCashNeedsExplicitVerifiedOpeningAndNeverCreatesAutomaticSpendableCash()
-    {
-        Run(store=>{Legacy(store,-600);var result=store.Write((c,tx)=>LegacyCashAllocation.Post(c,tx,new(){["debtBalance"]=0,["settlementBalance"]=0,["feeBalance"]=0,["sourceRef"]="verified-zero",["differenceAccountCode"]="3101",["notes"]="Verified zero cash; prior unreconciled opening corrected"},Actor("finance")));
-            Assert.AreEqual(600m,result.N("equityAdjustment"));Assert.AreEqual(0m,store.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.TR")));Assert.AreEqual(0m,store.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.TR.DEBT")));
+        Run(store=>{Legacy(store,1000);string owner=FinancialCore.ResolveSponsor("TR").Id;
+            var err=Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>FinancialCore.PostJournal(c,tx,"legacy_cash_allocation","gone","2026-10","gone-alloc",new JsonArray(
+                new JsonObject{["accountCode"]="MAIN.TR",["sponsorId"]=owner,["debit"]=0,["credit"]=1000,["closingLegacyGroup"]=true},
+                FinancialCore.CreateJournalLine("MAIN.TR.DEBT",owner,1000,0)),Actor("finance").Identity!.Name!)));
+            Assert.AreEqual(410,err.Status);Assert.AreEqual(FinancialCore.LegacyCashAllocationGone,err.Message);
+            Assert.AreEqual(1000m,store.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.TR")));
         });
     }
     [TestMethod] public void HandoverSubmissionDoesNotMoveCashAndCannotBeSubmittedTwiceWhilePending()

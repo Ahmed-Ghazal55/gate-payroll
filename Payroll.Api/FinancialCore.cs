@@ -8,6 +8,7 @@ namespace Payroll;
 
 public static class FinancialCore
 {
+    public const string LegacyCashAllocationGone="توزيع الرصيد التاريخي موقوف.";
     public sealed record SponsorDef(string Id, string Code, string UnifiedNumber, string NameAr, string ShortNameAr, string CommercialReg) : ErpImport.ISyncSponsor;
 
     public sealed record AccountDef(
@@ -433,8 +434,12 @@ public static class FinancialCore
         {
             var l = node!.AsObject();
             JsonObject canonical;
-            if(l.B("closingLegacyGroup")){LegacyCashAllocation.ValidateClosing(c,tx,l,transactionType);canonical=l;}
-            else canonical=CreateJournalLine(l.Required("accountCode"),l.Required("sponsorId"),l.N("debit"),l.N("credit"),targetChart:targetChart,payChart:payChart);
+            if(l.B("closingLegacyGroup"))throw new ApiError(LegacyCashAllocationGone,410);
+            else
+            {
+                ChartOfAccountsApi.DemandPostable(c,tx,l.Required("accountCode"));
+                canonical=CreateJournalLine(l.Required("accountCode"),l.Required("sponsorId"),l.N("debit"),l.N("credit"),targetChart:targetChart,payChart:payChart);
+            }
             J.Need(canonical.N("debit")==l.N("debit")&&canonical.N("credit")==l.N("credit"),"مبلغ القيد يحتاج تصحيح دقة الهللة.");
             l["lineNo"] = idx++;
             totalDebit = J.Money(totalDebit + l.N("debit"));

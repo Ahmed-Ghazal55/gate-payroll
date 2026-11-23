@@ -49,6 +49,7 @@ builder.Services.AddSingleton<InquiryLimits>();
 int formsLimit = builder.Environment.IsDevelopment() ? 200 : 30;
 builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = formsLimit, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
+builder.Services.AddHostedService<NotifyTasksHostedService>();
 builder.Services.AddSingleton<IOpsLiveFactsReader>(sp=>new LiveOpsLiveFactsReader(sp.GetRequiredService<IConfiguration>(),sp.GetRequiredService<Store>()));
 var riderIpLimitWarnings = PushNotifications.ConfigureIpLimits(builder.Configuration);
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
@@ -175,15 +176,20 @@ ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);
 TestSeed.Map(api, store, app.Environment);
 UserAccess.Map(api, store);
+AuditApi.Map(api, store);
+AdminSettings.Map(api, store);
+NotifyTasksApi.Map(api, store);
 AccessPolicy.MapBypass(api, store);
 RiderDirectory.Map(api, store);
 Debts.Map(api, store);
+PaymentsApi.Map(api,store);
 DebtOpeningApproval.Map(api, store);
 RiderLookup.Map(api, store);
 MobileSessions.Map(app, api, store);
 RiderAsks.Map(app, api, store);
 PushNotifications.Map(app, api, store);
 FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
+RiderIndexMaintenance.Map(api, store, app.Configuration, app.Services.GetRequiredService<ILoggerFactory>());
 ApprovalsArea.Map(api,store);
 SalSimulations.Map(api,store);
 OpsSnapshotCapture.Map(api,store);
@@ -194,14 +200,14 @@ MudadApi.Map(api,store);
 SalPayCalc.Map(api,store);
 SalDebtConfirm.Map(api,store);
 SalSalaryApprove.Map(api,store);
-RiderIndexMaintenance.Map(api, store, app.Configuration, app.Services.GetRequiredService<ILoggerFactory>());
-FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);TreasurySummary.Map(api,store);
+FinanceViews.Map(api,store); ChartOfAccountsApi.Map(api,store); BankPayrollFiles.Map(api,store);TreasurySummary.Map(api,store);
 TreasuryEntries.Map(api,store);
 ManualJournals.Map(api,store);
 MadaAccounting.Map(api,store);
 JahezTreasury.Map(api,store);
 JahezReconciliation.Map(api,store);
-LegacyCashAllocation.Map(api,store);
+api.MapPost("/finance/legacy-cash-allocation/preview",(JsonObject input)=>{_=input;return Results.Json(ApiErrors.Body(410,FinancialCore.LegacyCashAllocationGone),statusCode:410);}).WithTags("Banks and treasury").WithSummary("Gone: legacy cash allocation retired");
+api.MapPost("/finance/legacy-cash-allocation/commit",(JsonObject input)=>{_=input;return Results.Json(ApiErrors.Body(410,FinancialCore.LegacyCashAllocationGone),statusCode:410);}).WithTags("Banks and treasury").WithSummary("Gone: legacy cash allocation retired");
 JahezHandovers.Map(api,store);
 FormBuilderApi.Map(app, api, store);
 InquiryApi.Map(app, api, store);
@@ -267,20 +273,8 @@ api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Wri
 api.MapGet("/payroll/fingerprint", (string iqama, string period,HttpContext ctx) => store.Read(c => {var rider=Store.Get(c,J.Iqama(iqama),"rider")??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(ctx.User,rider);return new { fingerprint = Fingerprint(c,iqama,J.Period(period)) };})).WithTags("Payroll").WithSummary("Read payroll fingerprint");
 api.MapGet("/ledger", (HttpContext ctx) => store.Read(c => Store.List(c,"ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)))).WithTags("Payroll").WithSummary("Read ledger");
 api.MapGet("/ledger/{iqama}", (string iqama,HttpContext ctx) => store.Read(c => { J.Iqama(iqama); var rows = Store.List(c, "ledger").Where(x => x.S("iqama") == iqama&&FinancialScopes.Ledger(ctx.User,x)).OrderBy(x => x.S("period")).ThenBy(x => x.S("createdAt")).ToList(); return new { rows, balance = rows.Sum(x => x.N("amount")) }; })).WithTags("Payroll").WithSummary("Read ledger {iqama}");
-api.MapPost("/payments", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-{
-    string iqama = J.Iqama(input.Required("iqama")); string period = J.Period(input.Required("period")); var ledger = Store.List(c, "ledger", tx).Where(x => x.S("iqama") == iqama).ToList(); decimal amount = input.N("amount");
-    J.Need(!ledger.Any(x => string.CompareOrdinal(x.S("period"), period) > 0), "لا يمكن تسجيل دفعة بأثر رجعي قبل حركات لاحقة.");
-    J.Need(amount > 0 && amount == J.Money(amount) && amount <= ledger.Sum(x => x.N("amount")), "الدفعة يجب أن تكون موجبة ولا تتجاوز الرصيد المستحق.");
-    string reference = input.Required("sourceRef"); J.Need(!Store.List(c, "ledger", tx).Any(x => x.S("kind") == "payment" && x.S("sourceRef") == reference), "مرجع التحويل مسجل بالفعل.");
-    var rider=Store.Get(c,iqama,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);
-    var sponsor=AccountingEvents.PayrollSponsor(rider,input);
-    string vault=input.S("paymentVaultCode",FinancialCore.DefaultVaultForSponsor(sponsor.Id,"BANK"));
-    FinancialScopes.DemandSponsor(ctx.User,sponsor.Id);FinancialScopes.DemandAccount(ctx.User,vault);FinancialScopes.DemandSponsor(ctx.User,FinancialCore.ResolveVault(vault).DefaultSponsorId!);
-    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = -amount, ["kind"] = "payment", ["odooVoucherNo"]=input.S("odooVoucherNo"), ["sourceRef"] = reference, ["createdAt"] = Now(),["sponsorId"]=sponsor.Id,["paymentVaultCode"]=vault,["accountingVersion"]=AccountingEvents.Version,["onBehalf"]=input.B("onBehalf"),["onBehalfNote"]=input.S("onBehalfNote") };
-    var journal=AccountingEvents.PostPayment(c,tx,doc,sponsor.Id,vault,Actor(ctx));doc["journalEntryId"]=journal.S("id");
-    Store.Save(c, "ledger", doc, tx); Store.Audit(c, tx, "payment.record", doc.S("id"), Actor(ctx)); return doc;
-})).WithTags("Payroll").WithSummary("Submit payments");
+// RWP1 / M-0672: money-out needs two-person approval through the payment engine vouchers.
+api.MapPost("/payments", (JsonObject input, HttpContext ctx) => { _=input;_=ctx; throw new ApiError("صرف الرواتب والمدفوعات يتم عبر محرك المدفوعات باعتماد شخصين؛ المسار القديم موقوف.",409); }).WithTags("Payroll").WithSummary("Legacy payments route disabled");
 api.MapGet("/payroll/export.csv", (string period,HttpContext ctx) => store.Read(c =>
 {
     J.Period(period); var rows = Store.List(c, "run").Where(x => x.S("period") == period&&FinancialScopes.Ledger(ctx.User,x)).ToList();
@@ -310,12 +304,6 @@ api.MapPost("/submissions/{id}/review", (string id, JsonObject input, HttpContex
     SubmissionChoices.DemandInScope(c, ctx.User, d, tx);
     CampaignOperations.Review(c,tx,d,input,Actor(ctx));return SubmissionChoices.PublicAdmin(d, ctx.User);
 })).WithTags("Forms and responses").WithSummary("Submit submissions {id} review");
-api.MapGet("/audit", (HttpContext ctx) => store.Read(c =>
-{
-    AccessPolicy.Demand(ctx.User, "audit.view");
-    // Always page in SQL (M-0607 / FU1-d); legacy-free {items,total,page,pageSize}.
-    return AuditQuery.ListPaged(c, ctx.Request.Query);
-})).WithTags("Administration").WithSummary("Read audit");
 app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = IbanChoices.Is(d) ? IbanChoices.Schema : "work-choice-v1", fields=CampaignOperations.Fields(d), cities=IbanChoices.Is(d) ? IbanChoices.Cities(d) : null }); }).WithTags("Forms and responses").WithSummary("Read public forms {token}").RequireRateLimiting("sensitive");
 SubmissionChoices.Map(app, store, Campaign);
 CampaignOperations.Map(api,store);

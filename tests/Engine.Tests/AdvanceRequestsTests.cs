@@ -250,7 +250,8 @@ public sealed class AdvanceRequestsTests
             Assert.AreEqual(30m,card.N("amount"));Assert.AreEqual(AdvanceRequests.Mada,card.S("vaultCode"));Assert.AreEqual("recharge_card",card.S("fulfilment"));
             Review(s,acc,card.S("id"),new(){["action"]="approve",["monthlyInstallment"]=30,["coverageReason"]="Synthetic: small package"});
             ApprovePayoutDual(s,card.S("id"),cus);
-            Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,cus,card.S("id"),new(){["reference"]="SYN-CARD"})),"no Mada machine balance yet");
+            // RWP7a3: legacy card payout returns 410 (use payments mada card issue).
+            Assert.AreEqual(410,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,cus,card.S("id"),new(){["reference"]="SYN-CARD"}))).Status);
         });
         Run(s=>{
             var r=s.Write((c,tx)=>AdvanceRequests.Create(c,tx,Sup,new(){["riderIqama"]=Rider,["type"]="internet",["fulfilment"]="cash",["amount"]=60,["reason"]="Synthetic internet cash"}));

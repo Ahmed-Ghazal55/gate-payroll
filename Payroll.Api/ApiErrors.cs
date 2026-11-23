@@ -6,7 +6,7 @@ public static class ApiErrors
     public static string Code(int status) => status switch
     {
         400 => "invalid_request", 401 => "unauthorized", 403 => "forbidden", 404 => "not_found",
-        409 => "conflict", 423 => "account_locked", 429 => "rate_limited", _ => "request_failed"
+        409 => "conflict", 410 => "gone", 423 => "account_locked", 429 => "rate_limited", _ => "request_failed"
     };
     public static object Body(int status, string? message = null) => new { error = message ?? status switch
     {

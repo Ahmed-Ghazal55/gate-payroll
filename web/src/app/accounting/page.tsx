@@ -6,6 +6,7 @@ import {
   ACCOUNTING_TAB_LABELS,
   buildTabRedirectUrl,
   resolveAccountingTab,
+  REMOVED_TAB_TOASTS,
   type AccountingTab,
 } from '../../lib/page-tabs';
 import { usePeriod } from '../../lib/use-period';
@@ -45,7 +46,6 @@ import { useAuth } from '../../lib/auth-context';
 import { api } from '../../lib/api';
 import { formatSar } from '../../lib/money';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
-import { AccountingAdjustmentsPanel } from '../../features/accounting/AccountingAdjustmentsPanel';
 import { paginateFilteredRows } from '../../features/accounting/trial-balance-paging';
 import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
 import { canShowImportStep, TREASURY_OPENING_IMPORT } from '../../features/imports/import-steps';
@@ -88,8 +88,15 @@ function AccountingPageContent() {
 
   useEffect(() => {
     if (!resolvedTab.legacy) return;
+    if (searchParams?.get('tab') === 'adjustments') {
+      const key = 'toast:accounting-adjustments-gone';
+      if (typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        toast(REMOVED_TAB_TOASTS.adjustments, 'info');
+      }
+    }
     router.replace(buildTabRedirectUrl(pathname || '/accounting/', searchParams, resolvedTab), { scroll: false });
-  }, [resolvedTab.legacy, resolvedTab.tab, pathname, router, searchParams]);
+  }, [resolvedTab.legacy, resolvedTab.tab, pathname, router, searchParams, toast]);
 
   useEffect(() => {
     api.getFinanceSponsors().then((res) => setCompanies(res || [])).catch(() => {});
@@ -772,10 +779,6 @@ function AccountingPageContent() {
       {/* ======================================================== */}
       {/* TAB: Manual Journals */}
       {/* ======================================================== */}
-      {activeTab === 'adjustments' && (
-        <AccountingAdjustmentsPanel companies={companies} />
-      )}
-
       {activeTab === 'manual_journals' && (
         <ManualJournalsPanel
           companies={companies}

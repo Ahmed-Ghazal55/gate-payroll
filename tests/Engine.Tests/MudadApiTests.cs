@@ -24,6 +24,8 @@ public sealed class MudadApiTests
             SchemaSql.Exec(c,null,"IF OBJECT_ID(N'dbo.records',N'U') IS NULL CREATE TABLE dbo.records(id nvarchar(128) NOT NULL PRIMARY KEY, kind nvarchar(40) NOT NULL, body nvarchar(max) NOT NULL);");
         else
             MoneySchemaFixture.Exec(c,null,"CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL)");
+        SchemaAuthCatalog.Ensure(c);
+        SchemaAuditNotify.Ensure(c);
         SchemaHrMudad.Ensure(c);
         SchemaSalPayRun.Ensure(c);
         SchemaSalMudad.Ensure(c);

@@ -19,6 +19,7 @@ import {
   ChevronLeft,
   X,
   FileUp,
+  Wallet,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
 import { appendPeriodToHref, readUrlPeriod } from '../../lib/period';
@@ -104,6 +105,20 @@ function SidebarInner({
       ],
     },
     {
+      id: 'payments',
+      label: 'المدفوعات والمشتريات',
+      icon: <Wallet size={18} />,
+      defaultHref: '/payments/mada',
+      permission: ['payments.view', 'payments.fuel.manage', 'payments.disburse', 'advances.payout'],
+      items: [
+        { id: 'pay-fuel', href: '/payments/fuel', label: 'الوقود والمحطات', permission: 'payments.fuel.manage' },
+        { id: 'pay-mada', href: '/payments/mada', label: 'جهاز مدا والشحن', permission: ['payments.fuel.manage', 'advances.payout'] },
+        { id: 'pay-prepaid', href: '/payments/prepaid-wallets', label: 'المحافظ المدفوعة مقدمًا', permission: 'payments.fuel.manage' },
+        { id: 'pay-recurring', href: '/payments/recurring', label: 'مدفوعات دورية', permission: ['payments.view', 'payments.disburse'] },
+        { id: 'pay-recurring-runs', href: '/payments/recurring/runs', label: 'تشغيل المدفوعات الدورية', permission: ['payments.view', 'payments.disburse'] },
+      ],
+    },
+    {
       id: 'operations',
       label: 'التشغيل والأسطول',
       icon: <Truck size={18} />,
@@ -160,7 +175,6 @@ function SidebarInner({
         { id: 'treasury-advance-payouts', href: '/treasury/?tab=advance_payouts', label: 'صرف السلف المعتمدة', permission: 'advances.payout' },
         { id: 'treasury-bankfile', href: '/treasury/?tab=bank_file', label: 'ملف صرف الرواتب البنكي', permission: ['finance.bankfile.export', 'payroll.view'], requireAll: true },
         { id: 'treasury-jahez', href: '/treasury/?tab=jahez', label: 'جاهز — مطابقة وخزينة', permission: 'treasury.view' },
-        { id: 'treasury-extras', href: '/treasury/?tab=extras', label: 'مدا والتزامات وتوزيع قديم', permission: 'treasury.view' },
         { id: 'treasury-movements', href: '/treasury/?tab=movements', label: 'سجل القيود والحركات', permission: 'treasury.view' },
       ],
     },
@@ -174,7 +188,6 @@ function SidebarInner({
         { id: 'acc-coa', href: '/accounting/?tab=coa', label: 'دليل الحسابات', permission: 'treasury.view' },
         { id: 'acc-journals', href: '/accounting/?tab=journals', label: 'سجل القيود اليومية', permission: ['finance.journal.create', 'finance.journal.approve'] },
         { id: 'acc-manual', href: '/accounting/?tab=manual_journals', label: 'القيود اليدوية', permission: ['finance.journal.create', 'finance.journal.approve'] },
-        { id: 'acc-adjustments', href: '/accounting/?tab=adjustments', label: 'تسويات مدا والراتب', permission: 'treasury.journals' },
         { id: 'acc-trial', href: '/accounting/?tab=trial_balance', label: 'ميزان المراجعة', permission: 'treasury.journals' },
         { id: 'acc-income', href: '/accounting/?tab=income_statement', label: 'قائمة الدخل', permission: 'treasury.journals' },
       ],

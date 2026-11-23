@@ -14,6 +14,7 @@ import {
   TREASURY_TAB_LABELS,
   buildTabRedirectUrl,
   resolveTreasuryTab,
+  REMOVED_TAB_TOASTS,
   type TreasuryTab,
 } from '../../lib/page-tabs';
 import { usePeriod } from '../../lib/use-period';
@@ -61,7 +62,6 @@ import type {
   CompanySponsor,
 } from '../../lib/types';
 import { JahezWorkspace } from '../../features/treasury/JahezWorkspace';
-import { TreasuryExtrasPanel } from '../../features/treasury/TreasuryExtrasPanel';
 
 type TabId = TreasuryTab;
 
@@ -77,8 +77,15 @@ function TreasuryPageContent() {
 
   useEffect(() => {
     if (!resolvedUrlTab.legacy) return;
+    if (searchParams?.get('tab') === 'extras') {
+      const key = 'toast:treasury-extras-gone';
+      if (typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        toast(REMOVED_TAB_TOASTS.extras, 'info');
+      }
+    }
     router.replace(buildTabRedirectUrl(pathname || '/treasury/', searchParams, resolvedUrlTab), { scroll: false });
-  }, [resolvedUrlTab.legacy, resolvedUrlTab.tab, pathname, router, searchParams]);
+  }, [resolvedUrlTab.legacy, resolvedUrlTab.tab, pathname, router, searchParams, toast]);
 
   const [activeTab, setActiveTab] = useState<TabId>(resolvedTab);
 
@@ -830,7 +837,6 @@ function TreasuryPageContent() {
       {/* ======================================================== */}
 
       {activeTab === 'jahez' && <JahezWorkspace />}
-      {activeTab === 'extras' && <TreasuryExtrasPanel />}
 
       {activeTab === 'movements' && (
         <div className="space-y-4">
