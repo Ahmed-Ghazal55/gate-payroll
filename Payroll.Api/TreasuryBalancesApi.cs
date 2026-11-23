@@ -36,15 +36,20 @@ public static class TreasuryBalancesApi
             // Book balances from period_balance; classify cash/bank via FinanceViews chart types.
             // Group under commercial registration when the cash/bank master row exists.
             var chartType=FinanceViews.Accounts.Where(a=>a.B("posting")).ToDictionary(a=>a.S("code"),a=>a.S("type"),StringComparer.Ordinal);
+            // Registration via scalar subquery — never join cash_box/bank_account into the SUM
+            // (two masters on one account would multiply closing into company cash/bank/total).
             using(var cmd=Store.Command(c,tx,$"""
                 SELECT a.code,a.name_ar,COALESCE(SUM(pb.closing),0) AS closing,
-                       COALESCE(box.registration_id,bank.registration_id) AS registration_id
+                       COALESCE(
+                         (SELECT MIN(box.registration_id) FROM {SchemaSql.Q(c,"treasury","cash_box")} box
+                          WHERE box.account_id=a.id AND box.company_id=pb.company_id AND box.status=1),
+                         (SELECT MIN(bank.registration_id) FROM {SchemaSql.Q(c,"treasury","bank_account")} bank
+                          WHERE bank.account_id=a.id AND bank.company_id=pb.company_id AND bank.status=1)
+                       ) AS registration_id
                 FROM {SchemaSql.Q(c,"fin","period_balance")} pb
                 JOIN {SchemaSql.Q(c,"fin","account")} a ON a.id=pb.account_id
-                LEFT JOIN {SchemaSql.Q(c,"treasury","cash_box")} box ON box.account_id=a.id AND box.company_id=pb.company_id
-                LEFT JOIN {SchemaSql.Q(c,"treasury","bank_account")} bank ON bank.account_id=a.id AND bank.company_id=pb.company_id
                 WHERE pb.company_id=@c AND pb.period_month=@m
-                GROUP BY a.code,a.name_ar,COALESCE(box.registration_id,bank.registration_id)
+                GROUP BY a.code,a.name_ar,a.id,pb.company_id
                 ORDER BY a.code
                 """,("@c",company.Id),("@m",MonthLiteral(c,month))))
             using(var r=cmd.ExecuteReader())
