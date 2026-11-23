@@ -8549,6 +8549,92 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sal/shared-riders/{erpRiderId}/{periodMonth}/request-release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** W2 request exception release for an open shared-rider hold */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    erpRiderId: string;
+                    periodMonth: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/shared-riders/{erpRiderId}/{periodMonth}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** W2 dual-approved exception release for an open shared-rider hold */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    erpRiderId: string;
+                    periodMonth: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pay/review-draft": {
         parameters: {
             query?: never;
@@ -12212,13 +12298,93 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
+                        "application/json": components["schemas"]["AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndDictionaryOfstringAndstringAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
                     };
                 };
             };
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{id}/effective-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read effective permissions breakdown for a user */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/users/{id}/copy-permissions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Copy permissions from a user or role onto a target user */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -12731,6 +12897,866 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/2fa/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Start TOTP setup; secret returned once */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/2fa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Verify TOTP or single-use backup code */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/2fa/backup-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Regenerate hashed backup codes */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/2fa/reset": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Admin reset of TOTP with new 14-day window */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/audit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read audit (always paged) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": unknown;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/audit/self-approvals": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** System Administrator self-approval report */
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/read-summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Daily sensitive-read summary (not per-read audit rows) */
+        get: {
+            parameters: {
+                query?: {
+                    from?: string;
+                    to?: string;
+                    area?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read system settings from ref.setting */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        /** Save system settings to ref.setting */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/archive/policies": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List archive retention policies and restore views */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/archive/restore-request": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Request temporary read-only archive restore view */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/archive/restore-view": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Read-only archived rows under an active restore approval */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/notify-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read notification matrix and reply-time defaults */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        /** Save notification settings; chat never creates notify rows */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/notify/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Send general or custom notification with reply SLA */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List operational tasks in company/assignment scope */
+        get: {
+            parameters: {
+                query?: {
+                    status?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create an operational task with default reply working days */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/tasks/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update or complete an operational task */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/channels": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Poll staff chat channels in scope */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create staff chat channel with membership */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/channels/{id}/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Poll channel messages */
+        get: {
+            parameters: {
+                query?: {
+                    after?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Post staff chat message (never notifies) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/channels/{id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post chat attachment with media limits */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/chat/channels/{id}/media/{messageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download chat media inside company scope */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    messageId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/approval-bypass": {
         parameters: {
             query?: never;
@@ -12897,6 +13923,445 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/import/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read unified debts import template (opening/add/reduce) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/import/reduce/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview debt sheet reduce import */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/import/reduce/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Commit debt sheet reduce import with approval */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/{id}/reschedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reschedule debt instalment */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/ageing": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read debt ageing buckets */
+        get: {
+            parameters: {
+                query: {
+                    companyId: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/print": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Print-ready debts register */
+        get: {
+            parameters: {
+                query: {
+                    companyId: string;
+                    status?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/{id}/collect-ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Collect debt on W1 ledger with movement and journal */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/{id}/waive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Waive debt per D11 accounts with maker-checker */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/{id}/absorb": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Absorb debt to company expense 526602/526603 */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/promissory-notes/{id}/link-debt": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Link promissory note to an open debt */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/debts/disburse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Debt disbursement via payment engine (not available until U-W2-07) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -13397,7 +14862,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfstringAndintAndintAndJsonArrayAndJsonArrayAndstring"];
+                        "application/json": components["schemas"]["AnonymousTypeOfstringAndintAndintAndJsonArrayAndJsonArrayAndstringAndstring"];
                     };
                 };
             };
@@ -13511,7 +14976,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndintAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndbooleanAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAnddecimalAnddecimalAndJsonArrayAndJsonArray"];
+                        "application/json": components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndintAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndbooleanAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAnddecimalAnddecimalAndJsonArrayAndJsonArray"];
                     };
                 };
             };
@@ -13552,6 +15017,3190 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["AnonymousTypeOfintAndintAnddecimalAnddecimal"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/documents": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List scoped payment documents */
+        get: {
+            parameters: {
+                query?: {
+                    type?: string;
+                    companyId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                docNo?: string;
+                                type: string;
+                                companyId: string;
+                                supplierId?: null | string;
+                                platform?: string;
+                                reference?: string;
+                                occurredOn?: string;
+                                dueOn?: string;
+                                periodMonth?: string;
+                                amount: number;
+                                vatAmount?: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                amountPaid?: number;
+                                amountReserved?: number;
+                                availableBalance?: number;
+                                allowedActions: string[];
+                                lines?: {
+                                    id: string;
+                                    accountId: string;
+                                    costCentreId: string;
+                                    appCode?: string;
+                                    amount: number;
+                                }[];
+                                metadata?: Record<string, never>;
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a draft expense or purchase document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/documents/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a payment document and allowed actions */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        /** Edit a draft with a stale-content guard while retaining previous lines */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/documents/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a payment document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/documents/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a submitted payment document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/documents/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel and retain a draft document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/documents/{id}/payment-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Atomically reserve a partial payment and open dual approval */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            paymentNo?: string;
+                            documentId: string;
+                            companyId: string;
+                            periodMonth?: string;
+                            paidOn?: string;
+                            amount: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            approvalRequestId?: string;
+                            bankAccountId?: string;
+                            reference?: string;
+                            journalId?: null | string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/vouchers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a scoped payment voucher */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            paymentNo?: string;
+                            documentId: string;
+                            companyId: string;
+                            periodMonth?: string;
+                            paidOn?: string;
+                            amount: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            approvalRequestId?: string;
+                            bankAccountId?: string;
+                            reference?: string;
+                            journalId?: null | string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/vouchers/{id}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Pay a voucher after recorded independent approval */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            paymentNo?: string;
+                            documentId: string;
+                            companyId: string;
+                            periodMonth?: string;
+                            paidOn?: string;
+                            amount: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            approvalRequestId?: string;
+                            bankAccountId?: string;
+                            reference?: string;
+                            journalId?: null | string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/vouchers/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel an unpaid voucher and release its claim */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            paymentNo?: string;
+                            documentId: string;
+                            companyId: string;
+                            periodMonth?: string;
+                            paidOn?: string;
+                            amount: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            approvalRequestId?: string;
+                            bankAccountId?: string;
+                            reference?: string;
+                            journalId?: null | string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/quick": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a quick payment through the document engine */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/suppliers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List scoped payment suppliers */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a supplier */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/suppliers/{id}/ledger": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read supplier invoices, payments and outstanding balance */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/hr-fees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List scoped HR fee requests */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                docNo?: string;
+                                type: string;
+                                companyId: string;
+                                supplierId?: null | string;
+                                platform?: string;
+                                reference?: string;
+                                occurredOn?: string;
+                                dueOn?: string;
+                                periodMonth?: string;
+                                amount: number;
+                                vatAmount?: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                amountPaid?: number;
+                                amountReserved?: number;
+                                availableBalance?: number;
+                                allowedActions: string[];
+                                lines?: {
+                                    id: string;
+                                    accountId: string;
+                                    costCentreId: string;
+                                    appCode?: string;
+                                    amount: number;
+                                }[];
+                                metadata?: Record<string, never>;
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create an HR fee request with an exact bearer split */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/traffic-violations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List traffic violation payment documents */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                docNo?: string;
+                                type: string;
+                                companyId: string;
+                                supplierId?: null | string;
+                                platform?: string;
+                                reference?: string;
+                                occurredOn?: string;
+                                dueOn?: string;
+                                periodMonth?: string;
+                                amount: number;
+                                vatAmount?: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                amountPaid?: number;
+                                amountReserved?: number;
+                                availableBalance?: number;
+                                allowedActions: string[];
+                                lines?: {
+                                    id: string;
+                                    accountId: string;
+                                    costCentreId: string;
+                                    appCode?: string;
+                                    amount: number;
+                                }[];
+                                metadata?: Record<string, never>;
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a traffic violation payment with rider and company shares */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/government": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List government payment documents */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                docNo?: string;
+                                type: string;
+                                companyId: string;
+                                supplierId?: null | string;
+                                platform?: string;
+                                reference?: string;
+                                occurredOn?: string;
+                                dueOn?: string;
+                                periodMonth?: string;
+                                amount: number;
+                                vatAmount?: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                amountPaid?: number;
+                                amountReserved?: number;
+                                availableBalance?: number;
+                                allowedActions: string[];
+                                lines?: {
+                                    id: string;
+                                    accountId: string;
+                                    costCentreId: string;
+                                    appCode?: string;
+                                    amount: number;
+                                }[];
+                                metadata?: Record<string, never>;
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a government payment document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/properties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List payment properties */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create an office or housing property */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/financiers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List financiers */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a financier */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/leases": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List lease contracts */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a lease and its due payment documents */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/leases/{id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read lease due schedule */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/leases/{id}/recognize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recognize a funded monthly rent expense exactly once */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/finance-contracts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List vehicle financing contracts */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create an effective-interest financing schedule */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/finance-contracts/{id}/schedule": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read financing schedule principal and interest */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/contracts/{kind}/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Archive a payment master without deletion */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    kind: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/due-calendar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read due amounts after paid and reserved claims */
+        get: {
+            parameters: {
+                query?: {
+                    companyId?: string;
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/fuel-wallets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List fuel wallet balances */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a fuel provider wallet on an existing account */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/fuel-wallets/{id}/fund": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a fuel wallet funding document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/fuel-wallets/{id}/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a fuel wallet statement comparison without adjusting its balance */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/prepaid-wallets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List prepaid wallets */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a prepaid wallet on an existing account */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/prepaid-wallets/{id}/movements": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a prepaid wallet funding document */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/mada/wallets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read Mada wallet balances */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/mada/topups": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a Mada top-up through the payment engine */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/mada/reconcile": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reconcile a Mada statement */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            amountDue?: number;
+                            bookBalance?: number;
+                            statementBalance?: number;
+                            difference?: number;
+                            result?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/advances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a supervised advance or HS top-up request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            docNo?: string;
+                            type: string;
+                            companyId: string;
+                            supplierId?: null | string;
+                            platform?: string;
+                            reference?: string;
+                            occurredOn?: string;
+                            dueOn?: string;
+                            periodMonth?: string;
+                            amount: number;
+                            vatAmount?: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            amountPaid?: number;
+                            amountReserved?: number;
+                            availableBalance?: number;
+                            allowedActions: string[];
+                            lines?: {
+                                id: string;
+                                accountId: string;
+                                costCentreId: string;
+                                appCode?: string;
+                                amount: number;
+                            }[];
+                            metadata?: Record<string, never>;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/mada/cards/issue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Issue a card only against an approved internet advance voucher */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            paymentNo?: string;
+                            documentId: string;
+                            companyId: string;
+                            periodMonth?: string;
+                            paidOn?: string;
+                            amount: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            approvalRequestId?: string;
+                            bankAccountId?: string;
+                            reference?: string;
+                            journalId?: null | string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/recurring-payees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List recurring payees (مدفوعات دورية) */
+        get: {
+            parameters: {
+                query?: {
+                    companyId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a recurring payee profile */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/recurring-payees/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a recurring payee */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        /** Update a recurring payee */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/recurring-payees/{id}/history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** History of recurring payee runs */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/recurring-runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List monthly recurring payment runs */
+        get: {
+            parameters: {
+                query?: {
+                    companyId?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Propose this month's recurring payee lines */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/recurring-runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read a recurring payment run */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/recurring-runs/{id}/lines": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit, skip or add one-off lines on a draft run */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/recurring-runs/{id}/submit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit a recurring run for approval */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/recurring-runs/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve a recurring run (maker ≠ checker) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/recurring-runs/{id}/execute": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create payment vouchers via the payment engine */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id?: string;
+                            items?: Record<string, never>[];
+                            lines?: Record<string, never>[];
+                            vouchers?: {
+                                id: string;
+                                paymentNo?: string;
+                                documentId: string;
+                                companyId: string;
+                                periodMonth?: string;
+                                paidOn?: string;
+                                amount: number;
+                                status: number;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                approvalRequestId?: string;
+                                bankAccountId?: string;
+                                reference?: string;
+                                journalId?: null | string;
+                                allowedActions: string[];
+                            }[];
+                            payeeId?: string;
+                            allowedActions: string[];
+                            companyId?: string;
+                            periodMonth?: string;
+                            status?: number;
+                            nameAr?: string;
+                            amount?: number;
+                            currencyCode?: string;
+                            sarAmount?: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/payments/recurring-one-off": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** One-off payment without a payee profile */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            paymentNo?: string;
+                            documentId: string;
+                            companyId: string;
+                            periodMonth?: string;
+                            paidOn?: string;
+                            amount: number;
+                            status: number;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            approvalRequestId?: string;
+                            bankAccountId?: string;
+                            reference?: string;
+                            journalId?: null | string;
+                            allowedActions: string[];
+                        };
                     };
                 };
             };
@@ -14694,13 +19343,15 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read finance statement rider {iqama} simple */
+        /** Read finance statement rider {iqama} simple (optional form=rider + lang=ar|en|ur) */
         get: {
             parameters: {
                 query: {
                     from: string;
                     to: string;
                     sponsorId?: string;
+                    lang?: string;
+                    form?: string;
                 };
                 header?: never;
                 path: {
@@ -15419,9 +20070,9 @@ export interface paths {
                 path?: never;
                 cookie?: never;
             };
-            requestBody: {
+            requestBody?: {
                 content: {
-                    "application/json": components["schemas"]["JsonObject"];
+                    "application/json": null | components["schemas"]["JsonObject"];
                 };
             };
             responses: {
@@ -16567,6 +21218,882 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/sal/rider-requests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List salary hold and deduction requests and shared-rider holds */
+        get: {
+            parameters: {
+                query?: {
+                    kind?: string;
+                    requestType?: string;
+                    appCode?: string;
+                    app?: string;
+                    periodMonth?: string;
+                    period?: string;
+                    companyId?: string;
+                    status?: string;
+                    erpRiderId?: string;
+                    tab?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                kind?: string;
+                                requestType?: string;
+                                typeLabelAr?: string;
+                                erpRiderId: string;
+                                companyId: string;
+                                periodMonth: string;
+                                appCode?: string;
+                                amount?: number;
+                                combinedNet?: number;
+                                status: string;
+                                statusCode?: number;
+                                statusLabelAr?: string;
+                                reasonCode?: string;
+                                note?: string;
+                                source?: string;
+                                requestedBy?: string;
+                                requestedAt?: string;
+                                approvedBy?: string;
+                                approvedAt?: string;
+                                releaseMode?: string;
+                                releasedBy?: string;
+                                releasedAt?: string;
+                                payRunRiderId?: string;
+                                awaitedApps?: string[];
+                                receivedApps?: string[];
+                                released?: boolean;
+                                allowedActions: string[];
+                            }[];
+                            total: number;
+                            summary: Record<string, never>;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a salary hold or deduction request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            requestType?: string;
+                            typeLabelAr?: string;
+                            erpRiderId: string;
+                            companyId: string;
+                            periodMonth: string;
+                            appCode?: string;
+                            amount?: number;
+                            combinedNet?: number;
+                            status: string;
+                            statusCode?: number;
+                            statusLabelAr?: string;
+                            reasonCode?: string;
+                            note?: string;
+                            source?: string;
+                            requestedBy?: string;
+                            requestedAt?: string;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            releaseMode?: string;
+                            releasedBy?: string;
+                            releasedAt?: string;
+                            payRunRiderId?: string;
+                            awaitedApps?: string[];
+                            receivedApps?: string[];
+                            released?: boolean;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/rider-requests/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Confirm and approve a salary hold or deduction request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            requestType?: string;
+                            typeLabelAr?: string;
+                            erpRiderId: string;
+                            companyId: string;
+                            periodMonth: string;
+                            appCode?: string;
+                            amount?: number;
+                            combinedNet?: number;
+                            status: string;
+                            statusCode?: number;
+                            statusLabelAr?: string;
+                            reasonCode?: string;
+                            note?: string;
+                            source?: string;
+                            requestedBy?: string;
+                            requestedAt?: string;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            releaseMode?: string;
+                            releasedBy?: string;
+                            releasedAt?: string;
+                            payRunRiderId?: string;
+                            awaitedApps?: string[];
+                            receivedApps?: string[];
+                            released?: boolean;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/rider-requests/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a salary hold or deduction request */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            requestType?: string;
+                            typeLabelAr?: string;
+                            erpRiderId: string;
+                            companyId: string;
+                            periodMonth: string;
+                            appCode?: string;
+                            amount?: number;
+                            combinedNet?: number;
+                            status: string;
+                            statusCode?: number;
+                            statusLabelAr?: string;
+                            reasonCode?: string;
+                            note?: string;
+                            source?: string;
+                            requestedBy?: string;
+                            requestedAt?: string;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            releaseMode?: string;
+                            releasedBy?: string;
+                            releasedAt?: string;
+                            payRunRiderId?: string;
+                            awaitedApps?: string[];
+                            receivedApps?: string[];
+                            released?: boolean;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/rider-requests/{id}/request-release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open two-person approval to release a held rider salary with releaseMode */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/rider-requests/{id}/release": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Release a held rider salary after recorded two-person approval bound to releaseMode and payload hash */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            requestType?: string;
+                            typeLabelAr?: string;
+                            erpRiderId: string;
+                            companyId: string;
+                            periodMonth: string;
+                            appCode?: string;
+                            amount?: number;
+                            combinedNet?: number;
+                            status: string;
+                            statusCode?: number;
+                            statusLabelAr?: string;
+                            reasonCode?: string;
+                            note?: string;
+                            source?: string;
+                            requestedBy?: string;
+                            requestedAt?: string;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            releaseMode?: string;
+                            releasedBy?: string;
+                            releasedAt?: string;
+                            payRunRiderId?: string;
+                            awaitedApps?: string[];
+                            receivedApps?: string[];
+                            released?: boolean;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/bank-files": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List salary bank files */
+        get: {
+            parameters: {
+                query?: {
+                    periodMonth?: string;
+                    period?: string;
+                    companyId?: string;
+                    status?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                id: string;
+                                periodMonth: string;
+                                issuanceChoice: string;
+                                sheetShape: string;
+                                scopeCompanyId?: string;
+                                scopeRegistrationId?: string;
+                                payingCompanyId: string;
+                                payingRegistrationId: string;
+                                payingBankId: string;
+                                status: string;
+                                statusCode?: number;
+                                fileHash?: string;
+                                fileContentHash?: string;
+                                runMode?: number;
+                                payoutBlocked?: boolean;
+                                doNotSend?: boolean;
+                                payoutLabel?: string;
+                                currencyCode?: string;
+                                totalAmount: number;
+                                lineCount?: number;
+                                riderCount?: number;
+                                approvedBy?: string;
+                                approvedAt?: string;
+                                sentBy?: string;
+                                sentAt?: string;
+                                createdBy?: string;
+                                createdAt?: string;
+                                lines: {
+                                    id: string;
+                                    payRunRiderId: string;
+                                    payableId: string;
+                                    companyId: string;
+                                    registrationId: string;
+                                    paymentId?: string;
+                                    allocationId?: string;
+                                    erpRiderId: string;
+                                    appCode?: string;
+                                    iqama: string;
+                                    name?: string;
+                                    iban: string;
+                                    bank?: string;
+                                    bankShortCode: string;
+                                    bankNameAr?: string;
+                                    address?: string;
+                                    amount: number;
+                                    status: string;
+                                }[];
+                                sheetRows: {
+                                    erpRiderId: string;
+                                    bank: string;
+                                    bankShortCode: string;
+                                    bankNameAr?: string;
+                                    iban: string;
+                                    amount: number;
+                                    notes?: string;
+                                    name: string;
+                                    iqama: string;
+                                    address?: string;
+                                    apps?: string[];
+                                }[];
+                                excludedRows?: Record<string, never>[];
+                                settlements?: Record<string, never>[];
+                                allowedActions: string[];
+                            }[];
+                            total: number;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Build a salary bank file and reserve eligible payables */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            periodMonth: string;
+                            issuanceChoice: string;
+                            sheetShape: string;
+                            scopeCompanyId?: string;
+                            scopeRegistrationId?: string;
+                            payingCompanyId: string;
+                            payingRegistrationId: string;
+                            payingBankId: string;
+                            status: string;
+                            statusCode?: number;
+                            fileHash?: string;
+                            fileContentHash?: string;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            doNotSend?: boolean;
+                            payoutLabel?: string;
+                            currencyCode?: string;
+                            totalAmount: number;
+                            lineCount?: number;
+                            riderCount?: number;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            sentBy?: string;
+                            sentAt?: string;
+                            createdBy?: string;
+                            createdAt?: string;
+                            lines: {
+                                id: string;
+                                payRunRiderId: string;
+                                payableId: string;
+                                companyId: string;
+                                registrationId: string;
+                                paymentId?: string;
+                                allocationId?: string;
+                                erpRiderId: string;
+                                appCode?: string;
+                                iqama: string;
+                                name?: string;
+                                iban: string;
+                                bank?: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                address?: string;
+                                amount: number;
+                                status: string;
+                            }[];
+                            sheetRows: {
+                                erpRiderId: string;
+                                bank: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                iban: string;
+                                amount: number;
+                                notes?: string;
+                                name: string;
+                                iqama: string;
+                                address?: string;
+                                apps?: string[];
+                            }[];
+                            excludedRows?: Record<string, never>[];
+                            settlements?: Record<string, never>[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/bank-files/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read salary bank file details and lines */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            periodMonth: string;
+                            issuanceChoice: string;
+                            sheetShape: string;
+                            scopeCompanyId?: string;
+                            scopeRegistrationId?: string;
+                            payingCompanyId: string;
+                            payingRegistrationId: string;
+                            payingBankId: string;
+                            status: string;
+                            statusCode?: number;
+                            fileHash?: string;
+                            fileContentHash?: string;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            doNotSend?: boolean;
+                            payoutLabel?: string;
+                            currencyCode?: string;
+                            totalAmount: number;
+                            lineCount?: number;
+                            riderCount?: number;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            sentBy?: string;
+                            sentAt?: string;
+                            createdBy?: string;
+                            createdAt?: string;
+                            lines: {
+                                id: string;
+                                payRunRiderId: string;
+                                payableId: string;
+                                companyId: string;
+                                registrationId: string;
+                                paymentId?: string;
+                                allocationId?: string;
+                                erpRiderId: string;
+                                appCode?: string;
+                                iqama: string;
+                                name?: string;
+                                iban: string;
+                                bank?: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                address?: string;
+                                amount: number;
+                                status: string;
+                            }[];
+                            sheetRows: {
+                                erpRiderId: string;
+                                bank: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                iban: string;
+                                amount: number;
+                                notes?: string;
+                                name: string;
+                                iqama: string;
+                                address?: string;
+                                apps?: string[];
+                            }[];
+                            excludedRows?: Record<string, never>[];
+                            settlements?: Record<string, never>[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/bank-files/{id}/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export salary bank file as bulk CSV or Excel */
+        get: {
+            parameters: {
+                query?: {
+                    format?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/bank-files/{id}/request-mark-sent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Open two-person approval to mark a salary bank file sent */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/bank-files/{id}/mark-sent": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark salary bank file sent after recorded two-person approval and post payout journals */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            periodMonth: string;
+                            issuanceChoice: string;
+                            sheetShape: string;
+                            scopeCompanyId?: string;
+                            scopeRegistrationId?: string;
+                            payingCompanyId: string;
+                            payingRegistrationId: string;
+                            payingBankId: string;
+                            status: string;
+                            statusCode?: number;
+                            fileHash?: string;
+                            fileContentHash?: string;
+                            runMode?: number;
+                            payoutBlocked?: boolean;
+                            doNotSend?: boolean;
+                            payoutLabel?: string;
+                            currencyCode?: string;
+                            totalAmount: number;
+                            lineCount?: number;
+                            riderCount?: number;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            sentBy?: string;
+                            sentAt?: string;
+                            createdBy?: string;
+                            createdAt?: string;
+                            lines: {
+                                id: string;
+                                payRunRiderId: string;
+                                payableId: string;
+                                companyId: string;
+                                registrationId: string;
+                                paymentId?: string;
+                                allocationId?: string;
+                                erpRiderId: string;
+                                appCode?: string;
+                                iqama: string;
+                                name?: string;
+                                iban: string;
+                                bank?: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                address?: string;
+                                amount: number;
+                                status: string;
+                            }[];
+                            sheetRows: {
+                                erpRiderId: string;
+                                bank: string;
+                                bankShortCode: string;
+                                bankNameAr?: string;
+                                iban: string;
+                                amount: number;
+                                notes?: string;
+                                name: string;
+                                iqama: string;
+                                address?: string;
+                                apps?: string[];
+                            }[];
+                            excludedRows?: Record<string, never>[];
+                            settlements?: Record<string, never>[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/finance/coa/target": {
         parameters: {
             query?: never;
@@ -16673,6 +22200,186 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/coa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List chart of accounts tree rows with allowedActions */
+        get: {
+            parameters: {
+                query?: {
+                    inactive?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a CoA account under a parent; nature locked to parent */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/coa/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit CoA name/flags; code change blocked when posted */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/coa/{code}/deactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Deactivate CoA account; used accounts need a second person */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/coa/{code}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactivate a stopped CoA account */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -18044,7 +23751,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List scoped structured financial adjustments */
+        /** Gone: structured adjustments list retired */
         get: {
             parameters: {
                 query?: never;
@@ -18059,14 +23766,12 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": unknown;
-                    };
+                    content?: never;
                 };
             };
         };
         put?: never;
-        /** Draft a structured Mada top-up, salary correction or initial administrative charge */
+        /** Gone: structured adjustments moved to Payments / pay items / HR requests */
         post: {
             parameters: {
                 query?: never;
@@ -18085,9 +23790,7 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["JsonObject"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -18106,7 +23809,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Independently approve a structured financial operation after balance and period checks */
+        /** Gone: structured adjustment approval retired */
         post: {
             parameters: {
                 query?: never;
@@ -18123,9 +23826,7 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["JsonObject"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -18142,7 +23843,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read company-specific Mada recharge balance without exposing other vaults */
+        /** Gone: Mada balance now under Payments Mada wallets */
         get: {
             parameters: {
                 query: {
@@ -18159,9 +23860,7 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfdecimal"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -18756,7 +24455,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit finance legacy cash allocation preview */
+        /** Gone: legacy cash allocation retired */
         post: {
             parameters: {
                 query?: never;
@@ -18775,9 +24474,7 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfJsonArrayAndstring"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -18796,7 +24493,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit finance legacy cash allocation commit */
+        /** Gone: legacy cash allocation retired */
         post: {
             parameters: {
                 query?: never;
@@ -18815,9 +24512,7 @@ export interface paths {
                     headers: {
                         [name: string]: unknown;
                     };
-                    content: {
-                        "application/json": components["schemas"]["JsonObject"];
-                    };
+                    content?: never;
                 };
             };
         };
@@ -20081,7 +25776,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Submit payments */
+        /** Legacy payments route disabled */
         post: {
             parameters: {
                 query?: never;
@@ -20463,42 +26158,6 @@ export interface paths {
                 };
             };
         };
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/audit": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Read audit */
-        get: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path?: never;
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description OK */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": unknown;
-                    };
-                };
-            };
-        };
-        put?: never;
-        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -20926,10 +26585,6 @@ export interface components {
             projectId: null | string;
             androidPackageName: null | string;
         };
-        AnonymousTypeOfdecimal: {
-            /** Format: double */
-            balance: number | string;
-        };
         "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray": {
             apps: null | components["schemas"]["Accounts"][];
             schemeTypes: null | string[];
@@ -21109,9 +26764,12 @@ export interface components {
             /** Format: double */
             balance: number | string;
         };
-        "AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
+        "AnonymousTypeOfRoleDef[]AndIEnumerableOfPermissionDefAndDictionaryOfstringAndstringAndJsonArrayAndDictionaryOfstringAndJsonNodeAndAnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]": {
             roles: null | components["schemas"]["RoleDef"][];
             permissions: null | components["schemas"]["PermissionDef"][];
+            permissionAliases: null | {
+                [key: string]: string;
+            };
             departments: components["schemas"]["JsonArray"];
             rolePermissions: null | Record<string, never>;
             financialScopeCatalog: components["schemas"]["AnonymousTypeOfSponsorDef[]AndIEnumerableOfAccountDefAndCategoryMeta[]AndString[]"];
@@ -21134,7 +26792,7 @@ export interface components {
             /** Format: int32 */
             level: number | string;
         };
-        AnonymousTypeOfstringAndintAndintAndJsonArrayAndJsonArrayAndstring: {
+        AnonymousTypeOfstringAndintAndintAndJsonArrayAndJsonArrayAndstringAndstring: {
             filename: null | string;
             /** Format: int32 */
             validCount: number | string;
@@ -21142,14 +26800,28 @@ export interface components {
             errorCount: number | string;
             rows: components["schemas"]["JsonArray"];
             errors: components["schemas"]["JsonArray"];
+            fileHash: null | string;
             fingerprint: null | string;
         };
         AnonymousTypeOfstringAndstring: {
             status: null | string;
             message: null | string;
         };
-        AnonymousTypeOfstringAndstringAndintAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndbooleanAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAnddecimalAnddecimalAndJsonArrayAndJsonArray: {
+        AnonymousTypeOfstringAndstringAndintAndstring: {
+            id: null | string;
+            title: null | string;
+            /** Format: int32 */
+            responseCount: number | string;
+            fingerprint: null | string;
+        };
+        AnonymousTypeOfstringAndstringAndJsonNode: {
+            id: null | string;
+            titleAr: null | string;
+            fields: components["schemas"]["JsonNode"];
+        };
+        AnonymousTypeOfstringAndstringAndstringAndintAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAnddecimalAndbooleanAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndintAndintAnddecimalAnddecimalAnddecimalAnddecimalAndListOfAnonymousTypeOfstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAnddecimalAnddecimalAndJsonArrayAndJsonArray: {
             filename: null | string;
+            fileHash: null | string;
             fingerprint: null | string;
             /** Format: int32 */
             validCount: number | string;
@@ -21174,18 +26846,6 @@ export interface components {
             summaryByCategory: null | components["schemas"]["AnonymousTypeOfstringAndstringAndstringAndstringAndstringAndstringAndstringAndintAnddecimalAnddecimal"][];
             rows: components["schemas"]["JsonArray"];
             errors: components["schemas"]["JsonArray"];
-        };
-        AnonymousTypeOfstringAndstringAndintAndstring: {
-            id: null | string;
-            title: null | string;
-            /** Format: int32 */
-            responseCount: number | string;
-            fingerprint: null | string;
-        };
-        AnonymousTypeOfstringAndstringAndJsonNode: {
-            id: null | string;
-            titleAr: null | string;
-            fields: components["schemas"]["JsonNode"];
         };
         AnonymousTypeOfstringAndstringAndstringAndintAndstringAndstring: {
             month: null | string;
