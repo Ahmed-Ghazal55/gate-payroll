@@ -54,6 +54,40 @@ public static class ManualJournals
         if(input.S("bankStatementLineId")!=""){draft["bankStatementLineId"]=input.S("bankStatementLineId");draft["statementId"]=input.S("statementId");draft["reconKind"]=input.S("reconKind");}
         Store.Save(c,Kind,draft,tx);Store.Audit(c,tx,"finance.manual_drafted",draft.S("id"),actor.Identity!.Name!);return draft;
     }
+    /// <summary>TRIAL7 / grok-TRIAL6: edit draft lines/description while status=draft (recon suspense/fee before approval).</summary>
+    public static JsonObject Update(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
+    {
+        var draft=Get(c,tx,actor,id,CreatePermission);
+        J.Need(draft.S("status")=="draft","تعديل الأسطر للمسودة فقط.");
+        J.Need(AccessPolicy.Administrator(actor)||string.Equals(actor.Identity!.Name,draft.S("createdBy"),StringComparison.OrdinalIgnoreCase),"تعديل المسودة لصاحبها أو مسؤول النظام فقط.",403);
+        PayValues.Fields(input,"description","lines","reference","date","odooVoucherNo");
+        if(input.ContainsKey("description"))
+        {
+            string description=input.Required("description");
+            J.Need(description.Length<=1000,"البيان أطول من الحد.");
+            draft["description"]=description;
+        }
+        if(input.ContainsKey("reference"))
+        {
+            string reference=input.Required("reference");
+            J.Need(reference.Length<=200,"المرجع أطول من الحد.");
+            J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("id")!=id&&d.S("companyId")==draft.S("companyId")&&d.S("reference")==reference),"مرجع القيد اليدوي مكرر.");
+            draft["reference"]=reference;
+        }
+        if(input.ContainsKey("date"))
+        {
+            string date=Date(input.Required("date"));
+            Open(c,tx,draft.S("companyId"),date[..7]);
+            draft["date"]=date;draft["period"]=date[..7];
+        }
+        if(input.ContainsKey("lines"))
+            draft["lines"]=ValidateLines(c,tx,actor,draft.S("companyId"),input["lines"] as JsonArray??throw new ApiError("سطور القيد مطلوبة."));
+        if(input.ContainsKey("odooVoucherNo"))draft["odooVoucherNo"]=input.S("odooVoucherNo");
+        draft["updatedBy"]=actor.Identity!.Name;draft["updatedAt"]=DateTimeOffset.UtcNow.ToString("O");
+        Store.Save(c,Kind,draft,tx);Store.Audit(c,tx,"finance.manual_updated",id,actor.Identity!.Name!);
+        return WithActions(actor,draft,c,tx);
+    }
+
     public static JsonObject Approve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
         var draft=Get(c,tx,actor,id,ApprovePermission);J.Need(AccessPolicy.Independent(actor,draft.S("createdBy"),"finance.manual_approved",c,tx,draft,scope:AccessPolicy.ScopePayApprovals),"صاحب المسودة لا يعتمدها.",403);if(draft.S("status")=="approved")return draft;
@@ -106,12 +140,17 @@ public static class ManualJournals
     {
         string me=actor.Identity?.Name??"";bool author=string.Equals(me,d.S("createdBy"),StringComparison.OrdinalIgnoreCase),admin=AccessPolicy.Administrator(actor);
         var actions=new JsonArray();var blockers=new JsonArray();string status=d.S("status");
-        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopePayApprovals);bool independent=AccessPolicy.IndependentForView(actor,d.S("createdBy"),bypass);
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopePayApprovals);
+        bool moneyOut=AccessPolicy.IsMoneyOutDocument(d,"finance.manual_approved",AccessPolicy.ScopePayApprovals);
+        // grok-TRIAL6 MEDIUM: show Approve for maker when approvals.approve_own claim is present and draft is not money-out.
+        bool independent=AccessPolicy.IndependentForView(actor,d.S("createdBy"),bypass)
+            ||(AccessPolicy.HasApproveOwnClaim(actor)&&!moneyOut&&AccessPolicy.SamePerson(actor,d.S("createdBy")));
         if(status=="draft")
         {
             if(!AccessPolicy.Has(actor,ApprovePermission))blockers.Add("صلاحية اعتماد القيد اليدوي مطلوبة.");
             else if(!independent)blockers.Add("اعتماد القيد لمستخدم مستقل عن منشئه.");
             else{actions.Add((JsonNode)"approve");actions.Add((JsonNode)"reject");}
+            if((author||admin)&&AccessPolicy.Has(actor,CreatePermission))actions.Add((JsonNode)"edit_draft");
         }
         if(status is "draft" or "rejected"&&(author||admin)&&AccessPolicy.Has(actor,CreatePermission))actions.Add((JsonNode)"cancel");
         if(status=="approved"&&d.S("reversesJournalId")==""&&AccessPolicy.Has(actor,CreatePermission)&&!Store.List(c,Kind,tx).Any(x=>x.S("reversesManualJournalId")==d.S("id")&&x.S("status")!="rejected"&&x.S("status")!="cancelled"))actions.Add((JsonNode)"reverse");
@@ -120,6 +159,7 @@ public static class ManualJournals
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapPost("/finance/journals/manual",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Create(c,tx,ctx.User,input))).WithTags("Accounting and reports").WithSummary("Draft a balanced manual target-chart journal in an open company period");
+        api.MapPut("/finance/journals/manual/{id}",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Update(c,tx,ctx.User,id,input))).WithTags("Accounting and reports").WithSummary("Edit a draft manual journal (lines/description) before approval");
         api.MapPost("/finance/journals/manual/{id}/approve",(string id,HttpContext ctx)=>store.Write((c,tx)=>Approve(c,tx,ctx.User,id))).WithTags("Accounting and reports").WithSummary("Independently approve a manual journal or its reversal");
         api.MapPost("/finance/journals/manual/{id}/reject",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Reject(c,tx,ctx.User,id,input))).WithTags("Accounting and reports").WithSummary("Reject a manual journal draft with a reason (checker only)");
         api.MapDelete("/finance/journals/manual/{id}",(string id,HttpContext ctx)=>store.Write((c,tx)=>Delete(c,tx,ctx.User,id))).WithTags("Accounting and reports").WithSummary("Cancel an unposted manual journal draft (kept; author or administrator)");

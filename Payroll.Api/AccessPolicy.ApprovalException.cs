@@ -27,6 +27,18 @@ public static partial class AccessPolicy
             ||op.Contains("debt.payout",StringComparison.OrdinalIgnoreCase)
             ||op.Contains("payment.document.approve",StringComparison.OrdinalIgnoreCase);
     }
+    /// <summary>TRIAL7 X2 / grok-TRIAL6: money-out by posting lines (credit to bank/cash/vault) or recon payment — not only by operation-name substrings.</summary>
+    public static bool IsMoneyOutDocument(JsonObject? record,string operation="",string? scope=null)
+    {
+        if(MoneyOutBlocksApproveOwn(operation,scope))return true;
+        if(record==null)return false;
+        if(string.Equals(record.S("reconKind"),"payment",StringComparison.OrdinalIgnoreCase))return true;
+        var lines=record["lines"] as JsonArray;
+        if(lines==null)return false;
+        return lines.OfType<JsonObject>().Any(l=>l.N("credit")>0&&MoneyWriteGuards.IsBankOrCashAccountCode(l.S("accountCode")));
+    }
+    /// <summary>View-time: claim is present (not AccessPolicy.Has — Admin must not inherit approve-own).</summary>
+    public static bool HasApproveOwnClaim(ClaimsPrincipal actor)=>actor.HasClaim("permission",ApproveOwnPermission);
     // Pure when tx is null (allowedActions). Every committed exception use is audited in
     // the same transaction and stamps the operation's actual stored document.
     public static bool Independent(ClaimsPrincipal actor,string maker,string operation,DbConnection? c=null,DbTransaction? tx=null,JsonObject? record=null,DateTimeOffset? evidenceAt=null,string? scope=null)
@@ -44,8 +56,9 @@ public static partial class AccessPolicy
                    ||(a.S("action")=="approval.self_exception"&&string.Equals(actor.Identity.Name,"ghazal",StringComparison.OrdinalIgnoreCase)
                       &&string.CompareOrdinal(a.S("approvalExceptionUntil"),used.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"))>=0)));
         }
-        // TRIAL6: explicit approve-own — claim only (Has() treats Admin as all-perms; this stays OFF by default).
-        if(actor.HasClaim("permission",ApproveOwnPermission)&&!MoneyOutBlocksApproveOwn(operation,scope))
+        bool moneyOut=IsMoneyOutDocument(record,operation,scope);
+        // TRIAL6/7: explicit approve-own — claim only (Has() treats Admin as all-perms; this stays OFF by default). Never money-out.
+        if(HasApproveOwnClaim(actor)&&!moneyOut)
         {
             if(tx!=null)
             {
@@ -57,10 +70,22 @@ public static partial class AccessPolicy
         }
         // BR §35 / WC1H: self-approvals need a dated bypass grant whose scope explicitly matches,
         // or SystemAdmin (M-0667) — every use is audited. Omitting scope is never a wildcard.
-        // Money-out duals never accept approve-own or pay_approvals bypass (M-0677).
-        if(MoneyOutBlocksApproveOwn(operation,scope)&&scope is ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or ApprovalsArea.DualSharedRiderRelease)
+        // TRIAL7: money-out (by lines or dual scope) never accepts approve-own or SystemAdmin self-path.
+        if(moneyOut)
         {
-            // Only an explicit dual-scoped bypass grant (not approve-own) can pass — handled below.
+            if(scope is not (ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or ApprovalsArea.DualSharedRiderRelease))
+                return false; // manual journal / recon payment crediting bank: always two people
+            // Dual scopes: only an explicit dual-scoped bypass grant can pass — never SystemAdmin default.
+            if(c==null||string.IsNullOrWhiteSpace(scope))return false;
+            var dualGrant=ActiveBypassGrant(c,tx,actor.Identity!.Name!,scope);
+            if(dualGrant==null)return false;
+            if(tx!=null)
+            {
+                J.Need(record!=null&&record.S("id")!="","استثناء الاعتماد يحتاج مستندًا وسجل مراجعة.",409);
+                record!["selfApprovedException"]=true;
+                Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=dualGrant.S("id"),["scope"]=dualGrant.S("scope",scope??""),["reason"]=dualGrant.S("reason"),["approvalBypassUntil"]=dualGrant.S("to"),["selfApprovedException"]=true,["badge"]="bypass_maker_checker"},tx);
+            }
+            return true;
         }
         bool systemAdmin=actor.IsInRole("SystemAdmin");
         if(!systemAdmin&&(string.IsNullOrWhiteSpace(scope)||c==null))return false;
