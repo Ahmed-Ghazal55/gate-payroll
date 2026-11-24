@@ -186,6 +186,8 @@ public static class TreasuryBankStatementsApi
             {
                 ["id"]=DispositionId(lineId),["statementId"]=statementId,["lineId"]=lineId,
                 ["disposition"]="timing",["note"]=note,["carryToNext"]=true,
+                ["amount"]=line.N("amount"),["bankAccountId"]=statement.S("bankAccountId"),
+                ["periodMonth"]=statement.S("periodMonth"),["reference"]=line.S("reference"),
                 ["createdBy"]=actor.Identity!.Name,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")
             };
             Store.Save(c,DispositionKind,disp,tx);
@@ -202,34 +204,82 @@ public static class TreasuryBankStatementsApi
             DateOnly occurred=ParseDay(line.S("occurredOn"));
             string sidePred=amount>0?"jl.debit=@amt":"jl.credit=@amt";
             string? journalId=null;string? journalLineId=null;
+            string refText=line.S("reference");
+            // grok-TRIAL6 HIGH: reference must match — no amount-only fallback within ±7 days.
             using(var cmd=Store.Command(c,tx,$"""
                 SELECT j.id,jl.id FROM {SchemaSql.Q(c,"fin","journal_line")} jl
                 JOIN {SchemaSql.Q(c,"fin","journal")} j ON j.id=jl.journal_id
                 WHERE jl.company_id=@c AND jl.account_id=@a AND j.status=2 AND j.run_mode=0
                   AND {sidePred}
                   AND j.journal_date BETWEEN @from AND @to
-                ORDER BY CASE WHEN jl.narration_ar=@ref OR j.voucher_no=@ref OR j.narration_ar=@ref THEN 0 ELSE 1 END, jl.line_no
+                  AND (jl.narration_ar=@ref OR j.voucher_no=@ref OR j.narration_ar=@ref)
+                ORDER BY jl.line_no
                 """,("@c",statement.S("companyId")),("@a",chartAccountId),("@amt",abs),
                 ("@from",occurred.AddDays(-7).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)),
                 ("@to",occurred.AddDays(7).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)),
-                ("@ref",line.S("reference"))))
+                ("@ref",refText)))
             using(var r=cmd.ExecuteReader())
             if(r.Read()){journalId=r.GetValue(0).ToString();journalLineId=r.GetValue(1).ToString();}
-            J.Need(journalId!=null,"لا يوجد قيد أصلي مرشّح لهذا السطر؛ سجّل قيد تصحيح جديد.",404);
-            var prefill=new JsonObject
+            J.Need(journalId!=null,"لا يوجد قيد أصلي مطابق للمرجع؛ سجّل قيد تصحيح جديد.",404);
+
+            // Build reversing draft (swap debit/credit) linked to the posted journal — second person must approve.
+            string matchedJournalId=journalId!;
+            var reverseLines=new JsonArray();
+            using(var cmd=Store.Command(c,tx,$"""
+                SELECT a.code,jl.debit,jl.credit,COALESCE(jl.narration_ar,'') FROM {SchemaSql.Q(c,"fin","journal_line")} jl
+                JOIN {SchemaSql.Q(c,"fin","account")} a ON a.id=jl.account_id
+                WHERE jl.journal_id=@j ORDER BY jl.line_no
+                """,("@j",matchedJournalId)))
+            using(var r=cmd.ExecuteReader())
+            while(r.Read())
+            {
+                decimal deb=J.Money(Convert.ToDecimal(r.GetValue(1),CultureInfo.InvariantCulture));
+                decimal cre=J.Money(Convert.ToDecimal(r.GetValue(2),CultureInfo.InvariantCulture));
+                reverseLines.Add(new JsonObject
+                {
+                    ["accountCode"]=r.GetValue(0).ToString()!,
+                    ["debit"]=cre,["credit"]=deb,
+                    ["note"]=r.GetValue(3).ToString() is {Length:>0} n?n:"عكس قيد بنكي"
+                });
+            }
+            J.Need(reverseLines.Count>=2,"القيد الأصلي بلا أسطر للعكس.",409);
+            string revRef="REV-BANK:"+refText;
+            if(revRef.Length>200)revRef=revRef[..200];
+            // Unique reference if a prior reverse draft exists for the same line.
+            if(Store.List(c,ManualJournals.Kind,tx).Any(d=>d.S("companyId")==statement.S("companyId")&&d.S("reference")==revRef))
+                revRef=$"REV-BANK:{refText}:{lineId[..8]}";
+            var reverseDraft=ManualJournals.Create(c,tx,actor,new()
             {
                 ["companyId"]=statement.S("companyId"),["date"]=line.S("occurredOn"),
-                ["reference"]="REV-BANK:"+line.S("reference"),
-                ["description"]="عكس وتصحيح قيد بنكي من مطابقة الكشف",
-                ["reversesJournalId"]=journalId,["bankStatementLineId"]=lineId,["statementId"]=statementId
-            };
+                ["reference"]=revRef,["description"]="عكس وتصحيح قيد بنكي من مطابقة الكشف",
+                ["lines"]=reverseLines,["bankStatementLineId"]=lineId,["statementId"]=statementId,["reconKind"]="open_original"
+            });
+            reverseDraft["reversesJournalId"]=matchedJournalId;
+            Store.Save(c,ManualJournals.Kind,reverseDraft,tx);
+            Store.Save(c,DispositionKind,new()
+            {
+                ["id"]=DispositionId(lineId),["statementId"]=statementId,["lineId"]=lineId,
+                ["disposition"]="pending_document",["reconKind"]="open_original",["documentId"]=reverseDraft.S("id"),
+                ["originalJournalId"]=matchedJournalId,["createdBy"]=actor.Identity!.Name,
+                ["createdAt"]=DateTimeOffset.UtcNow.ToString("O")
+            },tx);
+            Store.Audit(c,tx,"treasury.bank_line_open_original",lineId,actor.Identity!.Name!);
+            string formRoute=$"/app/accounting?tab=manual_journals&draftId={Uri.EscapeDataString(reverseDraft.S("id"))}";
             return new()
             {
-                ["kind"]="open_original",["formAction"]="reverse",["originalJournalId"]=journalId,
-                ["originalJournalLineId"]=journalLineId??"",["prefill"]=prefill,
-                ["formRoute"]="/app/treasury?tab=manual_journals",
-                ["noteAr"]="لا يُعدَّل قيد مرحّل؛ أنشئ عكسًا ثم قيدًا صحيحًا.",
-                ["allowedActions"]=new JsonArray("open_reverse_form")
+                ["kind"]="open_original",["formAction"]="reverse",["originalJournalId"]=matchedJournalId,
+                ["originalJournalLineId"]=journalLineId??"",["documentId"]=reverseDraft.S("id"),
+                ["documentKind"]="manual_journal",["status"]=reverseDraft.S("status"),
+                ["prefill"]=new JsonObject
+                {
+                    ["companyId"]=statement.S("companyId"),["date"]=line.S("occurredOn"),
+                    ["reference"]=revRef,["description"]=reverseDraft.S("description"),
+                    ["reversesJournalId"]=matchedJournalId,["lines"]=reverseLines.DeepClone(),
+                    ["bankStatementLineId"]=lineId,["statementId"]=statementId
+                },
+                ["formRoute"]=formRoute,
+                ["noteAr"]="لا يُعدَّل قيد مرحّل؛ أُنشئت مسودة عكس تحتاج اعتماد شخص ثانٍ.",
+                ["allowedActions"]=new JsonArray("approve","reject","cancel","edit_draft")
             };
         }
 
@@ -295,8 +345,8 @@ public static class TreasuryBankStatementsApi
             ["kind"]="line_document",["reconKind"]=kind,["documentId"]=draft.S("id"),
             ["documentKind"]="manual_journal",["status"]=draft.S("status"),
             ["counterAccountCode"]=counter,["bankAccountCode"]=bankCode,
-            ["formRoute"]="/app/treasury?tab=manual_journals",
-            ["prefill"]=draftInput,["allowedActions"]=new JsonArray("approve","reject","cancel"),
+            ["formRoute"]=$"/app/accounting?tab=manual_journals&draftId={Uri.EscapeDataString(draft.S("id"))}",
+            ["prefill"]=draftInput,["allowedActions"]=new JsonArray("approve","reject","cancel","edit_draft"),
             ["noteAr"]="المسودة تُعتمد من مسار القيد العادي؛ بعد الترحيل يُطابق السطر تلقائيًا."
         };
     }
@@ -477,16 +527,37 @@ public static class TreasuryBankStatementsApi
             }
             line["allowedActions"]=lineActions;
             if(line.B("matched")){matchedCount++;matchedSum+=line.N("amount");}
-            else if(disposition=="timing"){timingCount++;timingSum+=line.N("amount");unmatchedCount++;}
+            else if(disposition=="timing"){timingCount++;timingSum+=line.N("amount");} // grok-TRIAL6: timing only in timingCount
             else unmatchedCount++;
             lines.Add(line);
         }
+        // grok-TRIAL6 HIGH: prior uncleared timing (carryToNext) from earlier statements of the same bank.
+        decimal priorTiming=0m;int priorTimingCount=0;
+        string thisPeriod=doc.S("periodMonth");
+        foreach(var prior in Store.List(c,DispositionKind,tx))
+        {
+            if(prior.S("disposition")!="timing"||!prior.B("carryToNext"))continue;
+            if(!string.Equals(prior.S("bankAccountId"),bankAccountId,StringComparison.OrdinalIgnoreCase))continue;
+            string priorPeriod=prior.S("periodMonth");
+            if(priorPeriod==""||string.CompareOrdinal(priorPeriod,thisPeriod)>=0)continue;
+            // Skip if the prior line was later matched/cleared.
+            if(Store.Get(c,DispositionId(prior.S("lineId")),DispositionKind,tx) is {} live&&live.S("disposition")!="timing")continue;
+            priorTiming+=prior.N("amount");
+            priorTimingCount++;
+        }
+        timingSum+=priorTiming;
+        timingCount+=priorTimingCount;
         doc["lines"]=lines;
         doc["matchedCount"]=matchedCount;doc["unmatchedCount"]=unmatchedCount;doc["timingCount"]=timingCount;
         doc["bankClosingBalance"]=doc.N("closingBalance");
-        // After recon: book side for matched+timing carried = bank closing when all residual unmatched are resolved.
-        doc["reconciledBalance"]=J.Money(doc.N("openingBalance")+matchedSum);
+        // grok-TRIAL6: opening + matched + timing when residual unmatched is 0; else opening + matched only.
+        doc["reconciledBalance"]=unmatchedCount==0
+            ?J.Money(doc.N("openingBalance")+matchedSum+timingSum)
+            :J.Money(doc.N("openingBalance")+matchedSum);
         doc["timingCarriedAmount"]=J.Money(timingSum);
+        doc["priorTimingCarriedAmount"]=J.Money(priorTiming);
+        doc["priorTimingCount"]=priorTimingCount;
+        doc["timingCarriedForwardAmount"]=J.Money(priorTiming);
         var actions=new JsonArray();
         if(canRecon&&doc.N("statusCode") is 1 or 2)actions.Add("auto_match");
         doc["allowedActions"]=actions;

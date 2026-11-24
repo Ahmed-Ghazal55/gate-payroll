@@ -70,3 +70,15 @@ test('TRIAL6: bank recon line actions + Arabic labels + allowedActions', () => {
   assert.match(api, /bank-statements\/\$\{encodeURIComponent\(statementId\)\}\/lines\/\$\{encodeURIComponent\(lineId\)\}\/actions/);
   assert.doesNotMatch(panel, /طلب تسوية/);
 });
+
+test('TRIAL7: recon opens draft route + updateManualJournal', () => {
+  const panel = readFileSync(join(root, 'src/features/treasury/BankReconPanel.tsx'), 'utf8');
+  const api = readFileSync(join(root, 'src/lib/api.ts'), 'utf8');
+  const accounting = readFileSync(join(root, 'src/app/accounting/page.tsx'), 'utf8');
+  const journals = readFileSync(join(root, 'src/features/accounting/ManualJournalsPanel.tsx'), 'utf8');
+  assert.match(panel, /formRoute/);
+  assert.match(panel, /window\.location\.assign\(route\)/);
+  assert.match(api, /updateManualJournal/);
+  assert.match(accounting, /draftId/);
+  assert.match(journals, /focusDraftId|editingDraftId/);
+});

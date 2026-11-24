@@ -727,6 +727,7 @@ function AccountingPageContent() {
           companies={companies}
           coaAccounts={coaAccounts}
           defaultOpenNew={openNewManualJournal}
+          focusDraftId={searchParams?.get('draftId') || ''}
         />
       )}
 

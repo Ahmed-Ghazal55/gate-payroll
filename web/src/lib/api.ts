@@ -2225,6 +2225,20 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  updateManualJournal: (
+    id: string,
+    body: {
+      date?: string;
+      reference?: string;
+      description?: string;
+      lines?: Array<{ accountCode: string; debit: number; credit: number; note?: string }>;
+      odooVoucherNo?: string;
+    }
+  ) =>
+    handleRequest<ManualJournalItem>(`/finance/journals/manual/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
   approveManualJournal: (id: string) =>
     handleRequest<paths['/api/finance/journals/manual/{id}/approve']['post']['responses']['200']['content']['application/json']>(
       `/finance/journals/manual/${encodeURIComponent(id)}/approve`, {

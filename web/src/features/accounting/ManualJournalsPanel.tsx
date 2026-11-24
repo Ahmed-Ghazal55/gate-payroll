@@ -46,6 +46,8 @@ interface ManualJournalsPanelProps {
   companies: CompanySponsor[];
   coaAccounts: CoaAccountItem[];
   defaultOpenNew?: boolean;
+  /** TRIAL7: open an existing draft (from bank recon formRoute ?draftId=). */
+  focusDraftId?: string;
 }
 
 interface NewLineState {
@@ -59,6 +61,7 @@ export function ManualJournalsPanel({
   companies,
   coaAccounts,
   defaultOpenNew = false,
+  focusDraftId = '',
 }: ManualJournalsPanelProps) {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
@@ -77,8 +80,9 @@ export function ManualJournalsPanel({
   const [selectedJournal, setSelectedJournal] = useState<ManualJournal | null>(null);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
 
-  // New Journal Dialog
+  // New Journal Dialog (also reused for TRIAL7 draft edit via editingDraftId)
   const [newModalOpen, setNewModalOpen] = useState<boolean>(defaultOpenNew);
+  const [editingDraftId, setEditingDraftId] = useState<string>('');
   const [newCompanyId, setNewCompanyId] = useState<string>('');
   const [newDate, setNewDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [newReference, setNewReference] = useState<string>('');
@@ -203,6 +207,30 @@ export function ManualJournalsPanel({
     }
   }, [defaultOpenNew]);
 
+  useEffect(() => {
+    if (!focusDraftId || journals.length === 0) return;
+    const hit = journals.find((j) => j.id === focusDraftId);
+    if (!hit) return;
+    setSelectedJournal(hit);
+    setDrawerOpen(true);
+    if (hit.allowedActions?.includes('edit_draft') || hit.status === 'draft') {
+      setNewCompanyId(hit.companyId || '');
+      setNewDate(hit.date || '');
+      setNewReference(hit.reference || '');
+      setNewDescription(hit.description || '');
+      setLines(
+        (hit.lines || []).map((l) => ({
+          accountCode: l.accountCode || '',
+          debit: l.debit != null ? String(l.debit) : '',
+          credit: l.credit != null ? String(l.credit) : '',
+          note: l.note || '',
+        }))
+      );
+      setEditingDraftId(hit.id);
+      setNewModalOpen(true);
+    }
+  }, [focusDraftId, journals]);
+
   // Calculate live debit/credit totals
   const { totalDebit, totalCredit, diff, isBalanced } = useMemo(() => {
     let dSum = 0;
@@ -306,23 +334,36 @@ export function ManualJournalsPanel({
 
     setSubmitting(true);
     try {
-      await api.createManualJournal({
-        companyId: newCompanyId,
-        date: newDate,
-        reference: newReference.trim(),
-        description: newDescription.trim(),
-        odooVoucherNo: newOdooVoucher.trim() || undefined,
-        attachment: newAttachment || undefined,
-        lines: lines.map((l) => ({
-          accountCode: l.accountCode,
-          debit: parseFloat(l.debit) || 0,
-          credit: parseFloat(l.credit) || 0,
-          note: l.note.trim() || undefined,
-        })),
-      });
+      const payloadLines = lines.map((l) => ({
+        accountCode: l.accountCode,
+        debit: parseFloat(l.debit) || 0,
+        credit: parseFloat(l.credit) || 0,
+        note: l.note.trim() || undefined,
+      }));
+      if (editingDraftId) {
+        await api.updateManualJournal(editingDraftId, {
+          date: newDate,
+          reference: newReference.trim(),
+          description: newDescription.trim(),
+          odooVoucherNo: newOdooVoucher.trim() || undefined,
+          lines: payloadLines,
+        });
+        toast('تم حفظ تعديلات المسودة', 'success');
+      } else {
+        await api.createManualJournal({
+          companyId: newCompanyId,
+          date: newDate,
+          reference: newReference.trim(),
+          description: newDescription.trim(),
+          odooVoucherNo: newOdooVoucher.trim() || undefined,
+          attachment: newAttachment || undefined,
+          lines: payloadLines,
+        });
+        toast('تم إنشاء مسودة القيد وإرسالها للاعتماد بنجاح', 'success');
+      }
 
-      toast('تم إنشاء مسودة القيد وإرسالها للاعتماد بنجاح', 'success');
       setNewModalOpen(false);
+      setEditingDraftId('');
       // Reset form
       setNewReference('');
       setNewDescription('');

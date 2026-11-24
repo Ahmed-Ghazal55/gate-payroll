@@ -162,18 +162,23 @@ export function BankReconPanel() {
       });
       if (kind === 'open_original') {
         const route = String((res as { formRoute?: string }).formRoute || '/app/accounting?tab=manual_journals');
-        toast('افتح العكس والتصحيح من مسار القيد — لا يُعدَّل قيد مرحّل', 'info');
+        toast('أُنشئت مسودة عكس — تعتمد من شخص ثانٍ؛ لا يُعدَّل قيد مرحّل', 'info');
         window.location.assign(route);
         return;
       }
       if (kind === 'payment' || kind === 'receipt' || kind === 'journal') {
         const docId = String((res as { documentId?: string }).documentId || '');
+        const route = String((res as { formRoute?: string }).formRoute || '');
         toast(
           docId
             ? `مُسودة ${ACTION_LABELS[action] || action} جاهزة للاعتماد (${docId})`
             : 'أُنشئت المسودة — اعتمدها من القيود اليدوية ثم يُطابق السطر تلقائيًا',
           'success'
         );
+        if (route) {
+          window.location.assign(route);
+          return;
+        }
       } else {
         toast(kind === 'timing' ? 'سُجّل فرق التوقيت ويُرحَّل للشهر التالي' : 'تم تحديث السطر', 'success');
       }
