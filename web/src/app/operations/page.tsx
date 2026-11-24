@@ -260,7 +260,8 @@ function OperationsPageInner() {
         setAllowedActions((res.allowedActions || []) as string[]);
       } else {
         const res = (await api.getOperationsFuelCards({
-          month,
+          from,
+          to,
           page,
           pageSize,
           q: debouncedQ || undefined,
@@ -510,7 +511,7 @@ function OperationsPageInner() {
     { id: 'invoices', label: 'فواتير مشتريات المركبات' },
   ];
   const fuelInnerTabs: SectionTabItem[] = [
-    { id: 'usage', label: 'الاستهلاك الشهري' },
+    { id: 'usage', label: 'الاستهلاك حسب الفترة' },
     { id: 'cards', label: 'بطاقات الوقود والتسليمات' },
     { id: 'log', label: 'سجل البطاقات' },
   ];
@@ -567,7 +568,7 @@ function OperationsPageInner() {
       { label: 'المناديب المستهلكون', value: summary.consumingRiders },
       { label: 'إجمالي اللترات', value: summary.totalLiters },
       { label: 'الإجمالي شامل الضريبة', value: formatSar(summary.totalInclVat as number | string | null | undefined) },
-      { label: 'تجاوز السقف', value: summary.capExceeded ?? NO_SOURCE },
+      { label: 'أيام غير مغطاة', value: summary.uncoveredDays ?? 0 },
     ];
   }, [tab, view, summary]);
 
@@ -696,7 +697,30 @@ function OperationsPageInner() {
         { key: 'before', header: 'قبل الضريبة', type: 'number', filterType: 'number', numeric: true, filterColumn: 'amountBeforeTax', getValue: (r) => (r.amountBeforeTax != null ? Number(r.amountBeforeTax) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.amountBeforeTax as number | string | null | undefined)}</span> },
         { key: 'vat', header: 'الضريبة', type: 'number', filterType: 'number', numeric: true, getValue: (r) => (r.vat != null ? Number(r.vat) : ''), render: (r) => <span className="num whitespace-nowrap">{formatSar(r.vat as number | string | null | undefined)}</span> },
         { key: 'total', header: 'الإجمالي', type: 'number', filterType: 'number', numeric: true, filterColumn: 'totalInclVat', getValue: (r) => (r.totalInclVat != null ? Number(r.totalInclVat) : ''), render: (r) => <span className="num font-medium whitespace-nowrap">{formatSar(r.totalInclVat as number | string | null | undefined)}</span> },
-        { key: 'cap', header: 'السقف', filterable: false, sortable: false, render: () => NO_SOURCE },
+        {
+          key: 'usageSource',
+          header: 'مصدر الصف',
+          type: 'list',
+          filterType: 'list',
+          getValue: (r) => String(r.usageSource || ''),
+          labelOf: (v) => (String(v) === 'daily' ? 'يومي' : String(v) === 'monthly' ? 'شهري' : String(v || '—')),
+          render: (r) => {
+            const src = String(r.usageSource || '');
+            return src === 'daily' ? 'يومي' : src === 'monthly' ? 'شهري' : '—';
+          },
+        },
+        {
+          key: 'coverage',
+          header: 'التغطية',
+          filterable: false,
+          sortable: false,
+          render: (r) => {
+            const a = String(r.coveredFrom || '');
+            const b = String(r.coveredTo || '');
+            if (!a && !b) return '—';
+            return `${a || '—'} → ${b || '—'}`;
+          },
+        },
         {
           key: 'status',
           header: 'الحالة',
@@ -779,8 +803,19 @@ function OperationsPageInner() {
       </PageHeader>
 
       {tab === 'fuel' ? (
-        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm">
-          عرض مباشر فقط من نظام الموارد — الاستهلاك يُدخل في نظام عمر.
+        <div className="rounded-lg border border-[var(--border)] bg-[var(--surface-2)] px-4 py-3 text-sm space-y-1">
+          <div>عرض مباشر فقط من نظام الموارد — الاستهلاك يُدخل في نظام عمر.</div>
+          {source ? <div>المصدر: {source}</div> : null}
+          {summary.coveredFrom || summary.coveredTo ? (
+            <div>
+              التغطية: {String(summary.coveredFrom || '—')} → {String(summary.coveredTo || '—')}
+            </div>
+          ) : null}
+          {Number(summary.uncoveredDays || 0) > 0 ? (
+            <div className="text-[var(--danger,#b42318)]" role="status">
+              تحذير: {String(summary.uncoveredDays)} يومًا بلا تغطية استيراد في الفترة المحددة — الأرقام المعروضة ليست صفرًا بسبب الفجوة.
+            </div>
+          ) : null}
         </div>
       ) : null}
 
@@ -832,12 +867,6 @@ function OperationsPageInner() {
             </label>
           </>
         )}
-        {tab === 'fuel' && view !== 'log' ? (
-          <label className="text-sm">
-            الشهر
-            <input type="month" className="block mt-1 rounded-lg border border-[var(--border)] px-2 py-2" value={month} onChange={(e) => setPeriod(e.target.value, { page: '1' })} />
-          </label>
-        ) : null}
         {tab === 'vehicles' && view === 'period' ? (
           <div className="flex w-full sm:w-auto rounded-lg overflow-hidden border border-[var(--border)]">
             <button type="button" className={`flex-1 sm:flex-none px-3 py-2 text-sm ${mode === 'vehicle' ? 'bg-[var(--accent)] text-white' : ''}`} onClick={() => replaceParams({ mode: 'vehicle', page: '1' })}>
@@ -885,7 +914,7 @@ function OperationsPageInner() {
             </button>
           ) : null}
           {canExport && tab === 'fuel' && view !== 'log' ? (
-            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsFuel({ month, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-fuel.xlsx'))}>
+            <button type="button" className="rounded-lg border border-[var(--border)] px-3 py-2" onClick={() => void api.exportOperationsFuel({ from, to, q: debouncedQ || undefined, filters: serverQuery.filtersParam, sort: serverQuery.sortParam }).then((r) => downloadBlob(r, 'operations-fuel.xlsx'))}>
               تصدير
             </button>
           ) : null}
