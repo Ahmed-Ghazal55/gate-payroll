@@ -53,14 +53,24 @@ public static class DebtLedger
         {
             if(Convert.ToInt64(SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {t} WHERE code=@c",("@c",code))!)>0)return;
             object? parentId=string.IsNullOrEmpty(parent)?DBNull.Value:SchemaSql.Scalar(c,tx,$"SELECT id FROM {t} WHERE code=@p",("@p",parent));
-            if(parent!=""&&parentId is null or DBNull){Seed(parent,parent=="5268"?"إعفاءات المنصات":parent,"5266",false);parentId=SchemaSql.Scalar(c,tx,$"SELECT id FROM {t} WHERE code=@p",("@p",parent));}
+            // COA1 A2: 5268 is a sibling of 5266 under 526 (4-digit header), not a child of 5266.
+            if(parent!=""&&parentId is null or DBNull)
+            {
+                string grand=parent switch{"5268"=>"526","526"=>"52",_=>""};
+                Seed(parent,parent=="5268"?"إعفاءات المنصات":parent,grand,false);
+                parentId=SchemaSql.Scalar(c,tx,$"SELECT id FROM {t} WHERE code=@p",("@p",parent));
+            }
             SchemaSql.Exec(c,tx,$"""
                 INSERT INTO {t}(id,code,parent_id,name_ar,account_type,nature,is_postable,status,is_active,company_scope,level_no,created_at)
                 VALUES(@id,@code,@parent,@name,5,1,@post,1,1,0,@lvl,{now})
                 """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code",code),("@parent",parentId??DBNull.Value),("@name",name),
                 ("@post",postable?1:0),("@lvl",code.Length<=4?4:6));
         }
-        Seed("5268","إعفاءات المنصات","5266",false);
+        Seed("5268","إعفاءات المنصات","526",false);
+        // One-off: if 5268 was previously parented under 5266, re-point to 526 and level 4.
+        object? parent526=SchemaSql.Scalar(c,tx,$"SELECT id FROM {t} WHERE code='526'");
+        if(parent526 is not null and not DBNull)
+            SchemaSql.Exec(c,tx,$"UPDATE {t} SET parent_id=@p, level_no=4 WHERE code='5268' AND (parent_id IS NULL OR parent_id<>(SELECT id FROM {t} WHERE code='526'))",("@p",parent526));
         Seed("526801","إعفاءات كيتا","5268",true);
         Seed("526802","إعفاءات هنقرستيشن","5268",true);
         Seed("526803","إعفاءات نينجا","5268",true);
