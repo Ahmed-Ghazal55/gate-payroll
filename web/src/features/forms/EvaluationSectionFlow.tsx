@@ -636,6 +636,7 @@ export function EvaluationSectionFlow({
           <label className="block text-sm">
             {localizedLabel(schema.identityFields?.find((f) => f.id === 'iqama'), lang)}
             <input
+              data-testid="eval-section-iqama"
               className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-3 py-2"
               value={iqama}
               readOnly={lockedIqama}
@@ -645,6 +646,7 @@ export function EvaluationSectionFlow({
           <label className="block text-sm">
             {localizedLabel(schema.identityFields?.find((f) => f.id === 'name'), lang)}
             <input
+              data-testid="eval-section-name"
               className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-3 py-2"
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -653,6 +655,7 @@ export function EvaluationSectionFlow({
           <label className="block text-sm">
             {localizedLabel(schema.identityFields?.find((f) => f.id === 'nationality'), lang)}
             <input
+              data-testid="eval-section-nationality"
               className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-3 py-2"
               list="eval-nationalities"
               value={nationality}
@@ -718,6 +721,7 @@ export function EvaluationSectionFlow({
               <label className="block space-y-1 text-xs">
                 <span className="font-semibold text-[var(--muted)]">{t('skipLabel')}</span>
                 <select
+                  data-testid="eval-section-staff-reason"
                   className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2"
                   value={staffAnswers[current.id]?.reason || ''}
                   onChange={(e) =>

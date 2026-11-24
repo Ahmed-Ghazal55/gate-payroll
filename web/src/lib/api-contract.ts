@@ -1309,6 +1309,9 @@ export interface paths {
                             receipt: string;
                             allowedActions: string[];
                             editPolicyPending: boolean;
+                            editCount?: number;
+                            editsRemaining?: number;
+                            uploadsPolicyPending?: boolean;
                         };
                     };
                 };
@@ -1340,6 +1343,9 @@ export interface paths {
                             receipt: string;
                             allowedActions: string[];
                             editPolicyPending: boolean;
+                            editCount?: number;
+                            editsRemaining?: number;
+                            uploadsPolicyPending?: boolean;
                         };
                     };
                 };
@@ -1619,6 +1625,9 @@ export interface paths {
                             receipt: string;
                             allowedActions: string[];
                             editPolicyPending: boolean;
+                            editCount?: number;
+                            editsRemaining?: number;
+                            uploadsPolicyPending?: boolean;
                         };
                     };
                 };
@@ -1650,6 +1659,9 @@ export interface paths {
                             receipt: string;
                             allowedActions: string[];
                             editPolicyPending: boolean;
+                            editCount?: number;
+                            editsRemaining?: number;
+                            uploadsPolicyPending?: boolean;
                         };
                     };
                 };

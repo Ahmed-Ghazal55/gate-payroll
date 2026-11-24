@@ -18,11 +18,18 @@ describe('EV5 S3 section public form', () => {
     const staffAr = suggestedChipsFor('staff', 'ar');
     assert.ok(staffAr.some((c) => c.includes('متعاون')));
     assert.ok(suggestedChipsFor('staff', 'en').some((c) => /cooperat/i.test(c) || c.length > 3));
+    assert.ok(suggestedChipsFor('staff', 'ur').length >= 2);
     assert.ok(suggestedChipsFor('movement', 'ar').some((c) => c.includes('صيانة')));
+    assert.ok(suggestedChipsFor('movement', 'ur').length >= 1);
     assert.ok(suggestedChipsFor('hr', 'ar').some((c) => c.includes('إقامة')));
+    assert.ok(suggestedChipsFor('hr', 'en').some((c) => /iqama|papers|leave/i.test(c)));
+    assert.ok(suggestedChipsFor('hr', 'ur').length >= 1);
     assert.ok(suggestedChipsFor('finance', 'ar').some((c) => c.includes('راتب')));
+    assert.ok(suggestedChipsFor('finance', 'ur').length >= 1);
     assert.ok(suggestedChipsFor('support', 'ar').some((c) => c.includes('انتظار')));
+    assert.ok(suggestedChipsFor('support', 'ur').length >= 1);
     assert.ok(suggestedChipsFor('app', 'ar').some((c) => c.includes('طلبات')));
+    assert.ok(suggestedChipsFor('app', 'ur').length >= 1);
   });
 
   it('section form remembers identity and walks notice → identity → city → staff → app/finance', () => {
@@ -37,8 +44,10 @@ describe('EV5 S3 section public form', () => {
     assert.match(flow, /financeAnswer/);
     assert.match(flow, /suggestedChipsFor/);
     assert.match(flow, /eval-suggested-chip/);
-    assert.match(flow, /eval-section-staff-step/);
+    assert.match(flow, /eval-section-\$\{current\.kind\}-step|eval-section-staff-step/);
+    assert.match(flow, /eval-section-staff-reason/);
     assert.match(flow, /eval-finance-card/);
+    assert.match(flow, /eval-section-review/);
   });
 
   it('server-hosted rider form redirects section tokens to the web client', () => {
@@ -46,6 +55,8 @@ describe('EV5 S3 section public form', () => {
     assert.match(rider, /sectionKey/);
     assert.match(rider, /location\.replace/);
     assert.match(rider, /\/app\/evaluation\/\?/);
+    assert.match(rider, /q\.set\(['"]evaluation['"]/);
     assert.doesNotMatch(rider, /eval-finance-card/);
+    assert.doesNotMatch(rider, /eval-section-flow/);
   });
 });

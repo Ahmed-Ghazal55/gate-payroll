@@ -120,7 +120,7 @@ public static partial class ApiContracts
         if (path == "/api/rider-mobile/evaluations/{token}/launch") return O(new() { ["url"] = S() }, "url");
         if (path == "/api/public/evaluations/{token}/session") return O(new() { ["accessToken"] = S(), ["iqama"] = S(), ["expiresAt"] = S() }, "accessToken", "iqama", "expiresAt");
         if (path is "/api/public/evaluations/{token}" or "/api/rider-mobile/evaluations/{token}")
-            return get ? EvaluationSchema() : O(new() { ["receipt"] = S(), ["allowedActions"] = A(S()), ["editPolicyPending"] = B() }, "receipt", "allowedActions", "editPolicyPending");
+            return get ? EvaluationSchema() : O(new() { ["receipt"] = S(), ["allowedActions"] = A(S()), ["editCount"] = N(), ["editsRemaining"] = N(), ["editPolicyPending"] = B(), ["uploadsPolicyPending"] = B() }, "receipt", "allowedActions", "editPolicyPending");
         return null;
     }
 }
