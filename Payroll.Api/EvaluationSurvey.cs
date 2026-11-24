@@ -414,6 +414,9 @@ public static partial class EvaluationSurvey
         if (response == null || !InScope(c, user, response)) return false;
         if (AccessPolicy.Administrator(user)) return true;
         var scope = user.FindAll("finance.platforms").Select(p => p.Value).ToArray();
+        // Finance card complaints target a department (no staff card); visibility follows reply scope + payload.app.
+        if (request["payload"].S("targetKind") == "department")
+            return scope.Length == 0 || scope.Contains(request["payload"].S("app"));
         var staff = Round(c, response.S("roundId"), tx)["staff"]!.AsArray().OfType<JsonObject>().SingleOrDefault(s => s.S("id") == request["payload"].S("targetId"));
         return staff != null && (scope.Length == 0 || Strings(staff, "apps").All(scope.Contains));
     }

@@ -275,6 +275,45 @@ public sealed class EvaluationSectionTests
     }
 
     [TestMethod]
+    public void FinanceDepartmentComplaintsVisibleToInScopeNonAdminViewers()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f);
+        var ninja = Section(round, "app:Ninja");
+        var input = SectionReply(ninja);
+        input["financeAnswer"] = new JsonObject
+        {
+            ["overall"] = 2,
+            ["factorRatings"] = new JsonObject { ["responsiveness"] = 1 },
+            ["notes"] = "Synthetic finance note",
+            ["complaint"] = true,
+            ["complaintDetails"] = "Synthetic finance complaint details text"
+        };
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, ninja.S("sharingToken"), input));
+        var management = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.Name, "synthetic-eval-viewer"),
+            new Claim(ClaimTypes.Role, "Reviewer"),
+            new Claim("permission", EvaluationSurvey.ViewPermission),
+            new Claim("permission", SubmissionChoices.PermAllCompanies),
+            new Claim("permission", "mobile.complaints.confidential")
+        }, "test"));
+        var visible = f.Store.Read(c => RiderAsks.StaffServiceRequests(c, management, null, null, null));
+        Assert.HasCount(1, visible);
+        Assert.AreEqual("department", visible[0]["payload"]!.S("targetKind"));
+        Assert.AreEqual("Ninja", visible[0]["payload"]!.S("app"));
+
+        var ninjaScoped = new ClaimsPrincipal(new ClaimsIdentity(management.Claims
+            .Append(new Claim("finance.platforms", "Ninja")), "test"));
+        Assert.HasCount(1, f.Store.Read(c => RiderAsks.StaffServiceRequests(c, ninjaScoped, null, null, null)));
+
+        var keetaScoped = new ClaimsPrincipal(new ClaimsIdentity(management.Claims
+            .Where(c => c.Type != "finance.platforms")
+            .Append(new Claim("finance.platforms", "Keeta")), "test"));
+        Assert.HasCount(0, f.Store.Read(c => RiderAsks.StaffServiceRequests(c, keetaScoped, null, null, null)));
+    }
+
+    [TestMethod]
     public void DeleteRoundRemovesRepliesFilesAndComplaintsWithTitleConfirm()
     {
         using var f = new PayFixture();
