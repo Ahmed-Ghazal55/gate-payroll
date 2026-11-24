@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:44211/"
+      "url": "http://127.0.0.1:40981/"
     }
   ],
   "paths": {
@@ -38053,6 +38053,184 @@
         }
       }
     },
+    "/api/finance/journals/manual/{id}": {
+      "put": {
+        "tags": [
+          "Accounting and reports"
+        ],
+        "summary": "Edit a draft manual journal (lines/description) before approval",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "date": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "accountCode",
+                          "debit",
+                          "credit"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "accountCode": {
+                            "type": "string"
+                          },
+                          "debit": {
+                            "type": "number"
+                          },
+                          "credit": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Accounting and reports"
+        ],
+        "summary": "Cancel an unposted manual journal draft (kept; author or administrator)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "date": {
+                      "type": "string"
+                    },
+                    "reference": {
+                      "type": "string"
+                    },
+                    "description": {
+                      "type": "string"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "accountCode",
+                          "debit",
+                          "credit"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "accountCode": {
+                            "type": "string"
+                          },
+                          "debit": {
+                            "type": "number"
+                          },
+                          "credit": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/finance/journals/manual/{id}/approve": {
       "post": {
         "tags": [
@@ -38164,91 +38342,6 @@
           },
           "required": true
         },
-        "responses": {
-          "200": {
-            "description": "Successful response (stored wire field names)",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "required": [
-                    "id",
-                    "status"
-                  ],
-                  "type": "object",
-                  "properties": {
-                    "id": {
-                      "type": "string"
-                    },
-                    "status": {
-                      "type": "string"
-                    },
-                    "companyId": {
-                      "type": "string"
-                    },
-                    "date": {
-                      "type": "string"
-                    },
-                    "reference": {
-                      "type": "string"
-                    },
-                    "description": {
-                      "type": "string"
-                    },
-                    "journalEntryId": {
-                      "type": "string"
-                    },
-                    "allowedActions": {
-                      "type": "array",
-                      "items": {
-                        "type": "string"
-                      }
-                    },
-                    "lines": {
-                      "type": "array",
-                      "items": {
-                        "required": [
-                          "accountCode",
-                          "debit",
-                          "credit"
-                        ],
-                        "type": "object",
-                        "properties": {
-                          "accountCode": {
-                            "type": "string"
-                          },
-                          "debit": {
-                            "type": "number"
-                          },
-                          "credit": {
-                            "type": "number"
-                          }
-                        }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          }
-        }
-      }
-    },
-    "/api/finance/journals/manual/{id}": {
-      "delete": {
-        "tags": [
-          "Accounting and reports"
-        ],
-        "summary": "Cancel an unposted manual journal draft (kept; author or administrator)",
-        "parameters": [
-          {
-            "name": "id",
-            "in": "path",
-            "required": true,
-            "schema": {
-              "type": "string"
-            }
-          }
-        ],
         "responses": {
           "200": {
             "description": "Successful response (stored wire field names)",

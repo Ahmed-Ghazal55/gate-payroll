@@ -23627,6 +23627,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/finance/journals/manual/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Edit a draft manual journal (lines/description) before approval */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            status: string;
+                            companyId?: string;
+                            date?: string;
+                            reference?: string;
+                            description?: string;
+                            journalEntryId?: string;
+                            allowedActions?: string[];
+                            lines?: {
+                                accountCode: string;
+                                debit: number;
+                                credit: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Cancel an unposted manual journal draft (kept; author or administrator) */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            status: string;
+                            companyId?: string;
+                            date?: string;
+                            reference?: string;
+                            description?: string;
+                            journalEntryId?: string;
+                            allowedActions?: string[];
+                            lines?: {
+                                accountCode: string;
+                                debit: number;
+                                credit: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/finance/journals/manual/{id}/approve": {
         parameters: {
             query?: never;
@@ -23730,58 +23822,6 @@ export interface paths {
             };
         };
         delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/finance/journals/manual/{id}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        post?: never;
-        /** Cancel an unposted manual journal draft (kept; author or administrator) */
-        delete: {
-            parameters: {
-                query?: never;
-                header?: never;
-                path: {
-                    id: string;
-                };
-                cookie?: never;
-            };
-            requestBody?: never;
-            responses: {
-                /** @description Successful response (stored wire field names) */
-                200: {
-                    headers: {
-                        [name: string]: unknown;
-                    };
-                    content: {
-                        "application/json": {
-                            id: string;
-                            status: string;
-                            companyId?: string;
-                            date?: string;
-                            reference?: string;
-                            description?: string;
-                            journalEntryId?: string;
-                            allowedActions?: string[];
-                            lines?: {
-                                accountCode: string;
-                                debit: number;
-                                credit: number;
-                            }[];
-                        };
-                    };
-                };
-            };
-        };
         options?: never;
         head?: never;
         patch?: never;
