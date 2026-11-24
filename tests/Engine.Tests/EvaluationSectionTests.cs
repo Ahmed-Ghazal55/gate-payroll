@@ -361,13 +361,20 @@ public sealed class EvaluationSectionTests
         Assert.Throws<ApiError>(() => f.Store.Write((c, tx) =>
             EvaluationSurvey.DeleteRound(c, tx, Admin, round.S("id"), new() { ["title"] = "Wrong title" }, f.Store)));
 
+        string roundId = round.S("id");
         var result = f.Store.Write((c, tx) =>
-            EvaluationSurvey.DeleteRound(c, tx, Admin, round.S("id"), new() { ["title"] = "Synthetic sectioned round" }, f.Store));
+            EvaluationSurvey.DeleteRound(c, tx, Admin, roundId, new() { ["title"] = "Synthetic sectioned round" }, f.Store));
         Assert.AreEqual(1m, result.N("repliesDeleted"));
         Assert.AreEqual(1m, result.N("complaintsDeleted"));
-        Assert.IsNull(f.Store.Read(c => Store.Get(c, round.S("id"), EvaluationSurvey.RoundKind)));
+        Assert.IsNull(f.Store.Read(c => Store.Get(c, roundId, EvaluationSurvey.RoundKind)));
         Assert.HasCount(0, f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)));
         Assert.HasCount(0, f.Store.Read(c => Store.List(c, RiderAsks.ServiceKind)));
+        var deleteAudit = f.Store.Read(c => Store.List(c, "audit")).Single(a => a.S("action") == "evaluation.deleted");
+        string auditEntity = deleteAudit.S("entityId");
+        Assert.Contains(roundId, auditEntity);
+        Assert.Contains("repliesDeleted", auditEntity);
+        Assert.DoesNotContain("2000000091", auditEntity);
+        Assert.DoesNotContain("Synthetic rider", auditEntity);
     }
 
     [TestMethod]

@@ -241,6 +241,7 @@ public static partial class EvaluationSurvey
         delRound.ExecuteNonQuery();
         var summary = new JsonObject
         {
+            ["roundId"] = id,
             ["repliesDeleted"] = replies.Count,
             ["attachmentsDeleted"] = attachmentsDeleted,
             ["complaintsDeleted"] = complaintsDeleted
