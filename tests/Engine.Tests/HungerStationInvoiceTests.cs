@@ -135,7 +135,8 @@ public sealed class HungerStationInvoiceTests
         Assert.AreEqual("pending_allocation",f.Store.Read(c=>Store.Get(c,line,"platform_invoice_line")!.S("status")));
         Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.Split(c,tx,Actor(),line,new())));
         var allocation=f.Store.Write((c,tx)=>HungerStationInvoices.Split(c,tx,Actor(),line,new(){["riderPercent"]=30,["riderId"]=Rider}));
-        var approved=f.Store.Write((c,tx)=>HungerStationInvoices.ApproveAllocation(c,tx,Actor(),allocation.S("id")));Assert.AreEqual(70m,approved.N("companyAmount"));Assert.AreEqual(30m,approved["riderShares"]![0].N("amount"));
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.ApproveAllocation(c,tx,Actor(),allocation.S("id")))).Status);
+        var approved=f.Store.Write((c,tx)=>HungerStationInvoices.ApproveAllocation(c,tx,Actor("synthetic-checker"),allocation.S("id")));Assert.AreEqual(70m,approved.N("companyAmount"));Assert.AreEqual(30m,approved["riderShares"]![0].N("amount"));
         Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.Split(c,tx,Actor(),line,new(){["riderPercent"]=0})));
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"journal").Count));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
     }

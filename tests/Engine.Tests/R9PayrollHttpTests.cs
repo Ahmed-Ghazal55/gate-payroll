@@ -87,7 +87,7 @@ public sealed class R9PayrollHttpTests
                     foreach(var(rider,captain) in new[]{(Positive,"SYN-A"),(Negative,"SYN-B")})
                     {
                         string bban="80000000000000000000",iban="SA"+(98-(int)(BigInteger.Parse(bban+"281000")%97)).ToString("D2")+bban;
-                        Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic rider",["sponsorId"]=company,["isDeliveryRider"]=true,["status"]="Active",["payCategory"]="sponsored_private",["iban"]=iban},tx);Store.Save(c,"platform_account",new(){["id"]="synthetic-r9-"+captain,["externalAccountId"]=captain,["companyId"]=company,["platformCode"]="NINJA",["assignments"]=new JsonArray(new JsonObject{["riderId"]=rider,["RawEffectiveFrom"]="2026-10-01T00:00:00+03:00"})},tx);
+                        Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic rider",["sponsorId"]=company,["isDeliveryRider"]=true,["status"]="Active",["payCategory"]="sponsored_private",["iban"]=iban,["verifiedIban"]=iban,["address"]="جدة"},tx);Store.Save(c,"platform_account",new(){["id"]="synthetic-r9-"+captain,["externalAccountId"]=captain,["companyId"]=company,["platformCode"]="NINJA",["assignments"]=new JsonArray(new JsonObject{["riderId"]=rider,["RawEffectiveFrom"]="2026-10-01T00:00:00+03:00"})},tx);
                     }
                     foreach(var(id,balance,instalment) in new[]{("synthetic-r9-debt",10000m,1000m),("synthetic-r9-skip",50m,50m)})
                     {

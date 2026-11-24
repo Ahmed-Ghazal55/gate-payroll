@@ -13,11 +13,13 @@ public sealed class ApprovalsAreaTests
         using var f=new PayFixture();
         var maker=UserAccess.Principal(new JsonObject{["username"]="same-user",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=4});
         var request=new JsonObject{["id"]="synthetic-perm-request",["requestedBy"]="same-user",["targetDepartment"]="FIN",["requiredRankLevel"]=1,["status"]="pending",["kind"]="generic",["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};
-        // Non-dual: same actor OK (BR §35 / M-0672).
-        AccessPolicy.ValidateApproval(maker,request,new());
-        // Dual: same actor blocked without bypass.
+        // TRIAL8/9: non-dual same actor also needs Independent (approve_own or bypass) — never automatic.
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>AccessPolicy.ValidateApproval(maker,request,new())).Status);
+        var withOwn=UserAccess.Principal(new JsonObject{["username"]="same-user",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=4,["customPermissions"]=new JsonArray(AccessPolicy.ApproveOwnPermission)});
+        f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(withOwn,request,new(),"approvals.decide",c,tx,"approval.decide",request);return true;});
+        // Dual: same actor blocked without bypass (approve_own never covers money-out).
         request["dualPermission"]="approvals.dual.payment_out";
-        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>AccessPolicy.ValidateApproval(maker,request,new(),"approvals.decide",dualPermission:"approvals.dual.payment_out")).Status);
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>AccessPolicy.ValidateApproval(withOwn,request,new(),"approvals.decide",dualPermission:"approvals.dual.payment_out")).Status);
         f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="u1",["username"]="same-user",["role"]="FinancialAccountant",["customPermissions"]=new JsonArray("approvals.dual.payment_out","approvals.decide")},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="same-user",["from"]=Day(0),["to"]=Day(7),["reason"]="M-0677 dual payment-out grant",["scope"]=ApprovalsArea.DualPaymentOut});return true;});
         maker=UserAccess.Principal(new JsonObject{["username"]="same-user",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=4,["customPermissions"]=new JsonArray("approvals.dual.payment_out","approvals.decide")});
         f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(maker,request,new(),"approvals.decide",c,tx,"approval.decide",request,"approvals.dual.payment_out");return true;});

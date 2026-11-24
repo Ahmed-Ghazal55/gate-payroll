@@ -48,8 +48,9 @@ public sealed class PaySettingsTests
     public void ApprovedVersionsAreImmutableAndTheNextVersionRequiresAnotherChecker()
     {
         using var f=new PayFixture();var first=f.Draft("pay_terms","hs",PayFixture.Terms());
-        // BR §35: config approval is permission-only — maker may approve their own draft.
-        Assert.AreEqual("approved",f.Store.Write((c,tx)=>PaySettings.Approve(c,tx,PayFixture.Maker,"pay_terms","hs",first.S("id"))).S("status"));
+        // TRIAL8/9: maker needs approvals.approve_own (or a second person) — never automatic.
+        var makerOwn=UserAccess.Principal(new JsonObject{["username"]="synthetic-pay-maker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5,["customPermissions"]=new JsonArray(AccessPolicy.ApproveOwnPermission,"pay.approve")});
+        Assert.AreEqual("approved",f.Store.Write((c,tx)=>PaySettings.Approve(c,tx,makerOwn,"pay_terms","hs",first.S("id"))).S("status"));
         string raw=f.Store.Read(c=>Store.Get(c,first.S("id"),"pay_terms")!.ToJsonString());
         var changed=PayFixture.Terms();changed["parameters"]!["pricePerOrder"]=12;var second=f.Draft("pay_terms","hs",changed);Assert.AreEqual(2m,second.N("version"));Assert.AreEqual("draft",second.S("status"));Assert.AreEqual(raw,f.Store.Read(c=>Store.Get(c,first.S("id"),"pay_terms")!.ToJsonString()));Assert.AreEqual(first.S("id"),f.Store.Read(c=>PaySettings.Resolve(c,null,"pay_terms","hs","2026-10").S("id")));
         f.Approve("pay_terms","hs",second);Assert.AreEqual(second.S("id"),f.Store.Read(c=>PaySettings.Resolve(c,null,"pay_terms","hs","2026-10").S("id")));int audits=f.Store.Read(c=>Store.List(c,"audit").Count);f.Approve("pay_terms","hs",second);Assert.AreEqual(audits,f.Store.Read(c=>Store.List(c,"audit").Count));Assert.AreEqual(raw,f.Store.Read(c=>Store.Get(c,first.S("id"),"pay_terms")!.ToJsonString()));

@@ -19,7 +19,7 @@ public sealed class MoneyOutDualRuntimeTests
     {
         using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id,rider="2000000191";
         f.Store.Write((c,tx)=>{
-            Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic bank rider",["sponsorId"]=company,["isDeliveryRider"]=true,["status"]="Active",["iban"]="SA0380000000608010167519",["verifiedIban"]="SA0380000000608010167519"},tx);
+            Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic bank rider",["sponsorId"]=company,["isDeliveryRider"]=true,["status"]="Active",["iban"]="SA0380000000608010167519",["verifiedIban"]="SA0380000000608010167519",["address"]="جدة"},tx);
             FinancialCore.PostJournal(c,tx,"opening","Synthetic payable","2026-10","synthetic-bank-open-dual",new JsonArray(
                 FinancialCore.CreateJournalLine("212103",company,0,100,iqama:rider,targetChart:true,payChart:true),
                 FinancialCore.CreateJournalLine("411104",company,100,0,iqama:rider,targetChart:true,payChart:true)),"synthetic-opening",originSponsorId:company,creditorSponsorId:company,targetChart:true,payChart:true);

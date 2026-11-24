@@ -1,5 +1,6 @@
 import {seedAccountingCash} from './financial-fixtures.mjs';
 import {seedWorkRows} from './work-seed.mjs';
+import {grantApproveOwn} from './trial9-http-helpers.mjs';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:net';
 import {mkdtempSync,rmSync,mkdirSync,writeFileSync,existsSync} from 'node:fs';
@@ -24,7 +25,8 @@ async function put(route,body,expected=200){const r=await fetch(base+route,{meth
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready);
  assert.equal((await req('/health',undefined,200,false)).version,'0.33.0');
- await req('/api/auth/setup',{username:'test-admin',password});adminCookie=cookie;
+ await req('/api/auth/setup',{username:'test-admin',password});
+ await grantApproveOwn(req,put,'test-admin',password,()=>{cookie='';});adminCookie=cookie;
  await seedAccountingCash(req);
  const accountant=await req('/api/users',{username:'test-accountant',password,role:'Accountant'});
  // Preferred: company scope matching the rider under review (BW). Unscoped reviewers without forms.responses.allCompanies get 404.

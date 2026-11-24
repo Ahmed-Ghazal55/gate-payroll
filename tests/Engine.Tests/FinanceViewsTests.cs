@@ -41,7 +41,9 @@ public sealed class FinanceViewsTests
     }
     private static void SalaryFixture(Store store,string iban="",decimal amount=1000)
     {
-        store.Write((c,tx)=>{Store.Save(c,"rider",new(){["id"]=Rider,["iqama"]=Rider,["name"]="Synthetic Rider",["iban"]=iban==""?FakeIban():iban,["address"]="Synthetic City"},tx);return true;});
+        string use=iban==""?FakeIban():iban;
+        // TRIAL8/9: treasury bank preview excludes unverified IBAN unless confirmUnverifiedIbans — fixture stores verified.
+        store.Write((c,tx)=>{Store.Save(c,"rider",new(){["id"]=Rider,["iqama"]=Rider,["name"]="Synthetic Rider",["iban"]=use,["verifiedIban"]=use,["address"]="Synthetic City"},tx);return true;});
         Journal(store,"payroll-approved","2026-10",Line("5301",Bw,amount,0,Rider),Line("2110",Bw,0,amount,Rider));
     }
     private static JsonObject Input()=>new(){["sponsorId"]="BW",["period"]="2026-10"};
@@ -210,9 +212,15 @@ public sealed class FinanceViewsTests
     }
     [TestMethod] public void MissingOrInvalidVerifiedIbanAndNonpositivePayableBlockExportEvenWhenClientClearsErrors()
     {
+        // TRIAL8/9: invalid/missing IBAN is excluded (never invented); not left in rows with clearable errors.
         InStore(store=>{SalaryFixture(store);store.Write((c,tx)=>{var rider=Store.Get(c,Rider,"rider",tx)!;rider["verifiedIban"]="SA00"+new string('0',20);Store.Save(c,"rider",rider,tx);return true;});
-            var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));Assert.IsFalse(preview.B("canExport"));var input=ExportInput(preview);input["rows"]![0]!["errors"]=new JsonArray();Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,input)));
-            store.Write((c,tx)=>{var rider=Store.Get(c,Rider,"rider",tx)!;rider["verifiedIban"]="";rider["iban"]="";Store.Save(c,"rider",rider,tx);return true;});preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));CollectionAssert.Contains(preview["rows"]![0]!["errors"]!.AsArray().Select(v=>v!.ToString()).ToArray(),"missing_iban");
+            var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));Assert.IsFalse(preview.B("canExport"));
+            Assert.AreEqual(0,(preview["rows"] as JsonArray??[]).Count);
+            Assert.IsTrue((preview["excludedRows"] as JsonArray??[]).OfType<JsonObject>().Any(e=>e.S("reason") is "iban_unverified" or "iban_invalid"));
+            Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,ExportInput(preview))));
+            store.Write((c,tx)=>{var rider=Store.Get(c,Rider,"rider",tx)!;rider["verifiedIban"]="";rider["iban"]="";Store.Save(c,"rider",rider,tx);return true;});
+            preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));
+            Assert.IsTrue((preview["excludedRows"] as JsonArray??[]).OfType<JsonObject>().Any(e=>e.S("reason")=="iban_missing"));
         });
         InStore(store=>{SalaryFixture(store);Journal(store,"fully-paid","2026-10",Line("2110",Bw,1000,0,Rider),Line("MAIN.BW.DEBT",Bw,0,1000,Rider));Assert.IsFalse(store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input())).B("canExport"));});
     }

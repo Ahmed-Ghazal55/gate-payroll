@@ -36,7 +36,7 @@ public sealed class ValidateGapsAndBankParallelTests
     {
         using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id,rider="2000000093";
         f.Store.Write((c,tx)=>{
-            Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic bank rider",["sponsorId"]=company,["isDeliveryRider"]=true,["status"]="Active",["iban"]="SA0380000000608010167519",["verifiedIban"]="SA0380000000608010167519"},tx);
+            Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic bank rider",["sponsorId"]=company,["isDeliveryRider"]=true,["status"]="Active",["iban"]="SA0380000000608010167519",["verifiedIban"]="SA0380000000608010167519",["address"]="جدة"},tx);
             FinancialCore.PostJournal(c,tx,"opening","Synthetic payable", "2026-10","synthetic-bank-parallel",new JsonArray(
                 FinancialCore.CreateJournalLine("212103",company,0,100,iqama:rider,targetChart:true,payChart:true),
                 FinancialCore.CreateJournalLine("411104",company,100,0,iqama:rider,targetChart:true,payChart:true)),"synthetic-opening",originSponsorId:company,creditorSponsorId:company,targetChart:true,payChart:true);
@@ -58,7 +58,7 @@ public sealed class ValidateGapsAndBankParallelTests
     {
         using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id,rider="2000000094";
         f.Store.Write((c,tx)=>{
-            Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic bank rider",["sponsorId"]=company,["isDeliveryRider"]=true,["status"]="Active",["iban"]="SA0380000000608010167519",["verifiedIban"]="SA0380000000608010167519"},tx);
+            Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic bank rider",["sponsorId"]=company,["isDeliveryRider"]=true,["status"]="Active",["iban"]="SA0380000000608010167519",["verifiedIban"]="SA0380000000608010167519",["address"]="جدة"},tx);
             Store.Save(c,PayCycles.Kind,new(){["id"]="cycle-blocked",["companyId"]=company,["period"]="2026-10",["status"]="approved",["payoutBlocked"]=true,["runMode"]=0,["riders"]=new JsonArray(new JsonObject{["rider"]=rider,["salaryApprovedAt"]=DateTimeOffset.UtcNow.ToString("O"),["net"]=100})},tx);
             return true;
         });
@@ -75,7 +75,7 @@ public sealed class ValidateGapsAndBankParallelTests
     {
         using var f=new PayFixture();string company=FinancialCore.Sponsors[0].Id,rider="2000000095";
         f.Store.Write((c,tx)=>{
-            Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic bank rider",["sponsorId"]=company,["isDeliveryRider"]=true,["status"]="Active",["iban"]="SA0380000000608010167519",["verifiedIban"]="SA0380000000608010167519"},tx);
+            Store.Save(c,"rider",new(){["id"]=rider,["iqama"]=rider,["name"]="Synthetic bank rider",["sponsorId"]=company,["isDeliveryRider"]=true,["status"]="Active",["iban"]="SA0380000000608010167519",["verifiedIban"]="SA0380000000608010167519",["address"]="جدة"},tx);
             FinancialCore.PostJournal(c,tx,"opening","Synthetic payable","2026-10","synthetic-bank-dual",new JsonArray(
                 FinancialCore.CreateJournalLine("212103",company,0,100,iqama:rider,targetChart:true,payChart:true),
                 FinancialCore.CreateJournalLine("411104",company,100,0,iqama:rider,targetChart:true,payChart:true)),"synthetic-opening",originSponsorId:company,creditorSponsorId:company,targetChart:true,payChart:true);

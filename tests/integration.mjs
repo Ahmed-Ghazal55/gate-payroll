@@ -1,5 +1,6 @@
 import {seedAccountingCash} from './financial-fixtures.mjs';
 import {seedWorkRows} from './work-seed.mjs';
+import {grantApproveOwn} from './trial9-http-helpers.mjs';
 import {spawn} from 'node:child_process';
 import {mkdtempSync,rmSync,mkdirSync,writeFileSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
@@ -16,19 +17,22 @@ const exeName = process.platform === 'win32' ? 'Payroll.Api.exe' : 'Payroll.Api'
 const proc=spawn(published?path.join(published,exeName):dotnetBin,published?[]:[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll')],{cwd:published||path.join(root,'Payroll.Api'),env:{...process.env,ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data,Vouchers__Secret:process.env.Vouchers__Secret||'GateSynthetic_CI_Only_Voucher_Key_000001'},windowsHide:true,stdio:['ignore','pipe','pipe']});
 let logs='',cookie='',checks=0,spawnError=null;proc.once('error',e=>{spawnError=e;});proc.stdout.on('data',x=>logs+=x);proc.stderr.on('data',x=>logs+=x);
 async function req(route,body,expected=200,auth=true,headers={}){const r=await fetch(base+route,{method:body===undefined?'GET':'POST',headers:{...(body===undefined?{}:{'Content-Type':'application/json'}),...(auth&&cookie?{Cookie:cookie}:{}),...headers},body:body===undefined?undefined:JSON.stringify(body)});const raw=await r.text();assert.equal(r.status,expected,`${route}: ${r.status} ${raw}`);checks++;if(r.headers.get('set-cookie'))cookie=r.headers.get('set-cookie').split(';')[0];try{return JSON.parse(raw)}catch{return raw}}
+async function put(route,body,expected=200){const r=await fetch(base+route,{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify(body)});const d=await r.json();assert.equal(r.status,expected,JSON.stringify(d));checks++;return d;}
 const iq='2000000001';
+const adminPassword=randomBytes(24).toString('hex');
 const workRow=(revenue,ref,period='2026-10')=>({sourceRef:ref,iqama:iq,name:'Synthetic Rider',accountId:'1234567890123456',from:`${period}-01`,to:period==='2026-11'?`${period}-30`:`${period}-31`,orders:600,platformRevenue:revenue,isValid:false,platform:'Keeta',period});
 try{
  let ready=false; for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(proc.exitCode!==null)throw Error('Test server exited before startup');try{if((await fetch(base+'/health')).ok){ready=true;break}}catch{}await new Promise(r=>setTimeout(r,100));}assert.ok(ready,'Test server did not become ready');
  await req('/api/riders',undefined,401,false);
  assert.equal((await fetch(base+'/',{redirect:'manual'})).status,302);
- await req('/api/auth/setup',{username:'test-admin',password:randomBytes(24).toString('hex')});
+ await req('/api/auth/setup',{username:'test-admin',password:adminPassword});
+ await grantApproveOwn(req,put,'test-admin',adminPassword,()=>{cookie='';});
  await seedAccountingCash(req);
  await req('/api/riders',{iqama:iq,name:'Synthetic Rider'},403,true,{Origin:'https://different.invalid'});
  await req('/api/policies',{name:'Invalid fee',kind:'commission',platform:'all',effectiveFrom:'2026-10',config:{companyFee:'invalid'}},400);
  let policy=await req('/api/policies',{name:'Test commission',kind:'commission',platform:'all',effectiveFrom:'2026-10',config:{companyFee:2500}});
  await req(`/api/policies/${policy.id}/approve`,{});
- await req('/api/riders',{iqama:iq,name:'Synthetic Rider',financeSponsorId:'BW',phone:'0501234567',city:'Test',policyId:policy.id});
+ await req('/api/riders',{iqama:iq,name:'Synthetic Rider',financeSponsorId:'BW',phone:'0501234567',city:'Test',policyId:policy.id,address:'جدة'});
  assert.equal((await seedWorkRows(req,[workRow(3000,'row-1'),workRow(1000,'row-2')])).length,2);
  await req('/api/imports/inspect',{filename:'x.csv',dataBase64:''},404);
  let result=(await req('/api/payroll/preview?period=2026-10'))[0];assert.equal(result.periodMovement,1500);assert.equal(result.blockers.length,0);

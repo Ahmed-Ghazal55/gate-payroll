@@ -196,10 +196,10 @@ public sealed class AccountingReviewTests
 
     [TestMethod] public void ApprovalNeedsIndependentActorCorrectDepartmentAndRank()
     {
-        // BR §35: permission-only in general; dual money-out still requires Independent.
+        // TRIAL8/9: every self-approval (dual and non-dual) needs Independent (approve_own or bypass). Never money-out alone.
         var request=new JsonObject{["createdBy"]="requester",["targetDepartment"]="FIN",["requiredRankLevel"]=4};
         AccessPolicy.ValidateApproval(User("FinancialAccountant"),request,new());
-        AccessPolicy.ValidateApproval(User("FinancialAccountant","requester"),request,new()); // same actor OK without dual
+        Reject(()=>AccessPolicy.ValidateApproval(User("FinancialAccountant","requester"),request,new()),403); // same actor blocked without grant
         Reject(()=>AccessPolicy.ValidateApproval(User("HRSpecialist"),request,new()),403);
         Reject(()=>AccessPolicy.ValidateApproval(User("Accountant","reviewer","approvals.decide"),request,new()),403);
         var dual=new JsonObject{["createdBy"]="requester",["requestedBy"]="requester",["targetDepartment"]="FIN",["requiredRankLevel"]=4,["dualPermission"]="approvals.dual.payment_out"};
