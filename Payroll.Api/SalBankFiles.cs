@@ -153,6 +153,7 @@ public static partial class SalBankFiles
         else appFilter="all";
 
         bool confirmBankCode40=input.B("confirmBankCode40");
+        bool confirmUnverifiedIbans=input.B("confirmUnverifiedIbans");
         var worked=SalSharedRiders.WorkedApps(c,tx,periodMonth);
         var riderDocs=LoadRiderDocs(c,tx);
         var defaultRegByCompany=LoadDefaultRegistrations(c,tx);
@@ -193,7 +194,7 @@ public static partial class SalBankFiles
                 int prRunMode=Convert.ToInt32(r["pr_run_mode"]);
                 bool pb=Convert.ToInt32(r["pr_payout_blocked"])==1;
 
-                var riderMeta=ResolveRiderMeta(erpRider,rowCompany,riderDocs,defaultRegByCompany);
+                var (riderMeta,metaReason)=ResolveRiderMeta(erpRider,rowCompany,riderDocs,defaultRegByCompany,confirmUnverifiedIbans);
                 if(sheetShape=="per_registration"&&!string.Equals(riderMeta.RegistrationId,scopeRegistrationId,StringComparison.OrdinalIgnoreCase))
                     continue;
 
@@ -215,6 +216,12 @@ public static partial class SalBankFiles
                 if(net<=0||payableId=="")
                 {
                     excluded.Add(Excluded(erpRider,riderMeta,rowApp,net,net==0?"zero_balance":"negative_net_carryover"));
+                    continue;
+                }
+                if(metaReason!=null)
+                {
+                    // TRIAL7 X1: never invent iqama/name/IBAN/address — exclude with an explicit reason.
+                    excluded.Add(Excluded(erpRider,riderMeta,rowApp,net,metaReason));
                     continue;
                 }
                 var riderApps=SalSharedRiders.AppsFor(worked,erpRider,rowApp);
@@ -254,7 +261,16 @@ public static partial class SalBankFiles
             };
             var errs=BankPayrollFiles.Validate(rowObj,confirmBankCode40);
             if(errs.Count>0)
-                throw new ApiError($"بيانات الحساب البنكي للمندوب ({cand.Meta.Iqama}) غير مكتملة أو غير صالحة: {string.Join(", ",errs.Select(e=>e!.ToString()))}",400);
+            {
+                // Prefer explicit exclusion reasons over a hard 400 when meta slipped past ResolveRiderMeta.
+                string reason=errs.Any(e=>e?.ToString()=="invalid_iqama")?"iqama_invalid"
+                    :errs.Any(e=>e?.ToString()=="missing_iban")?"iban_missing"
+                    :errs.Any(e=>e?.ToString()=="invalid_iban_mod97")?"iban_invalid"
+                    :errs.Any(e=>e?.ToString()=="missing_name")?"name_missing"
+                    :"bank_meta_invalid";
+                excluded.Add(Excluded(cand.ErpRiderId,cand.Meta,cand.AppCode,cand.Amount,reason));
+                continue;
+            }
             eligible.Add(cand);
         }
 
@@ -358,6 +374,9 @@ public static partial class SalBankFiles
 
         // Compute canonical file_hash over consolidated sheet rows while status = 1.
         var view=LoadFileView(c,tx,actor,fileId,excluded);
+        int unverifiedCount=eligible.Count(e=>e.Meta.IbanUnverified);
+        view["unverifiedIbanCount"]=unverifiedCount;
+        view["confirmUnverifiedIbans"]=confirmUnverifiedIbans;
         string hashHex=view.S("fileContentHash");
         byte[] hashBytes=Convert.FromHexString(hashHex);
         Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","bank_file")} SET file_hash=@h,updated_by=@by,updated_at=@at WHERE id=@id",
@@ -613,7 +632,7 @@ public static partial class SalBankFiles
     }
 
     sealed record PayingBankInfo(string BankId,string CompanyId,string RegistrationId,string AccountId,string BankName,string Iban);
-    sealed record RiderMeta(string ErpRiderId,string Iqama,string Name,string Iban,string BankShortCode,string BankNameAr,string Address,string RegistrationId);
+    sealed record RiderMeta(string ErpRiderId,string Iqama,string Name,string Iban,string BankShortCode,string BankNameAr,string Address,string RegistrationId,bool IbanUnverified=false);
     sealed record CandidateLine(string PayRunRiderId,string ErpRiderId,string CompanyId,string RegistrationId,string AppCode,string PayableId,decimal Amount,bool PayoutBlocked,RiderMeta Meta);
 
     static JsonObject LoadFileView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id,JsonArray? excludedRows=null)
@@ -679,8 +698,10 @@ public static partial class SalBankFiles
             {
                 string erpRider=r["erp_rider_id"].ToString()!;
                 string comp=r["company_id"].ToString()!;
-                var meta=ResolveRiderMeta(erpRider,comp,riderDocs,defaultRegByCompany);
+                var (meta,_)=ResolveRiderMeta(erpRider,comp,riderDocs,defaultRegByCompany,confirmUnverifiedIbans:true);
                 string shortCode=r["bank_short_code"].ToString()!;
+                // Prefer the short code stored on the line (frozen at build); fall back to live meta without inventing IBAN.
+                if(shortCode=="")shortCode=meta.BankShortCode;
                 lines.Add(new JsonObject
                 {
                     ["id"]=r["id"].ToString()!,
@@ -699,6 +720,7 @@ public static partial class SalBankFiles
                     ["bankShortCode"]=shortCode,
                     ["bankNameAr"]=meta.BankNameAr,
                     ["address"]=meta.Address,
+                    ["ibanUnverified"]=meta.IbanUnverified,
                     ["amount"]=J.Money(Convert.ToDecimal(r["amount"])),
                     ["status"]=Convert.ToInt32(r["status"])==1?"active":"cancelled"
                 });
@@ -778,6 +800,7 @@ public static partial class SalBankFiles
             ["totalAmount"]=totalAmount,
             ["lineCount"]=lines.Count,
             ["riderCount"]=sheetRows.Count,
+            ["unverifiedIbanCount"]=lines.OfType<JsonObject>().Count(l=>l.B("ibanUnverified")),
             ["approvedBy"]=approvedBy,
             ["approvedAt"]=approvedAt,
             ["sentBy"]=sentBy,
@@ -933,27 +956,48 @@ public static partial class SalBankFiles
         return map;
     }
 
-    static RiderMeta ResolveRiderMeta(string erpRiderId,string companyId,Dictionary<string,JsonObject> riderDocs,Dictionary<string,string> defaultRegByCompany)
+    /// <summary>TRIAL7 X1: resolve rider bank-file meta without inventing iqama/name/IBAN/address.
+    /// Returns an exclusion reason when the line must stay out of the bank file (still unpaid on the salary sheet).
+    /// Prefer <c>verifiedIban</c>; raw <c>iban</c> only with <paramref name="confirmUnverifiedIbans"/> (else <c>iban_unverified</c>).
+    /// verifiedIban today is set by IBAN form review / campaign ops (<c>CampaignOperations</c>, <c>RiderAsks</c>) — never invented here.</summary>
+    static (RiderMeta Meta,string? ExcludeReason) ResolveRiderMeta(string erpRiderId,string companyId,Dictionary<string,JsonObject> riderDocs,Dictionary<string,string> defaultRegByCompany,bool confirmUnverifiedIbans=false)
     {
         riderDocs.TryGetValue(erpRiderId,out var doc);
         string iqama=doc?.S("iqama")??"";
-        if(!Regex.IsMatch(iqama,@"\A[12][0-9]{9}\z"))
-        {
-            uint h=BitConverter.ToUInt32(SHA256.HashData(Encoding.UTF8.GetBytes("iqama:"+erpRiderId)),0)%1_000_000_000u;
-            iqama="2"+h.ToString("D9",CultureInfo.InvariantCulture);
-        }
         string name=doc?.S("name",doc.S("nameAr"))??"";
-        if(name=="")name="مندوب "+iqama;
-        string iban=Regex.Replace((doc?.S("verifiedIban") is {Length:>0} v?v:doc?.S("iban")??"").ToUpperInvariant(),@"\s","");
-        if(iban=="")iban="SA0380000000608010167519"; // Fallback valid Mod-97 Al-Rajhi IBAN when fixture omits rider doc
+        string verified=Regex.Replace((doc?.S("verifiedIban")??"").ToUpperInvariant(),@"\s","");
+        string rawIban=Regex.Replace((doc?.S("iban")??"").ToUpperInvariant(),@"\s","");
+        string address=doc?.S("address",doc.S("nationalAddress"))??"";
+        string regId=doc?.S("registrationId")??"";
+        if(regId==""&&defaultRegByCompany.TryGetValue(companyId,out var defReg))regId=defReg;
+
+        bool iqamaOk=Regex.IsMatch(iqama,@"\A[12][0-9]{9}\z");
+        string iban="";
+        bool unverified=false;
+        if(verified!="")
+        {
+            if(BankPayrollFiles.ValidIban(verified))iban=verified;
+            else if(rawIban!=""&&BankPayrollFiles.ValidIban(rawIban)){iban=rawIban;unverified=true;}
+            else return (new(erpRiderId,iqama,name,verified,"","","",regId,false),"iban_invalid");
+        }
+        else if(rawIban!="")
+        {
+            if(!BankPayrollFiles.ValidIban(rawIban))
+                return (new(erpRiderId,iqama,name,rawIban,"","","",regId,false),"iban_invalid");
+            iban=rawIban;unverified=true;
+        }
+
+        if(!iqamaOk)return (new(erpRiderId,iqama,name,iban,"","","",regId,unverified),"iqama_invalid");
+        if(name=="")return (new(erpRiderId,iqama,name,iban,"","","",regId,unverified),"name_missing");
+        if(iban=="")return (new(erpRiderId,iqama,name,"","","","",regId,false),"iban_missing");
+        if(unverified&&!confirmUnverifiedIbans)
+            return (new(erpRiderId,iqama,name,iban,"","","",regId,true),"iban_unverified");
+        if(address=="")return (new(erpRiderId,iqama,name,iban,"","","",regId,unverified),"address_missing");
+
         var (code,nameAr)=BankPayrollFiles.ExportBank(iban);
         string explicitBank=doc?.S("bank")??"";
         string shortCode=code!=""?code:explicitBank;
-        string address=doc?.S("address",doc.S("nationalAddress"))??"";
-        if(address=="")address="الرياض";
-        string regId=doc?.S("registrationId")??"";
-        if(regId==""&&defaultRegByCompany.TryGetValue(companyId,out var defReg))regId=defReg;
-        return new(erpRiderId,iqama,name,iban,shortCode,nameAr,address,regId);
+        return (new(erpRiderId,iqama,name,iban,shortCode,nameAr,address,regId,unverified),null);
     }
 
     static bool HasOpenSharedHold(DbConnection c,DbTransaction? tx,string erpRiderId,string periodMonth)
