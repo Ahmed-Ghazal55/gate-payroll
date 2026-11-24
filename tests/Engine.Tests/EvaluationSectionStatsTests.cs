@@ -120,6 +120,8 @@ public sealed class EvaluationSectionStatsTests
         Assert.AreEqual(5m, factors["responsiveness"].N("average"));
         Assert.AreEqual(3m, factors["accuracy"].N("average"));
         Assert.AreEqual(1m, factors["responsiveness"].N("count"));
+        // A finance card answered in the Ninja form must not appear under any other app.
+        CollectionAssert.AreEqual(new[] { "Ninja" }, finance["items"]!.AsArray().OfType<JsonObject>().Select(i => i.S("app")).ToArray());
     }
 
     [TestMethod]

@@ -423,10 +423,7 @@ public static partial class EvaluationSurvey
                 .Where(r => r.S("sectionKey") == "app:" + platform || (r.S("sectionKey") == "" && Strings(r, "workApps").Contains(platform)))
                 .Select(r => r["financeAnswer"] as JsonObject)
                 .Where(a => a != null).Cast<JsonObject>().ToList();
-            // Prefer explicit app-section finance answers; fall back to any financeAnswer when already section-filtered.
-            if (financeCards.Count == 0)
-                financeCards = rows.Select(r => r["financeAnswer"] as JsonObject).Where(a => a != null).Cast<JsonObject>()
-                    .Where(_ => string.IsNullOrEmpty(filter.App) || filter.App == platform).ToList();
+            // A finance card belongs only to the app form it was answered in; no fallback to other apps' answers.
             var rated = financeCards.Where(a => a.S("reason") == "" && a["overall"] != null).ToList();
             int n = rated.Count;
             var factors = FinanceFactors.Select(factor =>
