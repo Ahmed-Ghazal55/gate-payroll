@@ -340,8 +340,9 @@ public sealed class Trial6FixesTests
         {Assert.Inconclusive("SQL Server connection not configured");return;}
         using var c=OpenSal(sqlServer);
         string company=MoneySchemaFixture.Company(c);
-        var a=SalAdmin("synthetic-calc-a");
-        var b=SalAdmin("synthetic-calc-b");
+        // Guid-shaped usernames (same as Trial5 Admin) — Store/ops capture stay GUID-safe on SQL Server.
+        var a=SalAdmin(MoneySchemaFixture.Id());
+        var b=SalAdmin(MoneySchemaFixture.Id());
         using var tx=c.BeginTransaction();
         string rider=MoneySchemaFixture.Id();
         EnsureSalPeriod(c,tx,company);
@@ -363,7 +364,9 @@ public sealed class Trial6FixesTests
                 ["level1"]=new JsonArray(),["level2"]=new JsonArray()
             })
         });
-        SalDebtConfirm.Confirm(c,tx,b,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})});
+        // Confirm as a third person so B is not also the debt confirmer trail edge-case.
+        var confirmer=SalAdmin(MoneySchemaFixture.Id());
+        SalDebtConfirm.Confirm(c,tx,confirmer,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})});
         long journalsBefore=Convert.ToInt64(MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM fin_journal")??0L);
         var err=Assert.ThrowsExactly<ApiError>(()=>SalSalaryApprove.Approve(c,tx,b,run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)}));
         Assert.AreEqual(403,err.Status);
