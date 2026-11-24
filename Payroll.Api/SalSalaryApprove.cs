@@ -7,7 +7,7 @@ namespace Payroll;
 
 /// <summary>U-W2-15b: final salary approval after debt confirm (M-0670); bypass M-0677; statement snapshot X10;
 /// negative net → new debt 112507 here only. Positive net → accrual journal + payable (Codex RWC4).
-/// Ordinary salary self-approval allowed by permission (§35 / answer 4); shared-hold release stays two-person.</summary>
+/// Preparer never approves/posts the same sheet (Ghazal 11-24); Independent + dated pay_approvals grant only.</summary>
 public static class SalSalaryApprove
 {
     public const string ApprovePermission="pay.approve";
@@ -32,8 +32,10 @@ public static class SalSalaryApprove
             SalSharedRiders.DemandApprovable(c,tx,worked,rider.S("erpRiderId"),run.S("periodMonth"),run.S("app"));
 
             string calcBy=rider.S("createdBy",run.S("createdBy"));
+            // Ghazal 11-24 / FLOW1: preparer cannot approve or post; Independent before any journal.
+            J.Need(AccessPolicy.Independent(actor,calcBy,"sal.salary_approved",c,tx,rider,scope:AccessPolicy.ScopePayApprovals),
+                "معدّ كشف الراتب لا يعتمده ولا يرحّله؛ يلزم مراجع مستقل.",403);
             bool self=AccessPolicy.SamePerson(actor,calcBy);
-            // Answer 4: permission-based salary approval; audit self-approval. Two-person retained for money-out / shared-hold release elsewhere.
             if(self)Store.Audit(c,tx,"sal.salary_self_approved",riderId,actor.Identity!.Name!);
 
             bool negDebt=false;
@@ -530,12 +532,21 @@ public static class SalSalaryApprove
                 ["affectsNet"]=Convert.ToInt32(r["affects_net"])==1,["accountCode"]=r["account_code"].ToString()
             });
         r.Close();
+        decimal gross=J.Money(rider.N("gross")),commission=J.Money(rider.N("commission"));
+        decimal entitlement=J.Money(gross-commission);
+        var notes=new JsonArray
+        {
+            $"إجمالي {gross.ToString("0.##",CultureInfo.InvariantCulture)} — عمولة وكيل {commission.ToString("0.##",CultureInfo.InvariantCulture)} — استحقاق {entitlement.ToString("0.##",CultureInfo.InvariantCulture)} — صافي {rider.N("salaryNet").ToString("0.##",CultureInfo.InvariantCulture)}"
+        };
+        if(entitlement==0m&&commission>0m)
+            notes.Add("العمولة تساوي الإجمالي؛ لا يُرحّل سطر دائن صفر على 212103 — الأثر الكامل يبقى في الكشف والملاحظات.");
         var payload=new JsonObject
         {
             ["payRunId"]=run.S("id"),["app"]=run.S("app"),["periodMonth"]=run.S("periodMonth"),
-            ["erpRiderId"]=rider.S("erpRiderId"),["gross"]=rider.N("gross"),["commission"]=rider.N("commission"),
+            ["erpRiderId"]=rider.S("erpRiderId"),["gross"]=gross,["commission"]=commission,
+            ["entitlement"]=entitlement,
             ["salaryNet"]=rider.N("salaryNet"),["debtConfirmStatus"]=rider.S("debtConfirmStatus"),
-            ["payableId"]=payableId??"",["items"]=items,["frozenAt"]=now
+            ["payableId"]=payableId??"",["items"]=items,["notes"]=notes,["frozenAt"]=now
         };
         string snapId=SchemaSql.GuidText(SchemaSql.NewId());
         Exec(c,tx,$"""

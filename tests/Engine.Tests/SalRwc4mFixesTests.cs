@@ -116,8 +116,8 @@ public sealed class SalRwc4mFixesTests
     {
         SalDebtConfirm.Confirm(c,tx,actor,firstRun,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=firstRider,["amount"]=0})});
         SalDebtConfirm.Confirm(c,tx,actor,secondRun,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=secondRider,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,firstRun,new JsonObject{["payRunRiderIds"]=new JsonArray(firstRider)});
-        SalSalaryApprove.Approve(c,tx,actor,secondRun,new JsonObject{["payRunRiderIds"]=new JsonArray(secondRider)});
+        SalSalaryApprove.Approve(c,tx,Admin(),firstRun,new JsonObject{["payRunRiderIds"]=new JsonArray(firstRider)});
+        SalSalaryApprove.Approve(c,tx,Admin(),secondRun,new JsonObject{["payRunRiderIds"]=new JsonArray(secondRider)});
     }
 
     static decimal CarryoverBalance(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,string rider)

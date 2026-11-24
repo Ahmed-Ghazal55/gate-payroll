@@ -151,7 +151,7 @@ public sealed class SalRwc4bFixesTests
                 ["allocations"]=new JsonArray(new JsonObject{["debtId"]=debtId,["amount"]=50})
             })
         });
-        SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
         Assert.AreEqual(450m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT amount_due FROM pay_payable WHERE source_id=@r",("@r",riderId))));
         // Accrual credits payable for entitlement 500; debt confirm already debited 50 → net credit 450.
         Assert.AreEqual(500m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(credit),0) FROM fin_journal_line WHERE account_id=(SELECT id FROM fin_account WHERE code='212103') AND journal_id IN (SELECT id FROM fin_journal WHERE purpose='salary_accrual')")));
@@ -315,7 +315,7 @@ public sealed class SalRwc4bFixesTests
         Assert.IsTrue(Convert.ToInt32(MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM sal_shared_rider_hold_app ha INNER JOIN sal_shared_rider_hold h ON h.id=ha.hold_id WHERE h.erp_rider_id=@r",("@r",rider)))>=2);
         string riderId=calc["riders"]![0]!["id"]!.GetValue<string>();
         SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
         Assert.AreEqual(200m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT amount_due FROM pay_payable WHERE source_id=@r",("@r",riderId))));
         tx.Commit();
     }
@@ -345,7 +345,7 @@ public sealed class SalRwc4bFixesTests
         });
         string riderId=calc["riders"]![0]!["id"]!.GetValue<string>();
         SalDebtConfirm.Confirm(c,tx,actor,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
         Assert.AreEqual(0m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT balance FROM debt_debt WHERE id=@id",("@id",debtId))));
         Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM debt_debt_movement WHERE debt_id=@d AND source_type='pay_item_debt_settle'",("@d",debtId)));
         tx.Commit();

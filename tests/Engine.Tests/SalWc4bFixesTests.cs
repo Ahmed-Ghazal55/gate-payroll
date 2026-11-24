@@ -343,14 +343,12 @@ public sealed class SalWc4bFixesTests
     [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
-    public void Approve_SelfApprovalAllowed_WithAudit(bool sqlServer)
+    public void Approve_SelfApprovalBlocked_WithoutIndependentGrant(bool sqlServer)
     {
-        // Answer 4 / §35: permission-based salary approval; two-person only for money-out / shared-hold release.
+        // Ghazal 11-24 / grok-TRIAL4: preparer cannot approve the same sheet (403, no journals).
         using var c=Open(sqlServer);
         string company=MoneySchemaFixture.Company(c);
         string user=MoneySchemaFixture.Id();
-        var actor=Scoped(user,company,"Ninja","pay.manage","pay.approve");
-        // Capture still needs Admin for ops scope in some paths — use Admin for capture then scoped for approve.
         var admin=Admin(user);
         using var tx=c.BeginTransaction();
         EnsurePeriod(c,tx,company);
@@ -369,12 +367,12 @@ public sealed class SalWc4bFixesTests
         {
             ["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})
         });
-        var approved=SalSalaryApprove.Approve(c,tx,admin,run,new JsonObject
+        long journalsBefore=Convert.ToInt64(MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM fin_journal")??0L);
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>SalSalaryApprove.Approve(c,tx,admin,run,new JsonObject
         {
             ["payRunRiderIds"]=new JsonArray(riderId)
-        });
-        Assert.IsFalse(string.IsNullOrEmpty(approved["rows"]![0]!["salaryApprovedAt"]!.GetValue<string>()));
-        Assert.IsTrue(approved["rows"]![0]!.AsObject().B("selfApproved"));
+        })).Status);
+        Assert.AreEqual(journalsBefore,Convert.ToInt64(MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM fin_journal")??0L));
         tx.Commit();
     }
 

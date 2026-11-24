@@ -123,8 +123,8 @@ public sealed class SalRwc4a3FixesTests
         SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=ninjaRiderId,["debtId"]=debtId,["amount"]=60})});
         Assert.AreEqual(240m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT combined_net FROM sal_shared_rider_hold WHERE erp_rider_id=@r AND status='cleared'",("@r",rider))));
         SalDebtConfirm.Confirm(c,tx,actor,keeta,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=keetaRiderId,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
-        SalSalaryApprove.Approve(c,tx,actor,keeta,new JsonObject{["payRunRiderIds"]=new JsonArray(keetaRiderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),keeta,new JsonObject{["payRunRiderIds"]=new JsonArray(keetaRiderId)});
         decimal ninjaPay=Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(amount_due),0) FROM pay_payable WHERE source_id=@r",("@r",ninjaRiderId)));
         decimal keetaPay=Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(amount_due),0) FROM pay_payable WHERE source_id=@r",("@r",keetaRiderId)));
         Assert.AreEqual(240m,J.Money(ninjaPay+keetaPay));
@@ -161,8 +161,8 @@ public sealed class SalRwc4a3FixesTests
         Assert.AreEqual(-100m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT salary_net FROM sal_pay_run_rider WHERE id=@id",("@id",keetaRiderId))));
         SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=ninjaRiderId,["amount"]=0})});
         SalDebtConfirm.Confirm(c,tx,actor,keeta,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=keetaRiderId,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
-        SalSalaryApprove.Approve(c,tx,actor,keeta,new JsonObject{["payRunRiderIds"]=new JsonArray(keetaRiderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),keeta,new JsonObject{["payRunRiderIds"]=new JsonArray(keetaRiderId)});
         decimal totalPay=Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(amount_due),0) FROM pay_payable WHERE erp_rider_id=@r",("@r",rider)));
         Assert.AreEqual(0m,totalPay);
         Assert.AreEqual(0m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(balance),0) FROM debt_debt WHERE erp_rider_id=@r AND category='NegativeSalaryCarryover'",("@r",rider))));
@@ -198,8 +198,8 @@ public sealed class SalRwc4a3FixesTests
         Assert.AreEqual(300m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT combined_net FROM sal_shared_rider_hold WHERE erp_rider_id=@r AND status='cleared'",("@r",rider))));
         SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=ninjaRiderId,["amount"]=0})});
         SalDebtConfirm.Confirm(c,tx,actor,keeta,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=keetaRiderId,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
-        SalSalaryApprove.Approve(c,tx,actor,keeta,new JsonObject{["payRunRiderIds"]=new JsonArray(keetaRiderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),keeta,new JsonObject{["payRunRiderIds"]=new JsonArray(keetaRiderId)});
         Assert.AreEqual(20m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(debit),0) FROM fin_journal_line WHERE account_id=(SELECT id FROM fin_account WHERE code='112511') AND journal_id IN (SELECT id FROM fin_journal WHERE purpose='salary_shared_once')")));
         Assert.AreEqual(30m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(debit),0) FROM fin_journal_line WHERE account_id=(SELECT id FROM fin_account WHERE code='421101') AND journal_id IN (SELECT id FROM fin_journal WHERE purpose='salary_shared_once')")));
         Assert.AreEqual(50m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(credit),0) FROM fin_journal_line WHERE account_id=(SELECT id FROM fin_account WHERE code='212103') AND journal_id IN (SELECT id FROM fin_journal WHERE purpose='salary_shared_once')")));

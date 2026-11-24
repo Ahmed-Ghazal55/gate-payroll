@@ -127,8 +127,8 @@ public sealed class SalRwc4m2FixesTests
     {
         SalDebtConfirm.Confirm(c,tx,actor,firstRun,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=firstRider,["amount"]=0})});
         SalDebtConfirm.Confirm(c,tx,actor,secondRun,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=secondRider,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,firstRun,new JsonObject{["payRunRiderIds"]=new JsonArray(firstRider)});
-        SalSalaryApprove.Approve(c,tx,actor,secondRun,new JsonObject{["payRunRiderIds"]=new JsonArray(secondRider)});
+        SalSalaryApprove.Approve(c,tx,Admin(),firstRun,new JsonObject{["payRunRiderIds"]=new JsonArray(firstRider)});
+        SalSalaryApprove.Approve(c,tx,Admin(),secondRun,new JsonObject{["payRunRiderIds"]=new JsonArray(secondRider)});
     }
 
     static decimal CarryoverBalance(System.Data.Common.DbConnection c,System.Data.Common.DbTransaction tx,string rider)
@@ -162,7 +162,7 @@ public sealed class SalRwc4m2FixesTests
         Assert.AreEqual(100m,row.N("salaryNet"));
         Assert.AreEqual(0m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT affects_net FROM sal_pay_run_item WHERE pay_run_rider_id=@r AND item_code='fuel' AND amount=20",("@r",row.S("id")))));
         SalDebtConfirm.Confirm(c,tx,actor,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=row.S("id"),["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject{["payRunRiderIds"]=new JsonArray(row.S("id"))});
+        SalSalaryApprove.Approve(c,tx,Admin(),run,new JsonObject{["payRunRiderIds"]=new JsonArray(row.S("id"))});
         Assert.AreEqual(100m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT amount_due FROM pay_payable WHERE source_id=@r",("@r",row.S("id")))));
         Assert.AreEqual(100m,Liability212103(c,tx));
         Assert.AreEqual(20m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT balance FROM debt_debt WHERE id=@id",("@id",debtId))));
@@ -246,7 +246,7 @@ public sealed class SalRwc4m2FixesTests
         var (ninja,keeta,ninjaRiderId,keetaRiderId)=SharedTwoApps(c,tx,actor,company,rider,100m,new JsonArray(),100m,new JsonArray());
         Assert.AreEqual(200m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT combined_net FROM sal_shared_rider_hold WHERE erp_rider_id=@r AND status='cleared'",("@r",rider))));
         SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=ninjaRiderId,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
         Assert.AreEqual(100m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT amount_due FROM pay_payable WHERE source_id=@r",("@r",ninjaRiderId))));
         string lineId=MatchedMudad(c,tx,actor,company,rider,150,'7');
         Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>SalPayCalc.ApplyMudad(c,tx,actor,new JsonObject

@@ -133,8 +133,8 @@ public sealed class SalRwc4a3FFixesTests
         Assert.AreEqual(350m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT combined_net FROM sal_shared_rider_hold WHERE erp_rider_id=@r AND status='cleared'",("@r",rider))));
         SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=ninjaRiderId,["amount"]=0})});
         SalDebtConfirm.Confirm(c,tx,actor,keeta,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=keetaRiderId,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
-        SalSalaryApprove.Approve(c,tx,actor,keeta,new JsonObject{["payRunRiderIds"]=new JsonArray(keetaRiderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),keeta,new JsonObject{["payRunRiderIds"]=new JsonArray(keetaRiderId)});
         decimal ninjaPay=Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(amount_due),0) FROM pay_payable WHERE source_id=@r",("@r",ninjaRiderId)));
         decimal keetaPay=Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(amount_due),0) FROM pay_payable WHERE source_id=@r",("@r",keetaRiderId)));
         Assert.AreEqual(300m,ninjaPay);
@@ -166,7 +166,7 @@ public sealed class SalRwc4a3FFixesTests
         string ninjaRiderId=Calc(c,tx,actor,ninja,Rider(rider)).S("id");
         _=Calc(c,tx,actor,keeta,Rider(rider)).S("id");
         SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=ninjaRiderId,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
         Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>Calc(c,tx,actor,keeta,Rider(rider,new JsonArray(new JsonObject{["itemCode"]="cash_advance",["amount"]=120,["accountCode"]="112501"})))).Status);
         tx.Commit();
     }
@@ -190,7 +190,7 @@ public sealed class SalRwc4a3FFixesTests
         _=Calc(c,tx,actor,keeta,Rider(rider)).S("id");
         string lineId=MatchedMudad(c,tx,actor,company,rider,100,'c');
         SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=ninjaRiderId,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaRiderId)});
         var keetaRider=Rider(rider);
         keetaRider["mudadLineId"]=lineId;
         keetaRider["mudadAmount"]=100;
@@ -290,7 +290,7 @@ public sealed class SalRwc4a3FFixesTests
         Assert.AreEqual(0,Convert.ToInt32(MoneySchemaFixture.Scalar(c,tx,"SELECT protected_salary FROM sal_pay_run_rider WHERE id=@id",("@id",calc.S("id")))));
         string riderId=calc.S("id");
         SalDebtConfirm.Confirm(c,tx,actor,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
         Assert.AreEqual(50m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(balance),0) FROM debt_debt WHERE erp_rider_id=@r AND category='NegativeSalaryCarryover'",("@r",erp))));
         Assert.AreEqual(0m,Liability212103(c,tx));
         tx.Commit();
@@ -339,7 +339,7 @@ public sealed class SalRwc4a3FFixesTests
         MoneySchemaFixture.Exec(c,tx,"UPDATE sal_pay_run SET payout_blocked=1 WHERE id=@id",("@id",run));
         string riderId=Calc(c,tx,actor,run,Rider(erp)).S("id");
         SalDebtConfirm.Confirm(c,tx,actor,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})});
-        var approved=SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
+        var approved=SalSalaryApprove.Approve(c,tx,Admin(),run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
         CollectionAssert.DoesNotContain(AllowedActions(approved),"export_bank_file");
         tx.Commit();
     }
@@ -359,7 +359,7 @@ public sealed class SalRwc4a3FFixesTests
         SalEvidence.Gross(c,tx,run,erp,100m);
         string riderId=Calc(c,tx,actor,run,Rider(erp,new JsonArray(new JsonObject{["itemCode"]="cash_advance",["amount"]=150,["accountCode"]="112501"}))).S("id");
         SalDebtConfirm.Confirm(c,tx,actor,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})});
-        var approved=SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
+        var approved=SalSalaryApprove.Approve(c,tx,Admin(),run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
         Assert.AreEqual(0,AllowedActions(approved).Length);
         Assert.AreEqual(0,Convert.ToInt32(MoneySchemaFixture.Scalar(c,tx,"SELECT bank_eligible FROM sal_pay_run_rider WHERE id=@id",("@id",riderId))));
         tx.Commit();

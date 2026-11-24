@@ -103,7 +103,7 @@ public sealed class SalRwc4a3FExtraTests
         })})["riders"]!.AsArray().OfType<JsonObject>().Single();
         Assert.AreEqual(0m,row.N("salaryNet"));
         SalDebtConfirm.Confirm(c,tx,actor,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=row.S("id"),["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject{["payRunRiderIds"]=new JsonArray(row.S("id"))});
+        SalSalaryApprove.Approve(c,tx,Admin(),run,new JsonObject{["payRunRiderIds"]=new JsonArray(row.S("id"))});
         Assert.AreEqual(3500m,Acc(c,tx,"421101"));
         Assert.AreEqual(3300m,Acc(c,tx,"512121",credit:false));
         Assert.AreEqual(400m,Acc(c,tx,"112511"));
@@ -203,7 +203,7 @@ public sealed class SalRwc4a3FExtraTests
             ["level2"]=new JsonArray()
         })})["riders"]!.AsArray().OfType<JsonObject>().Single();
         SalDebtConfirm.Confirm(c,tx,actor,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=row.S("id"),["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject{["payRunRiderIds"]=new JsonArray(row.S("id"))});
+        SalSalaryApprove.Approve(c,tx,Admin(),run,new JsonObject{["payRunRiderIds"]=new JsonArray(row.S("id"))});
         Assert.AreEqual(300m,Acc(c,tx,"112501"));
         Assert.AreEqual(0m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT balance FROM debt_debt WHERE id=@id",("@id",debtId))));
         Assert.AreEqual(700m,Liability212103(c,tx));
@@ -232,7 +232,7 @@ public sealed class SalRwc4a3FExtraTests
         })})["riders"]!.AsArray().OfType<JsonObject>().Single();
         Assert.AreEqual(0m,row.N("salaryNet"));
         SalDebtConfirm.Confirm(c,tx,actor,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=row.S("id"),["amount"]=0})});
-        var result=SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject{["payRunRiderIds"]=new JsonArray(row.S("id"))});
+        var result=SalSalaryApprove.Approve(c,tx,Admin(),run,new JsonObject{["payRunRiderIds"]=new JsonArray(row.S("id"))});
         var actions=(result["allowedActions"] as JsonArray??[]).Select(n=>n!.GetValue<string>()).ToList();
         Assert.IsFalse(actions.Contains("export_bank_file"));
         tx.Commit();

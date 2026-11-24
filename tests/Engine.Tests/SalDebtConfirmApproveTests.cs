@@ -180,9 +180,9 @@ public sealed class SalDebtConfirmApproveTests
     }
 
     [TestMethod]
-    public void OrdinarySalary_SelfApprovalAllowed_Answer4()
+    public void OrdinarySalary_SelfApprovalBlocked_Ghazal1124()
     {
-        // §35 / answer 4: permission-based salary approval; two-person only for money-out / shared-hold release.
+        // Ghazal 11-24: preparer cannot approve/post the same salary sheet.
         using var c=Open(false);
         string company=MoneySchemaFixture.Company(c);
         string user=MoneySchemaFixture.Id();
@@ -193,13 +193,11 @@ public sealed class SalDebtConfirmApproveTests
         {
             ["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})
         });
-        var approved=SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject
         {
             ["payRunRiderIds"]=new JsonArray(riderId)
-        });
-        Assert.IsFalse(string.IsNullOrEmpty(approved["rows"]![0]!["salaryApprovedAt"]!.GetValue<string>()));
-        Assert.IsTrue(approved["rows"]![0]!.AsObject().B("selfApproved"));
-        Assert.AreEqual(1L,MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM pay_payable WHERE source_id=@r",("@r",riderId)));
+        })).Status);
+        Assert.AreEqual(0L,MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM pay_payable WHERE source_id=@r",("@r",riderId)));
         tx.Commit();
     }
 }

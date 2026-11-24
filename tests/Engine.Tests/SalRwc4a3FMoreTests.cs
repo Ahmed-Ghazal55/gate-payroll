@@ -98,8 +98,8 @@ public sealed class SalRwc4a3FMoreTests
         Assert.AreEqual(-100m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT salary_net FROM sal_pay_run_rider WHERE id=@id",("@id",ninjaId))));
         SalDebtConfirm.Confirm(c,tx,actor,keeta,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=keetaId,["amount"]=0})});
         SalDebtConfirm.Confirm(c,tx,actor,ninja,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=ninjaId,["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,keeta,new JsonObject{["payRunRiderIds"]=new JsonArray(keetaId)});
-        SalSalaryApprove.Approve(c,tx,actor,ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),keeta,new JsonObject{["payRunRiderIds"]=new JsonArray(keetaId)});
+        SalSalaryApprove.Approve(c,tx,Admin(),ninja,new JsonObject{["payRunRiderIds"]=new JsonArray(ninjaId)});
         Assert.AreEqual(800m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT amount_due FROM pay_payable WHERE source_id=@r",("@r",keetaId))));
         Assert.AreEqual(100m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT amount_due FROM pay_payable WHERE source_id=@r",("@r",ninjaId))));
         tx.Commit();
@@ -153,7 +153,7 @@ public sealed class SalRwc4a3FMoreTests
         // Caller invents 112505 — settle must still credit Advance control 112501.
         var row=Calc(c,tx,actor,run,Rider(erp,new JsonArray(new JsonObject{["itemCode"]="advance",["amount"]=300,["accountCode"]="112505",["debtId"]=debtId})));
         SalDebtConfirm.Confirm(c,tx,actor,run,new JsonObject{["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=row.S("id"),["amount"]=0})});
-        SalSalaryApprove.Approve(c,tx,actor,run,new JsonObject{["payRunRiderIds"]=new JsonArray(row.S("id"))});
+        SalSalaryApprove.Approve(c,tx,Admin(),run,new JsonObject{["payRunRiderIds"]=new JsonArray(row.S("id"))});
         decimal cr112501=Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT COALESCE(SUM(credit-debit),0) FROM fin_journal_line WHERE account_id=(SELECT id FROM fin_account WHERE code='112501')"));
         Assert.AreEqual(300m,cr112501);
         Assert.AreEqual(0m,Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"SELECT balance FROM debt_debt WHERE id=@id",("@id",debtId))));
