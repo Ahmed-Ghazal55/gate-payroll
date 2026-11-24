@@ -46,11 +46,12 @@ public static class ManualJournals
     }
     public static JsonObject Create(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)
     {
-        AccessPolicy.Demand(actor,CreatePermission);PayValues.Fields(input,"companyId","date","reference","description","lines","attachment","odooVoucherNo");
+        AccessPolicy.Demand(actor,CreatePermission);PayValues.Fields(input,"companyId","date","reference","description","lines","attachment","odooVoucherNo","bankStatementLineId","statementId","reconKind");
         string company=FinancialCore.ResolveSponsor(input.Required("companyId")).Id,date=Date(input.Required("date")),reference=input.Required("reference"),description=input.Required("description");FinancialScopes.DemandSponsor(actor,company);Open(c,tx,company,date[..7]);
         J.Need(reference.Length<=200&&description.Length<=1000,"المرجع أو البيان أطول من الحد.");J.Need(!Store.List(c,Kind,tx).Any(d=>d.S("companyId")==company&&d.S("reference")==reference),"مرجع القيد اليدوي مكرر.");
         var lines=ValidateLines(c,tx,actor,company,input["lines"] as JsonArray??throw new ApiError("سطور القيد مطلوبة."));
         var draft=new JsonObject{["id"]="manual-journal:"+Guid.NewGuid().ToString("N"),["companyId"]=company,["date"]=date,["period"]=date[..7],["reference"]=reference,["description"]=description,["lines"]=lines,["status"]="draft",["createdBy"]=actor.Identity!.Name,["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["attachmentId"]=Attachment(c,tx,actor,company,input["attachment"]),["odooVoucherNo"]=input.S("odooVoucherNo")};
+        if(input.S("bankStatementLineId")!=""){draft["bankStatementLineId"]=input.S("bankStatementLineId");draft["statementId"]=input.S("statementId");draft["reconKind"]=input.S("reconKind");}
         Store.Save(c,Kind,draft,tx);Store.Audit(c,tx,"finance.manual_drafted",draft.S("id"),actor.Identity!.Name!);return draft;
     }
     public static JsonObject Approve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
@@ -60,7 +61,17 @@ public static class ManualJournals
         string reversal=draft.S("reversesJournalId");if(reversal!="")J.Need(!Store.List(c,"journal",tx).Any(j=>j.S("reversesJournalId")==reversal),"القيد معكوس بالفعل.");
         var journal=FinancialCore.PostJournal(c,tx,"manual"+(reversal==""?"":"_reversal"),draft.S("description"),draft.S("period"),"MANUAL:"+id,draft["lines"]!.DeepClone().AsArray(),actor.Identity!.Name!,originSponsorId:draft.S("companyId"),creditorSponsorId:draft.S("companyId"),targetChart:true,reversesJournalId:reversal==""?null:reversal,payChart:true,journalDate:draft.S("date"),manualJournalId:id);
         journal["date"]=draft.S("date");journal["manualJournalId"]=id;journal["attachmentId"]=draft["attachmentId"]?.DeepClone();journal["odooVoucherNo"]=draft.S("odooVoucherNo");Store.Save(c,"journal",journal,tx);
-        draft["status"]="approved";draft["journalEntryId"]=journal.S("id");draft["approvedBy"]=actor.Identity!.Name;draft["approvedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,Kind,draft,tx);Store.Audit(c,tx,"finance.manual_approved",id,actor.Identity!.Name!);return draft;
+        draft["status"]="approved";draft["journalEntryId"]=journal.S("id");draft["approvedBy"]=actor.Identity!.Name;draft["approvedAt"]=DateTimeOffset.UtcNow.ToString("O");
+        if(AccessPolicy.SamePerson(actor,draft.S("createdBy"))){draft["selfApproved"]=true;draft["selfApprovedException"]=true;}
+        Store.Save(c,Kind,draft,tx);Store.Audit(c,tx,"finance.manual_approved",id,actor.Identity!.Name!);
+        // Bank recon needs fin.journal_line for auto-match (Store journals alone are not matched).
+        if(draft.S("bankStatementLineId")!="")
+        {
+            string finJournalId=TreasuryBankStatementsApi.PostLinkedFinJournal(c,tx,actor,draft);
+            draft["finJournalId"]=finJournalId;Store.Save(c,Kind,draft,tx);
+            TreasuryBankStatementsApi.MatchAfterPostedJournal(c,tx,actor,draft.S("bankStatementLineId"),finJournalId);
+        }
+        return draft;
     }
     public static JsonObject Reverse(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {

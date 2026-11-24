@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
-  "version": "2026-11-23.1",
-  "source": "gate-finance-spec/docs/02-chart-of-accounts.md §§1,4,6; BUSINESS_RULES §§20,22,23,24,25.9,29; COA1 A1/A2 (512123 + 5268xx)",
+  "version": "2026-11-24.1",
+  "source": "gate-finance-spec/docs/02-chart-of-accounts.md §§1,4,6; BUSINESS_RULES §§20,22,23,24,25.9,29; COA1 A1/A2 (512123 + 5268xx); TRIAL6 bank recon accounts 114108/422103/5414/541401",
   "accounts": [
     {
       "code": "1",
@@ -1410,6 +1410,22 @@
       "subledger": "حساب منصة",
       "source": "new",
       "sourceNote": "جديد"
+    },
+    {
+      "code": "114108",
+      "nameAr": "مبالغ تحت التسوية",
+      "parent": "1141",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "both",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "trial6",
+      "sourceNote": "TRIAL6 Ghazal 2026-11-24 bank recon"
     },
     {
       "code": "115",
@@ -4340,6 +4356,22 @@
       "sourceNote": "Excel"
     },
     {
+      "code": "422103",
+      "nameAr": "إيرادات بنكية",
+      "parent": "4221",
+      "level": 5,
+      "posting": true,
+      "nature": "credit",
+      "type": "other",
+      "direction": "receive",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "trial6",
+      "sourceNote": "TRIAL6 Ghazal 2026-11-24 bank recon"
+    },
+    {
       "code": "4222",
       "nameAr": "أرباح فروق العملة / فروق النقدية",
       "parent": "422",
@@ -6402,6 +6434,38 @@
       "subledger": "—",
       "source": "new",
       "sourceNote": "جديد"
+    },
+    {
+      "code": "5414",
+      "nameAr": "مصاريف وعمولات بنكية",
+      "parent": "541",
+      "level": 4,
+      "posting": false,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "trial6",
+      "sourceNote": "TRIAL6 Ghazal 2026-11-24 bank recon"
+    },
+    {
+      "code": "541401",
+      "nameAr": "مصاريف وعمولات بنكية",
+      "parent": "5414",
+      "level": 5,
+      "posting": true,
+      "nature": "debit",
+      "type": "other",
+      "direction": "pay",
+      "company": "الكل",
+      "status": "active",
+      "statusNote": null,
+      "subledger": "—",
+      "source": "trial6",
+      "sourceNote": "TRIAL6 Ghazal 2026-11-24 bank recon"
     },
     {
       "code": "542",
