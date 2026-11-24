@@ -1324,7 +1324,7 @@ export const api = {
     handleRequest<Record<string, unknown>>('/chat/channels', { method: 'POST', body: JSON.stringify(input) }),
   listStaffChatMessages: (channelId: string, after?: string) => {
     const q = after ? `?after=${encodeURIComponent(after)}` : '';
-    return handleRequest<{ items?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>>(
+    return handleRequest<{ items?: Array<Record<string, unknown>> }>(
       `/chat/channels/${encodeURIComponent(channelId)}/messages${q}`
     );
   },

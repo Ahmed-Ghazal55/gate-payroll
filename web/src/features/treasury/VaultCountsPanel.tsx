@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { useToast } from '../../components/ui/Toast';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
+import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import { formatSar } from '../../lib/money';
 
 type VaultCountRow = {
@@ -46,6 +47,24 @@ export function VaultCountsPanel() {
   useEffect(() => {
     void load();
   }, [load]);
+
+  const cols = useMemo(
+    () => [
+      {
+        key: 'cashBox',
+        header: 'الخزنة',
+        type: 'text' as const,
+        getValue: (r: VaultCountRow) => `${r.cashBoxCode || ''} ${r.cashBoxNameAr || ''}`.trim(),
+      },
+      { key: 'countedOn', header: 'التاريخ', type: 'date' as const, getValue: (r: VaultCountRow) => String(r.countedOn || '') },
+      { key: 'bookBalance', header: 'دفتر', type: 'number' as const, getValue: (r: VaultCountRow) => Number(r.bookBalance || 0) },
+      { key: 'countedAmount', header: 'جرد', type: 'number' as const, getValue: (r: VaultCountRow) => Number(r.countedAmount || 0) },
+      { key: 'variance', header: 'فرق', type: 'number' as const, getValue: (r: VaultCountRow) => Number(r.variance || 0) },
+      { key: 'status', header: 'الحالة', type: 'text' as const, getValue: (r: VaultCountRow) => String(r.status || '') },
+    ],
+    []
+  );
+  const filter = useTableAutoFilter<VaultCountRow>(rows, cols);
 
   const create = async () => {
     if (!listAllowed.includes('create')) {
@@ -122,20 +141,21 @@ export function VaultCountsPanel() {
         <EmptyState title="لا جرد مسجّل" description="أنشئ جردًا لخزنة ثم قدّمه لمراجع مستقل." />
       ) : (
         <div className="rounded-2xl border border-[var(--line)] overflow-hidden bg-[var(--surface)]">
+          <AutoFilterBar controller={filter} totalCount={rows.length} />
           <table className="w-full text-xs">
             <thead className="bg-[var(--raised)]/50 text-[var(--muted)]">
               <tr>
-                <th className="p-2 text-start">الخزنة</th>
-                <th className="p-2 text-start">التاريخ</th>
-                <th className="p-2 text-start">دفتر</th>
-                <th className="p-2 text-start">جرد</th>
-                <th className="p-2 text-start">فرق</th>
-                <th className="p-2 text-start">الحالة</th>
+                <AutoFilterTh controller={filter} colKey="cashBox" className="p-2 text-start" />
+                <AutoFilterTh controller={filter} colKey="countedOn" className="p-2 text-start" />
+                <AutoFilterTh controller={filter} colKey="bookBalance" className="p-2 text-start" />
+                <AutoFilterTh controller={filter} colKey="countedAmount" className="p-2 text-start" />
+                <AutoFilterTh controller={filter} colKey="variance" className="p-2 text-start" />
+                <AutoFilterTh controller={filter} colKey="status" className="p-2 text-start" />
                 <th className="p-2 text-start">إجراءات</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-[var(--line)]">
-              {rows.map((r) => (
+              {filter.rows.map((r) => (
                 <tr key={String(r.id)}>
                   <td className="p-2 font-mono">
                     {r.cashBoxCode} {r.cashBoxNameAr}

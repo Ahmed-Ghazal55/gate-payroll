@@ -58,7 +58,8 @@ export function StaffChatPanel() {
     }
     try {
       const res = await api.listStaffChatMessages(channelId);
-      setMessages(Array.isArray(res.items) ? (res.items as ChatMessage[]) : Array.isArray(res) ? (res as ChatMessage[]) : []);
+      if (Array.isArray(res)) setMessages(res as ChatMessage[]);
+      else setMessages(Array.isArray(res.items) ? (res.items as ChatMessage[]) : []);
     } catch {
       setMessages([]);
     }
