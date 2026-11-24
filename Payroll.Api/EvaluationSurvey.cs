@@ -139,6 +139,12 @@ public static partial class EvaluationSurvey
                 ["allApps"] = raw.NullableBool("allApps") ?? prior?.NullableBool("allApps") ?? false };
             foreach (string field in new[] { "cities", "departments", "roles", "apps" })
                 doc[field] = Array(Strings(raw, field).Concat(prior == null ? [] : Strings(prior, field)).Distinct(StringComparer.Ordinal));
+            var priorCities = prior?["appCities"] as JsonObject;
+            var mergedAppCities = priorCities?.DeepClone() as JsonObject ?? new JsonObject();
+            if (raw["appCities"] is JsonObject incoming)
+                foreach (var prop in incoming)
+                    mergedAppCities[prop.Key] = prop.Value?.DeepClone();
+            doc["appCities"] = NormalizeAppCities(mergedAppCities, Strings(doc, "apps"), Strings(doc, "cities"), doc.B("allCities"));
             J.Need(Strings(doc, "apps").All(a => PayPlatforms.Table.Any(p => p.Platform == a)), "استخدم معرفات المنصات المعتمدة في ملف الاستيراد.");
             J.Need(Strings(doc, "cities").Length > 0, "مدينة الموظف مطلوبة.");
             if (doc.B("pendingRoleApproval")) doc["roles"] = new JsonArray("بانتظار موافقة غزال");
@@ -168,12 +174,19 @@ public static partial class EvaluationSurvey
         Store.Audit(c, tx, "evaluation.created", round.S("id"), user.Identity!.Name!);
         return round;
     }
-    /// <summary>Work cities a rider can pick: cities of city-bound staff, minus the offices of remote (all-cities) staff.</summary>
+    /// <summary>Work cities a rider can pick: cities of city-bound staff (plus per-app city limits), minus remote offices.</summary>
     public static string[] WorkCities(IEnumerable<JsonObject> staff)
     {
         var list = staff.ToList();
         var offices = list.Where(s => s.B("allCities")).SelectMany(s => Strings(s, "cities")).ToHashSet(StringComparer.Ordinal);
-        return list.Where(s => !s.B("allCities")).SelectMany(s => Strings(s, "cities")).Where(c => !offices.Contains(c)).Distinct(StringComparer.Ordinal).ToArray();
+        IEnumerable<string> AppCityValues(JsonObject s) =>
+            s["appCities"] is JsonObject map
+                ? map.SelectMany(p => (p.Value as JsonArray)?.Select(x => x?.GetValue<string>() ?? "") ?? []).Where(c => c != "")
+                : [];
+        return list.Where(s => !s.B("allCities"))
+            .SelectMany(s => Strings(s, "cities").Concat(AppCityValues(s)))
+            .Where(c => !offices.Contains(c))
+            .Distinct(StringComparer.Ordinal).ToArray();
     }
     public static bool ServesCity(JsonObject staff, string city) => staff.B("allCities") || Strings(staff, "cities").Contains(city);
     /// <summary>Re-reads the current staff list into an unclosed round. Existing replies keep their answers; a later edit must answer the city's current cards.</summary>
@@ -254,7 +267,7 @@ public static partial class EvaluationSurvey
         if (section != null)
         {
             if (staff)
-                expected = SectionMembers(round, section).Where(s => ServesCity(s, city)).Select(s => s.S("id")).Distinct().ToArray();
+                expected = SectionMembers(round, section).Where(s => ServesSectionCity(s, section, city)).Select(s => s.S("id")).Distinct().ToArray();
             else if (section.S("kind") == "app")
                 expected = [section.S("key")["app:".Length..]];
             else
@@ -341,13 +354,20 @@ public static partial class EvaluationSurvey
             reply["sectionKey"] = section.S("key");
             reply["sectionTitle"] = section.S("title");
             if (section.S("kind") == "app")
+            {
                 reply["financeAnswer"] = ParseFinanceAnswer(input, store, c, tx, id, ref replyBytes, attachments);
+                // Optional for clients that predate the systems card (cached 0.33.5 page, rider-app payload): absent = no systems card.
+                if (input["systemsAnswer"] is JsonObject)
+                    reply["systemsAnswer"] = ParseSystemsAnswer(input, store, c, tx, id, ref replyBytes, attachments);
+            }
         }
         Store.Save(c, ResponseKind, reply, tx);
         foreach (var answer in reply["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => a.B("complaint")))
             CreateComplaint(c, tx, reply, answer);
         if (reply["financeAnswer"] is JsonObject finance && finance.B("complaint"))
-            CreateFinanceComplaint(c, tx, reply, finance);
+            CreateDepartmentComplaint(c, tx, reply, finance, DeptFinance);
+        if (reply["systemsAnswer"] is JsonObject systems && systems.B("complaint"))
+            CreateDepartmentComplaint(c, tx, reply, systems, DeptSystems);
         Store.Audit(c, tx, "evaluation.submitted", id, authenticatedIqama == null ? "public-form" : "rider-app");
         return new() { ["receipt"] = editReceipt, ["allowedActions"] = new JsonArray("edit"), ["editCount"] = 0, ["editsRemaining"] = MaxEdits, ["editPolicyPending"] = false, ["uploadsPolicyPending"] = false };
     }
@@ -367,7 +387,7 @@ public static partial class EvaluationSurvey
         };
         Store.Save(c, RiderAsks.ServiceKind, request, tx);
     }
-    static void CreateFinanceComplaint(DbConnection c, DbTransaction tx, JsonObject reply, JsonObject answer)
+    static void CreateDepartmentComplaint(DbConnection c, DbTransaction tx, JsonObject reply, JsonObject answer, string departmentTarget)
     {
         var titles = RiderAsks.RequestTypeTitles("complaint");
         string app = reply["appAnswers"]!.AsArray().OfType<JsonObject>().Select(a => a.S("app")).FirstOrDefault(a => a != "") ?? "";
@@ -381,7 +401,7 @@ public static partial class EvaluationSurvey
             ["requiresSecondApprover"] = false, ["createdAt"] = reply.S("createdAt"), ["updatedAt"] = reply.S("createdAt"),
             ["payload"] = new JsonObject
             {
-                ["targetKind"] = "department", ["target"] = DeptFinance, ["subject"] = titles.Ar,
+                ["targetKind"] = "department", ["target"] = departmentTarget, ["subject"] = titles.Ar,
                 ["details"] = answer.S("complaintDetails"), ["app"] = app
             },
             ["replies"] = new JsonArray(), ["timeline"] = new JsonArray(new JsonObject { ["at"] = reply.S("createdAt"), ["status"] = "open", ["labelAr"] = titles.Ar, ["labelEn"] = titles.En, ["labelUr"] = titles.Ur, ["byRole"] = "rider" })
@@ -431,7 +451,11 @@ public static partial class EvaluationSurvey
             r["appAnswers"] = Array(r["appAnswers"]!.AsArray().OfType<JsonObject>().Where(a => scope.Contains(a.S("app"))));
             var ids = round["staff"]!.AsArray().OfType<JsonObject>().Where(s => Strings(s, "apps").All(scope.Contains)).Select(s => s.S("id")).ToHashSet();
             r["staffAnswers"] = Array(r["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => ids.Contains(a.S("staffId"))));
-            if (!FinanceAnswerInPlatformScope(r, scope)) r.Remove("financeAnswer");
+            if (!FinanceAnswerInPlatformScope(r, scope))
+            {
+                r.Remove("financeAnswer");
+                r.Remove("systemsAnswer");
+            }
             return r;
         }).ToList();
         if (!string.IsNullOrEmpty(section))

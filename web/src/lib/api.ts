@@ -2556,6 +2556,21 @@ export const api = {
       }>;
       allowedActions?: string[];
     }>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/finance${scorecardQuery(filters)}`),
+  getEvaluationSystemsScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<{
+      roundId: string;
+      totalResponses: number;
+      confidenceNoteAr?: string;
+      items: Array<{
+        app: string;
+        ratedCount: number;
+        skippedCount?: number;
+        average?: number | null;
+        factors?: Array<{ key: string; count: number; average?: number | null }>;
+        lowSample?: boolean;
+      }>;
+      allowedActions?: string[];
+    }>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/systems${scorecardQuery(filters)}`),
   getEvaluationHeatmapScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
     handleRequest<EvaluationHeatmapScorecard>(
       `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/heatmap${scorecardQuery(filters)}`
@@ -2566,7 +2581,7 @@ export const api = {
     ),
   exportEvaluationScorecard: (
     roundId: string,
-    kind: 'supervisors' | 'apps' | 'heatmap' | 'city-app' | 'finance',
+    kind: 'supervisors' | 'apps' | 'heatmap' | 'city-app' | 'finance' | 'systems',
     filters?: EvaluationScorecardFilters
   ) =>
     handleRequest<Blob>(

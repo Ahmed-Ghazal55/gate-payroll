@@ -70,6 +70,11 @@ public sealed class EvaluationSectionStatsTests
             {
                 ["overall"] = 4,
                 ["factorRatings"] = new JsonObject { ["responsiveness"] = 5, ["accuracy"] = 3 }
+            },
+            ["systemsAnswer"] = new JsonObject
+            {
+                ["overall"] = 3,
+                ["factorRatings"] = new JsonObject { ["formsEase"] = 2, ["dataClarity"] = 4 }
             }
         });
         return (EvaluationSurvey.Round(c, round.S("id"), tx), movementId, opsId);

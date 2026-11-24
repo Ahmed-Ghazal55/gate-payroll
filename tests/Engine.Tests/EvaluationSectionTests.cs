@@ -81,6 +81,12 @@ public sealed class EvaluationSectionTests
                 ["factorRatings"] = new JsonObject { ["responsiveness"] = 4, ["accuracy"] = 5 },
                 ["notes"] = "Synthetic finance note"
             };
+            input["systemsAnswer"] = new JsonObject
+            {
+                ["overall"] = 4,
+                ["factorRatings"] = new JsonObject { ["formsEase"] = 3, ["dataClarity"] = 4 },
+                ["notes"] = "Synthetic systems note"
+            };
         }
         return input;
     }

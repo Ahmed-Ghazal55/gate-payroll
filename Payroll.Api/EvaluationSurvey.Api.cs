@@ -24,17 +24,61 @@ public static partial class EvaluationSurvey
             ["title"] = section == null ? round.S("title") : section.S("title"),
             ["titleEn"] = section == null ? round.S("title") : (section.S("titleEn") is { Length: > 0 } te ? te : section.S("title")),
             ["titleUr"] = section == null ? round.S("title") : (section.S("titleUr") is { Length: > 0 } tu ? tu : section.S("title")),
-            ["noticeAr"] = "التقييمات والشكاوى سرية وتراجعها الإدارة فقط؛ لا يطلع المشرفون على الأسماء أو الإجابات.",
-            ["noticeEn"] = "Ratings and complaints are confidential and reviewed by management only. Supervisors cannot see names or answers.",
-            ["noticeUr"] = "درجہ بندی اور شکایات خفیہ ہیں اور صرف انتظامیہ دیکھ سکتی ہے۔ سپروائزر نام یا جوابات نہیں دیکھ سکتے۔",
-            ["cities"] = round["cities"]!.DeepClone(), ["apps"] = apps,
-            ["staff"] = Array(staffSource.Where(s => string.IsNullOrEmpty(city) || ServesCity(s, city)).Select(s => new JsonObject
+            ["noticeAr"] = string.Join("\n", new[]
             {
-                // Remote staff are listed under every work city, so older clients that filter by cities still show them.
-                ["id"] = s.S("id"), ["name"] = s.S("name"), ["cities"] = s.B("allCities") ? round["cities"]!.DeepClone() : s["cities"]!.DeepClone(), ["departments"] = s["departments"]!.DeepClone(),
+                "تقييمك وشكواك سرية تمامًا.",
+                "لا يرى المشرف أو الموظف الذي تقيّمه اسمك ولا إجابتك؛ تراجعها الإدارة المخوّلة فقط لتحسين العمل وحل المشاكل.",
+                "لن يُستخدم أي تقييم أو شكوى ضدك بأي شكل. تكلّم بحرية واشرح مشكلتك بالتفصيل."
+            }),
+            ["noticeEn"] = string.Join("\n", new[]
+            {
+                "Your rating and complaint are completely confidential.",
+                "The supervisor or staff member you rate cannot see your name or your answers; only authorized management reviews them to improve work and solve problems.",
+                "No rating or complaint will be used against you in any way. Speak freely and explain your problem in detail."
+            }),
+            ["noticeUr"] = string.Join("\n", new[]
+            {
+                "آپ کی درجہ بندی اور شکایت بالکل خفیہ ہیں۔",
+                "جس سپروائزر یا ملازم کی آپ درجہ بندی کرتے ہیں وہ آپ کا نام یا جواب نہیں دیکھ سکتا؛ صرف مجاز انتظامیہ کام بہتر بنانے اور مسائل حل کرنے کے لیے ان کا جائزہ لیتی ہے۔",
+                "کوئی درجہ بندی یا شکایت آپ کے خلاف کسی بھی طرح استعمال نہیں کی جائے گی۔ آزادانہ بات کریں اور اپنا مسئلہ تفصیل سے بیان کریں۔"
+            }),
+            ["noticeLines"] = new JsonArray(
+                new JsonObject
+                {
+                    ["ar"] = "تقييمك وشكواك سرية تمامًا.",
+                    ["en"] = "Your rating and complaint are completely confidential.",
+                    ["ur"] = "آپ کی درجہ بندی اور شکایت بالکل خفیہ ہیں۔"
+                },
+                new JsonObject
+                {
+                    ["ar"] = "لا يرى المشرف أو الموظف الذي تقيّمه اسمك ولا إجابتك؛ تراجعها الإدارة المخوّلة فقط لتحسين العمل وحل المشاكل.",
+                    ["en"] = "The supervisor or staff member you rate cannot see your name or your answers; only authorized management reviews them to improve work and solve problems.",
+                    ["ur"] = "جس سپروائزر یا ملازم کی آپ درجہ بندی کرتے ہیں وہ آپ کا نام یا جواب نہیں دیکھ سکتا؛ صرف مجاز انتظامیہ کام بہتر بنانے اور مسائل حل کرنے کے لیے ان کا جائزہ لیتی ہے۔"
+                },
+                new JsonObject
+                {
+                    ["ar"] = "لن يُستخدم أي تقييم أو شكوى ضدك بأي شكل. تكلّم بحرية واشرح مشكلتك بالتفصيل.",
+                    ["en"] = "No rating or complaint will be used against you in any way. Speak freely and explain your problem in detail.",
+                    ["ur"] = "کوئی درجہ بندی یا شکایت آپ کے خلاف کسی بھی طرح استعمال نہیں کی جائے گی۔ آزادانہ بات کریں اور اپنا مسئلہ تفصیل سے بیان کریں۔"
+                }),
+            ["complaintConfidentialityReminderAr"] = "شكواك سرية ولن تُستخدم ضدك.",
+            ["complaintConfidentialityReminderEn"] = "Your complaint is confidential and will not be used against you.",
+            ["complaintConfidentialityReminderUr"] = "آپ کی شکایت خفیہ ہے اور آپ کے خلاف استعمال نہیں ہوگی۔",
+            ["cities"] = round["cities"]!.DeepClone(), ["apps"] = apps,
+            ["staff"] = Array(staffSource.Where(s =>
+            {
+                if (string.IsNullOrEmpty(city)) return true;
+                return ServesSectionCity(s, section, city);
+            }).Select(s => new JsonObject
+            {
+                // "cities" = the cities where THIS form shows the card (same rule the server checks on submit: ServesSectionCity),
+                // so every client that filters by cities (current page, cached older pages) shows exactly the expected cards.
+                ["id"] = s.S("id"), ["name"] = s.S("name"), ["cities"] = Array(FormCities(s, section, Strings(round, "cities"))), ["departments"] = s["departments"]!.DeepClone(),
                 ["apps"] = s["apps"]!.DeepClone(), ["roles"] = s.B("pendingRoleApproval") ? new JsonArray("بانتظار موافقة غزال") : s["roles"]!.DeepClone(),
-                ["allApps"] = s.B("allApps"), ["allCities"] = s.B("allCities")
+                ["allApps"] = s.B("allApps"), ["allCities"] = s.B("allCities"),
+                ["appCities"] = s["appCities"]?.DeepClone() ?? new JsonObject()
             })),
+            ["departmentOptions"] = Array(StaffDepartmentOptions),
             ["identityFields"] = Array(new[] {
                 Label("iqama", "رقم الإقامة", "Iqama", "اقامہ نمبر"), Label("name", "الاسم", "Name", "نام"),
                 Label("city", "مدينة العمل", "Work city", "کام کا شہر"), Label("nationality", "الجنسية", "Nationality", "قومیت"),
@@ -75,6 +119,7 @@ public static partial class EvaluationSurvey
             schema["sectionKey"] = section.S("key");
             schema["sectionKind"] = section.S("kind");
             schema["includeFinanceCard"] = section.S("kind") == "app";
+            schema["includeSystemsCard"] = section.S("kind") == "app";
             schema["financeFactors"] = Array(new[] {
                 Label("responsiveness", "تجاوب القسم المالي مع استفساراتك وشكاواك", "Finance responsiveness", "مالیہ کا جواب"),
                 Label("accuracy", "احتساب الراتب بدون أخطاء", "Salary accuracy", "تنخواہ کی درستگی"),
@@ -83,6 +128,18 @@ public static partial class EvaluationSurvey
             });
             schema["financeReasons"] = Array(new[] {
                 Label("not_dealt_finance", "لم أتعامل مع القسم المالي", "Did not deal with finance", "مالیہ سے معاملہ نہیں ہوا")
+            });
+            schema["systemsTitleAr"] = "تقييم الأنظمة والبيانات";
+            schema["systemsTitleEn"] = "Systems and data";
+            schema["systemsTitleUr"] = "نظام اور ڈیٹا";
+            schema["systemsFactors"] = Array(new[] {
+                Label("formsEase", "سهولة النماذج والروابط اللي بتوصلك", "Ease of forms and links that reach you", "فارم اور لنکس کی آسانی"),
+                Label("dataClarity", "وضوح البيانات والجداول المشاركة معك", "Clarity of shared data and tables", "شیئر کردہ ڈیٹا اور جدولوں کی وضاحت"),
+                Label("helpfulness", "دور الأنظمة في تسهيل شغلك", "How systems help your work", "نظام کا کام آسان بنانا"),
+                Label("responsiveness", "الاستجابة لمقترحاتك وشكاواك وطلباتك", "Response to your suggestions, complaints and requests", "تجاویز، شکایات اور درخواستوں کا جواب")
+            });
+            schema["systemsReasons"] = Array(new[] {
+                Label("not_used_forms_data", "لم أستخدم نماذج أو بيانات الشركة", "Did not use company forms or data", "کمپنی کے فارم یا ڈیٹا استعمال نہیں کیے")
             });
         }
         return schema;
@@ -115,11 +172,22 @@ public static partial class EvaluationSurvey
             _ => f
         }), true)));
         columns.Add(new("مالية: السبب")); columns.Add(new("مالية: ملاحظات")); columns.Add(new("مالية: مرفقات", true)); columns.Add(new("مالية: شكوى"));
+        columns.Add(new("أنظمة: العام", true));
+        columns.AddRange(SystemsFactors.Select(f => new ExcelColumn("أنظمة: " + (f switch
+        {
+            "formsEase" => "سهولة النماذج",
+            "dataClarity" => "وضوح البيانات",
+            "helpfulness" => "تسهيل الشغل",
+            "responsiveness" => "الاستجابة",
+            _ => f
+        }), true)));
+        columns.Add(new("أنظمة: السبب")); columns.Add(new("أنظمة: ملاحظات")); columns.Add(new("أنظمة: مرفقات", true)); columns.Add(new("أنظمة: شكوى"));
         columns.AddRange(apps.Select(a => new ExcelColumn("منصة العمل: " + a)));
         var cells = new List<object?[]>();
         foreach (var row in Responses(c, user, id, section: section))
         {
             var finance = row["financeAnswer"] as JsonObject;
+            var systems = row["systemsAnswer"] as JsonObject;
             // Prefer Arabic section title; never export the raw sectionKey (app:Ninja / dept:hr).
             string sectionLabel = row.S("sectionTitle");
             if (sectionLabel == "" && row.S("sectionKey") != "")
@@ -130,8 +198,11 @@ public static partial class EvaluationSurvey
                 sectionLabel = match?.S("title") ?? row.S("sectionKey");
             }
             bool financeWritten = false;
+            bool systemsWritten = false;
             object? FinanceVal(Func<JsonObject, object?> read) =>
                 finance == null || financeWritten ? null : read(finance);
+            object? SystemsVal(Func<JsonObject, object?> read) =>
+                systems == null || systemsWritten ? null : read(systems);
             foreach (bool staff in new[] { true, false })
             foreach (var card in row[staff ? "staffAnswers" : "appAnswers"]!.AsArray().OfType<JsonObject>())
             {
@@ -145,7 +216,7 @@ public static partial class EvaluationSurvey
                 values.AddRange(StaffDimensions.Select(d => (object?)(card["ratings"]?[d] == null ? null : card["ratings"]!.N(d))));
                 values.Add(card.S("notes")); values.Add(card.B("complaint") ? "نعم" : "لا"); values.Add(card.S("complaintDetails"));
                 values.AddRange(Factors.Select(f => (object?)(card["factorRatings"]?[f] == null ? null : card["factorRatings"]!.N(f))));
-                // Finance columns once per reply: first card row only (later rows stay blank so column sums stay correct).
+                // Finance / systems columns once per reply: first card row only (later rows stay blank so column sums stay correct).
                 values.Add(FinanceVal(fin => fin["overall"] == null ? null : fin.N("overall")));
                 values.AddRange(FinanceFactors.Select(f => FinanceVal(fin => fin["factorRatings"]?[f] == null ? null : fin["factorRatings"]!.N(f))));
                 values.Add(FinanceVal(fin => fin.S("reason")));
@@ -153,6 +224,13 @@ public static partial class EvaluationSurvey
                 values.Add(FinanceVal(fin => fin["attachments"] is JsonArray a ? a.Count : 0));
                 values.Add(FinanceVal(fin => fin.B("complaint") ? "نعم" : "لا"));
                 if (finance != null) financeWritten = true;
+                values.Add(SystemsVal(sys => sys["overall"] == null ? null : sys.N("overall")));
+                values.AddRange(SystemsFactors.Select(f => SystemsVal(sys => sys["factorRatings"]?[f] == null ? null : sys["factorRatings"]!.N(f))));
+                values.Add(SystemsVal(sys => sys.S("reason")));
+                values.Add(SystemsVal(sys => sys.S("notes")));
+                values.Add(SystemsVal(sys => sys["attachments"] is JsonArray a ? a.Count : 0));
+                values.Add(SystemsVal(sys => sys.B("complaint") ? "نعم" : "لا"));
+                if (systems != null) systemsWritten = true;
                 values.AddRange(apps.Select(a => (object?)(Strings(row, "workApps").Contains(a) ? "نعم" : "")));
                 cells.Add(values.ToArray());
             }
@@ -185,6 +263,8 @@ public static partial class EvaluationSurvey
             store.Read(c => AppScorecard(c, ctx.User, id, city, app, department, supervisorId, nationalityId, section))).WithTags("Forms and responses").WithSummary("Per-app evaluation scorecard");
         api.MapGet("/forms/evaluations/rounds/{id}/scorecards/finance", (string id, string? city, string? app, string? nationalityId, string? section, HttpContext ctx) =>
             store.Read(c => FinanceScorecard(c, ctx.User, id, city, app, nationalityId, section))).WithTags("Forms and responses").WithSummary("Finance-card evaluation scorecard per app");
+        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/systems", (string id, string? city, string? app, string? nationalityId, string? section, HttpContext ctx) =>
+            store.Read(c => SystemsScorecard(c, ctx.User, id, city, app, nationalityId, section))).WithTags("Forms and responses").WithSummary("Systems-card evaluation scorecard per app");
         api.MapGet("/forms/evaluations/rounds/{id}/scorecards/heatmap", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section, HttpContext ctx) =>
             store.Read(c => SupervisorDimensionHeatmap(c, ctx.User, id, city, app, department, supervisorId, nationalityId, section))).WithTags("Forms and responses").WithSummary("Supervisor × dimension heatmap");
         api.MapGet("/forms/evaluations/rounds/{id}/scorecards/city-app", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section, HttpContext ctx) =>

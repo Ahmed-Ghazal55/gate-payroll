@@ -3,7 +3,7 @@ namespace Payroll;
 
 public static partial class ApiContracts
 {
-    static OpenApiSchema EvaluationStaff() => O(new() { ["id"] = S(), ["name"] = S(), ["cities"] = A(S()), ["departments"] = A(S()), ["roles"] = A(S()), ["apps"] = A(S()), ["active"] = B(), ["excluded"] = B(), ["pendingRoleApproval"] = B(), ["allCities"] = B(), ["allApps"] = B() }, "id", "name", "cities", "departments", "roles", "apps");
+    static OpenApiSchema EvaluationStaff() => O(new() { ["id"] = S(), ["name"] = S(), ["cities"] = A(S()), ["departments"] = A(S()), ["roles"] = A(S()), ["apps"] = A(S()), ["active"] = B(), ["excluded"] = B(), ["pendingRoleApproval"] = B(), ["allCities"] = B(), ["allApps"] = B(), ["appCities"] = new OpenApiSchema { Type = JsonSchemaType.Object, AdditionalProperties = A(S()) } }, "id", "name", "cities", "departments", "roles", "apps");
     static OpenApiSchema EvaluationSection() => O(new() { ["key"] = S(), ["title"] = S(), ["titleEn"] = S(), ["titleUr"] = S(), ["kind"] = S(), ["sharingToken"] = S(), ["added"] = A(S()), ["removed"] = A(S()), ["staff"] = A(EvaluationStaff()) }, "key", "title", "kind", "sharingToken");
     // sharingToken is omitted for sectioned rounds (section tokens only); still present on legacy rounds without sections.
     static OpenApiSchema EvaluationRound() => O(new() { ["id"] = S(), ["title"] = S(), ["status"] = S(), ["kind"] = S(), ["schema"] = S(), ["sharingToken"] = S(), ["staff"] = A(EvaluationStaff()), ["cities"] = A(S()), ["apps"] = A(S()), ["sections"] = A(EvaluationSection()), ["createdAt"] = S(), ["updatedAt"] = S(), ["schemaVersion"] = N(), ["allowedActions"] = A(S()) }, "id", "title", "status", "staff", "cities", "apps", "allowedActions");
@@ -11,17 +11,22 @@ public static partial class ApiContracts
     static OpenApiSchema EvaluationSchema() => O(new()
     {
         ["schema"] = S(), ["roundId"] = S(), ["title"] = S(), ["titleEn"] = S(), ["titleUr"] = S(), ["noticeAr"] = S(), ["noticeEn"] = S(), ["noticeUr"] = S(),
-        ["cities"] = A(S()), ["apps"] = A(S()), ["staff"] = A(EvaluationStaff()), ["identityFields"] = A(EvaluationLabel()),
+        ["noticeLines"] = A(O(new() { ["ar"] = S(), ["en"] = S(), ["ur"] = S() })),
+        ["complaintConfidentialityReminderAr"] = S(), ["complaintConfidentialityReminderEn"] = S(), ["complaintConfidentialityReminderUr"] = S(),
+        ["cities"] = A(S()), ["apps"] = A(S()), ["departmentOptions"] = A(S()), ["staff"] = A(EvaluationStaff()), ["identityFields"] = A(EvaluationLabel()),
         ["staffRatingMin"] = N(), ["staffRatingMax"] = N(), ["appRatingMin"] = N(), ["appRatingMax"] = N(),
         ["staffDimensions"] = A(EvaluationLabel()), ["staffReasons"] = A(EvaluationLabel()), ["appReasons"] = A(EvaluationLabel()), ["factors"] = A(EvaluationLabel()),
-        ["sectionKey"] = S(), ["sectionKind"] = S(), ["includeFinanceCard"] = B(),
+        ["sectionKey"] = S(), ["sectionKind"] = S(), ["includeFinanceCard"] = B(), ["includeSystemsCard"] = B(),
         ["financeFactors"] = A(EvaluationLabel()), ["financeReasons"] = A(EvaluationLabel()),
+        ["systemsTitleAr"] = S(), ["systemsTitleEn"] = S(), ["systemsTitleUr"] = S(),
+        ["systemsFactors"] = A(EvaluationLabel()), ["systemsReasons"] = A(EvaluationLabel()),
         ["factorMode"] = S(), ["editPolicyPending"] = B(), ["uploadsPolicyPending"] = B(), ["allowedActions"] = A(S()),
         ["attachmentLimits"] = O(new() { ["imagesPerCard"] = N(), ["voicePerCard"] = N(), ["voiceSeconds"] = N(), ["replyBytes"] = N() })
     }, "schema", "roundId", "title", "staff", "cities", "apps", "staffDimensions", "staffReasons", "appReasons", "factors", "allowedActions");
     static OpenApiSchema EvaluationCard() => O(new() { ["staffId"] = S(), ["app"] = S(), ["reason"] = S(), ["ratings"] = O(EvaluationSurvey.StaffDimensions.ToDictionary(d => d, _ => (IOpenApiSchema)N())), ["overall"] = N(), ["factorRatings"] = O(EvaluationSurvey.Factors.ToDictionary(d => d, _ => (IOpenApiSchema)N())), ["notes"] = S(), ["complaint"] = B(), ["complaintDetails"] = S(), ["attachments"] = A(Free()) });
     static OpenApiSchema EvaluationFinanceAnswer() => O(new() { ["reason"] = S(), ["overall"] = N(), ["factorRatings"] = O(EvaluationSurvey.FinanceFactors.ToDictionary(d => d, _ => (IOpenApiSchema)N())), ["notes"] = S(), ["complaint"] = B(), ["complaintDetails"] = S(), ["attachments"] = A(Free()) });
-    static OpenApiSchema EvaluationReply() => O(new() { ["id"] = S(), ["roundId"] = S(), ["sectionKey"] = S(), ["sectionTitle"] = S(), ["schemaVersion"] = N(), ["iqama"] = S(), ["name"] = S(), ["city"] = S(), ["nationality"] = S(), ["phone"] = S(), ["workApps"] = A(S()), ["companyId"] = S(), ["identityVerified"] = B(), ["staffAnswers"] = A(EvaluationCard()), ["appAnswers"] = A(EvaluationCard()), ["financeAnswer"] = EvaluationFinanceAnswer(), ["createdAt"] = S() }, "id", "roundId", "iqama", "name", "city", "nationality", "workApps", "staffAnswers", "appAnswers", "createdAt");
+    static OpenApiSchema EvaluationSystemsAnswer() => O(new() { ["reason"] = S(), ["overall"] = N(), ["factorRatings"] = O(EvaluationSurvey.SystemsFactors.ToDictionary(d => d, _ => (IOpenApiSchema)N())), ["notes"] = S(), ["complaint"] = B(), ["complaintDetails"] = S(), ["attachments"] = A(Free()) });
+    static OpenApiSchema EvaluationReply() => O(new() { ["id"] = S(), ["roundId"] = S(), ["sectionKey"] = S(), ["sectionTitle"] = S(), ["schemaVersion"] = N(), ["iqama"] = S(), ["name"] = S(), ["city"] = S(), ["nationality"] = S(), ["phone"] = S(), ["workApps"] = A(S()), ["companyId"] = S(), ["identityVerified"] = B(), ["staffAnswers"] = A(EvaluationCard()), ["appAnswers"] = A(EvaluationCard()), ["financeAnswer"] = EvaluationFinanceAnswer(), ["systemsAnswer"] = EvaluationSystemsAnswer(), ["createdAt"] = S() }, "id", "roundId", "iqama", "name", "city", "nationality", "workApps", "staffAnswers", "appAnswers", "createdAt");
     static OpenApiSchema EvaluationBucket() => O(new()
     {
         ["key"] = S(), ["app"] = S(), ["count"] = N(), ["responseCount"] = N(), ["complaintCount"] = N(), ["ratedCount"] = N(), ["skippedCount"] = N(),
@@ -108,6 +113,7 @@ public static partial class ApiContracts
             if (path.EndsWith("/scorecards/supervisors", StringComparison.Ordinal)) return EvaluationSupervisorScorecard();
             if (path.EndsWith("/scorecards/apps", StringComparison.Ordinal)) return EvaluationAppScorecard();
             if (path.EndsWith("/scorecards/finance", StringComparison.Ordinal)) return EvaluationFinanceScorecard();
+            if (path.EndsWith("/scorecards/systems", StringComparison.Ordinal)) return EvaluationFinanceScorecard();
             if (path.EndsWith("/scorecards/heatmap", StringComparison.Ordinal)) return EvaluationHeatmap();
             if (path.EndsWith("/scorecards/city-app", StringComparison.Ordinal)) return EvaluationCityAppMatrix();
             if (path.EndsWith("/export", StringComparison.Ordinal)) return null;

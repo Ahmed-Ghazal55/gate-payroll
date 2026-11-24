@@ -55,6 +55,9 @@ export function EvaluationScorecardsPanel({
   const [finance, setFinance] = useState<Awaited<
     ReturnType<typeof api.getEvaluationFinanceScorecard>
   > | null>(null);
+  const [systems, setSystems] = useState<Awaited<
+    ReturnType<typeof api.getEvaluationSystemsScorecard>
+  > | null>(null);
   const [heatmap, setHeatmap] = useState<EvaluationHeatmapScorecard | null>(null);
   const [cityApp, setCityApp] = useState<EvaluationCityAppScorecard | null>(null);
   const [loading, setLoading] = useState(false);
@@ -64,16 +67,18 @@ export function EvaluationScorecardsPanel({
     if (!roundId) return;
     setLoading(true);
     try {
-      const [s, a, f, h, m] = await Promise.all([
+      const [s, a, f, sys, h, m] = await Promise.all([
         api.getEvaluationSupervisorScorecard(roundId, filters),
         api.getEvaluationAppScorecard(roundId, filters),
         api.getEvaluationFinanceScorecard(roundId, filters),
+        api.getEvaluationSystemsScorecard(roundId, filters),
         api.getEvaluationHeatmapScorecard(roundId, filters),
         api.getEvaluationCityAppScorecard(roundId, filters),
       ]);
       setSupervisors(s);
       setApps(a);
       setFinance(f);
+      setSystems(sys);
       setHeatmap(h);
       setCityApp(m);
     } catch (err: any) {
@@ -98,7 +103,7 @@ export function EvaluationScorecardsPanel({
   }, [supervisors, apps, heatmap, cityApp]);
 
   const exportKind = async (
-    kind: 'supervisors' | 'apps' | 'heatmap' | 'city-app' | 'finance'
+    kind: 'supervisors' | 'apps' | 'heatmap' | 'city-app' | 'finance' | 'systems'
   ) => {
     if (!canExport) return;
     setExportingKind(kind);
@@ -123,6 +128,12 @@ export function EvaluationScorecardsPanel({
     accuracy: 'دقة الراتب',
     correctionSpeed: 'سرعة تصحيح الفرق',
     clarity: 'وضوح الحساب',
+  };
+  const systemsFactorsAr: Record<string, string> = {
+    formsEase: 'سهولة النماذج',
+    dataClarity: 'وضوح البيانات',
+    helpfulness: 'تسهيل الشغل',
+    responsiveness: 'الاستجابة',
   };
 
   const applyDrill = (
@@ -386,6 +397,82 @@ export function EvaluationScorecardsPanel({
           ).length === 0 && (
             <p className="text-xs text-[var(--muted)] col-span-full">
               لا توجد تقييمات مالية ضمن الفلتر الحالي.
+            </p>
+          )}
+        </div>
+      </div>
+
+      {/* Systems scorecards per app */}
+      <div
+        className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 space-y-3"
+        data-testid="eval-systems-scorecard"
+      >
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h3 className="text-sm font-bold text-[var(--ink)] flex items-center gap-1.5">
+            <Star size={14} /> بطاقة الأنظمة والبيانات حسب المنصة
+          </h3>
+          {canExport && (
+            <button
+              type="button"
+              disabled={exportingKind === 'systems'}
+              onClick={() => void exportKind('systems')}
+              data-testid="eval-export-scorecard-systems"
+              className="inline-flex items-center gap-1 rounded-lg border border-[var(--line)] px-2 py-1 text-[11px] font-bold"
+            >
+              <Download size={12} />
+              {exportingKind === 'systems' ? 'جاري التصدير…' : 'تصدير إكسل'}
+            </button>
+          )}
+        </div>
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-3">
+          {(systems?.items || [])
+            .filter((item) => Number(item.ratedCount) + Number(item.skippedCount || 0) > 0)
+            .map((item) => (
+              <div
+                key={item.app}
+                className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-3 space-y-2"
+                data-testid={`eval-systems-scorecard-${item.app}`}
+              >
+                <div className="flex items-start justify-between gap-2">
+                  <div className="text-sm font-bold">{platformDisplayName(item.app, 'ar')}</div>
+                  <div className="text-end">
+                    <div className="text-lg font-black num text-[var(--accent)]">
+                      {fmt(item.average)}
+                    </div>
+                    <div className="text-[10px] text-[var(--muted)]">/ 5</div>
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-1 text-[10px]">
+                  <span className="rounded-full bg-[var(--raised)] px-2 py-0.5 num">
+                    مُقيَّم {item.ratedCount}
+                  </span>
+                  <span className="rounded-full bg-[var(--raised)] px-2 py-0.5 num">
+                    متجاوز {item.skippedCount ?? 0}
+                  </span>
+                  {item.lowSample && (
+                    <span className="rounded-full bg-[var(--danger)]/15 text-[var(--danger)] px-2 py-0.5 font-bold">
+                      عينة صغيرة
+                    </span>
+                  )}
+                </div>
+                <div className="space-y-1">
+                  {(item.factors || []).map((f) => (
+                    <div key={f.key} className="flex justify-between text-[10px] gap-2">
+                      <span className="text-[var(--muted)]">
+                        {systemsFactorsAr[f.key] || f.key}
+                        <span className="num ms-1">ن={f.count}</span>
+                      </span>
+                      <span className="num font-bold">{fmt(f.average)}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          {(systems?.items || []).filter(
+            (item) => Number(item.ratedCount) + Number(item.skippedCount || 0) > 0
+          ).length === 0 && (
+            <p className="text-xs text-[var(--muted)] col-span-full">
+              لا توجد تقييمات للأنظمة ضمن الفلتر الحالي.
             </p>
           )}
         </div>

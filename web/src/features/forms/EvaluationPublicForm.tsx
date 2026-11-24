@@ -555,6 +555,12 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
       : lang === 'ur'
       ? schema?.noticeUr || schema?.noticeAr
       : schema?.noticeAr;
+  const noticeLines: string[] =
+    schema?.noticeLines && schema.noticeLines.length > 0
+      ? schema.noticeLines
+          .map((line) => (lang === 'en' ? line.en || line.ar : lang === 'ur' ? line.ur || line.ar : line.ar) || '')
+          .filter(Boolean)
+      : (notice || '').split('\n').filter(Boolean);
 
   return (
     <div dir={dir} lang={lang} className="space-y-4 py-4" data-testid="evaluation-public-form">
@@ -628,10 +634,18 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {notice && (
             <div
-              className="rounded-xl border border-[var(--accent)]/40 bg-[var(--surface)] p-3.5 text-xs font-semibold text-[var(--ink)]"
+              className="flex gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-3.5 text-sm font-semibold text-amber-950"
               data-testid="evaluation-confidential-notice"
+              id="eval-confidential-notice"
             >
-              🛡️ {notice}
+              <span className="text-2xl leading-none" aria-hidden>
+                🛡️
+              </span>
+              <ul className="space-y-2">
+                {noticeLines.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
             </div>
           )}
 

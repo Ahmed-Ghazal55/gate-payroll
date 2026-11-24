@@ -13,14 +13,22 @@ public static partial class EvaluationSurvey
     public const string DeptHr = "الموارد البشرية";
     public const string DeptSupport = "الدعم الفني والكول سنتر";
     public const string DeptOperations = "العمليات";
+    public const string DeptSystems = "الأنظمة والبيانات";
+    public const string DeptManagement = "الإدارة";
     public static readonly string[] FinanceFactors = ["responsiveness", "accuracy", "correctionSpeed", "clarity"];
     public static readonly string[] FinanceReasons = ["not_dealt_finance"];
+    public static readonly string[] SystemsFactors = ["formsEase", "dataClarity", "helpfulness", "responsiveness"];
+    public static readonly string[] SystemsReasons = ["not_used_forms_data"];
     public static readonly (string Key, string Title, string Department)[] DepartmentSections =
     [
         ("dept:movement", "الحركة والمركبات", DeptMovement),
         ("dept:finance", "المالية والحسابات", DeptFinance),
-        ("dept:hr", "الموارد البشرية", DeptHr),
+        ("dept:hr", "الإدارة والموارد البشرية", DeptHr),
         ("dept:support", "الكول سنتر والدعم الفني", DeptSupport)
+    ];
+    public static readonly string[] StaffDepartmentOptions =
+    [
+        DeptMovement, DeptFinance, DeptHr, DeptManagement, DeptSupport, DeptOperations
     ];
 
     /// <summary>Arabic-first section titles (UI platform names); English/Urdu for the rider form.</summary>
@@ -35,7 +43,7 @@ public static partial class EvaluationSurvey
         {
             "dept:movement" => (DeptMovement, "Movement & vehicles", "نقل و گاڑیاں"),
             "dept:finance" => (DeptFinance, "Finance & accounts", "مالیہ اور حسابات"),
-            "dept:hr" => (DeptHr, "Human resources", "انسانی وسائل"),
+            "dept:hr" => ("الإدارة والموارد البشرية", "Management and HR", "انتظامیہ اور انسانی وسائل"),
             "dept:support" => ("الكول سنتر والدعم الفني", "Call centre & support", "کال سینٹر اور سپورٹ"),
             _ => (key, key, key)
         };
@@ -79,7 +87,9 @@ public static partial class EvaluationSurvey
             if (removed.Contains(id)) continue;
             bool match = key.StartsWith("app:", StringComparison.Ordinal)
                 ? MatchesAppSection(staff, key["app:".Length..])
-                : DepartmentSections.Any(d => d.Key == key && InDepartment(staff, d.Department));
+                : key == "dept:hr"
+                    ? InDepartment(staff, DeptHr) || InDepartment(staff, DeptManagement)
+                    : DepartmentSections.Any(d => d.Key == key && InDepartment(staff, d.Department));
             if (match || added.Contains(id)) ids.Add(id);
         }
         foreach (string id in added)
@@ -200,12 +210,47 @@ public static partial class EvaluationSurvey
         };
         foreach (string field in new[] { "cities", "departments", "roles", "apps" })
             doc[field] = Array(Strings(input, field));
+        doc["appCities"] = NormalizeAppCities(input["appCities"] as JsonObject, Strings(doc, "apps"), Strings(doc, "cities"), doc.B("allCities"));
         J.Need(Strings(doc, "apps").All(a => PayPlatforms.Table.Any(p => p.Platform == a)), "استخدم معرفات المنصات المعتمدة.");
         J.Need(Strings(doc, "cities").Length > 0, "مدينة الموظف مطلوبة.");
         if (doc.B("pendingRoleApproval")) doc["roles"] = new JsonArray("بانتظار موافقة غزال");
         Store.Save(c, StaffKind, doc, tx);
         Store.Audit(c, tx, "evaluation.staff_updated", id, user.Identity!.Name!);
         return doc;
+    }
+
+    static JsonObject NormalizeAppCities(JsonObject? raw, string[] apps, string[] cities, bool allCities)
+    {
+        var result = new JsonObject();
+        if (raw == null) return result;
+        var appSet = apps.Concat(PayPlatforms.Table.Select(p => p.Platform)).ToHashSet(StringComparer.Ordinal);
+        foreach (var prop in raw)
+        {
+            if (!appSet.Contains(prop.Key)) continue;
+            // Cities may be prior work cities (person moved) — do not force them into the person's current cities list.
+            var list = (prop.Value as JsonArray)?.Select(x => x?.GetValue<string>() ?? "").Where(c => c != "").Distinct(StringComparer.Ordinal).ToArray() ?? [];
+            if (list.Length > 0) result[prop.Key] = Array(list);
+        }
+        return result;
+    }
+
+    /// <summary>City rule for one section: app sections honour the per-app city limit (appCities); department sections use the card's cities.</summary>
+    public static bool ServesSectionCity(JsonObject staff, JsonObject? section, string city) =>
+        section?.S("kind") == "app" ? ServesAppCity(staff, section.S("key")["app:".Length..], city) : ServesCity(staff, city);
+
+    /// <summary>Cities where a section's form shows this card: the per-app limit for app sections, else all work cities for remote staff, else the card's cities.</summary>
+    public static string[] FormCities(JsonObject staff, JsonObject? section, string[] workCities)
+    {
+        if (section?.S("kind") == "app" && staff["appCities"] is JsonObject map && map[section.S("key")["app:".Length..]] is JsonArray arr && arr.Count > 0)
+            return arr.OfType<JsonValue>().Select(v => v.GetValue<string>()).Distinct(StringComparer.Ordinal).ToArray();
+        return staff.B("allCities") ? workCities : Strings(staff, "cities");
+    }
+
+    public static bool ServesAppCity(JsonObject staff, string platform, string city)
+    {
+        if (staff["appCities"] is JsonObject map && map[platform] is JsonArray arr && arr.Count > 0)
+            return arr.OfType<JsonValue>().Select(v => v.GetValue<string>()).Contains(city);
+        return ServesCity(staff, city);
     }
 
     public static JsonObject DeleteRound(DbConnection c, DbTransaction tx, ClaimsPrincipal user, string id, JsonObject input, Store store)
@@ -274,21 +319,38 @@ public static partial class EvaluationSurvey
         return view;
     }
 
-    static JsonObject ParseFinanceAnswer(JsonObject input, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes, AttachmentWriteBatch? batch)
+    static JsonObject ParseDepartmentCard(
+        JsonObject input,
+        string answerKey,
+        string cardKey,
+        string[] factors,
+        string[] reasons,
+        string requiredMessage,
+        string requiredCode,
+        string invalidReasonMessage,
+        string invalidReasonCode,
+        string invalidFactorMessage,
+        string invalidFactorCode,
+        Store? store,
+        DbConnection? c,
+        DbTransaction? tx,
+        string replyId,
+        ref long replyBytes,
+        AttachmentWriteBatch? batch)
     {
-        var card = input["financeAnswer"] as JsonObject ?? throw new ApiError("بطاقة المالية مطلوبة.", 400, "finance_required");
+        var card = input[answerKey] as JsonObject ?? throw new ApiError(requiredMessage, 400, requiredCode);
         string reason = card.S("reason");
         var answer = new JsonObject { ["reason"] = reason, ["notes"] = Text(card, "notes", 2000) };
         if (reason != "")
         {
-            J.Need(FinanceReasons.Contains(reason), "سبب غير صالح للمالية.", "invalid_finance_reason");
+            J.Need(reasons.Contains(reason), invalidReasonMessage, invalidReasonCode);
             J.Need(card["overall"] == null && FactorRatings(card).Count == 0, "اختر التقييم أو سبب عدم التقييم.", "rating_or_reason");
         }
         else
         {
             answer["overall"] = Rating(card, "overall", 5);
             var raw = FactorRatings(card);
-            J.Need(raw.All(p => FinanceFactors.Contains(p.Key)), "عامل مالية غير معروف.", "invalid_finance_factor");
+            J.Need(raw.All(p => factors.Contains(p.Key)), invalidFactorMessage, invalidFactorCode);
             var clean = new JsonObject();
             foreach (var pair in raw)
             {
@@ -303,14 +365,28 @@ public static partial class EvaluationSurvey
         if (card["attachments"] is JsonArray arr && arr.Count > 0)
         {
             if (arr.All(x => x is JsonObject o && o.S("id") != "" && o.S("dataBase64") == ""))
-                answer["attachments"] = PreservedAttachments(c, tx, replyId, "finance", "finance", arr);
+                answer["attachments"] = PreservedAttachments(c, tx, replyId, cardKey, cardKey, arr);
             else
             {
                 J.Need(store != null && c != null && tx != null && batch != null, "رفع المرفقات غير متاح.", "attachment_unavailable");
-                answer["attachments"] = PersistAttachments(store!, c!, tx!, replyId, "finance", "finance", card, ref replyBytes, batch!);
+                answer["attachments"] = PersistAttachments(store!, c!, tx!, replyId, cardKey, cardKey, card, ref replyBytes, batch!);
             }
         }
         else answer["attachments"] = new JsonArray();
         return answer;
     }
+
+    static JsonObject ParseFinanceAnswer(JsonObject input, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes, AttachmentWriteBatch? batch) =>
+        ParseDepartmentCard(input, "financeAnswer", "finance", FinanceFactors, FinanceReasons,
+            "بطاقة المالية مطلوبة.", "finance_required",
+            "سبب غير صالح للمالية.", "invalid_finance_reason",
+            "عامل مالية غير معروف.", "invalid_finance_factor",
+            store, c, tx, replyId, ref replyBytes, batch);
+
+    static JsonObject ParseSystemsAnswer(JsonObject input, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes, AttachmentWriteBatch? batch) =>
+        ParseDepartmentCard(input, "systemsAnswer", "systems", SystemsFactors, SystemsReasons,
+            "بطاقة الأنظمة والبيانات مطلوبة.", "systems_required",
+            "سبب غير صالح للأنظمة.", "invalid_systems_reason",
+            "عامل أنظمة غير معروف.", "invalid_systems_factor",
+            store, c, tx, replyId, ref replyBytes, batch);
 }
