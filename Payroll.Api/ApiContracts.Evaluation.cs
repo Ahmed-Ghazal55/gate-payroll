@@ -11,6 +11,8 @@ public static partial class ApiContracts
     static OpenApiSchema EvaluationSchema() => O(new()
     {
         ["schema"] = S(), ["roundId"] = S(), ["title"] = S(), ["titleEn"] = S(), ["titleUr"] = S(), ["noticeAr"] = S(), ["noticeEn"] = S(), ["noticeUr"] = S(),
+        ["noticeLines"] = A(O(new() { ["ar"] = S(), ["en"] = S(), ["ur"] = S() })),
+        ["complaintConfidentialityReminderAr"] = S(), ["complaintConfidentialityReminderEn"] = S(), ["complaintConfidentialityReminderUr"] = S(),
         ["cities"] = A(S()), ["apps"] = A(S()), ["staff"] = A(EvaluationStaff()), ["identityFields"] = A(EvaluationLabel()),
         ["staffRatingMin"] = N(), ["staffRatingMax"] = N(), ["appRatingMin"] = N(), ["appRatingMax"] = N(),
         ["staffDimensions"] = A(EvaluationLabel()), ["staffReasons"] = A(EvaluationLabel()), ["appReasons"] = A(EvaluationLabel()), ["factors"] = A(EvaluationLabel()),

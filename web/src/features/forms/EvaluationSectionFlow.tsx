@@ -60,6 +60,10 @@ type SchemaExtra = PublicEvaluationSchema & {
   includeFinanceCard?: boolean;
   titleEn?: string;
   titleUr?: string;
+  noticeLines?: { ar?: string; en?: string; ur?: string }[];
+  complaintConfidentialityReminderAr?: string;
+  complaintConfidentialityReminderEn?: string;
+  complaintConfidentialityReminderUr?: string;
   financeFactors?: { id: string; labelAr?: string; labelEn?: string; labelUr?: string }[];
   financeReasons?: { id: string; labelAr?: string; labelEn?: string; labelUr?: string }[];
 };
@@ -314,6 +318,12 @@ export function EvaluationSectionFlow({
   const schemaX = schema as SchemaExtra;
   const sectionKey = String(schemaX.sectionKey || '');
   const includeFinance = Boolean(schemaX.includeFinanceCard);
+  const complaintReminder =
+    lang === 'en'
+      ? schemaX.complaintConfidentialityReminderEn || schemaX.complaintConfidentialityReminderAr
+      : lang === 'ur'
+        ? schemaX.complaintConfidentialityReminderUr || schemaX.complaintConfidentialityReminderAr
+        : schemaX.complaintConfidentialityReminderAr;
   const chipKind = sectionChipKindFromKey(sectionKey);
   const staffChips = suggestedChipsFor(chipKind === 'app' ? 'staff' : chipKind, lang);
   const appChips = suggestedChipsFor('app', lang);
@@ -601,8 +611,31 @@ export function EvaluationSectionFlow({
 
       {step === 'notice' && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            {lang === 'en' ? schema.noticeEn : lang === 'ur' ? schema.noticeUr : schema.noticeAr}
+          <div
+            className="flex gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 text-sm font-semibold text-amber-950 shadow-sm"
+            data-testid="eval-confidential-notice"
+            id="eval-confidential-notice"
+          >
+            <span className="text-2xl leading-none" aria-hidden>
+              🛡️
+            </span>
+            <ul className="space-y-2">
+              {(schemaX.noticeLines && schemaX.noticeLines.length > 0
+                ? schemaX.noticeLines.map((line) =>
+                    lang === 'en' ? line.en || line.ar : lang === 'ur' ? line.ur || line.ar : line.ar
+                  )
+                : (lang === 'en'
+                    ? schema.noticeEn
+                    : lang === 'ur'
+                      ? schema.noticeUr
+                      : schema.noticeAr
+                  )
+                    ?.split('\n')
+                    .filter(Boolean) || []
+              ).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
           </div>
           <button
             type="button"
@@ -835,6 +868,11 @@ export function EvaluationSectionFlow({
                     }
                     placeholder={t('complaintDetails')}
                   />
+                  {complaintReminder && (
+                    <p className="text-xs font-semibold text-amber-800" data-testid="eval-complaint-reminder">
+                      {complaintReminder}
+                    </p>
+                  )}
                   <ChipRow
                     chips={staffChips}
                     hint={t('chipsHint')}
@@ -1140,6 +1178,11 @@ export function EvaluationSectionFlow({
                     }
                     placeholder={t('complaintDetails')}
                   />
+                  {complaintReminder && (
+                    <p className="text-xs font-semibold text-amber-800" data-testid="eval-complaint-reminder">
+                      {complaintReminder}
+                    </p>
+                  )}
                   <ChipRow
                     chips={financeChips}
                     hint={t('chipsHint')}
@@ -1178,6 +1221,11 @@ export function EvaluationSectionFlow({
       {step === 'review' && (
         <div className="space-y-3" data-testid="eval-section-review">
           <h2 className="text-lg font-semibold">{t('reviewTitle')}</h2>
+          {complaintReminder && (
+            <p className="text-sm font-semibold text-amber-800" data-testid="eval-complaint-reminder">
+              {complaintReminder}
+            </p>
+          )}
           <ul className="space-y-1 text-sm text-[var(--muted)]">
             <li>
               {name} · {city} · {workApps.map((a) => platformDisplayName(a, lang)).join('، ')}

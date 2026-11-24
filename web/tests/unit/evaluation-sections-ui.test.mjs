@@ -50,6 +50,17 @@ describe('EV5 S3 section public form', () => {
     assert.match(flow, /eval-section-review/);
   });
 
+  it('EV6 R1 shows highlighted notice lines and complaint confidentiality reminder', () => {
+    const flow = readWeb('src/features/forms/EvaluationSectionFlow.tsx');
+    const api = readRepo('Payroll.Api/EvaluationSurvey.Api.cs');
+    assert.match(flow, /eval-confidential-notice/);
+    assert.match(flow, /noticeLines/);
+    assert.match(flow, /eval-complaint-reminder/);
+    assert.match(flow, /complaintConfidentialityReminder/);
+    assert.match(api, /تقييمك وشكواك سرية تمامًا/);
+    assert.match(api, /شكواك سرية ولن تُستخدم ضدك/);
+  });
+
   it('server-hosted rider form redirects section tokens to the web client', () => {
     const rider = readRepo('RiderForm/src/rider-form.ts');
     assert.match(rider, /sectionKey/);

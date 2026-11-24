@@ -286,7 +286,12 @@ function renderEvaluation(){
     <button type="submit" id="eval-submit-btn">${escapeText(t('submit'))}</button>
    </div>
   </div>`;
- container.innerHTML=`<h2>${escapeText(formData.title||t('form'))}</h2>${notice?`<div class="notice" id="eval-confidential-notice">🛡️ ${escapeText(notice)}</div>`:''}<form id="rider-evaluation" class="public-form" novalidate>${evalState.page===1?page1Html:page2Html}</form>`;
+ const noticeLines=((formData as {noticeLines?:{ar?:string;en?:string;ur?:string}[]}).noticeLines||[])
+  .map(l=>language==='en'?l.en||l.ar:language==='ur'?l.ur||l.ar:l.ar).filter(Boolean) as string[];
+ const noticeHtml=noticeLines.length
+  ?`<ul>${noticeLines.map(l=>`<li>${escapeText(l||'')}</li>`).join('')}</ul>`
+  :(notice?escapeText(notice).replace(/\n/g,'<br>'):'');
+ container.innerHTML=`<h2>${escapeText(formData.title||t('form'))}</h2>${notice||noticeLines.length?`<div class="notice" id="eval-confidential-notice">🛡️ ${noticeHtml}</div>`:''}<form id="rider-evaluation" class="public-form" novalidate>${evalState.page===1?page1Html:page2Html}</form>`;
  const form=container.querySelector<HTMLFormElement>('#rider-evaluation')!;
  form.querySelector<HTMLInputElement>('#eval-iqama')?.addEventListener('input',e=>{evalState.iqama=normalizeAsciiDigits((e.target as HTMLInputElement).value);evalState.error='';});
  form.querySelector<HTMLInputElement>('#eval-name')?.addEventListener('input',e=>{evalState.name=(e.target as HTMLInputElement).value;evalState.error='';});

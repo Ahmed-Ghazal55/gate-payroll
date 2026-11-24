@@ -628,10 +628,33 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
         <form onSubmit={handleSubmit} className="space-y-4" noValidate>
           {notice && (
             <div
-              className="rounded-xl border border-[var(--accent)]/40 bg-[var(--surface)] p-3.5 text-xs font-semibold text-[var(--ink)]"
+              className="flex gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-3.5 text-sm font-semibold text-amber-950"
               data-testid="evaluation-confidential-notice"
+              id="eval-confidential-notice"
             >
-              🛡️ {notice}
+              <span className="text-2xl leading-none" aria-hidden>
+                🛡️
+              </span>
+              <ul className="space-y-2">
+                {(
+                  (
+                    schema as {
+                      noticeLines?: { ar?: string; en?: string; ur?: string }[];
+                    }
+                  ).noticeLines || []
+                ).length > 0
+                  ? (
+                      schema as {
+                        noticeLines: { ar?: string; en?: string; ur?: string }[];
+                      }
+                    ).noticeLines.map((line) =>
+                      lang === 'en' ? line.en || line.ar : lang === 'ur' ? line.ur || line.ar : line.ar
+                    )
+                  : notice.split('\n').filter(Boolean)
+                ).map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
             </div>
           )}
 

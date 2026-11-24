@@ -24,9 +24,46 @@ public static partial class EvaluationSurvey
             ["title"] = section == null ? round.S("title") : section.S("title"),
             ["titleEn"] = section == null ? round.S("title") : (section.S("titleEn") is { Length: > 0 } te ? te : section.S("title")),
             ["titleUr"] = section == null ? round.S("title") : (section.S("titleUr") is { Length: > 0 } tu ? tu : section.S("title")),
-            ["noticeAr"] = "التقييمات والشكاوى سرية وتراجعها الإدارة فقط؛ لا يطلع المشرفون على الأسماء أو الإجابات.",
-            ["noticeEn"] = "Ratings and complaints are confidential and reviewed by management only. Supervisors cannot see names or answers.",
-            ["noticeUr"] = "درجہ بندی اور شکایات خفیہ ہیں اور صرف انتظامیہ دیکھ سکتی ہے۔ سپروائزر نام یا جوابات نہیں دیکھ سکتے۔",
+            ["noticeAr"] = string.Join("\n", new[]
+            {
+                "تقييمك وشكواك سرية تمامًا.",
+                "لا يرى المشرف أو الموظف الذي تقيّمه اسمك ولا إجابتك؛ تراجعها الإدارة المخوّلة فقط لتحسين العمل وحل المشاكل.",
+                "لن يُستخدم أي تقييم أو شكوى ضدك بأي شكل. تكلّم بحرية واشرح مشكلتك بالتفصيل."
+            }),
+            ["noticeEn"] = string.Join("\n", new[]
+            {
+                "Your rating and complaint are completely confidential.",
+                "The supervisor or staff member you rate cannot see your name or your answers; only authorized management reviews them to improve work and solve problems.",
+                "No rating or complaint will be used against you in any way. Speak freely and explain your problem in detail."
+            }),
+            ["noticeUr"] = string.Join("\n", new[]
+            {
+                "آپ کی درجہ بندی اور شکایت بالکل خفیہ ہیں۔",
+                "جس سپروائزر یا ملازم کی آپ درجہ بندی کرتے ہیں وہ آپ کا نام یا جواب نہیں دیکھ سکتا؛ صرف مجاز انتظامیہ کام بہتر بنانے اور مسائل حل کرنے کے لیے ان کا جائزہ لیتی ہے۔",
+                "کوئی درجہ بندی یا شکایت آپ کے خلاف کسی بھی طرح استعمال نہیں کی جائے گی۔ آزادانہ بات کریں اور اپنا مسئلہ تفصیل سے بیان کریں۔"
+            }),
+            ["noticeLines"] = new JsonArray(
+                new JsonObject
+                {
+                    ["ar"] = "تقييمك وشكواك سرية تمامًا.",
+                    ["en"] = "Your rating and complaint are completely confidential.",
+                    ["ur"] = "آپ کی درجہ بندی اور شکایت بالکل خفیہ ہیں۔"
+                },
+                new JsonObject
+                {
+                    ["ar"] = "لا يرى المشرف أو الموظف الذي تقيّمه اسمك ولا إجابتك؛ تراجعها الإدارة المخوّلة فقط لتحسين العمل وحل المشاكل.",
+                    ["en"] = "The supervisor or staff member you rate cannot see your name or your answers; only authorized management reviews them to improve work and solve problems.",
+                    ["ur"] = "جس سپروائزر یا ملازم کی آپ درجہ بندی کرتے ہیں وہ آپ کا نام یا جواب نہیں دیکھ سکتا؛ صرف مجاز انتظامیہ کام بہتر بنانے اور مسائل حل کرنے کے لیے ان کا جائزہ لیتی ہے۔"
+                },
+                new JsonObject
+                {
+                    ["ar"] = "لن يُستخدم أي تقييم أو شكوى ضدك بأي شكل. تكلّم بحرية واشرح مشكلتك بالتفصيل.",
+                    ["en"] = "No rating or complaint will be used against you in any way. Speak freely and explain your problem in detail.",
+                    ["ur"] = "کوئی درجہ بندی یا شکایت آپ کے خلاف کسی بھی طرح استعمال نہیں کی جائے گی۔ آزادانہ بات کریں اور اپنا مسئلہ تفصیل سے بیان کریں۔"
+                }),
+            ["complaintConfidentialityReminderAr"] = "شكواك سرية ولن تُستخدم ضدك.",
+            ["complaintConfidentialityReminderEn"] = "Your complaint is confidential and will not be used against you.",
+            ["complaintConfidentialityReminderUr"] = "آپ کی شکایت خفیہ ہے اور آپ کے خلاف استعمال نہیں ہوگی۔",
             ["cities"] = round["cities"]!.DeepClone(), ["apps"] = apps,
             ["staff"] = Array(staffSource.Where(s => string.IsNullOrEmpty(city) || ServesCity(s, city)).Select(s => new JsonObject
             {
