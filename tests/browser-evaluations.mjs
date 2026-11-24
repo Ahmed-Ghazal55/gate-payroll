@@ -468,6 +468,7 @@ try {
   }
   await sectionPage.locator('[data-testid="eval-section-app-step"]').waitFor();
   await sectionPage.locator('[data-app-star="Ninja"][data-stars="3"]').click();
+  await sectionPage.locator('[data-app-factor-star="Ninja"][data-factor-id="orderVolume"][data-stars="4"]').click();
   await sectionPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
   await sectionPage.locator('[data-testid="eval-finance-card"]').waitFor();
   await sectionPage.locator('[data-finance-star="4"]').click();
@@ -521,7 +522,12 @@ try {
 
   // 5. Admin Results Page: section filter sees HR + app replies; charts, Excel export
   await adminPage.reload({ waitUntil: 'networkidle' });
+  // Two open rounds (sectioned + legacy helper) — select the sectioned one for section filters.
+  await adminPage.locator('#select-evaluation-round').click();
+  await adminPage.getByRole('option', { name: /جولة تقييم تجريبية شاملة/ }).click();
+  await adminPage.locator('[data-testid="eval-round-sections"]').waitFor();
   await adminPage.locator('[data-testid="eval-chart-by-city"]').waitFor();
+  await adminPage.locator('#eval-filter-section').waitFor();
 
   async function pickSectionFilter(label) {
     await adminPage.locator('#eval-filter-section').click();
