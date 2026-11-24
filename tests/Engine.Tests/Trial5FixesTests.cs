@@ -8,7 +8,7 @@ using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Payroll;
 using Claim=System.Security.Claims.Claim;
 
-/// <summary>TRIAL5: grok-TRIAL4 HIGH rows (bank upload audit keys; zero entitlement journal).</summary>
+/// <summary>TRIAL5: grok-TRIAL4 HIGH rows (bank upload audit; salary Independent; zero journal lines).</summary>
 [TestClass]
 public sealed class Trial5FixesTests
 {
@@ -35,7 +35,7 @@ public sealed class Trial5FixesTests
         return c;
     }
 
-    static string FrozenKeeta(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string company,string rider)
+    static string FrozenKeeta(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string company,string rider,decimal gross=100,decimal commission=100)
     {
         string run=MoneySchemaFixture.Id();
         MoneySchemaFixture.Exec(c,tx,"INSERT INTO sal_pay_run(id,company_id,app_code,period_month) VALUES(@id,@c,'keeta','2026-10-01')",("@id",run),("@c",company));
@@ -44,8 +44,7 @@ public sealed class Trial5FixesTests
             "keeta_invoice_row","hs_ops","hs_wallet","platform_ops","chefz_settlement","jahez_day"})
             facts.Rows[kind]=[];
         string account=MoneySchemaFixture.Id();
-        // Commission equals gross so entitlement is 0 (COA1 B2 / grok-TRIAL4).
-        facts.Rows["keeta_invoice_row"]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["erpPlatformAccountId"]=account,["riderProfileId"]=rider,["erpRiderId"]=rider,["orders"]=1,["reportDate"]="2026-10-01",["RiderAmount"]=100,["gross"]=100,["commission"]=100}];
+        facts.Rows["keeta_invoice_row"]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["erpPlatformAccountId"]=account,["riderProfileId"]=rider,["erpRiderId"]=rider,["orders"]=1,["reportDate"]="2026-10-01",["RiderAmount"]=gross,["gross"]=gross,["commission"]=commission}];
         facts.Rows["platform_account"]=[new(){["id"]=account,["externalAccountId"]="A1",["code"]="A1"}];
         facts.Rows["assignment"]=[new(){["id"]=MoneySchemaFixture.Id(),["platformRiderAccountId"]=account,["actualRiderProfileId"]=rider,["effectiveFrom"]="2026-10-01",["effectiveTo"]="2026-10-31"}];
         facts.Rows["scheme"]=[new(){["id"]=MoneySchemaFixture.Id(),["erpRiderId"]=rider,["schemeCode"]="commission",["source"]="pay_settings"}];
@@ -108,6 +107,29 @@ public sealed class Trial5FixesTests
         return id;
     }
 
+    static (string run,string riderId) PrepRider(DbConnection c,DbTransaction tx,ClaimsPrincipal preparer,string company,string rider,decimal gross,decimal commission)
+    {
+        EnsureSalPeriod(c,tx,company);
+        string run=FrozenKeeta(c,tx,preparer,company,rider,gross,commission);
+        var calc=SalEvidence.Calculate(c,tx,preparer,run,new JsonObject
+        {
+            ["riders"]=new JsonArray(new JsonObject
+            {
+                ["erpRiderId"]=rider,["schemeType"]="commission",
+                ["level1"]=new JsonArray(),["level2"]=new JsonArray()
+            })
+        });
+        string riderId=calc["riders"]![0]!["id"]!.GetValue<string>();
+        MoneySchemaFixture.Exec(c,tx,
+            "UPDATE sal_pay_run_rider SET gross=@g,commission=@cm,salary_net=@n WHERE id=@id",
+            ("@g",gross),("@cm",commission),("@n",Math.Max(0m,gross-commission)),("@id",riderId));
+        SalDebtConfirm.Confirm(c,tx,preparer,run,new JsonObject
+        {
+            ["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})
+        });
+        return (run,riderId);
+    }
+
     [TestMethod]
     public void BankStatement_Upload_AuditHasEntityRecordIdLineCountFileHash()
     {
@@ -140,6 +162,71 @@ public sealed class Trial5FixesTests
     }
 
     [TestMethod]
+    public void BankAdjust_ApproveBlockedUntilBankTimingAccount_RejectCloses()
+    {
+        // Ghazal 11-24: bank difference account not chosen — approve stays 409; reject closes pending.
+        using var f=new PayFixture();
+        var maker=PayFixture.Actor("synthetic-trial5-bank-maker","Admin");
+        var checker=PayFixture.Actor("synthetic-trial5-bank-checker","Admin");
+        string company=FinancialCore.Sponsors[0].Id;
+        string adjustId="";
+        f.Store.Write((c,tx)=>
+        {
+            EnsureSponsorCompany(c,tx,company);
+            string reg=EnsureRegistration(c,tx,company);
+            string bank=EnsureBankAccount(c,tx,company,reg,"111201");
+            object? existing=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","accounting_period")} WHERE company_id=@c AND period_month=@m",("@c",company),("@m","2026-11-01"));
+            if(existing is null or DBNull)
+                SchemaSql.Exec(c,tx,$"""
+                    INSERT INTO {SchemaSql.Q(c,"fin","accounting_period")}(id,company_id,period_month,state,created_at)
+                    VALUES(@id,@c,'2026-11-01',1,{SchemaSql.NowLiteral(c)})
+                    """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@c",company));
+            var uploaded=TreasuryBankStatementsApi.Upload(c,tx,maker,new()
+            {
+                ["bankAccountId"]=bank,["periodMonth"]="2026-11",["openingBalance"]=0,["closingBalance"]=100,
+                ["lines"]=new JsonArray(new JsonObject{["occurredOn"]="2026-11-10",["amount"]=100,["reference"]="SYN-ADJ"})
+            });
+            var draft=TreasuryBankStatementsApi.RequestAdjust(c,tx,maker,uploaded.S("id"),new(){["amount"]=5,["reason"]="فرق توقيت بنكي تجريبي"});
+            adjustId=draft.S("id");
+            return true;
+        });
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,maker,adjustId))).Status);
+        var blocked=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,checker,adjustId)));
+        Assert.AreEqual(409,blocked.Status);
+        Assert.IsTrue(blocked.Message.Contains("توقيت",StringComparison.Ordinal)||blocked.Message.Contains("فرق",StringComparison.Ordinal));
+        Assert.IsTrue(blocked.Message.Contains("422202",StringComparison.Ordinal)||blocked.Message.Contains("542102",StringComparison.Ordinal));
+        var rejected=f.Store.Write((c,tx)=>TreasuryBankStatementsApi.RejectAdjust(c,tx,checker,adjustId,new(){["reason"]="إغلاق الطلب بانتظار حساب التوقيت البنكي"}));
+        Assert.AreEqual("rejected",rejected.S("status"));
+        Assert.AreEqual("rejected",f.Store.Read(c=>Store.Get(c,adjustId,"bank_statement_adjust")!.S("status")));
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void SalarySheet_PreparerCannotApprove_403_NoJournal(bool sqlServer)
+    {
+        // grok-TRIAL4 HIGH / Ghazal: preparer never approves or posts the same salary sheet.
+        if(sqlServer&&string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PAYROLL_TEST_SQL_CONNECTION")))
+        {Assert.Inconclusive("SQL Server connection not configured");return;}
+        using var c=OpenSal(sqlServer);
+        string company=MoneySchemaFixture.Company(c);
+        var preparer=Admin();
+        using var tx=c.BeginTransaction();
+        string rider=MoneySchemaFixture.Id();
+        var (run,riderId)=PrepRider(c,tx,preparer,company,rider,300,0);
+        long journalsBefore=Convert.ToInt64(MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM fin_journal")??0L);
+        var err=Assert.ThrowsExactly<ApiError>(()=>SalSalaryApprove.Approve(c,tx,preparer,run,new JsonObject
+        {
+            ["payRunRiderIds"]=new JsonArray(riderId)
+        }));
+        Assert.AreEqual(403,err.Status);
+        Assert.AreEqual(journalsBefore,Convert.ToInt64(MoneySchemaFixture.Scalar(c,tx,"SELECT COUNT(*) FROM fin_journal")??0L));
+        object? approvedAt=MoneySchemaFixture.Scalar(c,tx,"SELECT salary_approved_at FROM sal_pay_run_rider WHERE id=@id",("@id",riderId));
+        Assert.IsTrue(approvedAt is null or DBNull);
+        tx.Commit();
+    }
+
+    [TestMethod]
     [DataRow(false)]
     [DataRow(true)]
     public void SalaryApprove_GrossEqualsCommission_PostsBalancedJournal_NoZeroPayableLine(bool sqlServer)
@@ -152,26 +239,8 @@ public sealed class Trial5FixesTests
         var maker=Admin();
         var checker=Admin();
         using var tx=c.BeginTransaction();
-        EnsureSalPeriod(c,tx,company);
         string rider=MoneySchemaFixture.Id();
-        string run=FrozenKeeta(c,tx,maker,company,rider);
-        // Bind calc from frozen evidence first, then force gross==commission for the accrual edge case.
-        var calc=SalEvidence.Calculate(c,tx,maker,run,new JsonObject
-        {
-            ["riders"]=new JsonArray(new JsonObject
-            {
-                ["erpRiderId"]=rider,["schemeType"]="commission",
-                ["level1"]=new JsonArray(),["level2"]=new JsonArray()
-            })
-        });
-        string riderId=calc["riders"]![0]!["id"]!.GetValue<string>();
-        MoneySchemaFixture.Exec(c,tx,
-            "UPDATE sal_pay_run_rider SET gross=100,commission=100,salary_net=0 WHERE id=@id",
-            ("@id",riderId));
-        SalDebtConfirm.Confirm(c,tx,maker,run,new JsonObject
-        {
-            ["rows"]=new JsonArray(new JsonObject{["payRunRiderId"]=riderId,["amount"]=0})
-        });
+        var (run,riderId)=PrepRider(c,tx,maker,company,rider,100,100);
         var approved=SalSalaryApprove.Approve(c,tx,checker,run,new JsonObject
         {
             ["payRunRiderIds"]=new JsonArray(riderId)
@@ -187,6 +256,13 @@ public sealed class Trial5FixesTests
             WHERE j.purpose='salary_accrual' AND j.source_id=@r AND jl.debit=0 AND jl.credit=0
             """,("@r",riderId)));
         Assert.AreEqual(0L,zeroLines);
+        long payableLines=Convert.ToInt64(MoneySchemaFixture.Scalar(c,tx,"""
+            SELECT COUNT(*) FROM fin_journal_line jl
+            INNER JOIN fin_journal j ON j.id=jl.journal_id
+            INNER JOIN fin_account a ON a.id=jl.account_id
+            WHERE j.purpose='salary_accrual' AND j.source_id=@r AND a.code='212103'
+            """,("@r",riderId)));
+        Assert.AreEqual(0L,payableLines);
         decimal sumD=Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"""
             SELECT COALESCE(SUM(jl.debit),0) FROM fin_journal_line jl
             INNER JOIN fin_journal j ON j.id=jl.journal_id
@@ -199,6 +275,121 @@ public sealed class Trial5FixesTests
             """,("@r",riderId)),CultureInfo.InvariantCulture);
         Assert.AreEqual(100m,sumD);
         Assert.AreEqual(100m,sumC);
+        // Full gross/commission trail stays on the salary sheet snapshot notes (not as zero journal lines).
+        string payload=(string)MoneySchemaFixture.Scalar(c,tx,
+            "SELECT payload FROM sal_rider_statement_snapshot WHERE pay_run_rider_id=@r",
+            ("@r",riderId))!;
+        Assert.IsTrue(payload.Contains("\"gross\":100",StringComparison.Ordinal)||payload.Contains("\"gross\": 100",StringComparison.Ordinal));
+        Assert.IsTrue(payload.Contains("commission",StringComparison.OrdinalIgnoreCase));
+        Assert.IsTrue(payload.Contains("notes",StringComparison.OrdinalIgnoreCase));
         tx.Commit();
+    }
+
+    [TestMethod]
+    [DataRow(false)]
+    [DataRow(true)]
+    public void SalaryApprove_NormalCommission_KeepsPayableLineBalanced(bool sqlServer)
+    {
+        // Normal case unchanged: gross 100 / commission 30 → Cr 212103 70 + Cr agent 30.
+        if(sqlServer&&string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable("PAYROLL_TEST_SQL_CONNECTION")))
+        {Assert.Inconclusive("SQL Server connection not configured");return;}
+        using var c=OpenSal(sqlServer);
+        string company=MoneySchemaFixture.Company(c);
+        var maker=Admin();
+        var checker=Admin();
+        using var tx=c.BeginTransaction();
+        string rider=MoneySchemaFixture.Id();
+        var (run,riderId)=PrepRider(c,tx,maker,company,rider,100,30);
+        SalSalaryApprove.Approve(c,tx,checker,run,new JsonObject{["payRunRiderIds"]=new JsonArray(riderId)});
+        decimal payableCr=Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"""
+            SELECT COALESCE(SUM(jl.credit),0) FROM fin_journal_line jl
+            INNER JOIN fin_journal j ON j.id=jl.journal_id
+            INNER JOIN fin_account a ON a.id=jl.account_id
+            WHERE j.purpose='salary_accrual' AND j.source_id=@r AND a.code='212103'
+            """,("@r",riderId)),CultureInfo.InvariantCulture);
+        Assert.AreEqual(70m,payableCr);
+        decimal sumD=Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"""
+            SELECT COALESCE(SUM(jl.debit),0) FROM fin_journal_line jl
+            INNER JOIN fin_journal j ON j.id=jl.journal_id
+            WHERE j.purpose='salary_accrual' AND j.source_id=@r
+            """,("@r",riderId)),CultureInfo.InvariantCulture);
+        decimal sumC=Convert.ToDecimal(MoneySchemaFixture.Scalar(c,tx,"""
+            SELECT COALESCE(SUM(jl.credit),0) FROM fin_journal_line jl
+            INNER JOIN fin_journal j ON j.id=jl.journal_id
+            WHERE j.purpose='salary_accrual' AND j.source_id=@r
+            """,("@r",riderId)),CultureInfo.InvariantCulture);
+        Assert.AreEqual(sumD,sumC);
+        tx.Commit();
+    }
+
+    [TestMethod]
+    public void JournalPosting_DropsZeroAmountLines_KeepsBalance()
+    {
+        // Shared builder: never post a line with 0 debit and 0 credit.
+        var c=MoneySchemaFixture.Open(false);
+        SchemaOrgCostCentre.Ensure(c);SchemaFinAccount.Ensure(c);SchemaFinPeriod.Ensure(c);SchemaFinJournal.Ensure(c);SchemaFinPeriodBalance.Ensure(c);
+        using(c)
+        {
+            string company=MoneySchemaFixture.Company(c),period=MoneySchemaFixture.Id();
+            MoneySchemaFixture.Exec(c,null,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@c,'2026-11-01',1,datetime('now'))",("@id",period),("@c",company));
+            string debit=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_account WHERE is_postable=1 AND nature=1 ORDER BY code LIMIT 1")!;
+            string credit=(string)MoneySchemaFixture.Scalar(c,null,"SELECT id FROM fin_account WHERE is_postable=1 AND nature=2 ORDER BY code LIMIT 1")!;
+            var posted=JournalPosting.Post(c,null,new JournalPosting.Draft(
+                Guid.Parse(company),Guid.Parse(period),new DateOnly(2026,11,1),new DateOnly(2026,11,15),
+                "test_source",Guid.NewGuid(),"manual",0,false,"synthetic",
+                [
+                    new(Guid.Parse(debit),SchemaOrgCostCentre.NoneId,"none",100m,0m,"مدين"),
+                    new(Guid.Parse(credit),SchemaOrgCostCentre.NoneId,"none",0m,0m,"صفر يُحذف"),
+                    new(Guid.Parse(credit),SchemaOrgCostCentre.NoneId,"none",0m,100m,"دائن")
+                ]));
+            Assert.IsFalse(posted.AlreadyPosted);
+            Assert.AreEqual(2L,Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,
+                "SELECT COUNT(*) FROM fin_journal_line WHERE journal_id=@id",
+                ("@id",SchemaSql.GuidText(posted.JournalId)))!));
+            Assert.AreEqual(0L,Convert.ToInt64(MoneySchemaFixture.Scalar(c,null,
+                "SELECT COUNT(*) FROM fin_journal_line WHERE journal_id=@id AND debit=0 AND credit=0",
+                ("@id",SchemaSql.GuidText(posted.JournalId)))!));
+        }
+    }
+
+    [TestMethod]
+    public void RiderRequest_PreparerCannotApprove_PathCovered()
+    {
+        // Path: rider request approve (Independent already enforced; regression lock).
+        var c=MoneySchemaFixture.Payments(false);
+        using(c)
+        {
+            SchemaSalPayRun.Ensure(c);SchemaAuthCatalog.Ensure(c);
+            MoneySchemaFixture.Exec(c,null,"CREATE TABLE IF NOT EXISTS records(id TEXT PRIMARY KEY, kind TEXT NOT NULL, body TEXT NOT NULL)");
+            string company=MoneySchemaFixture.Company(c);
+            var maker=Admin();
+            using var tx=c.BeginTransaction();
+            var hold=SalRiderRequests.Create(c,tx,maker,new JsonObject
+            {
+                ["companyId"]=company,["erpRiderId"]=MoneySchemaFixture.Id(),["periodMonth"]="2026-10-01",["appCode"]="ninja",
+                ["kind"]="hold",["reasonCode"]="shared",["note"]="إيقاف مصطنع"
+            });
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>SalRiderRequests.Approve(c,tx,maker,hold.S("id"),new JsonObject{["note"]="نفس الشخص"})).Status);
+            tx.Commit();
+        }
+    }
+
+    [TestMethod]
+    public void PaymentDocument_PreparerCannotApprove_PathCovered()
+    {
+        // Path: payment document approve (Independent already enforced; regression lock).
+        using var f=new PaymentsEngineTests.Fixture(false);
+        var input=f.Input("purchase");
+        input["supplierId"]=MoneySchemaFixture.Id();
+        f.Store.Write((c,tx)=>{
+            SchemaSql.Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"pay","supplier")}(id,company_id,name_ar,status,created_by,created_at)
+                VALUES(@id,@c,'مورد مصطنع',1,@by,{SchemaSql.NowLiteral(c)})
+                """,("@id",input.S("supplierId")),("@c",f.Company),("@by",f.Maker.Identity!.Name!));
+            return true;
+        });
+        var doc=f.Create(input);
+        f.Store.Write((c,tx)=>PaymentsEngine.Transition(c,tx,f.Maker,doc.S("id"),"submit",new()));
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PaymentsEngine.Transition(c,tx,f.Maker,doc.S("id"),"approve",new()))).Status);
     }
 }

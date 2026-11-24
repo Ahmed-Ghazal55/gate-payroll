@@ -147,8 +147,12 @@ public sealed class TreasuryW2ApiTests
             return true;
         });
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,Maker,adjustId))).Status);
-        // Bank timing CoA not defined — approve blocks (no vault-variance accounts).
-        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,Checker,adjustId))).Status);
+        // Bank timing CoA not defined — approve blocks (no vault-variance 422202/542102). Reject closes pending.
+        var blocked=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,Checker,adjustId)));
+        Assert.AreEqual(409,blocked.Status);
+        Assert.IsTrue(blocked.Message.Contains("توقيت",StringComparison.Ordinal)||blocked.Message.Contains("فرق",StringComparison.Ordinal));
+        var rejected=f.Store.Write((c,tx)=>TreasuryBankStatementsApi.RejectAdjust(c,tx,Checker,adjustId,new(){["reason"]="إغلاق الطلب بانتظار حساب التوقيت البنكي"}));
+        Assert.AreEqual("rejected",rejected.S("status"));
         var uploadAudit=f.Store.Read(c=>Store.List(c,"audit").First(a=>a.S("action")=="treasury.bank_statement_uploaded"));
         Assert.AreEqual(statementId,uploadAudit.S("entity"));
         Assert.AreEqual(statementId,uploadAudit.S("recordId"));
