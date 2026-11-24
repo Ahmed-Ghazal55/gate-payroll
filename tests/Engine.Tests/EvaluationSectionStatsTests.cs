@@ -1,5 +1,6 @@
 using System.Security.Claims;
 using System.Text.Json.Nodes;
+using System.Xml.Linq;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Payroll;
 
@@ -138,5 +139,31 @@ public sealed class EvaluationSectionStatsTests
         Assert.Contains("مالية: العام", xml);
         Assert.Contains("مالية: التجاوب", xml);
         Assert.DoesNotContain("mergeCells", xml, StringComparison.OrdinalIgnoreCase);
+        // Section column shows Arabic titles, never raw keys.
+        Assert.Contains("تطبيق نينجا", xml);
+        Assert.Contains("الحركة والمركبات", xml);
+        Assert.DoesNotContain("app:Ninja", xml);
+        Assert.DoesNotContain("dept:movement", xml);
+        // Finance overall=4 is written once per reply (first card row only), not on every staff/app row.
+        // Ninja reply has 2 card rows; before the fix the value appeared twice and inflated column sums.
+        var doc = XDocument.Parse(xml);
+        XNamespace s = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+        var header = doc.Root!.Element(s + "sheetData")!.Elements(s + "row").First().Elements(s + "c").ToList();
+        int financeOverallCol = header.FindIndex(c => c.Value.Contains("مالية: العام", StringComparison.Ordinal));
+        Assert.IsTrue(financeOverallCol >= 0);
+        string ColRef(int index)
+        {
+            string value = "";
+            int i = index;
+            do { value = (char)('A' + i % 26) + value; i = i / 26 - 1; } while (i >= 0);
+            return value;
+        }
+        string financeCol = ColRef(financeOverallCol);
+        int financeFours = doc.Root.Element(s + "sheetData")!.Elements(s + "row").Skip(1)
+            .SelectMany(r => r.Elements(s + "c"))
+            .Count(c => ((string?)c.Attribute("r"))?.StartsWith(financeCol, StringComparison.Ordinal) == true
+                && !char.IsLetter(((string?)c.Attribute("r"))![financeCol.Length..][0])
+                && c.Element(s + "v")?.Value == "4");
+        Assert.AreEqual(1, financeFours, "finance overall must appear once per reply (first card row)");
     }
 }

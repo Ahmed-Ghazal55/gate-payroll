@@ -120,13 +120,24 @@ public static partial class EvaluationSurvey
         foreach (var row in Responses(c, user, id, section: section))
         {
             var finance = row["financeAnswer"] as JsonObject;
-            object? FinanceVal(Func<JsonObject, object?> read) => finance == null ? null : read(finance);
+            // Prefer Arabic section title; never export the raw sectionKey (app:Ninja / dept:hr).
+            string sectionLabel = row.S("sectionTitle");
+            if (sectionLabel == "" && row.S("sectionKey") != "")
+            {
+                var match = round["sections"] is JsonArray secs
+                    ? secs.OfType<JsonObject>().FirstOrDefault(s => s.S("key") == row.S("sectionKey"))
+                    : null;
+                sectionLabel = match?.S("title") ?? row.S("sectionKey");
+            }
+            bool financeWritten = false;
+            object? FinanceVal(Func<JsonObject, object?> read) =>
+                finance == null || financeWritten ? null : read(finance);
             foreach (bool staff in new[] { true, false })
             foreach (var card in row[staff ? "staffAnswers" : "appAnswers"]!.AsArray().OfType<JsonObject>())
             {
                 var values = new List<object?>
                 {
-                    row.S("id"), row.S("sectionKey") == "" ? row.S("sectionTitle") : row.S("sectionKey"),
+                    row.S("id"), sectionLabel,
                     row.S("iqama"), row.S("name"), row.S("city"), row.S("nationality"), row.S("phone"), row.S("createdAt"),
                     staff ? "موظف" : "منصة", card.S(staff ? "staffId" : "app"), staff ? names.GetValueOrDefault(card.S("staffId"), "") : "",
                     card.S("reason"), card["overall"] == null ? null : card.N("overall")
@@ -134,12 +145,14 @@ public static partial class EvaluationSurvey
                 values.AddRange(StaffDimensions.Select(d => (object?)(card["ratings"]?[d] == null ? null : card["ratings"]!.N(d))));
                 values.Add(card.S("notes")); values.Add(card.B("complaint") ? "نعم" : "لا"); values.Add(card.S("complaintDetails"));
                 values.AddRange(Factors.Select(f => (object?)(card["factorRatings"]?[f] == null ? null : card["factorRatings"]!.N(f))));
+                // Finance columns once per reply: first card row only (later rows stay blank so column sums stay correct).
                 values.Add(FinanceVal(fin => fin["overall"] == null ? null : fin.N("overall")));
                 values.AddRange(FinanceFactors.Select(f => FinanceVal(fin => fin["factorRatings"]?[f] == null ? null : fin["factorRatings"]!.N(f))));
                 values.Add(FinanceVal(fin => fin.S("reason")));
                 values.Add(FinanceVal(fin => fin.S("notes")));
                 values.Add(FinanceVal(fin => fin["attachments"] is JsonArray a ? a.Count : 0));
                 values.Add(FinanceVal(fin => fin.B("complaint") ? "نعم" : "لا"));
+                if (finance != null) financeWritten = true;
                 values.AddRange(apps.Select(a => (object?)(Strings(row, "workApps").Contains(a) ? "نعم" : "")));
                 cells.Add(values.ToArray());
             }
