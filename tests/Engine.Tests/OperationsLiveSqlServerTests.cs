@@ -40,6 +40,107 @@ public sealed class OperationsLiveSqlServerTests
     static readonly Guid PurchaseOutside = Guid.Parse("1c1c1c1c-1c1c-1c1c-1c1c-1c1c1c1c1c1c");
     static readonly Guid PurchaseDeleted = Guid.Parse("1d1d1d1d-1d1d-1d1d-1d1d-1d1d1d1d1d1d");
 
+    /// <summary>
+    /// F13: when UsageDate exists, a card-month with daily rows must sum only those days
+    /// (ignore the monthly summary row); a card with only monthly rows stays monthly.
+    /// </summary>
+    [TestMethod]
+    public void FuelCards_DailyRowsWinOverMonthly_NoDoubleCount()
+    {
+        string? configured = Environment.GetEnvironmentVariable("PAYROLL_TEST_SQL_CONNECTION");
+        if (string.IsNullOrWhiteSpace(configured))
+        {
+            Assert.Inconclusive("Operations live SQL requires PAYROLL_TEST_SQL_CONNECTION.");
+            return;
+        }
+        var options = new SqlConnectionStringBuilder(configured);
+        if (!System.Text.RegularExpressions.Regex.IsMatch(options.DataSource, @"^(tcp:)?(localhost|127\.0\.0\.1)(,[0-9]+)?$", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+        {
+            Assert.Inconclusive("Operations live SQL requires loopback, not staging/production.");
+            return;
+        }
+
+        string name = "GateOpsFuelDaily_" + Guid.NewGuid().ToString("N");
+        options.InitialCatalog = "master";
+        using var admin = new SqlConnection(options.ConnectionString);
+        admin.Open();
+        using (var create = admin.CreateCommand())
+        {
+            create.CommandText = "CREATE DATABASE [" + name + "]";
+            create.ExecuteNonQuery();
+        }
+        try
+        {
+            options.InitialCatalog = name;
+            using var conn = new SqlConnection(options.ConnectionString);
+            conn.Open();
+            Exec(conn, "CREATE SCHEMA app");
+            Exec(conn, """
+                CREATE TABLE app.Sponsors (Id uniqueidentifier NOT NULL PRIMARY KEY, RegistryNameAr nvarchar(200) NULL, UnifiedNationalNumber nvarchar(20) NULL, Status int NOT NULL DEFAULT 1, IsDeleted bit NOT NULL DEFAULT 0);
+                CREATE TABLE app.Employees (Id uniqueidentifier NOT NULL PRIMARY KEY, FullNameAr nvarchar(200) NULL, IqamaNo varchar(20) NULL, SponsorId uniqueidentifier NULL, OperatingCityId uniqueidentifier NULL, Status int NOT NULL DEFAULT 3, IsEmployee bit NOT NULL DEFAULT 0, IsDeleted bit NOT NULL DEFAULT 0);
+                CREATE TABLE app.FuelCards (Id uniqueidentifier NOT NULL PRIMARY KEY, Provider int NOT NULL, CardNumber nvarchar(50) NULL, PlateNumberText nvarchar(50) NULL, Notes nvarchar(500) NULL, SponsorId uniqueidentifier NULL, IsDeleted bit NOT NULL DEFAULT 0);
+                CREATE TABLE app.FuelCardRiderAssignments (Id uniqueidentifier NOT NULL PRIMARY KEY, FuelCardId uniqueidentifier NOT NULL, EmployeeId uniqueidentifier NULL, EffectiveFrom date NOT NULL, EffectiveTo date NULL, AssignmentReason nvarchar(200) NULL, EndReason nvarchar(200) NULL);
+                CREATE TABLE app.FuelCardMonthlyUsages (
+                    Id uniqueidentifier NOT NULL PRIMARY KEY,
+                    FuelCardId uniqueidentifier NOT NULL,
+                    EmployeeId uniqueidentifier NULL,
+                    RiderProfileId uniqueidentifier NULL,
+                    ReportMonth date NOT NULL,
+                    UsageDate date NULL,
+                    TotalLiters decimal(18,2) NULL,
+                    AmountBeforeTax decimal(18,2) NULL,
+                    VatAmount decimal(18,2) NULL,
+                    TotalAmount decimal(18,2) NULL,
+                    TransactionCount int NULL,
+                    FuelType nvarchar(50) NULL,
+                    IsDeleted bit NOT NULL DEFAULT 0);
+                """);
+
+            var cardDaily = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1");
+            var cardMonthly = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2");
+            Exec(conn, $"""
+                INSERT INTO app.Sponsors(Id,RegistryNameAr,UnifiedNationalNumber,Status) VALUES('{SponsorA}',N'شركة أ','7000000001',1);
+                INSERT INTO app.Employees(Id,FullNameAr,IqamaNo,SponsorId,Status,IsEmployee) VALUES('{EmpInScope}',N'مندوب','2500000001','{SponsorA}',3,0);
+                INSERT INTO app.FuelCards(Id,Provider,CardNumber,PlateNumberText,Notes,SponsorId) VALUES
+                  ('{cardDaily}',1,'FC-DAILY',N'أ 1',N'بطاقة يومية','{SponsorA}'),
+                  ('{cardMonthly}',1,'FC-MONTH',N'أ 2',N'بطاقة شهرية','{SponsorA}');
+                INSERT INTO app.FuelCardRiderAssignments(Id,FuelCardId,EmployeeId,EffectiveFrom) VALUES
+                  (NEWID(),'{cardDaily}','{EmpInScope}','2026-11-01'),
+                  (NEWID(),'{cardMonthly}','{EmpInScope}','2026-11-01');
+                -- Card with both: monthly summary 100L/230 + two daily rows 10+20 = 30L/69 — must use daily only
+                INSERT INTO app.FuelCardMonthlyUsages(Id,FuelCardId,EmployeeId,ReportMonth,UsageDate,TotalLiters,AmountBeforeTax,VatAmount,TotalAmount,TransactionCount,FuelType) VALUES
+                  (NEWID(),'{cardDaily}','{EmpInScope}','2026-11-01',NULL,100,200,30,230,10,N'91'),
+                  (NEWID(),'{cardDaily}','{EmpInScope}','2026-11-01','2026-11-02',10,20,3,23,1,N'91'),
+                  (NEWID(),'{cardDaily}','{EmpInScope}','2026-11-01','2026-11-03',20,40,6,46,1,N'91');
+                -- Card monthly-only: keep the monthly row
+                INSERT INTO app.FuelCardMonthlyUsages(Id,FuelCardId,EmployeeId,ReportMonth,UsageDate,TotalLiters,AmountBeforeTax,VatAmount,TotalAmount,TransactionCount,FuelType) VALUES
+                  (NEWID(),'{cardMonthly}','{EmpInScope}','2026-11-01',NULL,50,100,15,115,4,N'91');
+                """);
+
+            var all = new LiveOperationsQuery.Scope(true, [], [], [], []);
+            var fuel = OperationsLiveQuery.FuelCardsExport(conn, new DateOnly(2026, 11, 1), "", "", all, 30);
+            Assert.AreEqual(2, fuel.Items.Count);
+
+            var dailyCard = fuel.Items.Single(r => r["cardNumber"]!.GetValue<string>() == "FC-DAILY");
+            Assert.AreEqual(30m, dailyCard["liters"]!.GetValue<decimal>(), "daily rows must win; monthly summary must not add");
+            Assert.AreEqual(69m, dailyCard["totalInclVat"]!.GetValue<decimal>());
+
+            var monthlyCard = fuel.Items.Single(r => r["cardNumber"]!.GetValue<string>() == "FC-MONTH");
+            Assert.AreEqual(50m, monthlyCard["liters"]!.GetValue<decimal>());
+            Assert.AreEqual(115m, monthlyCard["totalInclVat"]!.GetValue<decimal>());
+
+            Assert.AreEqual(80m, fuel.Summary["totalLiters"]!.GetValue<decimal>(), "summary must not double-count");
+            Assert.AreEqual(184m, fuel.Summary["totalInclVat"]!.GetValue<decimal>());
+        }
+        finally
+        {
+            SqlConnection.ClearAllPools();
+            using var drop = admin.CreateCommand();
+            drop.CommandText = "ALTER DATABASE [" + name + "] SET SINGLE_USER WITH ROLLBACK IMMEDIATE; DROP DATABASE [" + name + "]";
+            drop.ExecuteNonQuery();
+        }
+    }
+
     [TestMethod]
     public void OperationsLiveQueries_ExecuteOnThrowawaySqlServer()
     {

@@ -75,12 +75,13 @@ public static partial class OperationsLiveQuery
         return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
     }
 
-    public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewFuelCardsSql(LiveOperationsQuery.Scope? scope = null)
+    public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewFuelCardsSql(LiveOperationsQuery.Scope? scope = null, bool preferDailyUsage = false)
     {
         using var cmd = new SqlCommand();
         Add(cmd, "@month", "2026-11-01");
         string scopeSql = ScopeSponsor(scope, cmd, "s");
-        string sql = FuelCardsSql(scopeSql, providerFilter: false, search: false);
+        // Default false: docs/data/erp-schema.snapshot.json has no UsageDate yet.
+        string sql = FuelCardsSql(scopeSql, providerFilter: false, search: false, preferDailyUsage);
         Add(cmd, "@skip", 0);
         Add(cmd, "@take", 50);
         return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());

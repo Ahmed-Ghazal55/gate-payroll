@@ -23,7 +23,8 @@ public static partial class OperationsLiveQuery
         if (search.Length > 0) Add(cmd, "@q", "%" + EscapeLike(search) + "%");
         Add(cmd, "@skip", skip);
         Add(cmd, "@take", pageSize);
-        cmd.CommandText = FuelCardsSql(scopeSql, providerFilter, search.Length > 0)
+        bool preferDaily = HasFuelUsageDateColumn(source, ct);
+        cmd.CommandText = FuelCardsSql(scopeSql, providerFilter, search.Length > 0, preferDaily)
             + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
         long total = 0;
         var summary = EmptyFuelSummary();
@@ -50,12 +51,12 @@ public static partial class OperationsLiveQuery
             }
         }
         if (items.Count == 0)
-            summary = FuelSummaryOnly(source, month, provider, search, scope, ct);
+            summary = FuelSummaryOnly(source, month, provider, search, scope, preferDaily, ct);
         return new(items, total, summary, DateTimeOffset.UtcNow);
     }
 
     static JsonObject FuelSummaryOnly(DbConnection source, DateOnly month, string provider, string search,
-        LiveOperationsQuery.Scope scope, CancellationToken ct)
+        LiveOperationsQuery.Scope scope, bool preferDaily, CancellationToken ct)
     {
         using var cmd = source.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
@@ -67,7 +68,7 @@ public static partial class OperationsLiveQuery
         if (search.Length > 0) Add(cmd, "@q", "%" + EscapeLike(search) + "%");
         Add(cmd, "@skip", 0);
         Add(cmd, "@take", 1);
-        cmd.CommandText = FuelCardsSql(scopeSql, providerFilter, search.Length > 0)
+        cmd.CommandText = FuelCardsSql(scopeSql, providerFilter, search.Length > 0, preferDaily)
             + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
         using var reader = cmd.ExecuteReader();
         if (!reader.Read()) return EmptyFuelSummary();
@@ -162,13 +163,56 @@ public static partial class OperationsLiveQuery
     /// <summary>
     /// M5: one row per card (SUM usages in month). Rider = usage employee; fallback = assignment open in that month.
     /// consumingRiders = distinct usage EmployeeIds with liters &gt; 0.
+    /// F13: when UsageDate exists, per card-month prefer daily rows (UsageDate not null) over the monthly summary (null); never both.
+    /// Snapshot/live schemas without UsageDate keep the legacy SUM of all month rows.
     /// </summary>
-    static string FuelCardsSql(string scopeSql, bool providerFilter, bool search = false)
+    static string FuelCardsSql(string scopeSql, bool providerFilter, bool search = false, bool preferDailyUsage = false)
     {
         string providerPred = providerFilter ? " AND fc.[Provider]=@provider" : "";
         string searchPred = search ? " AND (fc.[CardNumber] LIKE @q OR fc.[PlateNumberText] LIKE @q OR fc.[Notes] LIKE @q OR ue.[FullNameAr] LIKE @q OR ue.[IqamaNo] LIKE @q OR ae.[FullNameAr] LIKE @q OR ae.[IqamaNo] LIKE @q)" : "";
+        string usageSource = preferDailyUsage
+            ? """
+                usage_base AS (
+                    SELECT u.[FuelCardId], u.[TotalLiters], u.[AmountBeforeTax], u.[VatAmount], u.[TotalAmount],
+                           u.[TransactionCount], u.[FuelType], u.[EmployeeId], u.[UsageDate],
+                           MAX(CASE WHEN u.[UsageDate] IS NOT NULL THEN 1 ELSE 0 END)
+                             OVER (PARTITION BY u.[FuelCardId]) AS HasDaily
+                    FROM [app].[FuelCardMonthlyUsages] u
+                    WHERE u.[IsDeleted]=0 AND u.[ReportMonth]=@month
+                ),
+                usage_rows AS (
+                    SELECT b.[FuelCardId], b.[TotalLiters], b.[AmountBeforeTax], b.[VatAmount], b.[TotalAmount],
+                           b.[TransactionCount], b.[FuelType], b.[EmployeeId]
+                    FROM usage_base b
+                    WHERE (b.[HasDaily]=1 AND b.[UsageDate] IS NOT NULL)
+                       OR (b.[HasDaily]=0)
+                )
+                """
+            : """
+                usage_rows AS (
+                    SELECT u.[FuelCardId], u.[TotalLiters], u.[AmountBeforeTax], u.[VatAmount], u.[TotalAmount],
+                           u.[TransactionCount], u.[FuelType], u.[EmployeeId]
+                    FROM [app].[FuelCardMonthlyUsages] u
+                    WHERE u.[IsDeleted]=0 AND u.[ReportMonth]=@month
+                )
+                """;
+        string consumingFrom = preferDailyUsage
+            ? """
+                        FROM usage_rows u2
+                        INNER JOIN [app].[FuelCards] fc2 ON fc2.[Id]=u2.[FuelCardId] AND fc2.[IsDeleted]=0
+                        LEFT JOIN [app].[Sponsors] s2 ON s2.[Id]=fc2.[SponsorId] AND s2.[IsDeleted]=0
+                        WHERE u2.[EmployeeId] IS NOT NULL AND u2.[TotalLiters] IS NOT NULL AND u2.[TotalLiters]>0
+                """
+            : """
+                        FROM [app].[FuelCardMonthlyUsages] u2
+                        INNER JOIN [app].[FuelCards] fc2 ON fc2.[Id]=u2.[FuelCardId] AND fc2.[IsDeleted]=0
+                        LEFT JOIN [app].[Sponsors] s2 ON s2.[Id]=fc2.[SponsorId] AND s2.[IsDeleted]=0
+                        WHERE u2.[IsDeleted]=0 AND u2.[ReportMonth]=@month
+                          AND u2.[EmployeeId] IS NOT NULL AND u2.[TotalLiters] IS NOT NULL AND u2.[TotalLiters]>0
+                """;
         return $"""
-            WITH usage_agg AS (
+            WITH {usageSource},
+            usage_agg AS (
                 SELECT u.[FuelCardId],
                        SUM(u.[TotalLiters]) AS TotalLiters,
                        SUM(u.[AmountBeforeTax]) AS AmountBeforeTax,
@@ -177,8 +221,7 @@ public static partial class OperationsLiveQuery
                        SUM(u.[TransactionCount]) AS TransactionCount,
                        MAX(u.[FuelType]) AS FuelType,
                        MAX(u.[EmployeeId]) AS UsageEmployeeId
-                FROM [app].[FuelCardMonthlyUsages] u
-                WHERE u.[IsDeleted]=0 AND u.[ReportMonth]=@month
+                FROM usage_rows u
                 GROUP BY u.[FuelCardId]
             ),
             filtered AS (
@@ -208,11 +251,7 @@ public static partial class OperationsLiveQuery
                 SELECT COUNT_BIG(*) AS TotalCount,
                        SUM(CASE WHEN HasOpenAssignment=1 THEN 1 ELSE 0 END) AS ActiveCards,
                        (SELECT COUNT_BIG(DISTINCT u2.[EmployeeId])
-                        FROM [app].[FuelCardMonthlyUsages] u2
-                        INNER JOIN [app].[FuelCards] fc2 ON fc2.[Id]=u2.[FuelCardId] AND fc2.[IsDeleted]=0
-                        LEFT JOIN [app].[Sponsors] s2 ON s2.[Id]=fc2.[SponsorId] AND s2.[IsDeleted]=0
-                        WHERE u2.[IsDeleted]=0 AND u2.[ReportMonth]=@month
-                          AND u2.[EmployeeId] IS NOT NULL AND u2.[TotalLiters] IS NOT NULL AND u2.[TotalLiters]>0
+                        {consumingFrom}
                           {scopeSql.Replace("s.[", "s2.[", StringComparison.Ordinal)}) AS ConsumingRiders,
                        ISNULL(SUM(TotalLiters),0) AS TotalLiters,
                        ISNULL(SUM(TotalAmount),0) AS TotalInclVat
@@ -222,6 +261,16 @@ public static partial class OperationsLiveQuery
             FROM filtered f CROSS JOIN agg a
             ORDER BY f.Provider, f.CardNumber
             """;
+    }
+
+    /// <summary>erp-schema.snapshot.json has no UsageDate yet; detect at runtime so live SELECTs keep working.</summary>
+    static bool HasFuelUsageDateColumn(DbConnection source, CancellationToken ct = default)
+    {
+        using var cmd = source.CreateCommand();
+        using var cancel = SyncCancellation.Register(cmd, ct);
+        cmd.CommandText = "SELECT CASE WHEN COL_LENGTH('app.FuelCardMonthlyUsages','UsageDate') IS NULL THEN 0 ELSE 1 END";
+        object? value = cmd.ExecuteScalar();
+        return value is not null and not DBNull && Convert.ToInt32(value, CultureInfo.InvariantCulture) == 1;
     }
 
     public static PageResult FuelCardsExport(DbConnection source, DateOnly month, string provider, string search,
@@ -236,7 +285,7 @@ public static partial class OperationsLiveQuery
         bool providerFilter = provider.Length > 0;
         if (providerFilter) Add(cmd, "@provider", provider);
         if (search.Length > 0) Add(cmd, "@q", "%" + EscapeLike(search) + "%");
-        cmd.CommandText = FuelCardsSql(scopeSql, providerFilter, search.Length > 0);
+        cmd.CommandText = FuelCardsSql(scopeSql, providerFilter, search.Length > 0, HasFuelUsageDateColumn(source, ct));
         long total = 0;
         var summary = EmptyFuelSummary();
         var items = new List<JsonObject>();
