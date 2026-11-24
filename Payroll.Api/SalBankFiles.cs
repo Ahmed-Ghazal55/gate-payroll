@@ -95,6 +95,7 @@ public static partial class SalBankFiles
         Ensure(c,tx);
         return LoadFileView(c,tx,actor,id);
     }
+    public static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id)=>Get(c,tx,actor,id);
 
     public static JsonObject Build(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)
     {
@@ -302,16 +303,21 @@ public static partial class SalBankFiles
         string actorGuid=ActorGuidText(actor);
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
 
+        decimal excludedTotalBuild=J.Money(excluded.OfType<JsonObject>().Sum(e=>e.N("balance")));
+        string excludedJson=excluded.ToJsonString();
         Exec(c,tx,$"""
             INSERT INTO {SchemaSql.Q(c,"sal","bank_file")}
             (id,period_month,issuance_choice,scope_company_id,scope_registration_id,
-             paying_company_id,paying_registration_id,paying_bank_id,status,run_mode,payout_blocked,currency_code,created_by,created_at)
-            VALUES(@id,@pm,@ic,@sc,@sr,@pc,@pr,@pb,1,0,@blk,'SAR',@by,@at)
+             paying_company_id,paying_registration_id,paying_bank_id,status,run_mode,payout_blocked,currency_code,
+             confirm_unverified_ibans,excluded_json,excluded_count,excluded_total,created_by,created_at)
+            VALUES(@id,@pm,@ic,@sc,@sr,@pc,@pr,@pb,1,0,@blk,'SAR',@cuv,@exj,@exc,@ext,@by,@at)
             """,
             ("@id",fileId),("@pm",periodMonth),("@ic",dbIssuanceChoice),
             ("@sc",(object?)scopeCompanyId??DBNull.Value),("@sr",(object?)scopeRegistrationId??DBNull.Value),
             ("@pc",bankInfo.CompanyId),("@pr",bankInfo.RegistrationId),("@pb",bankInfo.BankId),
-            ("@blk",filePayoutBlocked?1:0),("@by",actorGuid),("@at",now));
+            ("@blk",filePayoutBlocked?1:0),("@cuv",confirmUnverifiedIbans?1:0),
+            ("@exj",excludedJson),("@exc",excluded.Count),("@ext",excludedTotalBuild),
+            ("@by",actorGuid),("@at",now));
 
         // Group eligible lines by company_id to create one queued pay.payment per entitlement company (with payer_company_id = bankInfo.CompanyId).
         var paymentByCompany=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase);
@@ -350,12 +356,15 @@ public static partial class SalBankFiles
 
             Exec(c,tx,$"""
                 INSERT INTO {SchemaSql.Q(c,"sal","bank_file_line")}
-                (id,bank_file_id,period_month,pay_run_rider_id,payable_id,company_id,registration_id,payable_period_month,payment_id,allocation_id,amount,bank_short_code,status,created_by,created_at)
-                VALUES(@id,@fid,@pm,@pr,@payable,@c,@reg,@pm,@pid,@aid,@amt,@bank,1,@by,@at)
+                (id,bank_file_id,period_month,pay_run_rider_id,payable_id,company_id,registration_id,payable_period_month,payment_id,allocation_id,amount,bank_short_code,
+                 rider_iqama,rider_name,rider_iban,rider_address,iban_unverified,status,created_by,created_at)
+                VALUES(@id,@fid,@pm,@pr,@payable,@c,@reg,@pm,@pid,@aid,@amt,@bank,@iq,@nm,@ib,@ad,@uv,1,@by,@at)
                 """,
                 ("@id",lineId),("@fid",fileId),("@pm",periodMonth),("@pr",cand.PayRunRiderId),
                 ("@payable",cand.PayableId),("@c",cand.CompanyId),("@reg",cand.RegistrationId),
                 ("@pid",paymentId),("@aid",allocId),("@amt",cand.Amount),("@bank",cand.Meta.BankShortCode),
+                ("@iq",cand.Meta.Iqama),("@nm",cand.Meta.Name),("@ib",cand.Meta.Iban),("@ad",cand.Meta.Address),
+                ("@uv",cand.Meta.IbanUnverified?1:0),
                 ("@by",actorGuid),("@at",now));
 
             if(!string.Equals(cand.CompanyId,bankInfo.CompanyId,StringComparison.OrdinalIgnoreCase))
@@ -390,7 +399,7 @@ public static partial class SalBankFiles
     {
         DemandAny(actor,PermExport,"pay.approve");
         Ensure(c,tx);
-        var view=LoadFileView(c,tx,actor,id);
+        var view=LoadFileView(c,tx,actor,id,refuseOnLiveDrift:true);
         var sheetRows=(view["sheetRows"] as JsonArray??[]).OfType<JsonObject>().ToList();
         J.Need(sheetRows.Count>0,"ملف البنك لا يحتوي على صفوف للتصدير.",409);
 
@@ -635,20 +644,24 @@ public static partial class SalBankFiles
     sealed record RiderMeta(string ErpRiderId,string Iqama,string Name,string Iban,string BankShortCode,string BankNameAr,string Address,string RegistrationId,bool IbanUnverified=false);
     sealed record CandidateLine(string PayRunRiderId,string ErpRiderId,string CompanyId,string RegistrationId,string AppCode,string PayableId,decimal Amount,bool PayoutBlocked,RiderMeta Meta);
 
-    static JsonObject LoadFileView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id,JsonArray? excludedRows=null)
+    static JsonObject LoadFileView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id,JsonArray? excludedRows=null,bool refuseOnLiveDrift=false)
     {
-        string periodMonth,issuanceChoice,scopeComp,scopeReg,payingComp,payingReg,payingBank,currency,approvedBy,approvedAt,sentBy,sentAt,createdBy,createdAt,payoutLabel,fileHashHex;
-        int status,runMode;
-        bool payoutBlocked;
+        string periodMonth,issuanceChoice,scopeComp,scopeReg,payingComp,payingReg,payingBank,currency,approvedBy,approvedAt,sentBy,sentAt,createdBy,createdAt,payoutLabel,fileHashHex,excludedJsonStored;
+        int status,runMode,excludedCountStored;
+        bool payoutBlocked,confirmUnverifiedStored;
+        decimal excludedTotalStored;
         using(var cmd=c.CreateCommand())
         {
             cmd.Transaction=tx;
             cmd.CommandText=$"""
-                SELECT id,period_month,issuance_choice,scope_company_id,scope_registration_id,
-                       paying_company_id,paying_registration_id,paying_bank_id,status,file_hash,
-                       run_mode,payout_blocked,currency_code,approved_by,approved_at,sent_by,sent_at,
-                       created_by,created_at,payout_label
-                FROM {SchemaSql.Q(c,"sal","bank_file_export")} WHERE id=@id
+                SELECT f.id,f.period_month,f.issuance_choice,f.scope_company_id,f.scope_registration_id,
+                       f.paying_company_id,f.paying_registration_id,f.paying_bank_id,f.status,f.file_hash,
+                       f.run_mode,f.payout_blocked,f.currency_code,f.approved_by,f.approved_at,f.sent_by,f.sent_at,
+                       f.created_by,f.created_at,e.payout_label,
+                       f.confirm_unverified_ibans,f.excluded_json,f.excluded_count,f.excluded_total
+                FROM {SchemaSql.Q(c,"sal","bank_file")} f
+                INNER JOIN {SchemaSql.Q(c,"sal","bank_file_export")} e ON e.id=f.id
+                WHERE f.id=@id
                 """;
             Add(cmd,"@id",id);
             using var r=cmd.ExecuteReader();
@@ -672,9 +685,20 @@ public static partial class SalBankFiles
             createdBy=Str(r["created_by"]);
             createdAt=Str(r["created_at"]);
             payoutLabel=Str(r["payout_label"]);
+            confirmUnverifiedStored=Convert.ToInt32(r["confirm_unverified_ibans"] is DBNull?0:r["confirm_unverified_ibans"])==1;
+            excludedJsonStored=Str(r["excluded_json"]);
+            excludedCountStored=Convert.ToInt32(r["excluded_count"] is DBNull?0:r["excluded_count"]);
+            excludedTotalStored=r["excluded_total"] is DBNull?0m:J.Money(Convert.ToDecimal(r["excluded_total"]));
         }
         if(!FinancialScopes.Sponsor(actor,payingComp)&&(scopeComp==""||!FinancialScopes.Sponsor(actor,scopeComp)))
             throw new ApiError("الشركة خارج نطاق المستخدم.",403);
+
+        JsonArray persistedExcluded=excludedRows??new JsonArray();
+        if(excludedRows==null&&excludedJsonStored!="")
+        {
+            try{persistedExcluded=JsonNode.Parse(excludedJsonStored) as JsonArray??new JsonArray();}
+            catch{persistedExcluded=new JsonArray();}
+        }
 
         var riderDocs=LoadRiderDocs(c,tx);
         var defaultRegByCompany=LoadDefaultRegistrations(c,tx);
@@ -685,6 +709,7 @@ public static partial class SalBankFiles
             cmd.CommandText=$"""
                 SELECT l.id,l.pay_run_rider_id,l.payable_id,l.company_id,l.registration_id,
                        l.payment_id,l.allocation_id,l.amount,l.bank_short_code,l.status,
+                       l.rider_iqama,l.rider_name,l.rider_iban,l.rider_address,l.iban_unverified,
                        r.erp_rider_id,pr.app_code
                 FROM {SchemaSql.Q(c,"sal","bank_file_line")} l
                 INNER JOIN {SchemaSql.Q(c,"sal","pay_run_rider")} r ON r.id=l.pay_run_rider_id
@@ -698,10 +723,30 @@ public static partial class SalBankFiles
             {
                 string erpRider=r["erp_rider_id"].ToString()!;
                 string comp=r["company_id"].ToString()!;
-                var (meta,_)=ResolveRiderMeta(erpRider,comp,riderDocs,defaultRegByCompany,confirmUnverifiedIbans:true);
+                string frozenIqama=Str(r["rider_iqama"]);
+                string frozenName=Str(r["rider_name"]);
+                string frozenIban=Str(r["rider_iban"]);
+                string frozenAddress=Str(r["rider_address"]);
+                bool frozenUnverified=Convert.ToInt32(r["iban_unverified"] is DBNull?0:r["iban_unverified"])==1;
                 string shortCode=r["bank_short_code"].ToString()!;
-                // Prefer the short code stored on the line (frozen at build); fall back to live meta without inventing IBAN.
-                if(shortCode=="")shortCode=meta.BankShortCode;
+                // TRIAL8: never re-resolve with confirmation forced on. Prefer frozen fields from build.
+                if(frozenIqama==""&&frozenName==""&&frozenIban=="")
+                {
+                    var (meta,_)=ResolveRiderMeta(erpRider,comp,riderDocs,defaultRegByCompany,confirmUnverifiedIbans:false);
+                    frozenIqama=meta.Iqama;frozenName=meta.Name;frozenIban=meta.Iban;frozenAddress=meta.Address;frozenUnverified=meta.IbanUnverified;
+                    if(shortCode=="")shortCode=meta.BankShortCode;
+                }
+                else if(refuseOnLiveDrift)
+                {
+                    var (live,_)=ResolveRiderMeta(erpRider,comp,riderDocs,defaultRegByCompany,confirmUnverifiedStored);
+                    if(!string.Equals(live.Iqama,frozenIqama,StringComparison.Ordinal)
+                       ||!string.Equals(live.Name,frozenName,StringComparison.Ordinal)
+                       ||!string.Equals(live.Iban,frozenIban,StringComparison.OrdinalIgnoreCase)
+                       ||!string.Equals(live.Address,frozenAddress,StringComparison.Ordinal))
+                        throw new ApiError("بيانات المندوب تغيّرت بعد بناء ملف البنك؛ أعد البناء قبل التصدير.",409);
+                }
+                var (bankCode,bankNameAr)=frozenIban!=""?BankPayrollFiles.ExportBank(frozenIban):("","");
+                if(shortCode=="")shortCode=bankCode;
                 lines.Add(new JsonObject
                 {
                     ["id"]=r["id"].ToString()!,
@@ -713,14 +758,14 @@ public static partial class SalBankFiles
                     ["allocationId"]=r["allocation_id"].ToString()!,
                     ["erpRiderId"]=erpRider,
                     ["appCode"]=r["app_code"].ToString()!,
-                    ["iqama"]=meta.Iqama,
-                    ["name"]=meta.Name,
-                    ["iban"]=meta.Iban,
+                    ["iqama"]=frozenIqama,
+                    ["name"]=frozenName,
+                    ["iban"]=frozenIban,
                     ["bank"]=shortCode,
                     ["bankShortCode"]=shortCode,
-                    ["bankNameAr"]=meta.BankNameAr,
-                    ["address"]=meta.Address,
-                    ["ibanUnverified"]=meta.IbanUnverified,
+                    ["bankNameAr"]=bankNameAr,
+                    ["address"]=frozenAddress,
+                    ["ibanUnverified"]=frozenUnverified,
                     ["amount"]=J.Money(Convert.ToDecimal(r["amount"])),
                     ["status"]=Convert.ToInt32(r["status"])==1?"active":"cancelled"
                 });
@@ -770,6 +815,9 @@ public static partial class SalBankFiles
             }
         }
 
+        int exportedCount=sheetRows.Count;
+        if(excludedRows!=null){excludedCountStored=excludedRows.Count;excludedTotalStored=J.Money(excludedRows.OfType<JsonObject>().Sum(e=>e.N("balance")));}
+
         return new JsonObject
         {
             ["id"]=id,
@@ -798,9 +846,13 @@ public static partial class SalBankFiles
             ["payoutLabel"]=payoutLabel,
             ["currencyCode"]=currency,
             ["totalAmount"]=totalAmount,
-            ["lineCount"]=lines.Count,
-            ["riderCount"]=sheetRows.Count,
+            ["lineCount"]=exportedCount,
+            ["riderCount"]=exportedCount,
+            ["control"]=new JsonObject{["riderCount"]=exportedCount,["totalAmount"]=totalAmount},
+            ["confirmUnverifiedIbans"]=confirmUnverifiedStored,
             ["unverifiedIbanCount"]=lines.OfType<JsonObject>().Count(l=>l.B("ibanUnverified")),
+            ["excludedCount"]=excludedCountStored,
+            ["excludedTotal"]=excludedTotalStored,
             ["approvedBy"]=approvedBy,
             ["approvedAt"]=approvedAt,
             ["sentBy"]=sentBy,
@@ -810,7 +862,7 @@ public static partial class SalBankFiles
             ["lines"]=lines,
             ["sheetRows"]=sheetRows,
             ["settlements"]=settlements,
-            ["excludedRows"]=excludedRows??new JsonArray(),
+            ["excludedRows"]=persistedExcluded,
             ["allowedActions"]=actions
         };
     }
@@ -963,41 +1015,13 @@ public static partial class SalBankFiles
     static (RiderMeta Meta,string? ExcludeReason) ResolveRiderMeta(string erpRiderId,string companyId,Dictionary<string,JsonObject> riderDocs,Dictionary<string,string> defaultRegByCompany,bool confirmUnverifiedIbans=false)
     {
         riderDocs.TryGetValue(erpRiderId,out var doc);
-        string iqama=doc?.S("iqama")??"";
-        string name=doc?.S("name",doc.S("nameAr"))??"";
-        string verified=Regex.Replace((doc?.S("verifiedIban")??"").ToUpperInvariant(),@"\s","");
-        string rawIban=Regex.Replace((doc?.S("iban")??"").ToUpperInvariant(),@"\s","");
-        string address=doc?.S("address",doc.S("nationalAddress"))??"";
         string regId=doc?.S("registrationId")??"";
         if(regId==""&&defaultRegByCompany.TryGetValue(companyId,out var defReg))regId=defReg;
-
-        bool iqamaOk=Regex.IsMatch(iqama,@"\A[12][0-9]{9}\z");
-        string iban="";
-        bool unverified=false;
-        if(verified!="")
-        {
-            if(BankPayrollFiles.ValidIban(verified))iban=verified;
-            else if(rawIban!=""&&BankPayrollFiles.ValidIban(rawIban)){iban=rawIban;unverified=true;}
-            else return (new(erpRiderId,iqama,name,verified,"","","",regId,false),"iban_invalid");
-        }
-        else if(rawIban!="")
-        {
-            if(!BankPayrollFiles.ValidIban(rawIban))
-                return (new(erpRiderId,iqama,name,rawIban,"","","",regId,false),"iban_invalid");
-            iban=rawIban;unverified=true;
-        }
-
-        if(!iqamaOk)return (new(erpRiderId,iqama,name,iban,"","","",regId,unverified),"iqama_invalid");
-        if(name=="")return (new(erpRiderId,iqama,name,iban,"","","",regId,unverified),"name_missing");
-        if(iban=="")return (new(erpRiderId,iqama,name,"","","","",regId,false),"iban_missing");
-        if(unverified&&!confirmUnverifiedIbans)
-            return (new(erpRiderId,iqama,name,iban,"","","",regId,true),"iban_unverified");
-        if(address=="")return (new(erpRiderId,iqama,name,iban,"","","",regId,unverified),"address_missing");
-
-        var (code,nameAr)=BankPayrollFiles.ExportBank(iban);
+        string iqama=doc?.S("iqama")??"";
+        var(reason,iban,unverified,name,address,code,nameAr)=BankPayrollFiles.ClassifyRiderForBankFile(doc,iqama,confirmUnverifiedIbans);
         string explicitBank=doc?.S("bank")??"";
         string shortCode=code!=""?code:explicitBank;
-        return (new(erpRiderId,iqama,name,iban,shortCode,nameAr,address,regId,unverified),null);
+        return (new(erpRiderId,iqama,name,iban,shortCode,nameAr,address,regId,unverified),reason);
     }
 
     static bool HasOpenSharedHold(DbConnection c,DbTransaction? tx,string erpRiderId,string periodMonth)

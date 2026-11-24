@@ -51,7 +51,37 @@ public static class BankPayrollFiles
         if(row["amount"] is not JsonValue amount||!amount.TryGetValue<decimal>(out var money)||money<=0||money!=J.Money(money))errors.Add("invalid_amount_positive_2dp_required");
         if(!Regex.IsMatch(row.S("iqama"),@"\A[12][0-9]{9}\z"))errors.Add("invalid_iqama");
         if(row.S("name")=="")errors.Add("missing_name");
+        if(row.S("address")=="")errors.Add("missing_address");
         return errors;
+    }
+    /// <summary>TRIAL8 shared rider bank-meta rule (salary bank file + treasury export). Never invents fields.
+    /// Prefer verifiedIban; raw iban only with <paramref name="confirmUnverifiedIbans"/>.</summary>
+    public static (string? Reason,string Iban,bool Unverified,string Name,string Address,string BankCode,string BankNameAr) ClassifyRiderForBankFile(JsonObject? rider,string iqamaFallback="",bool confirmUnverifiedIbans=false)
+    {
+        string iqama=rider?.S("iqama",iqamaFallback)??iqamaFallback;
+        string name=rider?.S("name",rider?.S("nameAr")??"")??"";
+        string address=rider?.S("address",rider?.S("nationalAddress")??"")??"";
+        string verified=NormalizeIban(rider?.S("verifiedIban")??"");
+        string raw=NormalizeIban(rider?.S("iban")??"");
+        string iban="";bool unverified=false;
+        if(verified!="")
+        {
+            if(ValidIban(verified))iban=verified;
+            else if(raw!=""&&ValidIban(raw)){iban=raw;unverified=true;}
+            else return("iban_invalid",verified,false,name,address,"","");
+        }
+        else if(raw!="")
+        {
+            if(!ValidIban(raw))return("iban_invalid",raw,false,name,address,"","");
+            iban=raw;unverified=true;
+        }
+        if(!Regex.IsMatch(iqama,@"\A[12][0-9]{9}\z"))return("iqama_invalid",iban,unverified,name,address,"","");
+        if(name=="")return("name_missing",iban,unverified,name,address,"","");
+        if(iban=="")return("iban_missing","",false,name,address,"","");
+        if(unverified&&!confirmUnverifiedIbans)return("iban_unverified",iban,true,name,address,"","");
+        if(address=="")return("address_missing",iban,unverified,name,address,"","");
+        var(code,nameAr)=ExportBank(iban);
+        return(null,iban,unverified,name,address,code,nameAr);
     }
     private static (string Sponsor,string From,string To) Request(ClaimsPrincipal user,JsonObject input)
     {
@@ -62,7 +92,7 @@ public static class BankPayrollFiles
     private static string Kind((string Sponsor,string From,string To) request)=>"bank-file:"+request.Sponsor+":"+request.From+":"+request.To;
     // M1: prefer the stage-6 remainder from approved pay cycles (after instalment confirmation).
     // Legacy runs still use the posted 2110/212103 closing payable. Never use unapproved previews or 121x debt.
-    private static (JsonArray Payable,JsonArray Excluded,string Basis) Rows(DbConnection c,DbTransaction? tx,ClaimsPrincipal user,(string Sponsor,string From,string To) request)
+    private static (JsonArray Payable,JsonArray Excluded,string Basis) Rows(DbConnection c,DbTransaction? tx,ClaimsPrincipal user,(string Sponsor,string From,string To) request,bool confirmUnverifiedIbans=false)
     {
         var riders=Store.List(c,"rider",tx).GroupBy(r=>r.S("iqama",r.S("id"))).ToDictionary(g=>g.Key,g=>g.First());
         var amounts=new Dictionary<string,decimal>(StringComparer.Ordinal);
@@ -116,9 +146,13 @@ public static class BankPayrollFiles
                 excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]=balance==0?"zero_balance":"rider_owes_company"});
                 continue;
             }
-            string iban=NormalizeIban(rider.S("verifiedIban"));if(iban=="")iban=NormalizeIban(rider.S("iban"));
-            string code=iban.Length>=6?iban.Substring(4,2):"";
-            var row=new JsonObject{["bank"]=Banks.GetValueOrDefault(code,""),["iban"]=iban,["amount"]=balance,["notes"]="",["name"]=rider.S("name"),["iqama"]=iqama,["address"]=rider.S("address",rider.S("nationalAddress"))};
+            var(reason,iban,unverified,name,address,code,bankName)=ClassifyRiderForBankFile(rider,iqama,confirmUnverifiedIbans);
+            if(reason!=null)
+            {
+                excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=name,["balance"]=balance,["reason"]=reason,["ibanUnverified"]=unverified});
+                continue;
+            }
+            var row=new JsonObject{["bank"]=code,["iban"]=iban,["amount"]=balance,["notes"]="",["name"]=name,["iqama"]=iqama,["address"]=address,["ibanUnverified"]=unverified};
             row["errors"]=Validate(row);rows.Add(row);
         }
         return(rows,excluded,basis);
@@ -181,8 +215,10 @@ public static class BankPayrollFiles
     // BR §38.5: mark parallel-run bank files «لا يُرسل» outside the CSV body (filename, preview fields, audit), never inside BOM/CRLF/header/rows.
     public static JsonObject Preview(DbConnection c,ClaimsPrincipal user,JsonObject input)
     {
-        var request=Request(user,input);var(rows,excluded,basis)=Rows(c,null,user,request);bool comparison=ComparisonOnly(input);
-        return new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To,["basis"]=basis,["comparisonOnly"]=comparison,["doNotSend"]=comparison,["doNotSendMark"]=comparison?DoNotSendMark:"",["rows"]=rows,["excludedRows"]=excluded,["previewToken"]=FinancialImports.Issue(c,Kind(request)+(comparison?":parallel":""),rows,user.Identity?.Name??""),["expiresInSeconds"]=1200,["canExport"]=rows.Count>0&&rows.OfType<JsonObject>().All(r=>r["errors"]!.AsArray().Count==0)};
+        var request=Request(user,input);bool confirmUnverified=input.B("confirmUnverifiedIbans");
+        var(rows,excluded,basis)=Rows(c,null,user,request,confirmUnverified);bool comparison=ComparisonOnly(input);
+        decimal excludedTotal=J.Money(excluded.OfType<JsonObject>().Sum(e=>e.N("balance")));
+        return new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To,["basis"]=basis,["comparisonOnly"]=comparison,["doNotSend"]=comparison,["doNotSendMark"]=comparison?DoNotSendMark:"",["rows"]=rows,["excludedRows"]=excluded,["excludedCount"]=excluded.Count,["excludedTotal"]=excludedTotal,["confirmUnverifiedIbans"]=confirmUnverified,["unverifiedIbanCount"]=rows.OfType<JsonObject>().Count(r=>r.B("ibanUnverified")),["previewToken"]=FinancialImports.Issue(c,Kind(request)+(comparison?":parallel":""),rows,user.Identity?.Name??""),["expiresInSeconds"]=1200,["canExport"]=rows.Count>0&&rows.OfType<JsonObject>().All(r=>r["errors"]!.AsArray().Count==0)};
     }
     /// <summary>M1: when the file is marked sent (not «لا يُرسل»), post Dr 212103 / Cr bank for the exported amounts.</summary>
     static void PostPayout(DbConnection c,DbTransaction tx,ClaimsPrincipal user,(string Sponsor,string From,string To) request,IReadOnlyList<JsonObject> rows,string actor,string bankAccount)
@@ -204,7 +240,7 @@ public static class BankPayrollFiles
     public static Download Export(DbConnection c,DbTransaction tx,ClaimsPrincipal user,JsonObject input)
     {
         var request=Request(user,input);string actor=user.Identity?.Name??"";bool comparison=ComparisonOnly(input);
-        var(baseline,excluded,_)=Rows(c,tx,user,request);
+        var(baseline,excluded,_)=Rows(c,tx,user,request,input.B("confirmUnverifiedIbans"));
         FinancialImports.Verify(c,tx,new JsonObject{["rows"]=baseline.DeepClone(),["fingerprint"]=input.S("previewToken"),["confirm"]=true},Kind(request)+(comparison?":parallel":""),actor);
         var rows=input["rows"] as JsonArray??throw new ApiError("صفوف التصدير مطلوبة.");
         var excludedIds=excluded.OfType<JsonObject>().Select(row=>row.S("iqama")).ToHashSet(StringComparer.Ordinal);

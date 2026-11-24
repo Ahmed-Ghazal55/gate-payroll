@@ -20,6 +20,14 @@ public static partial class Debts
     ];
 
     public static decimal PaidAmount(JsonObject debt)=>debt.N("paidAmount",Math.Max(0m,debt.N("totalAmount")-debt.N("remainingBalance")-debt.N("waivedAmount")));
+    /// <summary>TRIAL8: opening-balance / import never invents a rider name. Missing name → reject (not «مندوب …»).</summary>
+    public static string RequireOpeningRiderName(string rawName,string? existingName)
+    {
+        string pick=string.IsNullOrWhiteSpace(rawName)?(existingName??""):rawName.Trim();
+        string clean=new string(pick.Where(ch=>!char.IsDigit(ch)).ToArray()).Trim();
+        J.Need(!string.IsNullOrWhiteSpace(clean),"اسم المندوب مطلوب؛ لا يُنشأ اسم افتراضي.",409);
+        return pick.Trim();
+    }
     public static void DemandDisburseAvailable()=>DebtLedger.DemandDisburseAvailable();
     public static void DemandLegacyCollectWaiverClosed(decimal waived)=>
         J.Need(waived<=0,"إعفاء التحصيل الفردي عبر الحساب القديم ٥٢٠٢ غير متاح؛ استخدم إعفاء المديونية (D11) على دفتر الديون.",409);
@@ -783,9 +791,7 @@ public static partial class Debts
                 {
                     string Cell(int idx) => idx < r.Count ? r[idx].Trim() : "";
                     string iqama = DirectoryProfiles.Iqama(Cell(0));
-                    string name = string.IsNullOrWhiteSpace(Cell(1))
-                        ? (existingRiders.TryGetValue(iqama, out var exR) ? exR.S("name") : $"مندوب {iqama}")
-                        : Cell(1);
+                    string name = RequireOpeningRiderName(Cell(1), existingRiders.TryGetValue(iqama, out var exR) ? exR.S("name") : null);
                     string debtorType = Cell(2).Equals("Employee", StringComparison.OrdinalIgnoreCase) || Cell(2).Contains("موظف") ? "Employee" : "Rider";
 
                     string rawCat=Cell(3);J.Need(rawCat!="","كود البند مطلوب.");
@@ -972,8 +978,7 @@ public static partial class Debts
                 var existingRider = Store.Get(c, iqama, "rider", tx);
                 if (existingRider == null)
                 {
-                    string cleanName = new string(riderName.Where(ch => !char.IsDigit(ch)).ToArray()).Trim();
-                    if (string.IsNullOrWhiteSpace(cleanName)) cleanName = "مندوب رصيد افتتاحي";
+                    string cleanName = RequireOpeningRiderName(riderName, null);
                     var newRider = RiderDirectory.Normalize(new JsonObject
                     {
                         ["iqama"] = iqama,
