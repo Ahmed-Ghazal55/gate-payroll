@@ -56,36 +56,16 @@ public static partial class AccessPolicy
                    ||(a.S("action")=="approval.self_exception"&&string.Equals(actor.Identity.Name,"ghazal",StringComparison.OrdinalIgnoreCase)
                       &&string.CompareOrdinal(a.S("approvalExceptionUntil"),used.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"))>=0)));
         }
+        // TRIAL8: one shared self-approval rule for every role (Admin/SystemAdmin) and every request (dual and non-dual).
+        // Allowed only with the explicit approvals.approve_own claim. Never on money-out (including dual bank/payment scopes).
         bool moneyOut=IsMoneyOutDocument(record,operation,scope);
-        bool dualMoneyOut=scope is ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or ApprovalsArea.DualSharedRiderRelease;
-        // TRIAL6/7: explicit approve-own — claim only (Has() treats Admin as all-perms; this stays OFF by default). Never money-out.
-        if(HasApproveOwnClaim(actor)&&!moneyOut)
-        {
-            if(tx!=null)
-            {
-                J.Need(c!=null&&record!=null&&record.S("id")!="","اعتماد المستند الذاتي يحتاج مستندًا وسجل مراجعة.",409);
-                record!["selfApprovedException"]=true;record["selfApproved"]=true;
-                Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.approve_own",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["scope"]=scope??"",["selfApprovedException"]=true,["selfApproved"]=true,["badge"]="approve_own"},tx);
-            }
-            return true;
-        }
-        // TRIAL7 X2 / grok-TRIAL6: draft that credits bank/cash (or reconKind=payment) without a dual scope → always two people.
-        // Dual money-out scopes still allow SystemAdmin / dual bypass grant (M-0667 / M-0672) — audited below.
-        if(moneyOut&&!dualMoneyOut)return false;
-        // BR §35 / WC1H: self-approvals need a dated bypass grant whose scope explicitly matches,
-        // or SystemAdmin (M-0667) — every use is audited. Omitting scope is never a wildcard.
-        bool systemAdmin=actor.IsInRole("SystemAdmin");
-        if(!systemAdmin&&(string.IsNullOrWhiteSpace(scope)||c==null))return false;
-        var grant=c!=null?ActiveBypassGrant(c,tx,actor.Identity!.Name!,scope):null;
-        if(!systemAdmin&&grant==null)return false;
+        if(moneyOut)return false;
+        if(!HasApproveOwnClaim(actor))return false;
         if(tx!=null)
         {
-            J.Need(c!=null&&record!=null&&record.S("id")!="","استثناء الاعتماد يحتاج مستندًا وسجل مراجعة.",409);
-            record!["selfApprovedException"]=true;
-            grant??=scope!=null?ActiveBypassGrant(c!,tx,actor.Identity!.Name!,scope):ActiveBypassGrant(c!,tx,actor.Identity!.Name!);
-            string reason=systemAdmin?"system-admin-default":(grant?.S("reason")??actor.FindFirstValue("approvalBypassReason")??"");
-            string badge=systemAdmin?"system_admin":"bypass_maker_checker";
-            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant?.S("id")??"",["scope"]=grant?.S("scope",scope??"")??(scope??""),["reason"]=reason,["approvalBypassUntil"]=grant?.S("to")??actor.FindFirstValue("approvalBypassUntil")??"",["selfApprovedException"]=true,["badge"]=badge},tx);
+            J.Need(c!=null&&record!=null&&record.S("id")!="","اعتماد المستند الذاتي يحتاج مستندًا وسجل مراجعة.",409);
+            record!["selfApprovedException"]=true;record["selfApproved"]=true;
+            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.approve_own",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["scope"]=scope??"",["selfApprovedException"]=true,["selfApproved"]=true,["badge"]="approve_own"},tx);
         }
         return true;
     }

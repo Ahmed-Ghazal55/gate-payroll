@@ -313,10 +313,10 @@ public static partial class AccessPolicy
         string? dual=dualPermission??ApprovalsArea.ResolveDual(request);
         if(ApprovalsArea.RequiresDual(dual))Demand(actor,dual!);
         string maker=request.S("requestedBy",request.S("createdBy"));
-        // BR §35 / M-0672: maker≠checker only for dedicated dual money-out / shared-rider codes.
-        // M-0667: SystemAdmin self-approval still goes through Independent so the monthly audit report records it.
-        if(ApprovalsArea.RequiresDual(dual)||actor.IsInRole("SystemAdmin"))
-            J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request,scope:dual),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
+        // TRIAL8: every self-approval (dual and non-dual, every role including SystemAdmin) uses one Independent rule
+        // (explicit approvals.approve_own only; never money-out).
+        if(SamePerson(actor,maker))
+            J.Need(Independent(actor,maker,operation,c,tx,record??request,scope:dual),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية اعتماد مستنداته بنفسه.",403);
         // Bypass lifts maker≠checker only — never department, rank, approval limit, or company/platform scope.
         if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))
             throw new ApiError("القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
