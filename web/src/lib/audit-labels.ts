@@ -46,8 +46,10 @@ const AUDIT_ACTION_LABELS_AR: Record<string, string> = {
   "debt.collected": "تحصيل مديونية",
   "debt.created": "إنشاء مديونية",
   "debt.internet_advance_paid": "صرف سلفة نت",
+  "debt.opening_approved": "اعتماد رصيد افتتاحي للمديونية",
   "debt.opening_imported": "استيراد أرصدة افتتاحية للمديونيات",
   "debt.opening_reconciled": "مطابقة افتتاح مديونية",
+  "debt.opening_rejected": "رفض رصيد افتتاحي للمديونية",
   "debt.rescheduled": "إعادة جدولة مديونية",
   "debt.sheet.inactive_rider_staged": "تجهيز مديونية لمندوب غير نشط",
   "debt.sheet.opening_staged": "تجهيز افتتاح من شيت المديونيات",
@@ -58,6 +60,7 @@ const AUDIT_ACTION_LABELS_AR: Record<string, string> = {
   "finance.adjustment_drafted": "مسودة تسوية مالية",
   "finance.jahez_fee": "رسوم جاهز",
   "finance.manual_approved": "اعتماد قيد يدوي",
+  "finance.manual_cancelled": "إلغاء مسودة قيد يدوي",
   "finance.manual_deleted": "حذف قيد يدوي",
   "finance.manual_drafted": "مسودة قيد يدوي",
   "finance.manual_permissions_seeded": "تهيئة صلاحيات القيود اليدوية",
@@ -183,8 +186,18 @@ const AUDIT_ACTION_LABELS_AR: Record<string, string> = {
   "submission.received": "استلام رد نموذج",
   "submission.rejected": "رفض رد نموذج",
   "supplier.paid": "صرف لمورد",
+  "treasury.bank_adjust_rejected": "رفض تسوية بنكية",
+  "treasury.bank_adjust_requested": "طلب تسوية بنكية",
+  "treasury.bank_statement_auto_matched": "مطابقة كشف بنك تلقائية",
   "treasury.legacy_cash_allocated": "توزيع نقد قديم",
   "treasury.opening_reconciled": "مطابقة افتتاح خزينة",
+  "sal.rider_request_approved": "اعتماد طلب إيقاف أو خصم",
+  "sal.rider_request_created": "إنشاء طلب إيقاف أو خصم",
+  "sal.rider_request_rejected": "رفض طلب إيقاف أو خصم",
+  "sal.salary_self_approved": "اعتماد راتب من نفس المستخدم",
+  "payment.document.approve": "اعتماد مستند دفع",
+  "payment.document.created": "إنشاء مستند دفع",
+  "payment.document.submit": "تقديم مستند دفع",
 };
 
 const ACTOR_LABELS_AR: Record<string, string> = {
@@ -200,6 +213,14 @@ const AUDIT_ACTION_PREFIX_LABELS_AR: Array<{ prefix: string; label: string }> = 
   { prefix: 'submission.', label: 'عملية على رد نموذج' },
   { prefix: 'approval.', label: 'عملية اعتماد' },
   { prefix: 'platform.', label: 'عملية منصة' },
+  { prefix: 'sal.', label: 'عملية رواتب (مسار التبويبات)' },
+  { prefix: 'treasury.', label: 'عملية خزينة' },
+  { prefix: 'payment.', label: 'عملية مدفوعات' },
+  { prefix: 'mudad.', label: 'عملية مدد' },
+  { prefix: 'task.', label: 'مهمة موظفين' },
+  { prefix: 'notify.', label: 'إشعار نظام' },
+  { prefix: 'recurring_', label: 'مستفيد دوري' },
+  { prefix: 'jahez.day_', label: 'يوم مطابقة جاهز' },
 ];
 
 export function auditActionLabelAr(action: string | null | undefined): string {

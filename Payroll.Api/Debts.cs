@@ -728,6 +728,8 @@ public static partial class Debts
                 """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@on",DateTime.UtcNow.ToString("yyyy-MM-dd")),
                 ("@at",DateTimeOffset.UtcNow.ToString("O")),("@ref","bulk-collect"),("@diff","تحصيل مجمع"),
                 ("@bc",items.Count),("@h",fileHash),("@u",userId));
+            // FLOW1: emit Store.Audit so Notifications.OnAudit / audit labels can see the batch.
+            Store.Audit(c,tx,"debt.bulk_collect","bulk-collect",ctx.User.Identity!.Name!);
             return new
             {
                 processedRows = items.Count,
@@ -1089,6 +1091,8 @@ public static partial class Debts
                 """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@on",DateTime.UtcNow.ToString("yyyy-MM-dd")),
                 ("@at",DateTimeOffset.UtcNow.ToString("O")),("@ref","opening-import"),
                 ("@diff",$"rows:{items.Count},rem:{totalRemainingImported}"),("@bc",items.Count),("@h",fileHash),("@u",userId));
+            // FLOW1: Notifications.OnAudit watches debt.opening_imported — emit it (change_log alone is not enough).
+            Store.Audit(c,tx,"debt.opening_imported","opening-import",ctx.User.Identity!.Name!);
             return new
             {
                 importedCount = createdDebts.Count,
