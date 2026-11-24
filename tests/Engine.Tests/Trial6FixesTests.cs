@@ -62,9 +62,10 @@ public sealed class Trial6FixesTests
         });
         var view=f.Store.Read(c=>TreasuryBankStatementsApi.View(c,null,Maker,statementId));
         Assert.AreEqual(1m,view.N("timingCount"));
-        Assert.AreEqual(1m,view.N("unmatchedCount"));
+        Assert.AreEqual(0m,view.N("unmatchedCount")); // TRIAL7 / grok-TRIAL6: timing only in timingCount
         Assert.AreEqual(0m,view.N("matchedCount"));
         Assert.AreEqual(50m,view.N("bankClosingBalance"));
+        Assert.AreEqual(50m,view.N("reconciledBalance")); // opening + timing when residual unmatched=0
         var line=view["lines"]!.AsArray().OfType<JsonObject>().Single(l=>l.S("id")==lineId);
         Assert.AreEqual("timing",line.S("disposition"));
         Assert.IsTrue(line["allowedActions"]!.AsArray().Any(a=>a?.ToString()=="clear_timing")||line.B("timing"));
@@ -231,6 +232,7 @@ public sealed class Trial6FixesTests
             Assert.AreEqual(journalId,opened.S("originalJournalId"));
             Assert.AreEqual("reverse",opened.S("formAction"));
             Assert.IsTrue(opened["prefill"] is JsonObject);
+            Assert.IsTrue(opened.S("documentId").StartsWith("manual-journal:",StringComparison.Ordinal),"TRIAL7: reversing draft created");
             // Posted journal untouched (still status 2, no edit).
             Assert.AreEqual(2,Convert.ToInt32(SchemaSql.Scalar(c,tx,$"SELECT status FROM {SchemaSql.Q(c,"fin","journal")} WHERE id=@id",("@id",journalId))));
             return true;
