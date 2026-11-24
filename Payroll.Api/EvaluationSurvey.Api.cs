@@ -112,6 +112,7 @@ public static partial class EvaluationSurvey
             schema["sectionKey"] = section.S("key");
             schema["sectionKind"] = section.S("kind");
             schema["includeFinanceCard"] = section.S("kind") == "app";
+            schema["includeSystemsCard"] = section.S("kind") == "app";
             schema["financeFactors"] = Array(new[] {
                 Label("responsiveness", "تجاوب القسم المالي مع استفساراتك وشكاواك", "Finance responsiveness", "مالیہ کا جواب"),
                 Label("accuracy", "احتساب الراتب بدون أخطاء", "Salary accuracy", "تنخواہ کی درستگی"),
@@ -120,6 +121,18 @@ public static partial class EvaluationSurvey
             });
             schema["financeReasons"] = Array(new[] {
                 Label("not_dealt_finance", "لم أتعامل مع القسم المالي", "Did not deal with finance", "مالیہ سے معاملہ نہیں ہوا")
+            });
+            schema["systemsTitleAr"] = "تقييم الأنظمة والبيانات";
+            schema["systemsTitleEn"] = "Systems and data";
+            schema["systemsTitleUr"] = "نظام اور ڈیٹا";
+            schema["systemsFactors"] = Array(new[] {
+                Label("formsEase", "سهولة النماذج والروابط اللي بتوصلك", "Ease of forms and links that reach you", "فارم اور لنکس کی آسانی"),
+                Label("dataClarity", "وضوح البيانات والجداول المشاركة معك", "Clarity of shared data and tables", "شیئر کردہ ڈیٹا اور جدولوں کی وضاحت"),
+                Label("helpfulness", "دور الأنظمة في تسهيل شغلك", "How systems help your work", "نظام کا کام آسان بنانا"),
+                Label("responsiveness", "الاستجابة لمقترحاتك وشكاواك وطلباتك", "Response to your suggestions, complaints and requests", "تجاویز، شکایات اور درخواستوں کا جواب")
+            });
+            schema["systemsReasons"] = Array(new[] {
+                Label("not_used_forms_data", "لم أستخدم نماذج أو بيانات الشركة", "Did not use company forms or data", "کمپنی کے فارم یا ڈیٹا استعمال نہیں کیے")
             });
         }
         return schema;
@@ -152,11 +165,22 @@ public static partial class EvaluationSurvey
             _ => f
         }), true)));
         columns.Add(new("مالية: السبب")); columns.Add(new("مالية: ملاحظات")); columns.Add(new("مالية: مرفقات", true)); columns.Add(new("مالية: شكوى"));
+        columns.Add(new("أنظمة: العام", true));
+        columns.AddRange(SystemsFactors.Select(f => new ExcelColumn("أنظمة: " + (f switch
+        {
+            "formsEase" => "سهولة النماذج",
+            "dataClarity" => "وضوح البيانات",
+            "helpfulness" => "تسهيل الشغل",
+            "responsiveness" => "الاستجابة",
+            _ => f
+        }), true)));
+        columns.Add(new("أنظمة: السبب")); columns.Add(new("أنظمة: ملاحظات")); columns.Add(new("أنظمة: مرفقات", true)); columns.Add(new("أنظمة: شكوى"));
         columns.AddRange(apps.Select(a => new ExcelColumn("منصة العمل: " + a)));
         var cells = new List<object?[]>();
         foreach (var row in Responses(c, user, id, section: section))
         {
             var finance = row["financeAnswer"] as JsonObject;
+            var systems = row["systemsAnswer"] as JsonObject;
             // Prefer Arabic section title; never export the raw sectionKey (app:Ninja / dept:hr).
             string sectionLabel = row.S("sectionTitle");
             if (sectionLabel == "" && row.S("sectionKey") != "")
@@ -167,8 +191,11 @@ public static partial class EvaluationSurvey
                 sectionLabel = match?.S("title") ?? row.S("sectionKey");
             }
             bool financeWritten = false;
+            bool systemsWritten = false;
             object? FinanceVal(Func<JsonObject, object?> read) =>
                 finance == null || financeWritten ? null : read(finance);
+            object? SystemsVal(Func<JsonObject, object?> read) =>
+                systems == null || systemsWritten ? null : read(systems);
             foreach (bool staff in new[] { true, false })
             foreach (var card in row[staff ? "staffAnswers" : "appAnswers"]!.AsArray().OfType<JsonObject>())
             {
@@ -182,7 +209,7 @@ public static partial class EvaluationSurvey
                 values.AddRange(StaffDimensions.Select(d => (object?)(card["ratings"]?[d] == null ? null : card["ratings"]!.N(d))));
                 values.Add(card.S("notes")); values.Add(card.B("complaint") ? "نعم" : "لا"); values.Add(card.S("complaintDetails"));
                 values.AddRange(Factors.Select(f => (object?)(card["factorRatings"]?[f] == null ? null : card["factorRatings"]!.N(f))));
-                // Finance columns once per reply: first card row only (later rows stay blank so column sums stay correct).
+                // Finance / systems columns once per reply: first card row only (later rows stay blank so column sums stay correct).
                 values.Add(FinanceVal(fin => fin["overall"] == null ? null : fin.N("overall")));
                 values.AddRange(FinanceFactors.Select(f => FinanceVal(fin => fin["factorRatings"]?[f] == null ? null : fin["factorRatings"]!.N(f))));
                 values.Add(FinanceVal(fin => fin.S("reason")));
@@ -190,6 +217,13 @@ public static partial class EvaluationSurvey
                 values.Add(FinanceVal(fin => fin["attachments"] is JsonArray a ? a.Count : 0));
                 values.Add(FinanceVal(fin => fin.B("complaint") ? "نعم" : "لا"));
                 if (finance != null) financeWritten = true;
+                values.Add(SystemsVal(sys => sys["overall"] == null ? null : sys.N("overall")));
+                values.AddRange(SystemsFactors.Select(f => SystemsVal(sys => sys["factorRatings"]?[f] == null ? null : sys["factorRatings"]!.N(f))));
+                values.Add(SystemsVal(sys => sys.S("reason")));
+                values.Add(SystemsVal(sys => sys.S("notes")));
+                values.Add(SystemsVal(sys => sys["attachments"] is JsonArray a ? a.Count : 0));
+                values.Add(SystemsVal(sys => sys.B("complaint") ? "نعم" : "لا"));
+                if (systems != null) systemsWritten = true;
                 values.AddRange(apps.Select(a => (object?)(Strings(row, "workApps").Contains(a) ? "نعم" : "")));
                 cells.Add(values.ToArray());
             }
@@ -222,6 +256,8 @@ public static partial class EvaluationSurvey
             store.Read(c => AppScorecard(c, ctx.User, id, city, app, department, supervisorId, nationalityId, section))).WithTags("Forms and responses").WithSummary("Per-app evaluation scorecard");
         api.MapGet("/forms/evaluations/rounds/{id}/scorecards/finance", (string id, string? city, string? app, string? nationalityId, string? section, HttpContext ctx) =>
             store.Read(c => FinanceScorecard(c, ctx.User, id, city, app, nationalityId, section))).WithTags("Forms and responses").WithSummary("Finance-card evaluation scorecard per app");
+        api.MapGet("/forms/evaluations/rounds/{id}/scorecards/systems", (string id, string? city, string? app, string? nationalityId, string? section, HttpContext ctx) =>
+            store.Read(c => SystemsScorecard(c, ctx.User, id, city, app, nationalityId, section))).WithTags("Forms and responses").WithSummary("Systems-card evaluation scorecard per app");
         api.MapGet("/forms/evaluations/rounds/{id}/scorecards/heatmap", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section, HttpContext ctx) =>
             store.Read(c => SupervisorDimensionHeatmap(c, ctx.User, id, city, app, department, supervisorId, nationalityId, section))).WithTags("Forms and responses").WithSummary("Supervisor × dimension heatmap");
         api.MapGet("/forms/evaluations/rounds/{id}/scorecards/city-app", (string id, string? city, string? app, string? department, string? supervisorId, string? nationalityId, string? section, HttpContext ctx) =>

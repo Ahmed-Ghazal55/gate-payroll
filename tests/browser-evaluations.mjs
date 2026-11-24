@@ -473,7 +473,18 @@ try {
   await sectionPage.locator('[data-testid="eval-finance-card"]').waitFor();
   await sectionPage.locator('[data-finance-star="4"]').click();
   await sectionPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
+  await sectionPage.locator('[data-testid="eval-systems-card"]').waitFor();
+  assert.match(
+    await sectionPage.locator('[data-testid="eval-systems-card"]').textContent(),
+    /الأنظمة والبيانات|Systems and data|نظام اور ڈیٹا/
+  );
+  await sectionPage.locator('[data-systems-star="5"]').click();
+  await sectionPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
   await sectionPage.locator('[data-testid="eval-section-review"]').waitFor();
+  assert.match(
+    await sectionPage.locator('[data-testid="eval-complaint-reminder"]').textContent(),
+    /سرية|confidential|خفیہ/i
+  );
   await sectionPage.getByRole('button', { name: /تأكيد|Confirm|تصدیق|إرسال/i }).click();
   await sectionPage.locator('[data-testid="eval-section-done"]').waitFor();
 

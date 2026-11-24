@@ -16,14 +16,17 @@ public static partial class ApiContracts
         ["cities"] = A(S()), ["apps"] = A(S()), ["staff"] = A(EvaluationStaff()), ["identityFields"] = A(EvaluationLabel()),
         ["staffRatingMin"] = N(), ["staffRatingMax"] = N(), ["appRatingMin"] = N(), ["appRatingMax"] = N(),
         ["staffDimensions"] = A(EvaluationLabel()), ["staffReasons"] = A(EvaluationLabel()), ["appReasons"] = A(EvaluationLabel()), ["factors"] = A(EvaluationLabel()),
-        ["sectionKey"] = S(), ["sectionKind"] = S(), ["includeFinanceCard"] = B(),
+        ["sectionKey"] = S(), ["sectionKind"] = S(), ["includeFinanceCard"] = B(), ["includeSystemsCard"] = B(),
         ["financeFactors"] = A(EvaluationLabel()), ["financeReasons"] = A(EvaluationLabel()),
+        ["systemsTitleAr"] = S(), ["systemsTitleEn"] = S(), ["systemsTitleUr"] = S(),
+        ["systemsFactors"] = A(EvaluationLabel()), ["systemsReasons"] = A(EvaluationLabel()),
         ["factorMode"] = S(), ["editPolicyPending"] = B(), ["uploadsPolicyPending"] = B(), ["allowedActions"] = A(S()),
         ["attachmentLimits"] = O(new() { ["imagesPerCard"] = N(), ["voicePerCard"] = N(), ["voiceSeconds"] = N(), ["replyBytes"] = N() })
     }, "schema", "roundId", "title", "staff", "cities", "apps", "staffDimensions", "staffReasons", "appReasons", "factors", "allowedActions");
     static OpenApiSchema EvaluationCard() => O(new() { ["staffId"] = S(), ["app"] = S(), ["reason"] = S(), ["ratings"] = O(EvaluationSurvey.StaffDimensions.ToDictionary(d => d, _ => (IOpenApiSchema)N())), ["overall"] = N(), ["factorRatings"] = O(EvaluationSurvey.Factors.ToDictionary(d => d, _ => (IOpenApiSchema)N())), ["notes"] = S(), ["complaint"] = B(), ["complaintDetails"] = S(), ["attachments"] = A(Free()) });
     static OpenApiSchema EvaluationFinanceAnswer() => O(new() { ["reason"] = S(), ["overall"] = N(), ["factorRatings"] = O(EvaluationSurvey.FinanceFactors.ToDictionary(d => d, _ => (IOpenApiSchema)N())), ["notes"] = S(), ["complaint"] = B(), ["complaintDetails"] = S(), ["attachments"] = A(Free()) });
-    static OpenApiSchema EvaluationReply() => O(new() { ["id"] = S(), ["roundId"] = S(), ["sectionKey"] = S(), ["sectionTitle"] = S(), ["schemaVersion"] = N(), ["iqama"] = S(), ["name"] = S(), ["city"] = S(), ["nationality"] = S(), ["phone"] = S(), ["workApps"] = A(S()), ["companyId"] = S(), ["identityVerified"] = B(), ["staffAnswers"] = A(EvaluationCard()), ["appAnswers"] = A(EvaluationCard()), ["financeAnswer"] = EvaluationFinanceAnswer(), ["createdAt"] = S() }, "id", "roundId", "iqama", "name", "city", "nationality", "workApps", "staffAnswers", "appAnswers", "createdAt");
+    static OpenApiSchema EvaluationSystemsAnswer() => O(new() { ["reason"] = S(), ["overall"] = N(), ["factorRatings"] = O(EvaluationSurvey.SystemsFactors.ToDictionary(d => d, _ => (IOpenApiSchema)N())), ["notes"] = S(), ["complaint"] = B(), ["complaintDetails"] = S(), ["attachments"] = A(Free()) });
+    static OpenApiSchema EvaluationReply() => O(new() { ["id"] = S(), ["roundId"] = S(), ["sectionKey"] = S(), ["sectionTitle"] = S(), ["schemaVersion"] = N(), ["iqama"] = S(), ["name"] = S(), ["city"] = S(), ["nationality"] = S(), ["phone"] = S(), ["workApps"] = A(S()), ["companyId"] = S(), ["identityVerified"] = B(), ["staffAnswers"] = A(EvaluationCard()), ["appAnswers"] = A(EvaluationCard()), ["financeAnswer"] = EvaluationFinanceAnswer(), ["systemsAnswer"] = EvaluationSystemsAnswer(), ["createdAt"] = S() }, "id", "roundId", "iqama", "name", "city", "nationality", "workApps", "staffAnswers", "appAnswers", "createdAt");
     static OpenApiSchema EvaluationBucket() => O(new()
     {
         ["key"] = S(), ["app"] = S(), ["count"] = N(), ["responseCount"] = N(), ["complaintCount"] = N(), ["ratedCount"] = N(), ["skippedCount"] = N(),

@@ -61,6 +61,17 @@ describe('EV5 S3 section public form', () => {
     assert.match(api, /شكواك سرية ولن تُستخدم ضدك/);
   });
 
+  it('EV6 R2 systems card follows finance in app forms with chips', () => {
+    const flow = readWeb('src/features/forms/EvaluationSectionFlow.tsx');
+    const helpers = readWeb('src/features/forms/evaluation-helpers.ts');
+    assert.match(flow, /includeSystems/);
+    assert.match(flow, /systemsAnswer/);
+    assert.match(flow, /eval-systems-card/);
+    assert.match(flow, /kind: 'systems'/);
+    assert.match(helpers, /systems:/);
+    assert.match(helpers, /النماذج سهلة وواضحة/);
+  });
+
   it('server-hosted rider form redirects section tokens to the web client', () => {
     const rider = readRepo('RiderForm/src/rider-form.ts');
     assert.match(rider, /sectionKey/);

@@ -341,13 +341,18 @@ public static partial class EvaluationSurvey
             reply["sectionKey"] = section.S("key");
             reply["sectionTitle"] = section.S("title");
             if (section.S("kind") == "app")
+            {
                 reply["financeAnswer"] = ParseFinanceAnswer(input, store, c, tx, id, ref replyBytes, attachments);
+                reply["systemsAnswer"] = ParseSystemsAnswer(input, store, c, tx, id, ref replyBytes, attachments);
+            }
         }
         Store.Save(c, ResponseKind, reply, tx);
         foreach (var answer in reply["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => a.B("complaint")))
             CreateComplaint(c, tx, reply, answer);
         if (reply["financeAnswer"] is JsonObject finance && finance.B("complaint"))
-            CreateFinanceComplaint(c, tx, reply, finance);
+            CreateDepartmentComplaint(c, tx, reply, finance, DeptFinance);
+        if (reply["systemsAnswer"] is JsonObject systems && systems.B("complaint"))
+            CreateDepartmentComplaint(c, tx, reply, systems, DeptSystems);
         Store.Audit(c, tx, "evaluation.submitted", id, authenticatedIqama == null ? "public-form" : "rider-app");
         return new() { ["receipt"] = editReceipt, ["allowedActions"] = new JsonArray("edit"), ["editCount"] = 0, ["editsRemaining"] = MaxEdits, ["editPolicyPending"] = false, ["uploadsPolicyPending"] = false };
     }
@@ -367,7 +372,7 @@ public static partial class EvaluationSurvey
         };
         Store.Save(c, RiderAsks.ServiceKind, request, tx);
     }
-    static void CreateFinanceComplaint(DbConnection c, DbTransaction tx, JsonObject reply, JsonObject answer)
+    static void CreateDepartmentComplaint(DbConnection c, DbTransaction tx, JsonObject reply, JsonObject answer, string departmentTarget)
     {
         var titles = RiderAsks.RequestTypeTitles("complaint");
         string app = reply["appAnswers"]!.AsArray().OfType<JsonObject>().Select(a => a.S("app")).FirstOrDefault(a => a != "") ?? "";
@@ -381,7 +386,7 @@ public static partial class EvaluationSurvey
             ["requiresSecondApprover"] = false, ["createdAt"] = reply.S("createdAt"), ["updatedAt"] = reply.S("createdAt"),
             ["payload"] = new JsonObject
             {
-                ["targetKind"] = "department", ["target"] = DeptFinance, ["subject"] = titles.Ar,
+                ["targetKind"] = "department", ["target"] = departmentTarget, ["subject"] = titles.Ar,
                 ["details"] = answer.S("complaintDetails"), ["app"] = app
             },
             ["replies"] = new JsonArray(), ["timeline"] = new JsonArray(new JsonObject { ["at"] = reply.S("createdAt"), ["status"] = "open", ["labelAr"] = titles.Ar, ["labelEn"] = titles.En, ["labelUr"] = titles.Ur, ["byRole"] = "rider" })
@@ -431,7 +436,11 @@ public static partial class EvaluationSurvey
             r["appAnswers"] = Array(r["appAnswers"]!.AsArray().OfType<JsonObject>().Where(a => scope.Contains(a.S("app"))));
             var ids = round["staff"]!.AsArray().OfType<JsonObject>().Where(s => Strings(s, "apps").All(scope.Contains)).Select(s => s.S("id")).ToHashSet();
             r["staffAnswers"] = Array(r["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => ids.Contains(a.S("staffId"))));
-            if (!FinanceAnswerInPlatformScope(r, scope)) r.Remove("financeAnswer");
+            if (!FinanceAnswerInPlatformScope(r, scope))
+            {
+                r.Remove("financeAnswer");
+                r.Remove("systemsAnswer");
+            }
             return r;
         }).ToList();
         if (!string.IsNullOrEmpty(section))

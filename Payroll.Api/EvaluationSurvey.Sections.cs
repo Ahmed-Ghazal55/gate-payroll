@@ -13,8 +13,12 @@ public static partial class EvaluationSurvey
     public const string DeptHr = "الموارد البشرية";
     public const string DeptSupport = "الدعم الفني والكول سنتر";
     public const string DeptOperations = "العمليات";
+    public const string DeptSystems = "الأنظمة والبيانات";
+    public const string DeptManagement = "الإدارة";
     public static readonly string[] FinanceFactors = ["responsiveness", "accuracy", "correctionSpeed", "clarity"];
     public static readonly string[] FinanceReasons = ["not_dealt_finance"];
+    public static readonly string[] SystemsFactors = ["formsEase", "dataClarity", "helpfulness", "responsiveness"];
+    public static readonly string[] SystemsReasons = ["not_used_forms_data"];
     public static readonly (string Key, string Title, string Department)[] DepartmentSections =
     [
         ("dept:movement", "الحركة والمركبات", DeptMovement),
@@ -274,21 +278,38 @@ public static partial class EvaluationSurvey
         return view;
     }
 
-    static JsonObject ParseFinanceAnswer(JsonObject input, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes, AttachmentWriteBatch? batch)
+    static JsonObject ParseDepartmentCard(
+        JsonObject input,
+        string answerKey,
+        string cardKey,
+        string[] factors,
+        string[] reasons,
+        string requiredMessage,
+        string requiredCode,
+        string invalidReasonMessage,
+        string invalidReasonCode,
+        string invalidFactorMessage,
+        string invalidFactorCode,
+        Store? store,
+        DbConnection? c,
+        DbTransaction? tx,
+        string replyId,
+        ref long replyBytes,
+        AttachmentWriteBatch? batch)
     {
-        var card = input["financeAnswer"] as JsonObject ?? throw new ApiError("بطاقة المالية مطلوبة.", 400, "finance_required");
+        var card = input[answerKey] as JsonObject ?? throw new ApiError(requiredMessage, 400, requiredCode);
         string reason = card.S("reason");
         var answer = new JsonObject { ["reason"] = reason, ["notes"] = Text(card, "notes", 2000) };
         if (reason != "")
         {
-            J.Need(FinanceReasons.Contains(reason), "سبب غير صالح للمالية.", "invalid_finance_reason");
+            J.Need(reasons.Contains(reason), invalidReasonMessage, invalidReasonCode);
             J.Need(card["overall"] == null && FactorRatings(card).Count == 0, "اختر التقييم أو سبب عدم التقييم.", "rating_or_reason");
         }
         else
         {
             answer["overall"] = Rating(card, "overall", 5);
             var raw = FactorRatings(card);
-            J.Need(raw.All(p => FinanceFactors.Contains(p.Key)), "عامل مالية غير معروف.", "invalid_finance_factor");
+            J.Need(raw.All(p => factors.Contains(p.Key)), invalidFactorMessage, invalidFactorCode);
             var clean = new JsonObject();
             foreach (var pair in raw)
             {
@@ -303,14 +324,28 @@ public static partial class EvaluationSurvey
         if (card["attachments"] is JsonArray arr && arr.Count > 0)
         {
             if (arr.All(x => x is JsonObject o && o.S("id") != "" && o.S("dataBase64") == ""))
-                answer["attachments"] = PreservedAttachments(c, tx, replyId, "finance", "finance", arr);
+                answer["attachments"] = PreservedAttachments(c, tx, replyId, cardKey, cardKey, arr);
             else
             {
                 J.Need(store != null && c != null && tx != null && batch != null, "رفع المرفقات غير متاح.", "attachment_unavailable");
-                answer["attachments"] = PersistAttachments(store!, c!, tx!, replyId, "finance", "finance", card, ref replyBytes, batch!);
+                answer["attachments"] = PersistAttachments(store!, c!, tx!, replyId, cardKey, cardKey, card, ref replyBytes, batch!);
             }
         }
         else answer["attachments"] = new JsonArray();
         return answer;
     }
+
+    static JsonObject ParseFinanceAnswer(JsonObject input, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes, AttachmentWriteBatch? batch) =>
+        ParseDepartmentCard(input, "financeAnswer", "finance", FinanceFactors, FinanceReasons,
+            "بطاقة المالية مطلوبة.", "finance_required",
+            "سبب غير صالح للمالية.", "invalid_finance_reason",
+            "عامل مالية غير معروف.", "invalid_finance_factor",
+            store, c, tx, replyId, ref replyBytes, batch);
+
+    static JsonObject ParseSystemsAnswer(JsonObject input, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes, AttachmentWriteBatch? batch) =>
+        ParseDepartmentCard(input, "systemsAnswer", "systems", SystemsFactors, SystemsReasons,
+            "بطاقة الأنظمة والبيانات مطلوبة.", "systems_required",
+            "سبب غير صالح للأنظمة.", "invalid_systems_reason",
+            "عامل أنظمة غير معروف.", "invalid_systems_factor",
+            store, c, tx, replyId, ref replyBytes, batch);
 }

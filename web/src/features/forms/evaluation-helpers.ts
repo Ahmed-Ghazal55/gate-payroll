@@ -166,7 +166,7 @@ export async function voiceFileForEvaluation(
 
 export const EVAL_IDENTITY_STORAGE_KEY = 'gate_eval_identity_v1';
 
-export type SuggestedChipKind = 'staff' | 'movement' | 'hr' | 'finance' | 'support' | 'app';
+export type SuggestedChipKind = 'staff' | 'movement' | 'hr' | 'finance' | 'support' | 'app' | 'systems';
 
 const CHIP_SETS: Record<SuggestedChipKind, Record<EvalLanguage, string[]>> = {
   staff: {
@@ -244,6 +244,29 @@ const CHIP_SETS: Record<SuggestedChipKind, Record<EvalLanguage, string[]>> = {
     en: ['Few orders', 'Shift times not suitable', 'Problems in the app itself', 'Platform support does not reply', 'The work is worth it'],
     ur: ['آرڈرز کم', 'شفٹ اوقات مناسب نہیں', 'ایپ میں مسائل', 'پلیٹ فارم سپورٹ جواب نہیں دیتی', 'کام قابل قدر ہے'],
   },
+  systems: {
+    ar: [
+      'النماذج سهلة وواضحة',
+      'البيانات اللي بتوصلني فيها أخطاء',
+      'الجداول غير واضحة',
+      'لا يوجد رد على مقترحاتي أو طلباتي',
+      'الروابط لا تعمل أو بطيئة',
+    ],
+    en: [
+      'Forms are easy and clear',
+      'The data I receive has errors',
+      'Tables are unclear',
+      'No reply to my suggestions or requests',
+      'Links do not work or are slow',
+    ],
+    ur: [
+      'فارم آسان اور واضح ہیں',
+      'آنے والے ڈیٹا میں غلطیاں ہیں',
+      'جدول واضح نہیں',
+      'میری تجاویز یا درخواستوں کا جواب نہیں',
+      'لنکس کام نہیں کرتے یا سست ہیں',
+    ],
+  },
 };
 
 export function sectionChipKindFromKey(sectionKey: string | undefined | null): SuggestedChipKind {
@@ -261,7 +284,7 @@ export function suggestedChipsFor(kind: SuggestedChipKind, lang: EvalLanguage): 
   if (kind === 'staff') return base;
   if (kind === 'app') return CHIP_SETS.app[lang] || CHIP_SETS.app.ar;
   const extra = CHIP_SETS[kind][lang] || CHIP_SETS[kind].ar;
-  if (kind === 'finance') return [...extra];
+  if (kind === 'finance' || kind === 'systems') return [...extra];
   return [...base, ...extra];
 }
 

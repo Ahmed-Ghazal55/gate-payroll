@@ -43,7 +43,10 @@ public static partial class EvaluationSurvey
         reply["staffAnswers"] = Answers(round, staffInput, true, reply.S("city"), store, c, tx, id, ref replyBytes, attachments);
         reply["appAnswers"] = Answers(round, appInput, false, reply.S("city"), store, c, tx, id, ref replyBytes, attachments);
         if (section != null && section.S("kind") == "app")
+        {
             reply["financeAnswer"] = ParseFinanceAnswer(input, store, c, tx, id, ref replyBytes, attachments);
+            reply["systemsAnswer"] = ParseSystemsAnswer(input, store, c, tx, id, ref replyBytes, attachments);
+        }
         reply["editCount"] = edits + 1;
         reply["updatedAt"] = Now();
         if (reply.S("editReceipt") == "") reply["editReceipt"] = NewEditReceipt();
@@ -58,8 +61,14 @@ public static partial class EvaluationSurvey
         if (reply["financeAnswer"] is JsonObject finance && finance.B("complaint"))
         {
             bool exists = Store.ListWhere(c, RiderAsks.ServiceKind, tx, null, ("evaluationResponseId", id))
-                .Any(r => r["payload"].S("targetKind") == "department");
-            if (!exists) CreateFinanceComplaint(c, tx, reply, finance);
+                .Any(r => r["payload"].S("targetKind") == "department" && r["payload"].S("target") == DeptFinance);
+            if (!exists) CreateDepartmentComplaint(c, tx, reply, finance, DeptFinance);
+        }
+        if (reply["systemsAnswer"] is JsonObject systems && systems.B("complaint"))
+        {
+            bool exists = Store.ListWhere(c, RiderAsks.ServiceKind, tx, null, ("evaluationResponseId", id))
+                .Any(r => r["payload"].S("targetKind") == "department" && r["payload"].S("target") == DeptSystems);
+            if (!exists) CreateDepartmentComplaint(c, tx, reply, systems, DeptSystems);
         }
         Store.Audit(c, tx, "evaluation.edited", id + "#" + reply.N("editCount"), "rider-app");
         int remaining = MaxEdits - (int)reply.N("editCount");
