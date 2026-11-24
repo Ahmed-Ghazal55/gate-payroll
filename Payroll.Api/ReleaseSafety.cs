@@ -10,12 +10,16 @@ public static class ReleaseSafety
     public const string Version="0.33.0";
     public static object Capture(DbConnection c,DbTransaction? tx=null)
     {
-        using var cmd=Store.Command(c,tx,"SELECT id,kind,body FROM records ORDER BY id");using var reader=cmd.ExecuteReader();
         var counts=new SortedDictionary<string,int>(StringComparer.Ordinal);using var digest=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);
-        while(reader.Read())
+        // Dispose the records reader before any second command on the same connection (SQL Server: open DataReader).
         {
-            string kind=reader.GetString(1);counts[kind]=counts.GetValueOrDefault(kind)+1;
-            for(int i=0;i<3;i++){byte[] value=Encoding.UTF8.GetBytes(reader.GetString(i));digest.AppendData(Encoding.UTF8.GetBytes(value.Length+":"));digest.AppendData(value);}
+            using var cmd=Store.Command(c,tx,"SELECT id,kind,body FROM records ORDER BY id");
+            using var reader=cmd.ExecuteReader();
+            while(reader.Read())
+            {
+                string kind=reader.GetString(1);counts[kind]=counts.GetValueOrDefault(kind)+1;
+                for(int i=0;i<3;i++){byte[] value=Encoding.UTF8.GetBytes(reader.GetString(i));digest.AppendData(Encoding.UTF8.GetBytes(value.Length+":"));digest.AppendData(value);}
+            }
         }
         int payRunInputs=0;
         try

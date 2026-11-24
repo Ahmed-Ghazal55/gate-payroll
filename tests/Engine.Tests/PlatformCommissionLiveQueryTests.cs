@@ -78,8 +78,8 @@ public sealed class PlatformCommissionLiveQueryTests
         var rows = result["schemeRows"]!.AsArray().OfType<JsonObject>().ToArray();
         Assert.IsTrue(rows.Any(r => r["identifierType"]!.GetValue<string>() == "FullTime"));
         var freelancer = rows.Single(r => r["identifierType"]!.GetValue<string>() == "Freelancer");
-        Assert.AreEqual("percentage", freelancer["kind"]!.GetValue<string>());
-        Assert.AreEqual(15m, freelancer["rate"]!.GetValue<decimal>());
-        Assert.IsTrue(freelancer["available"]!.GetValue<bool>());
+        // T13 / Grok TRIAL2: FreelancerRate is a code constant, not an Omar SELECT — never mark available.
+        Assert.IsFalse(freelancer["available"]!.GetValue<bool>());
+        Assert.AreEqual("غير متوفر في نظام عمر", freelancer["message"]!.GetValue<string>());
     }
 }

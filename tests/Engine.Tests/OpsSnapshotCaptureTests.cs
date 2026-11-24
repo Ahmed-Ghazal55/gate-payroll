@@ -193,10 +193,10 @@ public sealed class OpsSnapshotCaptureTests
     [TestMethod]
     public void SchemeAndEligibility_ComeFromApprovedPaySettings_NotHardCodedEmpty()
     {
+        // T11 (Ghazal): Jahez / Chefz / HungerStation have no eligibility — HS scheme still comes from approved pay settings;
+        // eligibility rows for HS must be empty (LiveOpsLiveFactsReader returns []). Keeta/Ninja keep eligibility.
         using var f=new PayFixture();
-        var rules=f.Draft("pay_eligibility","hs",PayFixture.Eligibility(),"elig");
-        f.Approve("pay_eligibility","hs",rules);
-        var scheme=f.Draft("pay_scheme","hs",PayFixture.Scheme(rules:rules.S("id")),"commission");
+        var scheme=f.Draft("pay_scheme","hs",PayFixture.Scheme(),"commission");
         f.Approve("pay_scheme","hs",scheme);
         string rider=MoneySchemaFixture.Id(),company=MoneySchemaFixture.Id();
         f.Store.Write((c,tx)=>{
@@ -210,10 +210,26 @@ public sealed class OpsSnapshotCaptureTests
         Assert.AreEqual(rider,schemeRows[0].S("erpRiderId"));
         Assert.AreNotEqual("",schemeRows[0].S("schemeCode"));
         Assert.AreEqual("pay_settings",schemeRows[0].S("source"));
+        // T11: HS has no eligibility conditions.
         var eligibilityRows=reader.RowsFor("eligibility",company,"hs","2026-10-01").ToList();
-        Assert.AreEqual(1,eligibilityRows.Count);
-        Assert.AreEqual(rider,eligibilityRows[0].S("erpRiderId"));
-        Assert.AreEqual("pay_settings",eligibilityRows[0].S("source"));
+        Assert.AreEqual(0,eligibilityRows.Count);
+
+        var ninjaRules=f.Draft("pay_eligibility","ninja",PayFixture.Eligibility(),"elig-n");
+        f.Approve("pay_eligibility","ninja",ninjaRules);
+        var ninjaData=PayFixture.Scheme("percent_of_gross",ninjaRules.S("id"));
+        ninjaData["accountingRole"]="principal";
+        var ninjaScheme=f.Draft("pay_scheme","ninja",ninjaData,"n-scheme");
+        f.Approve("pay_scheme","ninja",ninjaScheme);
+        string ninjaRider=MoneySchemaFixture.Id();
+        f.Store.Write((c,tx)=>{
+            Store.Save(c,"rider",new(){["id"]=ninjaRider,["iqama"]=ninjaRider,["name"]="Synthetic Ninja",["isDeliveryRider"]=true,["sponsorId"]=company,["status"]="Active"},tx);
+            Store.Save(c,"pay_assignment",new(){["id"]=MoneySchemaFixture.Id(),["rider"]=ninjaRider,["app"]="ninja",["period"]="2026-10",["status"]="approved",["schemeId"]=ninjaScheme.S("id"),["choiceApprovedAt"]="2026-09-29T00:00:00.0000000+00:00"},tx);
+            return true;
+        });
+        var ninjaElig=reader.RowsFor("eligibility",company,"ninja","2026-10-01").ToList();
+        Assert.AreEqual(1,ninjaElig.Count);
+        Assert.AreEqual(ninjaRider,ninjaElig[0].S("erpRiderId"));
+        Assert.AreEqual("pay_settings",ninjaElig[0].S("source"));
     }
 
     [TestMethod]

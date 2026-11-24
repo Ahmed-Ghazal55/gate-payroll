@@ -136,16 +136,25 @@ public static class PlatformCommissionLiveQuery
                     ["accountOverride"] = (JsonNode?)null
                 });
             }
+            // T13 / Grok TRIAL2: FreelancerRate is a code constant, not a SELECT — never mark as from Omar.
+            missing.Add(new JsonObject
+            {
+                ["identifierType"] = "Freelancer",
+                ["cityCode"] = "",
+                ["cityNameAr"] = "كل المدن",
+                ["message"] = "غير متوفر في نظام عمر",
+                ["omarFile"] = "PlatformDailyCommissionRates / ChefzRules.FreelancerRate (list for Omar)"
+            });
             schemeRows.Add(new JsonObject
             {
                 ["identifierType"] = "Freelancer",
                 ["cityCode"] = "",
                 ["cityNameAr"] = "كل المدن",
-                ["kind"] = "percentage",
-                ["rate"] = 15m,
-                ["available"] = true,
-                ["message"] = "",
-                ["sourceNote"] = "Omar ChefzRules.FreelancerRate (0.15) — ثابت في كود نظام عمر حتى يُخزَّن في جدول الأسعار",
+                ["kind"] = "",
+                ["rate"] = null,
+                ["available"] = false,
+                ["message"] = "غير متوفر في نظام عمر",
+                ["sourceNote"] = "Omar ChefzRules.FreelancerRate is a code constant — not a live SELECT",
                 ["accountOverride"] = (JsonNode?)null
             });
         }
@@ -233,13 +242,23 @@ public static class PlatformCommissionLiveQuery
                     ["message"] = available ? "" : "غير متوفر في نظام عمر"
                 });
             }
+            missing.Add(new JsonObject
+            {
+                ["identifierType"] = "Freelancer",
+                ["cityNameAr"] = "كل المدن",
+                ["message"] = "غير متوفر في نظام عمر",
+                ["omarFile"] = "PlatformDailyCommissionRates / ChefzRules.FreelancerRate (list for Omar)"
+            });
             schemeRows.Add(new JsonObject
             {
                 ["identifierType"] = "Freelancer",
-                ["kind"] = "percentage",
-                ["rate"] = 15m,
-                ["available"] = true,
-                ["sourceNote"] = "Omar ChefzRules.FreelancerRate (0.15)"
+                ["cityCode"] = "",
+                ["cityNameAr"] = "كل المدن",
+                ["kind"] = "",
+                ["rate"] = null,
+                ["available"] = false,
+                ["message"] = "غير متوفر في نظام عمر",
+                ["sourceNote"] = "Omar ChefzRules.FreelancerRate is a code constant — not a live SELECT"
             });
         }
         else
