@@ -112,7 +112,7 @@ function ibanPayload(form:HTMLFormElement){const v=(n:string)=>((form.elements.n
 interface EvalLabel{id:string;labelAr:string;labelEn:string;labelUr:string}
 interface EvalStaff{id:string;name:string;cities:string[];departments:string[];roles:string[];apps:string[];active?:boolean;excluded?:boolean;pendingRoleApproval?:boolean}
 interface PublicField{id:string;type:string;labelAr:string;labelEn:string;labelUr:string;required:boolean;options:{value:string;labelAr:string;labelEn:string;labelUr:string}[]}
-interface PublicForm{cities?:{ar:string;en:string}[];title?:string;titleAr?:string;titleEn?:string;titleUr?:string;descriptionAr?:string;descriptionEn?:string;descriptionUr?:string;noticeAr?:string;noticeEn?:string;noticeUr?:string;schema:string;fields?:(PublicField|string)[];roundId?:string;apps?:string[];staff?:EvalStaff[];staffRatingMin?:number;staffRatingMax?:number;appRatingMin?:number;appRatingMax?:number;staffDimensions?:EvalLabel[];staffReasons?:EvalLabel[];appReasons?:EvalLabel[];factors?:EvalLabel[];uploadsPolicyPending?:boolean}
+interface PublicForm{cities?:{ar:string;en:string}[];title?:string;titleAr?:string;titleEn?:string;titleUr?:string;descriptionAr?:string;descriptionEn?:string;descriptionUr?:string;noticeAr?:string;noticeEn?:string;noticeUr?:string;schema:string;fields?:(PublicField|string)[];roundId?:string;apps?:string[];staff?:EvalStaff[];staffRatingMin?:number;staffRatingMax?:number;appRatingMin?:number;appRatingMax?:number;staffDimensions?:EvalLabel[];staffReasons?:EvalLabel[];appReasons?:EvalLabel[];factors?:EvalLabel[];uploadsPolicyPending?:boolean;sectionKey?:string}
 const container=document.querySelector<HTMLElement>('#public-content')!;
 const searchParams=new URLSearchParams(location.search);
 const evalQueryToken=searchParams.get('evaluation')||(location.pathname.endsWith('rider-form.html')?searchParams.get('token'):null);
@@ -121,6 +121,7 @@ const token=evalQueryToken||location.pathname.split('/').pop()!;
 const custom=location.pathname.startsWith('/questionnaires/'),inquiry=location.pathname==='/inquiry'&&!evalPath;
 let language:Language='ar',formData:PublicForm|null=null,receipt='',failure=false;
 function evaluationForm(){return evalPath||formData?.schema==='evaluation-v1';}
+const EVAL_IDENTITY_KEY='gate_eval_identity_v1';
 const EVAL_APP_LABELS:Record<string,Record<Language,string>>={Jahez:{ar:'جاهز',en:'Jahez',ur:'جاہز'},Keeta:{ar:'كيتا',en:'Keeta',ur:'کیٹا'},HungerStation:{ar:'هنقرستيشن',en:'HungerStation',ur:'ہنگر اسٹیشن'},Ninja:{ar:'نينجا',en:'Ninja',ur:'ننجا'},Chefz:{ar:'ذا شفز',en:'The Chefz',ur:'دی شیفز'},Amazon:{ar:'أمازون',en:'Amazon',ur:'ایمیزون'}};
 const NAT_KEYS=['nat_sa','nat_eg','nat_ye','nat_sd','nat_pk','nat_in','nat_bd','nat_sy','nat_jo','nat_ph'];
 function evalAppLabel(a:string){return EVAL_APP_LABELS[a]?.[language]||a;}
@@ -161,6 +162,7 @@ function renderEvaluation(){
  const sess=getSurveySession();
  if(sess?.iqama&&!evalState.iqama)evalState.iqama=sess.iqama;
  if(sess?.name&&!evalState.name)evalState.name=sess.name;
+ try{const raw=localStorage.getItem(EVAL_IDENTITY_KEY);if(raw){const saved=JSON.parse(raw) as {iqama?:string;name?:string;nationality?:string;phone?:string;workApps?:string[]};if(!evalState.iqama&&saved.iqama)evalState.iqama=saved.iqama;if(!evalState.name&&saved.name)evalState.name=saved.name;if(!evalState.nationality&&saved.nationality)evalState.nationality=saved.nationality;if(!evalState.phone&&saved.phone)evalState.phone=saved.phone;if(evalState.workApps.length===0&&Array.isArray(saved.workApps))evalState.workApps=saved.workApps.filter(a=>typeof a==='string');}}catch{}
  const cities=evalCityList();
  if(!evalState.city&&cities.length===1)evalState.city=cities[0];
  const cityStaff=evalCityStaff();
@@ -317,12 +319,13 @@ function renderEvaluation(){
   if(!apps.every(isEvalAppDone)){evalState.error=t('unansweredApps');renderPublic();return;}
   const btn=form.querySelector<HTMLButtonElement>('#eval-submit-btn')!;btn.disabled=true;
   const cs=evalCityStaff();
-  const payload={
+  const payload:Record<string,unknown>={
    iqama:normalizeAsciiDigits(evalState.iqama),name:evalState.name.trim(),city:evalState.city,nationality:evalState.nationality.trim(),phone:evalState.phone.trim(),workApps:evalState.workApps,
    staffAnswers:cs.map(s=>{const a=ensureEvalStaff(s.id);return {staffId:s.id,reason:a.reason,...(a.reason===''?{ratings:a.ratings}:{}),notes:a.notes.trim(),complaint:Boolean(a.complaint),complaintDetails:a.complaint?a.complaintDetails.trim():'',attachments:[]};}),
    appAnswers:apps.map(app=>{const a=ensureEvalApp(app);return {app,reason:a.reason,...(a.reason===''?{overall:a.overall,factorRatings:a.factorRatings}:{}),notes:a.notes.trim(),attachments:[]};})
   };
   try{
+   try{localStorage.setItem(EVAL_IDENTITY_KEY,JSON.stringify({iqama:payload.iqama,name:payload.name,nationality:payload.nationality,phone:payload.phone,workApps:payload.workApps}));}catch{}
    const survey=getSurveySession();
    const useMob=Boolean(survey?.accessToken&&searchParams.get('mode')==='app');
    const endpoint=(useMob?'/api/rider-mobile/evaluations/':'/api/public/evaluations/')+encodeURIComponent(token);
@@ -370,6 +373,15 @@ renderPublic();if(!inquiry){
    const sess=getSurveySession();
    const initPath=evalPath?((sess?.accessToken&&searchParams.get('mode')==='app'?'/api/rider-mobile/evaluations/':'/api/public/evaluations/')+encodeURIComponent(token)):'/api/public/'+(custom?'questionnaires/':'forms/')+encodeURIComponent(token);
    formData=await request(initPath);
+   // Sectioned rounds use the web client only; keep launch/session in sessionStorage for the hand-off.
+   if(formData?.sectionKey){
+    const q=new URLSearchParams();
+    q.set('evaluation',token);
+    const mode=searchParams.get('mode');
+    if(mode)q.set('mode',mode);
+    location.replace('/app/evaluation/?'+q.toString()+(location.hash||''));
+    return;
+   }
    renderPublic();
   }catch{failure=true;renderPublic();}
  })();

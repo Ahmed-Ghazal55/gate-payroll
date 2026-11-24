@@ -8,13 +8,17 @@ import {
   Eye,
   FileUp,
   PauseCircle,
+  Pencil,
   PlayCircle,
   Plus,
   RefreshCw,
   ShieldAlert,
   Smartphone,
   Star,
+  Trash2,
   Users,
+  UserMinus,
+  UserPlus,
   XCircle,
 } from 'lucide-react';
 import {
@@ -126,6 +130,7 @@ export function EvaluationsTab() {
   const [supervisorFilter, setSupervisorFilter] = useState<string>('ALL');
   const [departmentFilter, setDepartmentFilter] = useState<string>('ALL');
   const [nationalityFilter, setNationalityFilter] = useState<string>('ALL');
+  const [sectionFilter, setSectionFilter] = useState<string>('ALL');
 
   // Dialogs & Drawers
   const [importOpen, setImportOpen] = useState(false);
@@ -138,6 +143,30 @@ export function EvaluationsTab() {
   const [transitioningAction, setTransitioningAction] = useState<string | null>(null);
   const [exportingExcel, setExportingExcel] = useState(false);
   const [inspectReply, setInspectReply] = useState<EvaluationReplyItem | null>(null);
+
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deleteTitleConfirm, setDeleteTitleConfirm] = useState('');
+  const [deletingRound, setDeletingRound] = useState(false);
+
+  const [staffEditOpen, setStaffEditOpen] = useState(false);
+  const [staffEditDraft, setStaffEditDraft] = useState<{
+    id: string;
+    name: string;
+    citiesText: string;
+    departmentsText: string;
+    rolesText: string;
+    appsText: string;
+    allApps: boolean;
+    allCities: boolean;
+    excluded: boolean;
+    active: boolean;
+    pendingRoleApproval: boolean;
+  } | null>(null);
+  const [savingStaff, setSavingStaff] = useState(false);
+
+  const [sectionStaffPick, setSectionStaffPick] = useState<Record<string, string>>({});
+  const [sectionBusyKey, setSectionBusyKey] = useState<string | null>(null);
+  const [sectionReplyCounts, setSectionReplyCounts] = useState<Record<string, number>>({});
 
   const selectedRound = useMemo(() => {
     if (rounds.length === 0) return null;
@@ -178,6 +207,7 @@ export function EvaluationsTab() {
       const statsFilters = {
         city: cityFilter !== 'ALL' ? cityFilter : undefined,
         nationalityId: nationalityFilter !== 'ALL' ? nationalityFilter : undefined,
+        section: sectionFilter !== 'ALL' ? sectionFilter : undefined,
       };
       // Merge bar filters into the replies table contract so scorecard drill-down lands on the same set.
       const barFilters: { col: string; op: string; value: string }[] = [];
@@ -199,7 +229,8 @@ export function EvaluationsTab() {
           mergedFilters = JSON.stringify(barFilters);
         }
       }
-      const [loadedStats, loadedResponses] = await Promise.all([
+      const sections = (selectedRound.sections || []) as Array<{ key: string }>;
+      const [loadedStats, loadedResponses, ...sectionTotals] = await Promise.all([
         api.getEvaluationStatistics(selectedRound.id, statsFilters),
         api.getEvaluationResponses(selectedRound.id, {
           page: responsesPage,
@@ -209,11 +240,24 @@ export function EvaluationsTab() {
           // H3: scorecard drill-down lands on the same supervisor/department reply set.
           supervisorId: supervisorFilter !== 'ALL' ? supervisorFilter : undefined,
           department: departmentFilter !== 'ALL' ? departmentFilter : undefined,
+          section: sectionFilter !== 'ALL' ? sectionFilter : undefined,
         }),
+        ...sections.map((s) =>
+          api.getEvaluationResponses(selectedRound.id, { page: 1, pageSize: 1, section: s.key })
+        ),
       ]);
       setStats(loadedStats);
       setResponses(loadedResponses.items || []);
       setResponsesTotal(loadedResponses.total || 0);
+      if (sections.length > 0) {
+        const counts: Record<string, number> = {};
+        sections.forEach((s, i) => {
+          counts[s.key] = Number(sectionTotals[i]?.total || 0);
+        });
+        setSectionReplyCounts(counts);
+      } else {
+        setSectionReplyCounts({});
+      }
     } catch (err: any) {
       toast(err?.message || 'تعذر تحميل إحصائيات وردود الجولة', 'danger');
     } finally {
@@ -231,6 +275,7 @@ export function EvaluationsTab() {
     appFilter,
     supervisorFilter,
     departmentFilter,
+    sectionFilter,
     toast,
   ]);
 
@@ -250,12 +295,13 @@ export function EvaluationsTab() {
     const statsFilters = {
       city: cityFilter !== 'ALL' ? cityFilter : undefined,
       nationalityId: nationalityFilter !== 'ALL' ? nationalityFilter : undefined,
+      section: sectionFilter !== 'ALL' ? sectionFilter : undefined,
     };
     api
       .getEvaluationStatisticsByDimension(selectedRound.id, dimensionFocus, statsFilters)
       .then((res) => setDimensionItems(res.items || []))
       .catch(() => setDimensionItems(null));
-  }, [canViewEvaluations, selectedRound, dimensionFocus, cityFilter, nationalityFilter]);
+  }, [canViewEvaluations, selectedRound, dimensionFocus, cityFilter, nationalityFilter, sectionFilter]);
 
   if (!canViewEvaluations) {
     return (
@@ -465,8 +511,22 @@ export function EvaluationsTab() {
       department: departmentFilter !== 'ALL' ? departmentFilter : undefined,
       supervisorId: supervisorFilter !== 'ALL' ? supervisorFilter : undefined,
       nationalityId: nationalityFilter !== 'ALL' ? nationalityFilter : undefined,
+      section: sectionFilter !== 'ALL' ? sectionFilter : undefined,
     }),
-    [cityFilter, appFilter, departmentFilter, supervisorFilter, nationalityFilter]
+    [cityFilter, appFilter, departmentFilter, supervisorFilter, nationalityFilter, sectionFilter]
+  );
+
+  const roundSections = useMemo(
+    () => (selectedRound?.sections || []) as Array<{
+      key: string;
+      title: string;
+      kind: string;
+      sharingToken: string;
+      staff?: Array<{ id: string; name: string }>;
+      added?: string[];
+      removed?: string[];
+    }>,
+    [selectedRound]
   );
 
   const handleScorecardDrillDown = useCallback((next: ScorecardDrillDown) => {
@@ -569,7 +629,10 @@ export function EvaluationsTab() {
     if (!selectedRound) return;
     setExportingExcel(true);
     try {
-      const blob = await api.exportEvaluationWorkbook(selectedRound.id);
+      const blob = await api.exportEvaluationWorkbook(
+        selectedRound.id,
+        sectionFilter !== 'ALL' ? sectionFilter : undefined
+      );
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
@@ -587,20 +650,126 @@ export function EvaluationsTab() {
     }
   };
 
-  const buildPublicEvaluationUrl = (round: EvaluationRoundItem | null): string => {
-    if (!round?.sharingToken) return '';
+  const buildPublicEvaluationUrl = (
+    round: EvaluationRoundItem | null,
+    sectionToken?: string
+  ): string => {
+    const token = sectionToken || round?.sharingToken;
+    if (!token) return '';
     const origin = typeof window !== 'undefined' ? window.location.origin : '';
-    return `${origin}/rider-form.html?evaluation=${encodeURIComponent(round.sharingToken)}`;
+    return `${origin}/app/evaluation/?evaluation=${encodeURIComponent(token)}`;
   };
 
-  const copyPublicLink = async () => {
-    const link = buildPublicEvaluationUrl(selectedRound);
+  const copyPublicLink = async (sectionToken?: string) => {
+    const link = buildPublicEvaluationUrl(selectedRound, sectionToken);
     if (!link) return;
     try {
       await navigator.clipboard.writeText(link);
       toast('تم نسخ رابط نموذج التقييم إلى الحافظة', 'success');
     } catch {
       window.prompt('انسخ رابط التقييم:', link);
+    }
+  };
+
+  const openStaffEditor = (s: EvaluationStaffItem) => {
+    setStaffEditDraft({
+      id: s.id,
+      name: s.name || '',
+      citiesText: (s.cities || []).join('، '),
+      departmentsText: (s.departments || []).join('، '),
+      rolesText: (s.roles || []).join('، '),
+      appsText: (s.apps || []).join('، '),
+      allApps: Boolean(s.allApps),
+      allCities: Boolean(s.allCities),
+      excluded: Boolean(s.excluded),
+      active: s.active !== false,
+      pendingRoleApproval: Boolean(s.pendingRoleApproval),
+    });
+    setStaffEditOpen(true);
+  };
+
+  const handleSaveStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffEditDraft) return;
+    setSavingStaff(true);
+    try {
+      const split = (text: string) =>
+        text
+          .split(/[،,\n]+/)
+          .map((p) => p.trim())
+          .filter(Boolean);
+      await api.putEvaluationStaff(staffEditDraft.id, {
+        name: staffEditDraft.name.trim(),
+        cities: split(staffEditDraft.citiesText),
+        departments: split(staffEditDraft.departmentsText),
+        roles: split(staffEditDraft.rolesText),
+        apps: split(staffEditDraft.appsText),
+        allApps: staffEditDraft.allApps,
+        allCities: staffEditDraft.allCities,
+        excluded: staffEditDraft.excluded,
+        active: staffEditDraft.active,
+        pendingRoleApproval: staffEditDraft.pendingRoleApproval,
+      });
+      toast('تم حفظ بطاقة الموظف', 'success');
+      setStaffEditOpen(false);
+      setStaffEditDraft(null);
+      await loadRoundsAndStaff();
+    } catch (err: any) {
+      toast(err?.message || 'تعذر حفظ بطاقة الموظف', 'danger');
+    } finally {
+      setSavingStaff(false);
+    }
+  };
+
+  const handleDeleteRound = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selectedRound) return;
+    setDeletingRound(true);
+    try {
+      const res = await api.deleteEvaluationRound(selectedRound.id, deleteTitleConfirm.trim());
+      toast(
+        `حُذفت الجولة مع ${res.repliesDeleted} رد و${res.attachmentsDeleted} مرفق و${res.complaintsDeleted} شكوى`,
+        'success'
+      );
+      setDeleteOpen(false);
+      setDeleteTitleConfirm('');
+      setSelectedRoundId('');
+      await loadRoundsAndStaff();
+    } catch (err: any) {
+      toast(err?.message || 'تعذر حذف الجولة — تأكد من كتابة العنوان كما هو', 'danger');
+    } finally {
+      setDeletingRound(false);
+    }
+  };
+
+  const handleSectionStaffAdd = async (sectionKey: string) => {
+    if (!selectedRound) return;
+    const staffId = sectionStaffPick[sectionKey];
+    if (!staffId) return;
+    setSectionBusyKey(sectionKey);
+    try {
+      const updated = await api.addEvaluationSectionStaff(selectedRound.id, sectionKey, staffId);
+      setRounds((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      setSectionStaffPick((prev) => ({ ...prev, [sectionKey]: '' }));
+      toast('أُضيف الموظف إلى القسم', 'success');
+    } catch (err: any) {
+      toast(err?.message || 'تعذر إضافة الموظف إلى القسم', 'danger');
+    } finally {
+      setSectionBusyKey(null);
+    }
+  };
+
+  const handleSectionStaffRemove = async (sectionKey: string, staffId: string) => {
+    if (!selectedRound) return;
+    setSectionBusyKey(`${sectionKey}:${staffId}`);
+    try {
+      const updated = await api.removeEvaluationSectionStaff(selectedRound.id, sectionKey, staffId);
+      setRounds((prev) => prev.map((r) => (r.id === updated.id ? updated : r)));
+      toast('أُزيل الموظف من القسم', 'success');
+    } catch (err: any) {
+      toast(err?.message || 'تعذر إزالة الموظف من القسم', 'danger');
+    } finally {
+      setSectionBusyKey(null);
     }
   };
 
@@ -913,14 +1082,30 @@ export function EvaluationsTab() {
                 <span>إغلاق الجولة</span>
               </button>
             )}
+
+            {allowedRoundActions.includes('delete') && (
+              <button
+                type="button"
+                disabled={transitioningAction !== null || deletingRound}
+                onClick={() => {
+                  setDeleteTitleConfirm('');
+                  setDeleteOpen(true);
+                }}
+                data-testid="eval-round-delete-btn"
+                className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--danger)] px-3 py-1.5 text-xs font-bold text-[var(--danger)]"
+              >
+                <Trash2 size={14} />
+                <span>حذف الجولة</span>
+              </button>
+            )}
           </div>
 
           <div className="flex flex-wrap items-center gap-2">
-            {selectedRound && (
+            {selectedRound && roundSections.length === 0 && (
               <>
                 <button
                   type="button"
-                  onClick={copyPublicLink}
+                  onClick={() => void copyPublicLink()}
                   data-testid="eval-copy-link-btn"
                   className="inline-flex items-center gap-1.5 rounded-lg border border-[var(--line)] bg-[var(--raised)] px-3 py-1.5 text-xs font-bold text-[var(--ink)]"
                 >
@@ -1000,7 +1185,7 @@ export function EvaluationsTab() {
 
         {/* Multi-dimension Filters */}
         <div
-          className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2.5 pt-2 border-t border-[var(--line)]"
+          className={`grid grid-cols-1 sm:grid-cols-2 ${roundSections.length > 0 ? 'lg:grid-cols-6' : 'lg:grid-cols-5'} gap-2.5 pt-2 border-t border-[var(--line)]`}
           data-testid="eval-filters-bar"
         >
           <SearchableSelect
@@ -1063,7 +1248,120 @@ export function EvaluationsTab() {
               ...roundNationalities,
             ]}
           />
+          {roundSections.length > 0 && (
+            <SearchableSelect
+              id="eval-filter-section"
+              value={sectionFilter}
+              onChange={setSectionFilter}
+              ariaLabel="تصفية حسب قسم التقييم"
+              placeholder="كل أقسام التقييم"
+              options={[
+                { value: 'ALL', label: 'كل أقسام التقييم' },
+                ...roundSections.map((s) => ({ value: s.key, label: s.title || s.key })),
+              ]}
+            />
+          )}
         </div>
+
+        {roundSections.length > 0 && (
+          <div className="space-y-3 pt-2 border-t border-[var(--line)]" data-testid="eval-round-sections">
+            <h3 className="text-sm font-bold text-[var(--ink)]">أقسام الجولة وروابط المشاركة</h3>
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+              {roundSections.map((section) => {
+                const members = section.staff || [];
+                const memberIds = new Set(members.map((m) => m.id));
+                return (
+                  <div
+                    key={section.key}
+                    className="rounded-xl border border-[var(--line)] bg-[var(--bg)] p-3 space-y-2"
+                    data-testid={`eval-section-card-${section.key}`}
+                  >
+                    <div className="flex flex-wrap items-start justify-between gap-2">
+                      <div>
+                        <div className="text-sm font-bold text-[var(--ink)]">{section.title}</div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-1.5">
+                        <span className="rounded-full bg-[var(--raised)] px-2 py-0.5 text-[10px] font-bold num">
+                          {sectionReplyCounts[section.key] ?? 0} رد
+                        </span>
+                        <button
+                          type="button"
+                          data-testid="eval-section-copy"
+                          onClick={() => void copyPublicLink(section.sharingToken)}
+                          className="inline-flex items-center gap-1 rounded-lg border border-[var(--line)] px-2 py-1 text-[11px] font-bold"
+                        >
+                          <Copy size={12} />
+                          نسخ الرابط
+                        </button>
+                        <a
+                          href={buildPublicEvaluationUrl(selectedRound, section.sharingToken)}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 rounded-lg border border-[var(--line)] px-2 py-1 text-[11px] font-semibold"
+                        >
+                          فتح
+                        </a>
+                      </div>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {members.map((m) => (
+                        <span
+                          key={m.id}
+                          className="inline-flex items-center gap-1 rounded-full bg-[var(--raised)] px-2 py-0.5 text-[11px]"
+                        >
+                          {m.name}
+                          {canManageForms && (
+                            <button
+                              type="button"
+                              title="إزالة من القسم"
+                              disabled={sectionBusyKey === `${section.key}:${m.id}`}
+                              onClick={() => void handleSectionStaffRemove(section.key, m.id)}
+                              className="text-[var(--danger)]"
+                            >
+                              <UserMinus size={12} />
+                            </button>
+                          )}
+                        </span>
+                      ))}
+                      {members.length === 0 && (
+                        <span className="text-[11px] text-[var(--muted)]">لا يوجد موظفون في هذا القسم</span>
+                      )}
+                    </div>
+                    {canManageForms && (
+                      <div className="flex flex-wrap items-end gap-2">
+                        <div className="flex-1 min-w-[12rem]">
+                          <SearchableSelect
+                            id={`eval-section-add-${section.key}`}
+                            value={sectionStaffPick[section.key] || ''}
+                            onChange={(id) =>
+                              setSectionStaffPick((prev) => ({ ...prev, [section.key]: id }))
+                            }
+                            ariaLabel={`إضافة موظف إلى ${section.title}`}
+                            placeholder="اختر موظفاً لإضافته"
+                            options={(selectedRound?.staff || staffList)
+                              .filter((s) => !s.excluded && !memberIds.has(s.id))
+                              .map((s) => ({ value: s.id, label: s.name }))}
+                          />
+                        </div>
+                        <button
+                          type="button"
+                          disabled={
+                            !sectionStaffPick[section.key] || sectionBusyKey === section.key
+                          }
+                          onClick={() => void handleSectionStaffAdd(section.key)}
+                          className="inline-flex items-center gap-1 rounded-lg bg-[var(--accent)] px-2.5 py-1.5 text-[11px] font-bold text-[var(--accent-ink)] disabled:opacity-50"
+                        >
+                          <UserPlus size={12} />
+                          إضافة
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        )}
 
         {/* Dimension Drill-down Pills */}
         <div className="flex flex-wrap items-center gap-1.5 pt-1">
@@ -1616,18 +1914,193 @@ export function EvaluationsTab() {
                 syncUrl={false}
                 exportable={canExportEvaluations}
                 exportFilename="دليل_بطاقات_تقييم_الموظفين"
+                rowActions={
+                  canManageForms
+                    ? [
+                        {
+                          label: 'تعديل البطاقة',
+                          icon: <Pencil size={14} />,
+                          onClick: (s) => openStaffEditor(s),
+                        },
+                      ]
+                    : undefined
+                }
               />
             </section>
           )}
         </>
       )}
 
-      {/* Import Staff JSON Dialog */}
+      {/* Staff edit dialog (no JSON required) */}
+      <Dialog
+        open={staffEditOpen}
+        onClose={() => (savingStaff ? null : setStaffEditOpen(false))}
+        title="تعديل بطاقة الموظف"
+        description="عدّل المدن والأقسام والمنصات وعلامة كل المنصات دون الحاجة لملف JSON. الاستيراد المتقدم يبقى متاحاً من زر الاستيراد."
+        actions={
+          <>
+            <button
+              type="button"
+              disabled={savingStaff}
+              onClick={() => setStaffEditOpen(false)}
+              className="px-4 py-2 text-xs font-semibold rounded-lg border border-[var(--line)] text-[var(--muted)]"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={savingStaff || !staffEditDraft?.name.trim()}
+              onClick={handleSaveStaff}
+              className="px-4 py-2 text-xs font-bold rounded-lg bg-[var(--accent)] text-[var(--accent-ink)] disabled:opacity-50"
+            >
+              {savingStaff ? 'جاري الحفظ…' : 'حفظ البطاقة'}
+            </button>
+          </>
+        }
+      >
+        {staffEditDraft && (
+          <form
+            onSubmit={handleSaveStaff}
+            className="space-y-3"
+            data-testid="eval-staff-edit-dialog"
+          >
+            <label className="block space-y-1 text-xs">
+              <span className="font-bold">الاسم</span>
+              <input
+                type="text"
+                required
+                value={staffEditDraft.name}
+                onChange={(e) =>
+                  setStaffEditDraft((d) => (d ? { ...d, name: e.target.value } : d))
+                }
+                className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs"
+              />
+            </label>
+            <label className="block space-y-1 text-xs">
+              <span className="font-bold">المدن (مفصولة بفاصلة)</span>
+              <input
+                type="text"
+                value={staffEditDraft.citiesText}
+                onChange={(e) =>
+                  setStaffEditDraft((d) => (d ? { ...d, citiesText: e.target.value } : d))
+                }
+                className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs"
+              />
+            </label>
+            <label className="block space-y-1 text-xs">
+              <span className="font-bold">الأقسام</span>
+              <input
+                type="text"
+                value={staffEditDraft.departmentsText}
+                onChange={(e) =>
+                  setStaffEditDraft((d) => (d ? { ...d, departmentsText: e.target.value } : d))
+                }
+                className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs"
+              />
+            </label>
+            <label className="block space-y-1 text-xs">
+              <span className="font-bold">الأدوار</span>
+              <input
+                type="text"
+                value={staffEditDraft.rolesText}
+                onChange={(e) =>
+                  setStaffEditDraft((d) => (d ? { ...d, rolesText: e.target.value } : d))
+                }
+                className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs"
+              />
+            </label>
+            <label className="block space-y-1 text-xs">
+              <span className="font-bold">المنصات</span>
+              <input
+                type="text"
+                value={staffEditDraft.appsText}
+                onChange={(e) =>
+                  setStaffEditDraft((d) => (d ? { ...d, appsText: e.target.value } : d))
+                }
+                className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs"
+              />
+            </label>
+            <div className="grid grid-cols-2 gap-2 text-xs">
+              {(
+                [
+                  ['allApps', 'كل المنصات'],
+                  ['allCities', 'كل مدن العمل'],
+                  ['excluded', 'مستبعد من التقييم'],
+                  ['active', 'بطاقة نشطة'],
+                  ['pendingRoleApproval', 'بانتظار موافقة غزال'],
+                ] as const
+              ).map(([key, label]) => (
+                <label key={key} className="inline-flex items-center gap-2">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(staffEditDraft[key])}
+                    onChange={(e) =>
+                      setStaffEditDraft((d) => (d ? { ...d, [key]: e.target.checked } : d))
+                    }
+                  />
+                  <span>{label}</span>
+                </label>
+              ))}
+            </div>
+          </form>
+        )}
+      </Dialog>
+
+      {/* Delete round — type title to confirm */}
+      <Dialog
+        open={deleteOpen}
+        onClose={() => (deletingRound ? null : setDeleteOpen(false))}
+        title="حذف جولة التقييم"
+        description="يحذف الجولة وردودها ومرفقاتها وشكاوى التقييم المرتبطة. اكتب عنوان الجولة للتأكيد."
+        actions={
+          <>
+            <button
+              type="button"
+              disabled={deletingRound}
+              onClick={() => setDeleteOpen(false)}
+              className="px-4 py-2 text-xs font-semibold rounded-lg border border-[var(--line)] text-[var(--muted)]"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={
+                deletingRound ||
+                !selectedRound ||
+                deleteTitleConfirm.trim() !== (selectedRound?.title || '')
+              }
+              onClick={handleDeleteRound}
+              className="px-4 py-2 text-xs font-bold rounded-lg bg-[var(--danger)] text-white disabled:opacity-50"
+            >
+              {deletingRound ? 'جاري الحذف…' : 'حذف نهائي'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleDeleteRound} className="space-y-3">
+          <p className="text-xs text-[var(--muted)]">
+            عنوان الجولة المطلوب: <strong>{selectedRound?.title}</strong>
+          </p>
+          <label className="block space-y-1 text-xs">
+            <span className="font-bold text-[var(--ink)]">عنوان الجولة</span>
+            <input
+              type="text"
+              value={deleteTitleConfirm}
+              onChange={(e) => setDeleteTitleConfirm(e.target.value)}
+              data-testid="eval-delete-title-input"
+              className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs"
+              placeholder="اكتب عنوان الجولة كما هو"
+            />
+          </label>
+        </form>
+      </Dialog>
+
+      {/* Import Staff JSON Dialog (advanced) */}
       <Dialog
         open={importOpen}
         onClose={() => (importing ? null : setImportOpen(false))}
-        title="استيراد بطاقات الموظفين والمشرفين (JSON)"
-        description="اختر ملف بيانات الموظفين المحلي أو الصق محتوى JSON. تُدمج الأدوار المتعددة في بطاقة واحدة لكل شخص مع حفظ المستبعدين وعلامة «بانتظار موافقة غزال»."
+        title="استيراد متقدم لبطاقات الموظفين (JSON)"
+        description="اختر ملف بيانات الموظفين المحلي أو الصق محتوى JSON. للتعديل السريع استخدم زر تعديل البطاقة في الجدول دون JSON."
         actions={
           <>
             <button

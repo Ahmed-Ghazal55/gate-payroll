@@ -14,17 +14,17 @@ public sealed class EvaluationRouteTests
     {
         using var f = new PayFixture();
         var admin = PayFixture.Maker;
-        var round = f.Store.Write((c, tx) =>
+        var round = f.MakeLegacyEvaluationRound(f.Store.Write((c, tx) =>
         {
             EvaluationSurvey.ImportStaff(c, tx, admin, new() { ["staff"] = new JsonArray(new JsonObject { ["name"] = "Synthetic route person", ["cities"] = new JsonArray("Synthetic city") }) });
             var draft = EvaluationSurvey.CreateRound(c, tx, admin, new() { ["title"] = "Synthetic route round" });
             return EvaluationSurvey.Transition(c, tx, admin, draft.S("id"), "open");
-        });
+        }));
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Development", ContentRootPath = f.DirectoryPath });
         await using var app = builder.Build();
         EvaluationSurvey.Map(app, app.MapGroup("/api"), f.Store);
         var endpoints = ((IEndpointRouteBuilder)app).DataSources.SelectMany(s => s.Endpoints).OfType<RouteEndpoint>().ToArray();
-        Assert.HasCount(25, endpoints);
+        Assert.HasCount(30, endpoints);
         async Task<DefaultHttpContext> Invoke(string pattern, ClaimsPrincipal user)
         {
             var endpoint = endpoints.Single(e => e.RoutePattern.RawText == pattern && e.Metadata.GetMetadata<HttpMethodMetadata>()!.HttpMethods.Contains("GET"));

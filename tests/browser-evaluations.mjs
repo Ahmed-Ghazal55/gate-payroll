@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
+import { DatabaseSync } from 'node:sqlite';
 
 const { chromium } = await import(
   pathToFileURL(
@@ -174,14 +175,14 @@ try {
   });
   await adminPage.locator('[data-testid="evaluations-admin-page"]').waitFor();
 
-  // Import synthetic staff cards (1 normal, 1 pendingRoleApproval, 1 excluded)
+  // Import synthetic staff cards (ops/app + HR + excluded). Departments use Arabic names for section membership.
   await adminPage.click('[data-testid="eval-import-staff-btn"]');
   const syntheticStaffPayload = {
     staff: [
       {
         name: 'Synthetic Field Supervisor Alpha',
         cities: ['Synthetic City One'],
-        departments: ['Operations'],
+        departments: ['العمليات'],
         roles: ['Field Operations Supervisor'],
         apps: ['Ninja'],
         active: true,
@@ -189,11 +190,27 @@ try {
       {
         name: 'Synthetic Team Lead Beta',
         cities: ['Synthetic City One'],
-        departments: ['Platform Follow-up'],
+        departments: ['العمليات'],
         roles: ['Original Role Text Replaced By Placeholder'],
         apps: ['Keeta'],
         active: true,
         pendingRoleApproval: true,
+      },
+      {
+        name: 'Synthetic HR Officer One',
+        cities: ['Synthetic City One'],
+        departments: ['الموارد البشرية'],
+        roles: ['HR'],
+        apps: [],
+        active: true,
+      },
+      {
+        name: 'Synthetic HR Officer Two',
+        cities: ['Synthetic City One'],
+        departments: ['الموارد البشرية'],
+        roles: ['HR Assistant'],
+        apps: [],
+        active: true,
       },
       {
         name: 'Synthetic Excluded Executive',
@@ -222,6 +239,10 @@ try {
   await adminPage.locator('[data-testid="eval-round-open-btn"]').waitFor();
   await adminPage.click('[data-testid="eval-round-open-btn"]');
   await adminPage.locator('[data-testid="eval-round-pause-btn"]').waitFor();
+  await adminPage.locator('[data-testid="eval-round-sections"]').waitFor();
+  await adminPage.locator('[data-testid="eval-round-delete-btn"]').waitFor();
+  await adminPage.locator('[data-testid="eval-section-copy"]').first().waitFor();
+  await adminPage.locator('[data-testid="eval-finance-scorecard"]').waitFor();
 
   const rounds = await (
     await adminPage.request.get(`${base}/api/forms/evaluations/rounds`)
@@ -229,7 +250,44 @@ try {
   assert.equal(rounds.length, 1);
   const round = rounds[0];
   assert.equal(round.status, 'open');
-  assert.equal(round.staff.length, 2, 'excluded staff not in round cards');
+  assert.equal(round.staff.length, 4, 'excluded staff not in round cards');
+  assert.ok(Array.isArray(round.sections) && round.sections.length >= 5, 'sectioned round exposes sections');
+  assert.equal(round.sharingToken, undefined, 'sectioned RoundView omits round sharingToken');
+  const ninjaSection = round.sections.find((s) => s.key === 'app:Ninja');
+  const hrSection = round.sections.find((s) => s.key === 'dept:hr');
+  assert.ok(ninjaSection?.sharingToken, 'app:Ninja section token');
+  assert.ok(hrSection?.sharingToken, 'dept:hr section token');
+  assert.ok((hrSection.staff || []).length >= 2, 'HR section has at least two staff cards');
+  assert.equal(hrSection.title, 'الموارد البشرية');
+  assert.equal(ninjaSection.title, 'تطبيق نينجا');
+  assert.equal(await adminPage.locator('[data-testid="eval-copy-link-btn"]').count(), 0);
+  assert.equal(await adminPage.locator('[data-testid="eval-preview-mobile-btn"]').count(), 0);
+
+  // Legacy combined two-page path needs a round without sections (live legacy rounds).
+  function makeLegacyRound(roundId) {
+    const db = new DatabaseSync(path.join(data, 'payroll.db'));
+    const row = db.prepare('SELECT body FROM records WHERE id=?').get(roundId);
+    const body = JSON.parse(row.body);
+    delete body.sections;
+    db.prepare('UPDATE records SET body=? WHERE id=?').run(JSON.stringify(body), roundId);
+    db.close();
+    return body.sharingToken;
+  }
+  const legacyDraft = await (
+    await adminPage.request.post(`${base}/api/forms/evaluations/rounds`, {
+      data: { title: 'جولة تقييم تراثية مجمّعة' },
+    })
+  ).json();
+  const legacyToken = makeLegacyRound(legacyDraft.id);
+  const legacyRound = await (
+    await adminPage.request.post(
+      `${base}/api/forms/evaluations/rounds/${encodeURIComponent(legacyDraft.id)}/open`,
+      { data: {} }
+    )
+  ).json();
+  assert.ok(legacyRound.sharingToken);
+  assert.equal(legacyRound.sharingToken, legacyToken);
+  assert.ok(!legacyRound.sections);
 
   // 3. Rider 1: Public Web Form (/rider-form.html?evaluation=<token>) in 3 languages on 360px phone
   const phoneCtx = await browser.newContext({
@@ -241,7 +299,7 @@ try {
   attachWatchers(publicPage);
 
   await publicPage.goto(
-    `${base}/rider-form.html?evaluation=${encodeURIComponent(round.sharingToken)}`,
+    `${base}/rider-form.html?evaluation=${encodeURIComponent(legacyRound.sharingToken)}`,
     { waitUntil: 'networkidle' }
   );
   await publicPage.locator('#rider-evaluation').waitFor();
@@ -275,14 +333,16 @@ try {
   await publicPage.fill('#eval-nationality', 'Synthetic Nationality One');
   await publicPage.check('[name="workApps"][value="Ninja"]');
 
-  // Verify 2 cards shown, placeholder «بانتظار موافقة غزال» visible, excluded person absent
-  assert.equal(await publicPage.locator('[data-staff-card]').count(), 2);
+  // Verify staff cards shown, placeholder «بانتظار موافقة غزال» visible, excluded person absent
+  assert.equal(await publicPage.locator('[data-staff-card]').count(), 4);
   const cardsText = await publicPage.locator('#eval-staff-cards').textContent();
   assert.match(cardsText, /بانتظار موافقة غزال/);
   assert.doesNotMatch(cardsText, /Synthetic Excluded Executive/);
 
-  const staff1Id = round.staff[0].id;
-  const staff2Id = round.staff[1].id;
+  const staff1Id = legacyRound.staff.find((s) => s.name.includes('Alpha')).id;
+  const staff2Id = legacyRound.staff.find((s) => s.name.includes('Beta')).id;
+  const staffHr1Id = legacyRound.staff.find((s) => s.name.includes('HR Officer One')).id;
+  const staffHr2Id = legacyRound.staff.find((s) => s.name.includes('HR Officer Two')).id;
 
   // Rate card 1 (all 5 dimensions = 9) + confidential complaint
   for (const dim of ['professional', 'treatment', 'support', 'responseSpeed', 'problemSolving']) {
@@ -296,8 +356,10 @@ try {
     'Synthetic confidential complaint from public form'
   );
 
-  // Skip card 2 with reason not_dealt
+  // Skip card 2 and both HR cards with reason not_dealt
   await publicPage.selectOption(`[data-staff-reason="${staff2Id}"]`, 'not_dealt');
+  await publicPage.selectOption(`[data-staff-reason="${staffHr1Id}"]`, 'not_dealt');
+  await publicPage.selectOption(`[data-staff-reason="${staffHr2Id}"]`, 'not_dealt');
 
   // Next -> Page 2 (platforms)
   await publicPage.click('#eval-next-btn');
@@ -307,13 +369,113 @@ try {
   await publicPage.click('[data-app-star="Ninja"][data-stars="5"]');
   await publicPage.click('[data-app-factor-star="Ninja"][data-factor-id="orderVolume"][data-stars="4"]');
   await publicPage.click('[data-app-factor-star="Ninja"][data-factor-id="fairPay"][data-stars="3"]');
-  for (const app of round.apps.filter((a) => a !== 'Ninja')) {
+  for (const app of legacyRound.apps.filter((a) => a !== 'Ninja')) {
     await publicPage.selectOption(`[data-app-reason="${app}"]`, 'not_worked');
   }
 
   await publicPage.click('#eval-submit-btn');
   await publicPage.locator('.success-symbol').waitFor();
   assert.match(await publicPage.locator('.edit-credentials').textContent(), /^[0-9a-f]{64}$/);
+
+  async function fillSectionIdentity(page, { iqama, name, nationality, app, phone }) {
+    await page.locator('[data-testid="eval-section-flow"]').waitFor();
+    await page.getByRole('button', { name: /متابعة|Continue|جاری/ }).first().click();
+    await page.locator('[data-testid="eval-section-city"]').waitFor();
+    await page.locator('[data-testid="eval-section-city"]').selectOption('Synthetic City One');
+    await page.locator('[data-testid="eval-section-iqama"]').fill(iqama);
+    await page.locator('[data-testid="eval-section-name"]').fill(name);
+    await page.locator('[data-testid="eval-section-nationality"]').fill(nationality);
+    if (phone) await page.locator('input[name="phone"], [data-testid="eval-section-phone"]').first().fill(phone);
+    const appLabel = app === 'Ninja' ? 'نينجا' : app === 'Keeta' ? 'كيتا' : app;
+    await page.locator(`label:has-text("${appLabel}") input[type="checkbox"]`).check();
+    await page.getByRole('button', { name: /^التالي$|^Next$|^اگلا$/ }).click();
+  }
+
+  async function rateStaffCard(page, score = 6) {
+    await page.locator('[data-testid="eval-section-staff-step"]').waitFor();
+    const dims = ['professional', 'treatment', 'support', 'responseSpeed', 'problemSolving'];
+    for (const dim of dims) {
+      await page.locator(`[data-dim="${dim}"][data-score="${score}"]`).first().click();
+    }
+  }
+
+  // 3b. HR section link → identity/city → tap ratings + one reason card + one complaint → send
+  const hrPage = await phoneCtx.newPage();
+  attachWatchers(hrPage);
+  await hrPage.goto(
+    `${base}/app/evaluation/?evaluation=${encodeURIComponent(hrSection.sharingToken)}`,
+    { waitUntil: 'networkidle' }
+  );
+  await fillSectionIdentity(hrPage, {
+    iqama: '2000000813',
+    name: 'Synthetic HR Section Rider',
+    // Same as EvaluationSectionFlow: nationality label that maps to id + local 05 phone.
+    nationality: 'مصري',
+    phone: '0501234567',
+    app: 'Ninja',
+  });
+  // Card 1: tap ratings + confidential complaint
+  await rateStaffCard(hrPage, 7);
+  await hrPage.getByRole('button', { name: /شكوى|complaint|شکایت/i }).click();
+  await hrPage.locator('textarea').last().fill('Synthetic HR confidential complaint details');
+  await hrPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
+  // Card 2: skip with reason
+  await hrPage.locator('[data-testid="eval-section-staff-step"]').waitFor();
+  await hrPage.locator('[data-testid="eval-section-staff-reason"]').selectOption('not_dealt');
+  await hrPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
+  await hrPage.locator('[data-testid="eval-section-review"]').waitFor();
+  await hrPage.getByRole('button', { name: /تأكيد|Confirm|تصدیق|إرسال/i }).click();
+  await hrPage.locator('[data-testid="eval-section-done"]').waitFor();
+
+  // Edit the section reply once through the UI (identity lock: nationality id + 05 phone).
+  await hrPage.locator('[data-testid="eval-section-edit-btn"]').click();
+  await hrPage.locator('[data-testid="eval-section-staff-step"]').waitFor();
+  await rateStaffCard(hrPage, 8);
+  await hrPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
+  await hrPage.locator('[data-testid="eval-section-staff-step"]').waitFor();
+  await hrPage.locator('[data-testid="eval-section-staff-reason"]').selectOption('not_dealt');
+  await hrPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
+  await hrPage.locator('[data-testid="eval-section-review"]').waitFor();
+  await hrPage.getByRole('button', { name: /حفظ التعديل|Save edit|ترمیم محفوظ/i }).click();
+  await hrPage.locator('[data-testid="eval-section-done"]').waitFor();
+  assert.match(
+    await hrPage.locator('[data-testid="eval-section-edit-btn"]').textContent(),
+    /2/
+  );
+
+  // 3c. App section link → staff → platform → finance → send
+  const sectionPage = await phoneCtx.newPage();
+  attachWatchers(sectionPage);
+  await sectionPage.goto(
+    `${base}/app/evaluation/?evaluation=${encodeURIComponent(ninjaSection.sharingToken)}`,
+    { waitUntil: 'networkidle' }
+  );
+  await fillSectionIdentity(sectionPage, {
+    iqama: '2000000814',
+    name: 'Synthetic App Section Rider',
+    nationality: 'Synthetic Nationality AppSec',
+    app: 'Ninja',
+  });
+  // Staff cards for Ninja section (ops with Ninja + any allApps) — rate then next until app card
+  for (;;) {
+    if (await sectionPage.locator('[data-testid="eval-section-app-step"]').count()) break;
+    if (await sectionPage.locator('[data-testid="eval-section-staff-step"]').count()) {
+      await rateStaffCard(sectionPage, 6);
+      await sectionPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
+      continue;
+    }
+    break;
+  }
+  await sectionPage.locator('[data-testid="eval-section-app-step"]').waitFor();
+  await sectionPage.locator('[data-app-star="Ninja"][data-stars="3"]').click();
+  await sectionPage.locator('[data-app-factor-star="Ninja"][data-factor-id="orderVolume"][data-stars="4"]').click();
+  await sectionPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
+  await sectionPage.locator('[data-testid="eval-finance-card"]').waitFor();
+  await sectionPage.locator('[data-finance-star="4"]').click();
+  await sectionPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
+  await sectionPage.locator('[data-testid="eval-section-review"]').waitFor();
+  await sectionPage.getByRole('button', { name: /تأكيد|Confirm|تصدیق|إرسال/i }).click();
+  await sectionPage.locator('[data-testid="eval-section-done"]').waitFor();
 
   // 4. Rider 2: Signed-in Rider App session on /app/evaluation/?token=<token>&mode=app
   const riderAppPage = await phoneCtx.newPage();
@@ -327,7 +489,7 @@ try {
   });
 
   await riderAppPage.goto(
-    `${base}/app/evaluation/?token=${encodeURIComponent(round.sharingToken)}&mode=app`,
+    `${base}/app/evaluation/?token=${encodeURIComponent(legacyRound.sharingToken)}&mode=app`,
     { waitUntil: 'networkidle' }
   );
   await riderAppPage.locator('[data-testid="evaluation-public-form"]').waitFor();
@@ -337,8 +499,10 @@ try {
   await riderAppPage.fill('input[name="nationality"]', 'Synthetic Nationality Two');
   await riderAppPage.check('input[name="workApps"][value="Keeta"]');
 
-  // Rate card 2 (all 5 dimensions = 7), skip card 1
+  // Rate card 2 (all 5 dimensions = 7), skip card 1 and both HR cards
   await riderAppPage.selectOption(`[data-staff-reason="${staff1Id}"]`, 'unknown_person');
+  await riderAppPage.selectOption(`[data-staff-reason="${staffHr1Id}"]`, 'not_dealt');
+  await riderAppPage.selectOption(`[data-staff-reason="${staffHr2Id}"]`, 'not_dealt');
   for (const dim of ['professional', 'treatment', 'support', 'responseSpeed', 'problemSolving']) {
     await riderAppPage.click(
       `[data-staff-rate="${staff2Id}"][data-dim="${dim}"][data-score="7"]`
@@ -349,17 +513,50 @@ try {
 
   await riderAppPage.click('[data-app-star="Keeta"][data-stars="4"]');
   await riderAppPage.click('[data-app-factor-star="Keeta"][data-factor-id="appProblems"][data-stars="2"]');
-  for (const app of round.apps.filter((a) => a !== 'Keeta')) {
+  for (const app of legacyRound.apps.filter((a) => a !== 'Keeta')) {
     await riderAppPage.selectOption(`[data-app-reason="${app}"]`, 'not_worked');
   }
 
   await riderAppPage.click('#eval-submit-btn');
   await riderAppPage.locator('[data-testid="evaluation-receipt"]').waitFor();
 
-  // 5. Admin Results Page: verify statistics, 5 charts, filters, table, drawer, and export
+  // 5. Admin Results Page: section filter sees HR + app replies; charts, Excel export
   await adminPage.reload({ waitUntil: 'networkidle' });
+  // Two open rounds (sectioned + legacy helper) — select the sectioned one for section filters.
+  await adminPage.locator('#select-evaluation-round').click();
+  await adminPage.getByRole('option', { name: /جولة تقييم تجريبية شاملة/ }).click();
+  await adminPage.locator('[data-testid="eval-round-sections"]').waitFor();
   await adminPage.locator('[data-testid="eval-chart-by-city"]').waitFor();
+  await adminPage.locator('#eval-filter-section').waitFor();
 
+  async function pickSectionFilter(label) {
+    await adminPage.locator('#eval-filter-section').click();
+    await adminPage.getByRole('option', { name: label, exact: true }).click();
+    await adminPage.waitForTimeout(500);
+  }
+  await pickSectionFilter('الموارد البشرية');
+  const hrRows = await (
+    await adminPage.request.get(
+      `${base}/api/forms/evaluations/rounds/${encodeURIComponent(round.id)}/responses?page=1&pageSize=20&section=${encodeURIComponent('dept:hr')}`
+    )
+  ).json();
+  assert.ok(
+    (hrRows.items || []).some((r) => r.iqama === '2000000813'),
+    'admin section filter dept:hr includes HR section reply'
+  );
+  await pickSectionFilter('تطبيق نينجا');
+  const ninjaRows = await (
+    await adminPage.request.get(
+      `${base}/api/forms/evaluations/rounds/${encodeURIComponent(round.id)}/responses?page=1&pageSize=20&section=${encodeURIComponent('app:Ninja')}`
+    )
+  ).json();
+  assert.ok(
+    (ninjaRows.items || []).some((r) => r.iqama === '2000000814'),
+    'admin section filter app:Ninja includes app section reply'
+  );
+  await pickSectionFilter('كل أقسام التقييم');
+
+  // Sectioned round only: HR + app section replies (legacy replies live on the helper round).
   const byCityText = await adminPage.locator('[data-testid="eval-chart-by-city"]').textContent();
   assert.match(byCityText, /Synthetic City One/);
   assert.match(byCityText, /2 رد/);
@@ -367,33 +564,28 @@ try {
   const byNatText = await adminPage
     .locator('[data-testid="eval-chart-by-nationality"]')
     .textContent();
-  assert.match(byNatText, /Synthetic Nationality One/);
-  assert.match(byNatText, /Synthetic Nationality Two/);
+  assert.match(byNatText, /Egyptian|مصري|egyptian/i);
+  assert.match(byNatText, /Synthetic Nationality AppSec/);
 
   const byAppText = await adminPage.locator('[data-testid="eval-chart-by-app"]').textContent();
   assert.match(byAppText, /نينجا/);
-  assert.match(byAppText, /كيتا/);
 
   const factorsText = await adminPage
     .locator('[data-testid="eval-chart-factor-averages"]')
     .textContent();
   assert.match(factorsText, /عدد الطلبات/);
-  assert.match(factorsText, /عدالة احتساب الأجر/);
-  assert.match(factorsText, /مشكلات التطبيق/);
 
   const supText = await adminPage
     .locator('[data-testid="eval-chart-by-supervisor"]')
     .textContent();
-  assert.match(supText, /Synthetic Field Supervisor Alpha/);
-  assert.match(supText, /Synthetic Team Lead Beta/);
-  assert.match(supText, /بانتظار موافقة غزال/);
+  assert.match(supText, /Synthetic HR Officer/);
   assert.match(supText, /1 شكوى سرية/);
 
   // Test dimension drill-down button
   await adminPage.click('[data-dimension="nationality"]');
   assert.match(
     await adminPage.locator('[data-testid="eval-chart-by-nationality"]').textContent(),
-    /Synthetic Nationality One/
+    /Egyptian|مصري|egyptian/i
   );
   await adminPage.click('[data-dimension="all"]');
 
@@ -412,7 +604,7 @@ try {
   assert.deepEqual(errors, [], `Unexpected page errors: ${errors.join('; ')}`);
   assert.deepEqual(cspErrors, [], `Unexpected CSP errors: ${cspErrors.join('; ')}`);
   console.log(
-    'PASS browser-evaluations: admin staff import, round open, 3-language public form + rider app session form, 5 charts, filters, responses table, and Excel export.'
+    'PASS browser-evaluations: legacy rider-form + HR/app /app/evaluation section flows, admin section filter, rider app session, charts, Excel export.'
   );
 } finally {
   if (browser) await browser.close();

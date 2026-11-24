@@ -9,20 +9,24 @@ using Payroll;
 public sealed class EvaluationAttachmentMagicTests
 {
     static readonly ClaimsPrincipal Admin = PayFixture.Maker;
-    static JsonObject OpenRound(PayFixture f) => f.Store.Write((c, tx) =>
+    static JsonObject OpenRound(PayFixture f)
     {
-        EvaluationSurvey.ImportStaff(c, tx, Admin, new()
+        var opened = f.Store.Write((c, tx) =>
         {
-            ["staff"] = new JsonArray(new JsonObject
+            EvaluationSurvey.ImportStaff(c, tx, Admin, new()
             {
-                ["name"] = "Synthetic staff", ["cities"] = new JsonArray("Synthetic city"),
-                ["departments"] = new JsonArray("Synthetic department"), ["roles"] = new JsonArray("Synthetic role"),
-                ["apps"] = new JsonArray("Ninja"), ["active"] = true
-            })
+                ["staff"] = new JsonArray(new JsonObject
+                {
+                    ["name"] = "Synthetic staff", ["cities"] = new JsonArray("Synthetic city"),
+                    ["departments"] = new JsonArray("Synthetic department"), ["roles"] = new JsonArray("Synthetic role"),
+                    ["apps"] = new JsonArray("Ninja"), ["active"] = true
+                })
+            });
+            var draft = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Synthetic magic round" });
+            return EvaluationSurvey.Transition(c, tx, Admin, draft.S("id"), "open");
         });
-        var draft = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Synthetic magic round" });
-        return EvaluationSurvey.Transition(c, tx, Admin, draft.S("id"), "open");
-    });
+        return f.MakeLegacyEvaluationRound(opened);
+    }
     static JsonObject Reply(JsonObject round) => new()
     {
         ["iqama"] = "2000000091", ["name"] = "Synthetic rider", ["city"] = "Synthetic city", ["nationality"] = "Synthetic nationality",

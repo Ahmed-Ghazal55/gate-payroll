@@ -163,3 +163,111 @@ export async function voiceFileForEvaluation(
     durationSeconds: Math.round(durationSeconds),
   };
 }
+
+export const EVAL_IDENTITY_STORAGE_KEY = 'gate_eval_identity_v1';
+
+export type SuggestedChipKind = 'staff' | 'movement' | 'hr' | 'finance' | 'support' | 'app';
+
+const CHIP_SETS: Record<SuggestedChipKind, Record<EvalLanguage, string[]>> = {
+  staff: {
+    ar: [
+      'متعاون ويرد بسرعة',
+      'يحل المشاكل من أول مرة',
+      'محترم في التعامل',
+      'لا يرد على الاتصالات أو الرسائل',
+      'يتأخر في حل المشاكل',
+      'أسلوب تعامل غير مناسب',
+      'لا يشرح الإجراءات بوضوح',
+      'يفرّق في المعاملة بين المناديب',
+    ],
+    en: [
+      'Helpful and replies quickly',
+      'Solves issues the first time',
+      'Respectful in dealing',
+      'Does not answer calls or messages',
+      'Slow to solve problems',
+      'Inappropriate manner',
+      'Does not explain procedures clearly',
+      'Treats riders unequally',
+    ],
+    ur: [
+      'مددگار اور فوری جواب دیتا ہے',
+      'پہلی بار میں مسائل حل کرتا ہے',
+      'احترام سے پیش آتا ہے',
+      'کال یا میسج کا جواب نہیں دیتا',
+      'مسائل حل کرنے میں دیر کرتا ہے',
+      'نامناسب رویہ',
+      'طریقہ کار واضح نہیں بتاتا',
+      'منادیب کے ساتھ فرق کرتا ہے',
+    ],
+  },
+  movement: {
+    ar: ['تأخر صيانة المركبة', 'مشاكل في السكن', 'تأخر توفير مركبة بديلة'],
+    en: ['Vehicle maintenance delay', 'Housing problems', 'Delay providing a replacement vehicle'],
+    ur: ['گاڑی کی مرمت میں تاخیر', 'رہائش کے مسائل', 'متبادل گاڑی فراہم کرنے میں تاخیر'],
+  },
+  hr: {
+    ar: ['تأخر الإقامة أو الأوراق الرسمية', 'تأخر الرد على طلبات الإجازة'],
+    en: ['Iqama or papers delayed', 'Slow reply to leave requests'],
+    ur: ['اقامہ یا کاغذات میں تاخیر', 'چھٹی کی درخواست پر تاخیر'],
+  },
+  finance: {
+    ar: [
+      'الراتب ناقص أو فيه خصم غير مفهوم',
+      'تأخر الصرف',
+      'تأخر تعديل الفرق بعد الإبلاغ',
+      'لا يوجد رد على استفسار الراتب',
+      'الحساب واضح وصحيح',
+    ],
+    en: [
+      'Salary short or unclear deduction',
+      'Payout delayed',
+      'Correction after report was slow',
+      'No reply to salary inquiry',
+      'Account is clear and correct',
+    ],
+    ur: [
+      'تنخواہ کم یا غیر واضح کٹوتی',
+      'ادائیگی میں تاخیر',
+      'اطلاع کے بعد فرق درست کرنے میں تاخیر',
+      'تنخواہ کے سوال کا جواب نہیں',
+      'حساب واضح اور درست',
+    ],
+  },
+  support: {
+    ar: ['طول الانتظار على الخط', 'لم تُحل المشكلة بعد المكالمة'],
+    en: ['Long wait on the line', 'Issue not solved after the call'],
+    ur: ['لائن پر طویل انتظار', 'کال کے بعد مسئلہ حل نہیں ہوا'],
+  },
+  app: {
+    ar: ['الطلبات قليلة', 'أوقات الشفتات غير مناسبة', 'مشاكل في التطبيق نفسه', 'خدمة عملاء المنصة لا ترد', 'الشغل يستاهل'],
+    en: ['Few orders', 'Shift times not suitable', 'Problems in the app itself', 'Platform support does not reply', 'The work is worth it'],
+    ur: ['آرڈرز کم', 'شفٹ اوقات مناسب نہیں', 'ایپ میں مسائل', 'پلیٹ فارم سپورٹ جواب نہیں دیتی', 'کام قابل قدر ہے'],
+  },
+};
+
+export function sectionChipKindFromKey(sectionKey: string | undefined | null): SuggestedChipKind {
+  if (!sectionKey) return 'staff';
+  if (sectionKey.startsWith('app:')) return 'app';
+  if (sectionKey === 'dept:movement') return 'movement';
+  if (sectionKey === 'dept:hr') return 'hr';
+  if (sectionKey === 'dept:finance') return 'finance';
+  if (sectionKey === 'dept:support') return 'support';
+  return 'staff';
+}
+
+export function suggestedChipsFor(kind: SuggestedChipKind, lang: EvalLanguage): string[] {
+  const base = CHIP_SETS.staff[lang] || CHIP_SETS.staff.ar;
+  if (kind === 'staff') return base;
+  if (kind === 'app') return CHIP_SETS.app[lang] || CHIP_SETS.app.ar;
+  const extra = CHIP_SETS[kind][lang] || CHIP_SETS[kind].ar;
+  if (kind === 'finance') return [...extra];
+  return [...base, ...extra];
+}
+
+export function appendSuggestedChip(current: string, chip: string): string {
+  const value = String(current || '').trim();
+  if (!value) return chip;
+  if (value.includes(chip)) return value;
+  return `${value}\n${chip}`;
+}
