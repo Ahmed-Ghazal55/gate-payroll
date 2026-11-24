@@ -267,7 +267,7 @@ public static partial class EvaluationSurvey
         if (section != null)
         {
             if (staff)
-                expected = SectionMembers(round, section).Where(s => ServesCity(s, city)).Select(s => s.S("id")).Distinct().ToArray();
+                expected = SectionMembers(round, section).Where(s => ServesSectionCity(s, section, city)).Select(s => s.S("id")).Distinct().ToArray();
             else if (section.S("kind") == "app")
                 expected = [section.S("key")["app:".Length..]];
             else

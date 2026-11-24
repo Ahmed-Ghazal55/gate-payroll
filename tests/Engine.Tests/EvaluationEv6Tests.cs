@@ -56,10 +56,10 @@ public sealed class EvaluationEv6Tests
         Assert.AreEqual("تقييمك وشكواك سرية تمامًا.", lines[0].S("ar"));
     }
 
-    static JsonObject AppReply(JsonObject section, string iqama = "2000000301", bool withSystems = true)
+    internal static JsonObject AppReply(JsonObject section, string iqama = "2000000301", bool withSystems = true, string city = "Synthetic city")
     {
         var staffCards = section["staff"]!.AsArray().OfType<JsonObject>()
-            .Where(s => EvaluationSurvey.ServesCity(s, "Synthetic city"))
+            .Where(s => EvaluationSurvey.ServesSectionCity(s, section, city))
             .Select(s => (JsonNode?)new JsonObject
             {
                 ["staffId"] = s.S("id"),
@@ -70,7 +70,7 @@ public sealed class EvaluationEv6Tests
         {
             ["iqama"] = iqama,
             ["name"] = "Synthetic EV6 rider",
-            ["city"] = "Synthetic city",
+            ["city"] = city,
             ["nationality"] = "egyptian",
             ["workApps"] = new JsonArray(platform),
             ["staffAnswers"] = new JsonArray(staffCards),

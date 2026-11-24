@@ -47,6 +47,11 @@ public sealed class EvaluationEv6R4Tests
         var schemaSynth = f.Store.Read(c => EvaluationSurvey.Schema(EvaluationSurvey.ByToken(c, ninja.S("sharingToken")), "Synthetic city"));
         CollectionAssert.Contains(schemaOther["staff"]!.AsArray().OfType<JsonObject>().Select(s => s.S("name")).ToArray(), "Synthetic mover");
         CollectionAssert.DoesNotContain(schemaSynth["staff"]!.AsArray().OfType<JsonObject>().Select(s => s.S("name")).ToArray(), "Synthetic mover");
+        // The server must expect exactly the cards the schema shows: a rider in the card's own city submits WITHOUT the limited card.
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, ninja.S("sharingToken"), EvaluationEv6Tests.AppReply(ninja, "2000000391", city: "Synthetic city")));
+        var moverId = f.Store.Read(c => Store.List(c, EvaluationSurvey.StaffKind)).Single(s => s.S("name") == "Synthetic mover").S("id");
+        var stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single();
+        Assert.IsFalse(stored["staffAnswers"]!.AsArray().OfType<JsonObject>().Any(a => a.S("staffId") == moverId));
 
         var movement = Section(round, "dept:movement");
         var moveSchema = f.Store.Read(c => EvaluationSurvey.Schema(EvaluationSurvey.ByToken(c, movement.S("sharingToken")), "Synthetic city"));

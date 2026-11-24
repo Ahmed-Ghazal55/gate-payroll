@@ -234,6 +234,10 @@ public static partial class EvaluationSurvey
         return result;
     }
 
+    /// <summary>City rule for one section: app sections honour the per-app city limit (appCities); department sections use the card's cities.</summary>
+    public static bool ServesSectionCity(JsonObject staff, JsonObject? section, string city) =>
+        section?.S("kind") == "app" ? ServesAppCity(staff, section.S("key")["app:".Length..], city) : ServesCity(staff, city);
+
     public static bool ServesAppCity(JsonObject staff, string platform, string city)
     {
         if (staff["appCities"] is JsonObject map && map[platform] is JsonArray arr && arr.Count > 0)

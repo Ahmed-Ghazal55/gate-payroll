@@ -68,9 +68,7 @@ public static partial class EvaluationSurvey
             ["staff"] = Array(staffSource.Where(s =>
             {
                 if (string.IsNullOrEmpty(city)) return true;
-                if (section?.S("kind") == "app")
-                    return ServesAppCity(s, section.S("key")["app:".Length..], city);
-                return ServesCity(s, city);
+                return ServesSectionCity(s, section, city);
             }).Select(s => new JsonObject
             {
                 // Remote staff are listed under every work city, so older clients that filter by cities still show them.
