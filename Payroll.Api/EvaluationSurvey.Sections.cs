@@ -249,13 +249,14 @@ public static partial class EvaluationSurvey
         return summary;
     }
 
-    static JsonObject RoundViewDoc(JsonObject round, ClaimsPrincipal user)
+    public static JsonObject RoundViewDoc(JsonObject round, ClaimsPrincipal user)
     {
         var view = round.Clone();
         view.Remove("activeSection");
         if (IsSectioned(view))
         {
             // Public form uses section tokens; do not expose the legacy round token as a share link.
+            view.Remove("sharingToken");
             foreach (var section in view["sections"]!.AsArray().OfType<JsonObject>())
                 section["staff"] = Array(SectionMembers(view, section).GroupBy(s => s.S("id")).Select(g => g.First()));
         }

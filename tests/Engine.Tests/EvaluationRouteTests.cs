@@ -14,12 +14,12 @@ public sealed class EvaluationRouteTests
     {
         using var f = new PayFixture();
         var admin = PayFixture.Maker;
-        var round = f.Store.Write((c, tx) =>
+        var round = f.MakeLegacyEvaluationRound(f.Store.Write((c, tx) =>
         {
             EvaluationSurvey.ImportStaff(c, tx, admin, new() { ["staff"] = new JsonArray(new JsonObject { ["name"] = "Synthetic route person", ["cities"] = new JsonArray("Synthetic city") }) });
             var draft = EvaluationSurvey.CreateRound(c, tx, admin, new() { ["title"] = "Synthetic route round" });
             return EvaluationSurvey.Transition(c, tx, admin, draft.S("id"), "open");
-        });
+        }));
         var builder = WebApplication.CreateBuilder(new WebApplicationOptions { EnvironmentName = "Development", ContentRootPath = f.DirectoryPath });
         await using var app = builder.Build();
         EvaluationSurvey.Map(app, app.MapGroup("/api"), f.Store);

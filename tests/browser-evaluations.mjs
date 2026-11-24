@@ -6,6 +6,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 import assert from 'node:assert/strict';
 import { randomBytes } from 'node:crypto';
 import { createServer } from 'node:net';
+import { DatabaseSync } from 'node:sqlite';
 
 const { chromium } = await import(
   pathToFileURL(
@@ -251,6 +252,7 @@ try {
   assert.equal(round.status, 'open');
   assert.equal(round.staff.length, 4, 'excluded staff not in round cards');
   assert.ok(Array.isArray(round.sections) && round.sections.length >= 5, 'sectioned round exposes sections');
+  assert.equal(round.sharingToken, undefined, 'sectioned RoundView omits round sharingToken');
   const ninjaSection = round.sections.find((s) => s.key === 'app:Ninja');
   const hrSection = round.sections.find((s) => s.key === 'dept:hr');
   assert.ok(ninjaSection?.sharingToken, 'app:Ninja section token');
@@ -261,8 +263,33 @@ try {
   assert.equal(await adminPage.locator('[data-testid="eval-copy-link-btn"]').count(), 0);
   assert.equal(await adminPage.locator('[data-testid="eval-preview-mobile-btn"]').count(), 0);
 
+  // Legacy combined two-page path needs a round without sections (live legacy rounds).
+  function makeLegacyRound(roundId) {
+    const db = new DatabaseSync(path.join(data, 'payroll.db'));
+    const row = db.prepare('SELECT body FROM records WHERE id=?').get(roundId);
+    const body = JSON.parse(row.body);
+    delete body.sections;
+    db.prepare('UPDATE records SET body=? WHERE id=?').run(JSON.stringify(body), roundId);
+    db.close();
+    return body.sharingToken;
+  }
+  const legacyDraft = await (
+    await adminPage.request.post(`${base}/api/forms/evaluations/rounds`, {
+      data: { title: 'جولة تقييم تراثية مجمّعة' },
+    })
+  ).json();
+  const legacyToken = makeLegacyRound(legacyDraft.id);
+  const legacyRound = await (
+    await adminPage.request.post(
+      `${base}/api/forms/evaluations/rounds/${encodeURIComponent(legacyDraft.id)}/open`,
+      { data: {} }
+    )
+  ).json();
+  assert.ok(legacyRound.sharingToken);
+  assert.equal(legacyRound.sharingToken, legacyToken);
+  assert.ok(!legacyRound.sections);
+
   // 3. Rider 1: Public Web Form (/rider-form.html?evaluation=<token>) in 3 languages on 360px phone
-  // Round-level token keeps the legacy combined two-page path.
   const phoneCtx = await browser.newContext({
     viewport: { width: 360, height: 780 },
     hasTouch: true,
@@ -272,7 +299,7 @@ try {
   attachWatchers(publicPage);
 
   await publicPage.goto(
-    `${base}/rider-form.html?evaluation=${encodeURIComponent(round.sharingToken)}`,
+    `${base}/rider-form.html?evaluation=${encodeURIComponent(legacyRound.sharingToken)}`,
     { waitUntil: 'networkidle' }
   );
   await publicPage.locator('#rider-evaluation').waitFor();
@@ -312,10 +339,10 @@ try {
   assert.match(cardsText, /بانتظار موافقة غزال/);
   assert.doesNotMatch(cardsText, /Synthetic Excluded Executive/);
 
-  const staff1Id = round.staff.find((s) => s.name.includes('Alpha')).id;
-  const staff2Id = round.staff.find((s) => s.name.includes('Beta')).id;
-  const staffHr1Id = round.staff.find((s) => s.name.includes('HR Officer One')).id;
-  const staffHr2Id = round.staff.find((s) => s.name.includes('HR Officer Two')).id;
+  const staff1Id = legacyRound.staff.find((s) => s.name.includes('Alpha')).id;
+  const staff2Id = legacyRound.staff.find((s) => s.name.includes('Beta')).id;
+  const staffHr1Id = legacyRound.staff.find((s) => s.name.includes('HR Officer One')).id;
+  const staffHr2Id = legacyRound.staff.find((s) => s.name.includes('HR Officer Two')).id;
 
   // Rate card 1 (all 5 dimensions = 9) + confidential complaint
   for (const dim of ['professional', 'treatment', 'support', 'responseSpeed', 'problemSolving']) {
@@ -342,7 +369,7 @@ try {
   await publicPage.click('[data-app-star="Ninja"][data-stars="5"]');
   await publicPage.click('[data-app-factor-star="Ninja"][data-factor-id="orderVolume"][data-stars="4"]');
   await publicPage.click('[data-app-factor-star="Ninja"][data-factor-id="fairPay"][data-stars="3"]');
-  for (const app of round.apps.filter((a) => a !== 'Ninja')) {
+  for (const app of legacyRound.apps.filter((a) => a !== 'Ninja')) {
     await publicPage.selectOption(`[data-app-reason="${app}"]`, 'not_worked');
   }
 
@@ -442,7 +469,7 @@ try {
   });
 
   await riderAppPage.goto(
-    `${base}/app/evaluation/?token=${encodeURIComponent(round.sharingToken)}&mode=app`,
+    `${base}/app/evaluation/?token=${encodeURIComponent(legacyRound.sharingToken)}&mode=app`,
     { waitUntil: 'networkidle' }
   );
   await riderAppPage.locator('[data-testid="evaluation-public-form"]').waitFor();
@@ -466,7 +493,7 @@ try {
 
   await riderAppPage.click('[data-app-star="Keeta"][data-stars="4"]');
   await riderAppPage.click('[data-app-factor-star="Keeta"][data-factor-id="appProblems"][data-stars="2"]');
-  for (const app of round.apps.filter((a) => a !== 'Keeta')) {
+  for (const app of legacyRound.apps.filter((a) => a !== 'Keeta')) {
     await riderAppPage.selectOption(`[data-app-reason="${app}"]`, 'not_worked');
   }
 
@@ -504,40 +531,36 @@ try {
   );
   await pickSectionFilter('كل أقسام التقييم');
 
+  // Sectioned round only: HR + app section replies (legacy replies live on the helper round).
   const byCityText = await adminPage.locator('[data-testid="eval-chart-by-city"]').textContent();
   assert.match(byCityText, /Synthetic City One/);
-  assert.match(byCityText, /4 رد/);
+  assert.match(byCityText, /2 رد/);
 
   const byNatText = await adminPage
     .locator('[data-testid="eval-chart-by-nationality"]')
     .textContent();
-  assert.match(byNatText, /Synthetic Nationality One/);
-  assert.match(byNatText, /Synthetic Nationality Two/);
+  assert.match(byNatText, /Synthetic Nationality HR/);
+  assert.match(byNatText, /Synthetic Nationality AppSec/);
 
   const byAppText = await adminPage.locator('[data-testid="eval-chart-by-app"]').textContent();
   assert.match(byAppText, /نينجا/);
-  assert.match(byAppText, /كيتا/);
 
   const factorsText = await adminPage
     .locator('[data-testid="eval-chart-factor-averages"]')
     .textContent();
   assert.match(factorsText, /عدد الطلبات/);
-  assert.match(factorsText, /عدالة احتساب الأجر/);
-  assert.match(factorsText, /مشكلات التطبيق/);
 
   const supText = await adminPage
     .locator('[data-testid="eval-chart-by-supervisor"]')
     .textContent();
-  assert.match(supText, /Synthetic Field Supervisor Alpha/);
-  assert.match(supText, /Synthetic Team Lead Beta/);
-  assert.match(supText, /بانتظار موافقة غزال/);
+  assert.match(supText, /Synthetic HR Officer/);
   assert.match(supText, /1 شكوى سرية/);
 
   // Test dimension drill-down button
   await adminPage.click('[data-dimension="nationality"]');
   assert.match(
     await adminPage.locator('[data-testid="eval-chart-by-nationality"]').textContent(),
-    /Synthetic Nationality One/
+    /Synthetic Nationality HR/
   );
   await adminPage.click('[data-dimension="all"]');
 

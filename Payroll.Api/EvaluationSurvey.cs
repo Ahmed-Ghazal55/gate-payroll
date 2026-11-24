@@ -212,9 +212,9 @@ public static partial class EvaluationSurvey
             return view;
         }
         var round = Store.ListWhere(c, RoundKind, tx, 1, ("sharingToken", token)).SingleOrDefault() ?? throw new ApiError("النموذج غير متاح.", 404);
+        // Sectioned rounds are opened only by section tokens; the stored round token stays for legacy rounds without sections.
+        if (IsSectioned(round)) throw new ApiError("النموذج غير متاح.", 404);
         if (round.S("status") != "open") throw new ApiError("جولة التقييم غير متاحة حاليًا.", 409);
-        // Round-level token keeps the old combined two-page path (also used by pre-section tests).
-        // Management shares section tokens; rider-mobile listing hides sectioned rounds.
         return round;
     }
     static List<JsonObject> Cards(JsonObject input, string field)

@@ -17831,7 +17831,7 @@ export interface paths {
                             status: string;
                             kind?: string;
                             schema?: string;
-                            sharingToken: string;
+                            sharingToken?: string;
                             staff: {
                                 id: string;
                                 name: string;
@@ -17906,7 +17906,7 @@ export interface paths {
                             status: string;
                             kind?: string;
                             schema?: string;
-                            sharingToken: string;
+                            sharingToken?: string;
                             staff: {
                                 id: string;
                                 name: string;
@@ -17991,7 +17991,7 @@ export interface paths {
                             status: string;
                             kind?: string;
                             schema?: string;
-                            sharingToken: string;
+                            sharingToken?: string;
                             staff: {
                                 id: string;
                                 name: string;
@@ -18199,7 +18199,7 @@ export interface paths {
                             status: string;
                             kind?: string;
                             schema?: string;
-                            sharingToken: string;
+                            sharingToken?: string;
                             staff: {
                                 id: string;
                                 name: string;
@@ -19149,7 +19149,7 @@ export interface paths {
                             status: string;
                             kind?: string;
                             schema?: string;
-                            sharingToken: string;
+                            sharingToken?: string;
                             staff: {
                                 id: string;
                                 name: string;

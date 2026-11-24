@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomBytes} from 'node:crypto';
+import {DatabaseSync} from 'node:sqlite';
 import assert from 'node:assert/strict';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
@@ -40,14 +41,28 @@ try{
   const staffId=staffList.find(s=>s.name==='Synthetic person').id;
   const updatedStaff=await fetch(base+prefix+'/staff/'+encodeURIComponent(staffId),{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({name:'Synthetic person',cities:['Synthetic city'],departments:['الحركة والمركبات'],roles:['Synthetic role'],apps:['Ninja'],allApps:true,allCities:false,excluded:false,active:true})});
   assert.equal(updatedStaff.status,200);assert.equal((await updatedStaff.json()).allApps,true);checks++;
-  const round=await request(prefix+'/rounds',{title:'Synthetic evaluation'});
-  assert.equal(round.staff.length,1);assert.deepEqual(round.allowedActions,['open','refresh-staff','delete']);
-  assert.ok(Array.isArray(round.sections)&&round.sections.length>=5);
-  assert.ok(round.sections.every(s=>/^[0-9a-f]{64}$/.test(s.sharingToken)));
-  const ninjaSection=round.sections.find(s=>s.key==='app:Ninja');assert.ok(ninjaSection);
+  function makeLegacyRound(roundId){
+    const db=new DatabaseSync(path.join(data,'payroll.db'));
+    const row=db.prepare('SELECT body FROM records WHERE id=?').get(roundId);
+    const body=JSON.parse(row.body);
+    delete body.sections;
+    db.prepare('UPDATE records SET body=? WHERE id=?').run(JSON.stringify(body),roundId);
+    db.close();
+    return body.sharingToken;
+  }
+  // Legacy combined two-page path (rounds without sections still exist on live).
+  const legacyDraft=await request(prefix+'/rounds',{title:'Synthetic evaluation'});
+  assert.equal(legacyDraft.staff.length,1);assert.deepEqual(legacyDraft.allowedActions,['open','refresh-staff','delete']);
+  assert.ok(Array.isArray(legacyDraft.sections)&&legacyDraft.sections.length>=5);
+  assert.ok(legacyDraft.sections.every(s=>/^[0-9a-f]{64}$/.test(s.sharingToken)));
+  assert.equal(legacyDraft.sharingToken,undefined,'sectioned RoundView omits round sharingToken');
+  await request('/api/public/evaluations/'+legacyDraft.sections.find(s=>s.key==='app:Ninja').sharingToken,undefined,409,false);
+  // Stored round-level token only works after sections are stripped (legacy path).
+  const storedRoundToken=makeLegacyRound(legacyDraft.id);
+  const round=await request(prefix+'/rounds/'+legacyDraft.id+'/open',{});
+  assert.ok(round.sharingToken);assert.equal(round.sharingToken,storedRoundToken);
+  assert.ok(!round.sections);
   const pub='/api/public/evaluations/'+round.sharingToken;
-  await request(pub,undefined,409,false);
-  await request(prefix+'/rounds/'+round.id+'/open',{});
   const schema=await request(pub+'?city=Synthetic%20city',undefined,200,false);
   assert.equal(schema.staff.length,1);assert.equal(schema.staffDimensions.length,5);assert.equal(schema.staffRatingMax,10);assert.equal(schema.appRatingMax,5);
   assert.ok(!schema.sectionKey);assert.ok(!JSON.stringify(schema).includes('sharingToken'));assert.ok(!JSON.stringify(schema).includes('reportingLine'));
@@ -95,8 +110,16 @@ try{
 
   // Sectioned public form + finance scorecard + delete with title confirm
   const sectionRound=await request(prefix+'/rounds',{title:'Synthetic sectioned evaluation'});
+  assert.equal(sectionRound.sharingToken,undefined);
   const sectionNinja=sectionRound.sections.find(s=>s.key==='app:Ninja');assert.ok(sectionNinja);
   await request(prefix+'/rounds/'+sectionRound.id+'/open',{});
+  // Round-level token of a sectioned round must 404; only section tokens open the form.
+  {
+    const db=new DatabaseSync(path.join(data,'payroll.db'));
+    const sectionedStored=JSON.parse(db.prepare('SELECT body FROM records WHERE id=?').get(sectionRound.id).body);
+    db.close();
+    await request('/api/public/evaluations/'+sectionedStored.sharingToken,undefined,404,false);
+  }
   const sectionPub='/api/public/evaluations/'+sectionNinja.sharingToken;
   const sectionSchema=await request(sectionPub+'?city=Synthetic%20city',undefined,200,false);
   assert.equal(sectionSchema.schema,'evaluation-section-v1');assert.equal(sectionSchema.sectionKey,'app:Ninja');assert.equal(sectionSchema.includeFinanceCard,true);

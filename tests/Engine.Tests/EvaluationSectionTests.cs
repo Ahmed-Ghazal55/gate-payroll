@@ -113,6 +113,25 @@ public sealed class EvaluationSectionTests
     }
 
     [TestMethod]
+    public void SectionedRoundLevelTokenReturns404AndAdminViewOmitsSharingToken()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f);
+        string roundToken = round.S("sharingToken");
+        Assert.AreEqual(64, roundToken.Length);
+        var err = Assert.ThrowsExactly<ApiError>(() => f.Store.Read(c => EvaluationSurvey.ByToken(c, roundToken)));
+        Assert.AreEqual(404, err.Status);
+        var view = EvaluationSurvey.RoundViewDoc(round, Admin);
+        Assert.IsNull(view["sharingToken"]);
+        Assert.IsTrue(EvaluationSurvey.IsSectioned(view));
+        Assert.IsTrue(view["sections"]!.AsArray().OfType<JsonObject>().All(s => s.S("sharingToken").Length == 64));
+        // Section token still opens the bound section only.
+        var section = Section(round, "app:Ninja");
+        var opened = f.Store.Read(c => EvaluationSurvey.ByToken(c, section.S("sharingToken")));
+        Assert.AreEqual("app:Ninja", opened["activeSection"]!.S("key"));
+    }
+
+    [TestMethod]
     public void SectionMembershipUsesAppsAllAppsDepartmentAndCity()
     {
         using var f = new PayFixture();
@@ -273,8 +292,7 @@ public sealed class EvaluationSectionTests
                 ["staff"] = new JsonArray(Person("Synthetic movement", EvaluationSurvey.DeptMovement, apps: ["Ninja"]))
             });
             var created = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Legacy synthetic round" });
-            created.Remove("sections");
-            Store.Save(c, EvaluationSurvey.RoundKind, created, tx);
+            PayFixture.StripEvaluationSections(c, tx, created);
             return EvaluationSurvey.Transition(c, tx, Admin, created.S("id"), "open");
         });
         Assert.IsFalse(EvaluationSurvey.IsSectioned(round));
@@ -307,8 +325,7 @@ public sealed class EvaluationSectionTests
         var legacy = f.Store.Write((c, tx) =>
         {
             var created = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Legacy open round" });
-            created.Remove("sections");
-            Store.Save(c, EvaluationSurvey.RoundKind, created, tx);
+            PayFixture.StripEvaluationSections(c, tx, created);
             return EvaluationSurvey.Transition(c, tx, Admin, created.S("id"), "open");
         });
         var listed = f.Store.Read(c => Store.ListWhere(c, EvaluationSurvey.RoundKind, null, null, ("status", "open"))
