@@ -971,18 +971,17 @@ public static partial class Debts
             {
                 var r = node!.AsObject();
                 string iqama = DirectoryProfiles.Iqama(r.Required("iqama"));
-                string riderName = r.S("riderName", iqama);
                 var creditorSp = FinancialCore.ResolveSponsor(r.Required("creditorSponsorId"));FinancialScopes.DemandSponsor(ctx.User,creditorSp.Id);
 
-                // إذا لم يكن المندوب مسجلاً بعد في دليل المناديب، ننشئ له ملفاً تلقائياً مع ربطه بالسجل التجاري
+                // TRIAL9: never default name to iqama. Missing/blank/digits-only → 409 (or use existing rider name).
                 var existingRider = Store.Get(c, iqama, "rider", tx);
+                string riderName = RequireOpeningRiderName(r.S("riderName"), existingRider?.S("name"));
                 if (existingRider == null)
                 {
-                    string cleanName = RequireOpeningRiderName(riderName, null);
                     var newRider = RiderDirectory.Normalize(new JsonObject
                     {
                         ["iqama"] = iqama,
-                        ["name"] = cleanName,
+                        ["name"] = riderName,
                         ["sponsor"] = creditorSp.NameAr,
                         ["sponsorId"] = creditorSp.Id,
                         ["status"] = "NeedsReview"

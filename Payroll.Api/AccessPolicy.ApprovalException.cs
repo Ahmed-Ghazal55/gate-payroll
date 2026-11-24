@@ -39,6 +39,19 @@ public static partial class AccessPolicy
     }
     /// <summary>View-time: claim is present (not AccessPolicy.Has — Admin must not inherit approve-own).</summary>
     public static bool HasApproveOwnClaim(ClaimsPrincipal actor)=>actor.HasClaim("permission",ApproveOwnPermission);
+    /// <summary>TRIAL9: one shared self-approval gate for every money path — check every maker field
+    /// (createdBy / updatedBy / calculatedBy / …). Same person needs approvals.approve_own; never money-out.</summary>
+    public static void DemandIndependentOfMakers(ClaimsPrincipal actor,string operation,DbConnection? c,DbTransaction? tx,JsonObject record,string? scope,params string[] makerFields)
+    {
+        var makers=makerFields
+            .Select(f=>record.S(f))
+            .Where(m=>!string.IsNullOrWhiteSpace(m))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        string? self=makers.FirstOrDefault(m=>SamePerson(actor,m));
+        if(self==null)return;
+        J.Need(Independent(actor,self,operation,c,tx,record,scope:scope),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية اعتماد مستنداته بنفسه.",403);
+    }
     // Pure when tx is null (allowedActions). Every committed exception use is audited in
     // the same transaction and stamps the operation's actual stored document.
     public static bool Independent(ClaimsPrincipal actor,string maker,string operation,DbConnection? c=null,DbTransaction? tx=null,JsonObject? record=null,DateTimeOffset? evidenceAt=null,string? scope=null)
@@ -56,16 +69,46 @@ public static partial class AccessPolicy
                    ||(a.S("action")=="approval.self_exception"&&string.Equals(actor.Identity.Name,"ghazal",StringComparison.OrdinalIgnoreCase)
                       &&string.CompareOrdinal(a.S("approvalExceptionUntil"),used.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"))>=0)));
         }
-        // TRIAL8: one shared self-approval rule for every role (Admin/SystemAdmin) and every request (dual and non-dual).
-        // Allowed only with the explicit approvals.approve_own claim. Never on money-out (including dual bank/payment scopes).
+        // TRIAL8/9 shared rule (every role, dual and non-dual):
+        // 1) approvals.approve_own — never money-out
+        // 2) dated approval.bypass_maker_checker grant — money-out only with an explicit Dual* scope grant
+        // 3) never automatic SystemAdmin self-path
         bool moneyOut=IsMoneyOutDocument(record,operation,scope);
-        if(moneyOut)return false;
-        if(!HasApproveOwnClaim(actor))return false;
+        if(HasApproveOwnClaim(actor)&&!moneyOut)
+        {
+            if(tx!=null)
+            {
+                J.Need(c!=null&&record!=null&&record.S("id")!="","اعتماد المستند الذاتي يحتاج مستندًا وسجل مراجعة.",409);
+                record!["selfApprovedException"]=true;record["selfApproved"]=true;
+                Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.approve_own",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["scope"]=scope??"",["selfApprovedException"]=true,["selfApproved"]=true,["badge"]="approve_own"},tx);
+            }
+            return true;
+        }
+        if(moneyOut)
+        {
+            if(scope is not (ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or ApprovalsArea.DualSharedRiderRelease))
+                return false;
+            if(c==null||string.IsNullOrWhiteSpace(scope))return false;
+            var dualGrant=ActiveBypassGrant(c,tx,actor.Identity!.Name!,scope);
+            if(dualGrant==null)return false;
+            if(tx!=null)
+            {
+                J.Need(record!=null&&record.S("id")!="","استثناء الاعتماد يحتاج مستندًا وسجل مراجعة.",409);
+                record!["selfApprovedException"]=true;
+                Store.Save(c,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=dualGrant.S("id"),["scope"]=dualGrant.S("scope",scope??""),["reason"]=dualGrant.S("reason"),["approvalBypassUntil"]=dualGrant.S("to"),["selfApprovedException"]=true,["badge"]="bypass_maker_checker"},tx);
+            }
+            return true;
+        }
+        // Non-money-out: dated bypass grant (no SystemAdmin default). Null scope = any active grant
+        // so ValidateApproval self-checks still honour §35 grants that callers pass via Independent(...,scope:…).
+        if(c==null)return false;
+        var grant=ActiveBypassGrant(c,tx,actor.Identity!.Name!,scope);
+        if(grant==null)return false;
         if(tx!=null)
         {
-            J.Need(c!=null&&record!=null&&record.S("id")!="","اعتماد المستند الذاتي يحتاج مستندًا وسجل مراجعة.",409);
-            record!["selfApprovedException"]=true;record["selfApproved"]=true;
-            Store.Save(c!,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.approve_own",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["scope"]=scope??"",["selfApprovedException"]=true,["selfApproved"]=true,["badge"]="approve_own"},tx);
+            J.Need(record!=null&&record.S("id")!="","استثناء الاعتماد يحتاج مستندًا وسجل مراجعة.",409);
+            record!["selfApprovedException"]=true;
+            Store.Save(c,"audit",new(){["id"]=Guid.NewGuid().ToString("N"),["action"]="approval.bypass_maker_checker",["operation"]=operation,["entity"]=record.S("id"),["recordId"]=record.S("id"),["maker"]=maker,["actor"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O"),["grantId"]=grant.S("id"),["scope"]=grant.S("scope",scope??""),["reason"]=grant.S("reason"),["approvalBypassUntil"]=grant.S("to"),["selfApprovedException"]=true,["badge"]="bypass_maker_checker"},tx);
         }
         return true;
     }

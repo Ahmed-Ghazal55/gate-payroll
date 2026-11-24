@@ -90,7 +90,10 @@ public static class ManualJournals
 
     public static JsonObject Approve(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
-        var draft=Get(c,tx,actor,id,ApprovePermission);J.Need(AccessPolicy.Independent(actor,draft.S("createdBy"),"finance.manual_approved",c,tx,draft,scope:AccessPolicy.ScopePayApprovals),"صاحب المسودة لا يعتمدها.",403);if(draft.S("status")=="approved")return draft;
+        var draft=Get(c,tx,actor,id,ApprovePermission);
+        // TRIAL9: shared rule for createdBy AND updatedBy (another admin who rewrote the draft is also a maker).
+        AccessPolicy.DemandIndependentOfMakers(actor,"finance.manual_approved",c,tx,draft,AccessPolicy.ScopePayApprovals,"createdBy","updatedBy");
+        if(draft.S("status")=="approved")return draft;
         J.Need(draft.S("status")=="draft","المسودة غير جاهزة للاعتماد.");Open(c,tx,draft.S("companyId"),draft.S("period"));
         string reversal=draft.S("reversesJournalId");if(reversal!="")J.Need(!Store.List(c,"journal",tx).Any(j=>j.S("reversesJournalId")==reversal),"القيد معكوس بالفعل.");
         var journal=FinancialCore.PostJournal(c,tx,"manual"+(reversal==""?"":"_reversal"),draft.S("description"),draft.S("period"),"MANUAL:"+id,draft["lines"]!.DeepClone().AsArray(),actor.Identity!.Name!,originSponsorId:draft.S("companyId"),creditorSponsorId:draft.S("companyId"),targetChart:true,reversesJournalId:reversal==""?null:reversal,payChart:true,journalDate:draft.S("date"),manualJournalId:id);
@@ -118,7 +121,8 @@ public static class ManualJournals
     // Checker rejects with a reason; the draft stays for audit. Only a draft can be rejected.
     public static JsonObject Reject(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)
     {
-        var draft=Get(c,tx,actor,id,ApprovePermission);J.Need(AccessPolicy.Independent(actor,draft.S("createdBy"),"finance.manual_rejected",c,tx,draft,scope:AccessPolicy.ScopePayApprovals),"صاحب المسودة يحذفها ولا يرفضها.",403);
+        var draft=Get(c,tx,actor,id,ApprovePermission);
+        AccessPolicy.DemandIndependentOfMakers(actor,"finance.manual_rejected",c,tx,draft,AccessPolicy.ScopePayApprovals,"createdBy","updatedBy");
         J.Need(draft.S("status")=="draft","الرفض للمسودة فقط؛ القيد المعتمد يُعكس.");PayValues.Fields(input,"reason");string reason=input.Required("reason");J.Need(reason.Length is >=3 and <=1000,"سبب الرفض من 3 إلى 1000 حرف.");
         draft["status"]="rejected";draft["rejectionReason"]=reason;draft["rejectedBy"]=actor.Identity!.Name;draft["rejectedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,Kind,draft,tx);Store.Audit(c,tx,"finance.manual_rejected",id,actor.Identity!.Name!);return WithActions(actor,draft,c,tx);
     }
@@ -142,9 +146,10 @@ public static class ManualJournals
         var actions=new JsonArray();var blockers=new JsonArray();string status=d.S("status");
         bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopePayApprovals);
         bool moneyOut=AccessPolicy.IsMoneyOutDocument(d,"finance.manual_approved",AccessPolicy.ScopePayApprovals);
-        // grok-TRIAL6 MEDIUM: show Approve for maker when approvals.approve_own claim is present and draft is not money-out.
-        bool independent=AccessPolicy.IndependentForView(actor,d.S("createdBy"),bypass)
-            ||(AccessPolicy.HasApproveOwnClaim(actor)&&!moneyOut&&AccessPolicy.SamePerson(actor,d.S("createdBy")));
+        // grok-TRIAL6 MEDIUM + TRIAL9: show Approve for maker/rewriter when approvals.approve_own claim is present and draft is not money-out.
+        bool isMaker=AccessPolicy.SamePerson(actor,d.S("createdBy"))||AccessPolicy.SamePerson(actor,d.S("updatedBy"));
+        bool independent=(!isMaker||bypass)
+            ||(AccessPolicy.HasApproveOwnClaim(actor)&&!moneyOut&&isMaker);
         if(status=="draft")
         {
             if(!AccessPolicy.Has(actor,ApprovePermission))blockers.Add("صلاحية اعتماد القيد اليدوي مطلوبة.");

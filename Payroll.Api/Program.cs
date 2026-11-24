@@ -250,7 +250,7 @@ api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider"
 api.MapPost("/riders", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var iqama = J.Iqama(input.Required("iqama")); var existing = Store.Get(c, iqama, "rider", tx);
-    foreach (var key in new[] { "iban", "policyId", "financeSponsorId" })
+    foreach (var key in new[] { "iban", "verifiedIban", "policyId", "financeSponsorId" })
         if (input.ContainsKey(key) && input.S(key) != (existing?.S(key) ?? "")) AccessPolicy.Demand(ctx.User, "riders.financial_edit");
     if(existing!=null)FinancialScopes.DemandRider(ctx.User,existing);
     var rider = RiderDirectory.Normalize(input, existing);
@@ -264,10 +264,17 @@ api.MapPost("/policies", (JsonObject input, HttpContext ctx) => store.Write((c, 
 {
     var kind = input.Required("kind"); J.Need(new[] { "commission", "tiers", "approved_pay" }.Contains(kind), "نوع سياسة غير صالح.");
     var config = input["config"] as JsonObject ?? new(); ValidatePolicy(kind, config);
-    var doc = new JsonObject { ["id"] = Id(), ["name"] = input.Required("name"), ["kind"] = kind, ["platform"] = input.Required("platform"), ["effectiveFrom"] = J.Period(input.Required("effectiveFrom")), ["status"] = "draft", ["config"] = config.DeepClone(), ["createdAt"] = Now() };
+    var doc = new JsonObject { ["id"] = Id(), ["name"] = input.Required("name"), ["kind"] = kind, ["platform"] = input.Required("platform"), ["effectiveFrom"] = J.Period(input.Required("effectiveFrom")), ["status"] = "draft", ["config"] = config.DeepClone(), ["createdAt"] = Now(), ["createdBy"] = Actor(ctx) };
     Store.Save(c, "policy", doc, tx); Store.Audit(c, tx, "policy.create", doc.S("id"), Actor(ctx)); return doc;
 })).WithTags("Payroll").WithSummary("Submit policies");
-api.MapPost("/policies/{id}/approve", (string id, HttpContext ctx) => store.Write((c, tx) => { var p = Store.Get(c, id, "policy", tx) ?? throw new ApiError("السياسة غير موجودة.", 404); J.Need(p.S("status") == "draft", "هذه النسخة معتمدة بالفعل."); ValidatePolicy(p.S("kind"), p["config"]!.AsObject()); p["status"] = "approved"; p["approvedAt"] = Now(); Store.Save(c, "policy", p, tx); Store.Audit(c, tx, "policy.approve", id, Actor(ctx)); return p; })).WithTags("Payroll").WithSummary("Submit policies {id} approve");
+api.MapPost("/policies/{id}/approve", (string id, HttpContext ctx) => store.Write((c, tx) =>
+{
+    var p = Store.Get(c, id, "policy", tx) ?? throw new ApiError("السياسة غير موجودة.", 404);
+    J.Need(p.S("status") == "draft", "هذه النسخة معتمدة بالفعل.");
+    ValidatePolicy(p.S("kind"), p["config"]!.AsObject());
+    // TRIAL9: shared self-approval (createdBy) — never Admin alone.
+    return PolicyLifecycle.Approve(c, tx, ctx.User, id);
+})).WithTags("Payroll").WithSummary("Submit policies {id} approve");
 api.MapGet("/imports", () => store.Read(c => Store.List(c, "batch"))).WithTags("Payroll").WithSummary("Read imports");
 api.MapGet("/template.csv", () => Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes("sourceRef,iqama,name,accountId,from,to,orders,platformRevenue,riderPay,isValid,company,city\r\n")).ToArray(), "text/csv; charset=utf-8", "payroll-template.csv")).WithTags("Payroll").WithSummary("Read template.csv");
 api.MapPost("/adjustments", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -283,6 +290,8 @@ api.MapPost("/adjustments", (JsonObject input, HttpContext ctx) => store.Write((
 })).WithTags("Payroll").WithSummary("Submit adjustments");
 api.MapGet("/payroll/preview", (string period,HttpContext ctx) => { J.Period(period); return store.Read(c => Store.List(c, "work").Where(w => w.S("period") == period).Select(w => w.S("iqama")).Distinct().Where(iq=>Store.Get(c,iq,"rider") is {} rider&&ErpRiderClassification.ListedAsRider(rider)&&(FinancialScopes.Rider(ctx.User,rider)||FinancialScopes.AllCompanies(ctx.User))).Select(iq => { var doc = JsonSerializer.SerializeToNode(Preview(c, iq, period), JsonSerializerOptions.Web)!.AsObject(); doc["fingerprint"] = Fingerprint(c, iq, period); return doc; }).ToList()); }).WithTags("Payroll").WithSummary("Read payroll preview");
 api.MapGet("/payroll/runs", (HttpContext ctx) => store.Read(c => Store.List(c, "run").Where(r=>FinancialScopes.Ledger(ctx.User,r)))).WithTags("Payroll").WithSummary("Read payroll runs");
+// TRIAL9 / grok-TRIAL8: one-step POST /payroll/approve must run the shared self-approval rule
+// (second person or approvals.approve_own on calculatedBy; never money-out alone).
 api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     string iqama = J.Iqama(input.Required("iqama")); string period = J.Period(input.Required("period"));
@@ -291,13 +300,16 @@ api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Wri
     var result = Preview(c, iqama, period, tx); J.Need(result.Blockers.Count == 0, string.Join(" | ", result.Blockers));
     var rider = Store.Get(c, iqama, "rider", tx)!; var work = Store.List(c, "work", tx).Where(x => x.S("iqama") == iqama && x.S("period") == period).Select(x => x.Clone()).ToList();
     string fingerprint = Fingerprint(c, iqama, period, tx); J.Need(input.S("fingerprint") == fingerprint, "تغيرت البيانات منذ المعاينة؛ أعد المعاينة قبل الاعتماد.");
-    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["name"] = rider.S("name"), ["period"] = period, ["approvedAt"] = Now(), ["approvedBy"] = Actor(ctx), ["fingerprint"] = fingerprint, ["result"] = JsonSerializer.SerializeToNode(result, JsonSerializerOptions.Web), ["sourceRows"] = JsonSerializer.SerializeToNode(work), ["policySnapshot"] = Store.Get(c, rider.S("policyId"), "policy", tx)?.DeepClone() };
-    var payrollSponsor=AccountingEvents.PayrollSponsor(rider,input);
-    FinancialScopes.DemandSponsor(ctx.User,payrollSponsor.Id);
-    foreach(var deduction in result.Lines.Where(l=>l.Category=="debt_installment"))FinancialScopes.DemandDebt(ctx.User,Store.Get(c,deduction.Source,"debt",tx)!);
-    AccountingEvents.PostPayroll(c,tx,result,doc,payrollSponsor.Id,Actor(ctx));
-    Store.Save(c, "run", doc, tx); Store.Save(c, "ledger", new() { ["id"] = "run:" + doc.S("id"), ["iqama"] = iqama, ["period"] = period, ["sponsorId"]=payrollSponsor.Id,["accountingVersion"]=AccountingEvents.Version,["journalEntryId"]=doc.S("journalEntryId"),["amount"] = result.PeriodMovement - result.Lines.Where(x => x.Category is "debt_installment" or "already_paid").Sum(x => x.Amount), ["kind"] = "approved_payroll", ["sourceRef"] = doc.S("id"), ["createdAt"] = Now() }, tx); Debts.Post(c, tx, result, doc.S("id")); AccountingEvents.VerifyPayrollClosing(c,tx,result,payrollSponsor.Id); Store.Audit(c, tx, "payroll.approve", doc.S("id"), Actor(ctx)); return doc;
-})).WithTags("Payroll").WithSummary("Submit payroll approve");
+    string me = Actor(ctx);
+    string calculatedBy = string.IsNullOrWhiteSpace(input.S("calculatedBy")) ? me : input.S("calculatedBy");
+    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["name"] = rider.S("name"), ["period"] = period, ["calculatedBy"] = calculatedBy, ["approvedAt"] = Now(), ["approvedBy"] = me, ["fingerprint"] = fingerprint, ["result"] = JsonSerializer.SerializeToNode(result, JsonSerializerOptions.Web), ["sourceRows"] = JsonSerializer.SerializeToNode(work), ["policySnapshot"] = Store.Get(c, rider.S("policyId"), "policy", tx)?.DeepClone() };
+    AccessPolicy.DemandIndependentOfMakers(ctx.User, "payroll.approve", c, tx, doc, AccessPolicy.ScopePayApprovals, "calculatedBy");
+    var payrollSponsor = AccountingEvents.PayrollSponsor(rider, input);
+    FinancialScopes.DemandSponsor(ctx.User, payrollSponsor.Id);
+    foreach (var deduction in result.Lines.Where(l => l.Category == "debt_installment")) FinancialScopes.DemandDebt(ctx.User, Store.Get(c, deduction.Source, "debt", tx)!);
+    AccountingEvents.PostPayroll(c, tx, result, doc, payrollSponsor.Id, me);
+    Store.Save(c, "run", doc, tx); Store.Save(c, "ledger", new() { ["id"] = "run:" + doc.S("id"), ["iqama"] = iqama, ["period"] = period, ["sponsorId"] = payrollSponsor.Id, ["accountingVersion"] = AccountingEvents.Version, ["journalEntryId"] = doc.S("journalEntryId"), ["amount"] = result.PeriodMovement - result.Lines.Where(x => x.Category is "debt_installment" or "already_paid").Sum(x => x.Amount), ["kind"] = "approved_payroll", ["sourceRef"] = doc.S("id"), ["createdAt"] = Now() }, tx); Debts.Post(c, tx, result, doc.S("id")); AccountingEvents.VerifyPayrollClosing(c, tx, result, payrollSponsor.Id); Store.Audit(c, tx, "payroll.approve", doc.S("id"), me); return doc;
+})).WithTags("Payroll").WithSummary("Submit payroll approve (independent reviewer or approvals.approve_own)");
 api.MapGet("/payroll/fingerprint", (string iqama, string period,HttpContext ctx) => store.Read(c => {var rider=Store.Get(c,J.Iqama(iqama),"rider")??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(ctx.User,rider);return new { fingerprint = Fingerprint(c,iqama,J.Period(period)) };})).WithTags("Payroll").WithSummary("Read payroll fingerprint");
 api.MapGet("/ledger", (HttpContext ctx) => store.Read(c => Store.List(c,"ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)))).WithTags("Payroll").WithSummary("Read ledger");
 api.MapGet("/ledger/{iqama}", (string iqama,HttpContext ctx) => store.Read(c => { J.Iqama(iqama); var rows = Store.List(c, "ledger").Where(x => x.S("iqama") == iqama&&FinancialScopes.Ledger(ctx.User,x)).OrderBy(x => x.S("period")).ThenBy(x => x.S("createdAt")).ToList(); return new { rows, balance = rows.Sum(x => x.N("amount")) }; })).WithTags("Payroll").WithSummary("Read ledger {iqama}");

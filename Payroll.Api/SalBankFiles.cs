@@ -435,7 +435,7 @@ public static partial class SalBankFiles
         _=input;
         DemandAny(actor,PermMarkSent,PermExport,"pay.approve",ApprovalsArea.DualBankFile);
         Ensure(c,tx);
-        var view=LoadFileView(c,tx,actor,id);
+        var view=LoadFileView(c,tx,actor,id,refuseOnLiveDrift:true);
         int st=(int)view.N("statusCode");
         J.Need(st is StatusDraft or StatusApproved,"ملف البنك ليس في حالة مسودة أو معتمد للإرسال.",409);
         MoneyWriteGuards.Demand((byte)view.N("runMode"),view.B("payoutBlocked"),MoneyEffectKind.BankSent);
@@ -459,7 +459,7 @@ public static partial class SalBankFiles
         _=input;
         DemandAny(actor,PermMarkSent,PermExport,"pay.approve",ApprovalsArea.DualBankFile);
         Ensure(c,tx);
-        var view=LoadFileView(c,tx,actor,id);
+        var view=LoadFileView(c,tx,actor,id,refuseOnLiveDrift:true);
         int st=(int)view.N("statusCode");
         J.Need(st is StatusDraft or StatusApproved,"ملف البنك مرسل أو ملغى مسبقاً.",409);
         byte runMode=(byte)view.N("runMode");
@@ -729,15 +729,15 @@ public static partial class SalBankFiles
                 string frozenAddress=Str(r["rider_address"]);
                 bool frozenUnverified=Convert.ToInt32(r["iban_unverified"] is DBNull?0:r["iban_unverified"])==1;
                 string shortCode=r["bank_short_code"].ToString()!;
-                // TRIAL8: never re-resolve with confirmation forced on. Prefer frozen fields from build.
-                if(frozenIqama==""&&frozenName==""&&frozenIban=="")
+                // TRIAL9 / grok-TRIAL8: never ResolveRiderMeta on read — missing frozen fields stay blank with reason,
+                // and export / mark-sent refuse incomplete or drifted meta (no invented name/IBAN/iqama/address).
+                bool frozenIncomplete=frozenIqama==""||frozenName==""||frozenIban==""||frozenAddress=="";
+                if(refuseOnLiveDrift)
                 {
-                    var (meta,_)=ResolveRiderMeta(erpRider,comp,riderDocs,defaultRegByCompany,confirmUnverifiedIbans:false);
-                    frozenIqama=meta.Iqama;frozenName=meta.Name;frozenIban=meta.Iban;frozenAddress=meta.Address;frozenUnverified=meta.IbanUnverified;
-                    if(shortCode=="")shortCode=meta.BankShortCode;
-                }
-                else if(refuseOnLiveDrift)
-                {
+                    if(frozenIncomplete)
+                        throw new ApiError("بيانات المندوب المجمدة ناقصة في ملف البنك؛ أعد البناء قبل التصدير أو الإرسال.",409);
+                    if(frozenUnverified&&!confirmUnverifiedStored)
+                        throw new ApiError("ملف البنك يحتوي آيبان غير موثّق من دون تأكيد صريح مخزّن؛ أعد البناء مع التأكيد.",409);
                     var (live,_)=ResolveRiderMeta(erpRider,comp,riderDocs,defaultRegByCompany,confirmUnverifiedStored);
                     if(!string.Equals(live.Iqama,frozenIqama,StringComparison.Ordinal)
                        ||!string.Equals(live.Name,frozenName,StringComparison.Ordinal)

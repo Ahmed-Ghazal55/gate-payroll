@@ -250,8 +250,10 @@ public static class BankPayrollFiles
         for(int i=0;i<rows.Count;i++)
         {
             var row=rows[i] as JsonObject??throw new ApiError("صف غير صالح.");var original=baseline[i]!.AsObject();
-            J.Need(row.All(p=>new[]{"bank","iban","amount","notes","name","iqama","address","errors"}.Contains(p.Key)),"يسمح بتعديل المبلغ والملاحظات فقط.");
+            // TRIAL8/9: preview may carry ibanUnverified (read-only); still only amount/notes/bank(unknown) are editable.
+            J.Need(row.All(p=>new[]{"bank","iban","amount","notes","name","iqama","address","errors","ibanUnverified"}.Contains(p.Key)),"يسمح بتعديل المبلغ والملاحظات فقط.");
             foreach(string field in new[]{"iban","name","iqama","address"})J.Need(row[field] is JsonValue&&row.S(field)==original.S(field),"يسمح بتعديل المبلغ والملاحظات فقط؛ أعد المعاينة لتحديث البيانات.");
+            J.Need(row.B("ibanUnverified")==original.B("ibanUnverified"),"يسمح بتعديل المبلغ والملاحظات فقط؛ أعد المعاينة لتحديث البيانات.");
             J.Need(row["bank"] is JsonValue&&(row.S("bank")==original.S("bank")||!Banks.ContainsKey(original.S("iban").Length>=6?original.S("iban").Substring(4,2):"")),"البنك يتعدل يدويًا فقط لو كود الآيبان غير معروف.");
             J.Need(row["notes"] is JsonValue notes&&notes.TryGetValue<string>(out var note)&&note.Length<=2000,"الملاحظات نص بحد أقصى 2000 حرف.");
             J.Need(!row.S("notes").Contains(DoNotSendMark,StringComparison.Ordinal),"علامة «لا يُرسل» خارج ملف البنك فقط (اسم التصدير والتدقيق والمعاينة).");
