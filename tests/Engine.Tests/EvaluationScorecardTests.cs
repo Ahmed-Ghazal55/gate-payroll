@@ -63,6 +63,7 @@ public sealed class EvaluationScorecardTests
             });
             var prev = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Previous synthetic round" });
             prev = EvaluationSurvey.Transition(c, tx, Admin, prev.S("id"), "open");
+            prev = PayFixture.StripEvaluationSections(c, tx, prev);
             prev["createdAt"] = "2026-01-01T00:00:00.0000000+00:00";
             prev["updatedAt"] = "2026-01-01T00:00:00.0000000+00:00";
             Store.Save(c, EvaluationSurvey.RoundKind, prev, tx);
@@ -87,6 +88,7 @@ public sealed class EvaluationScorecardTests
 
             var curr = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Current synthetic round" });
             curr = EvaluationSurvey.Transition(c, tx, Admin, curr.S("id"), "open");
+            curr = PayFixture.StripEvaluationSections(c, tx, curr);
             curr["createdAt"] = "2026-02-01T00:00:00.0000000+00:00";
             curr["updatedAt"] = "2026-02-01T00:00:00.0000000+00:00";
             Store.Save(c, EvaluationSurvey.RoundKind, curr, tx);
@@ -237,6 +239,7 @@ public sealed class EvaluationScorecardTests
         {
             var r = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Tiny privacy round" });
             r = EvaluationSurvey.Transition(c, tx, Admin, r.S("id"), "open");
+            r = PayFixture.StripEvaluationSections(c, tx, r);
             string sid = r["staff"]!.AsArray().OfType<JsonObject>().First().S("id");
             for (int i = 0; i < 2; i++)
             {
@@ -314,6 +317,7 @@ public sealed class EvaluationScorecardTests
             });
             var round = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Platform filter round" });
             round = EvaluationSurvey.Transition(c, tx, Admin, round.S("id"), "open");
+            round = PayFixture.StripEvaluationSections(c, tx, round);
             string alphaId = round["staff"]!.AsArray().OfType<JsonObject>().Single(s => s.S("name") == "Synthetic Alpha").S("id");
             string betaId = round["staff"]!.AsArray().OfType<JsonObject>().Single(s => s.S("name") == "Synthetic Beta").S("id");
             void Submit(string iqama, string workApp, decimal alphaScore)
@@ -365,6 +369,7 @@ public sealed class EvaluationScorecardTests
             });
             var r = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "No drill privacy round" });
             r = EvaluationSurvey.Transition(c, tx, Admin, r.S("id"), "open");
+            r = PayFixture.StripEvaluationSections(c, tx, r);
             string sid = r["staff"]!.AsArray().OfType<JsonObject>().First().S("id");
             for (int i = 0; i < 2; i++)
             {
@@ -445,6 +450,7 @@ public sealed class EvaluationScorecardTests
             });
             var round = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Dept filter round" });
             round = EvaluationSurvey.Transition(c, tx, Admin, round.S("id"), "open");
+            round = PayFixture.StripEvaluationSections(c, tx, round);
             string alphaId = round["staff"]!.AsArray().OfType<JsonObject>().Single(s => s.S("name") == "Synthetic Alpha").S("id");
             string gammaId = round["staff"]!.AsArray().OfType<JsonObject>().Single(s => s.S("name") == "Synthetic Gamma").S("id");
             void Submit(string iqama, decimal? alpha, decimal? gamma)
@@ -510,6 +516,7 @@ public sealed class EvaluationScorecardTests
             });
             var round = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Multi-dept rank round" });
             round = EvaluationSurvey.Transition(c, tx, Admin, round.S("id"), "open");
+            round = PayFixture.StripEvaluationSections(c, tx, round);
             string alphaId = round["staff"]!.AsArray().OfType<JsonObject>().Single(s => s.S("name") == "Synthetic Alpha").S("id");
             string betaId = round["staff"]!.AsArray().OfType<JsonObject>().Single(s => s.S("name") == "Synthetic Beta").S("id");
             string gammaId = round["staff"]!.AsArray().OfType<JsonObject>().Single(s => s.S("name") == "Synthetic Gamma").S("id");
@@ -592,6 +599,7 @@ public sealed class EvaluationScorecardTests
             {
                 var r = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = title });
                 r = EvaluationSurvey.Transition(c, tx, Admin, r.S("id"), "open");
+                r = PayFixture.StripEvaluationSections(c, tx, r);
                 r["createdAt"] = created;
                 r["updatedAt"] = created;
                 Store.Save(c, EvaluationSurvey.RoundKind, r, tx);
@@ -614,6 +622,7 @@ public sealed class EvaluationScorecardTests
             // Current stays open for scorecard read.
             var curr = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Round C" });
             curr = EvaluationSurvey.Transition(c, tx, Admin, curr.S("id"), "open");
+            curr = PayFixture.StripEvaluationSections(c, tx, curr);
             curr["createdAt"] = "2026-03-01T00:00:00.0000000+00:00";
             curr["updatedAt"] = "2026-03-01T00:00:00.0000000+00:00";
             Store.Save(c, EvaluationSurvey.RoundKind, curr, tx);

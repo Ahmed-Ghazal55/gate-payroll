@@ -70,6 +70,26 @@ public static partial class EvaluationSurvey
         return fullPath.StartsWith(root, StringComparison.Ordinal);
     }
 
+    /// <summary>Kept attachments (id only, no data) must already belong to this reply and card; a client cannot borrow another reply's file.</summary>
+    static JsonArray PreservedAttachments(DbConnection? c, DbTransaction? tx, string replyId, string cardKey, string cardId, JsonArray raw)
+    {
+        J.Need(c != null && raw.Count <= 3, "مرفقات البطاقة غير صالحة.", "attachment_invalid");
+        var shown = new JsonArray();
+        foreach (var node in raw.OfType<JsonObject>())
+        {
+            var meta = Store.Get(c!, node.S("id"), AttachmentKind, tx);
+            J.Need(meta != null && meta.S("replyId") == replyId && meta.S("cardKey") == cardKey && meta.S("cardId") == cardId, "مرفق غير صالح لهذا الرد.", "attachment_invalid");
+            var item = new JsonObject
+            {
+                ["id"] = meta!.S("id"), ["kind"] = meta.S("kind"), ["fileName"] = meta.S("fileName"), ["contentType"] = meta.S("contentType"),
+                ["sizeBytes"] = meta.N("sizeBytes"), ["createdAt"] = meta.S("createdAt"),
+                ["playbackUrl"] = $"/api/forms/evaluations/attachments/{meta.S("id")}"
+            };
+            if (meta.S("kind") == "voice") item["durationSeconds"] = meta!["durationSeconds"]?.DeepClone();
+            shown.Add(item);
+        }
+        return shown;
+    }
     static JsonArray PersistAttachments(Store store, DbConnection c, DbTransaction tx, string replyId, string cardKey, string cardId, JsonObject card, ref long replyBytes, AttachmentWriteBatch batch)
     {
         var raw = card["attachments"] as JsonArray ?? new JsonArray();

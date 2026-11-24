@@ -194,7 +194,19 @@ export type EvaluationScorecardFilters = {
   department?: string;
   supervisorId?: string;
   nationalityId?: string;
+  section?: string;
 };
+
+function scorecardQuery(filters?: EvaluationScorecardFilters): string {
+  const qs = new URLSearchParams();
+  if (filters?.city) qs.set('city', filters.city);
+  if (filters?.app) qs.set('app', filters.app);
+  if (filters?.department) qs.set('department', filters.department);
+  if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
+  if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+  if (filters?.section) qs.set('section', filters.section);
+  return qs.toString() ? `?${qs}` : '';
+}
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
 
@@ -2412,6 +2424,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ staff }),
     }),
+  putEvaluationStaff: (id: string, body: Record<string, unknown>) =>
+    handleRequest<EvaluationStaffItem>(`/forms/evaluations/staff/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
   getEvaluationRounds: () =>
     handleRequest<EvaluationRoundItem[]>('/forms/evaluations/rounds'),
   getEvaluationRound: (id: string) =>
@@ -2421,6 +2438,21 @@ export const api = {
       method: 'POST',
       body: JSON.stringify({ title }),
     }),
+  deleteEvaluationRound: (id: string, title: string) =>
+    handleRequest<{ repliesDeleted: number; attachmentsDeleted: number; complaintsDeleted: number }>(
+      `/forms/evaluations/rounds/${encodeURIComponent(id)}`,
+      { method: 'DELETE', body: JSON.stringify({ title }) }
+    ),
+  addEvaluationSectionStaff: (roundId: string, sectionKey: string, staffId: string) =>
+    handleRequest<EvaluationRoundItem>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/sections/${encodeURIComponent(sectionKey)}/staff/${encodeURIComponent(staffId)}`,
+      { method: 'POST', body: JSON.stringify({}) }
+    ),
+  removeEvaluationSectionStaff: (roundId: string, sectionKey: string, staffId: string) =>
+    handleRequest<EvaluationRoundItem>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/sections/${encodeURIComponent(sectionKey)}/staff/${encodeURIComponent(staffId)}`,
+      { method: 'DELETE' }
+    ),
   transitionEvaluationRound: (id: string, action: 'open' | 'pause' | 'close' | 'refresh-staff') =>
     handleRequest<EvaluationRoundItem>(
       `/forms/evaluations/rounds/${encodeURIComponent(id)}/${encodeURIComponent(action)}`,
@@ -2436,6 +2468,7 @@ export const api = {
       sort?: string;
       supervisorId?: string;
       department?: string;
+      section?: string;
     }
   ) => {
     const q = new URLSearchParams();
@@ -2446,17 +2479,19 @@ export const api = {
     if (params?.sort) q.set('sort', params.sort);
     if (params?.supervisorId) q.set('supervisorId', params.supervisorId);
     if (params?.department) q.set('department', params.department);
+    if (params?.section) q.set('section', params.section);
     return handleRequest<EvaluationResponsesPage>(
       `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/responses?${q.toString()}`
     );
   },
   getEvaluationStatistics: (
     roundId: string,
-    filters?: { city?: string; nationalityId?: string }
+    filters?: { city?: string; nationalityId?: string; section?: string }
   ) => {
     const qs = new URLSearchParams();
     if (filters?.city) qs.set('city', filters.city);
     if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    if (filters?.section) qs.set('section', filters.section);
     const suffix = qs.toString() ? `?${qs}` : '';
     return handleRequest<EvaluationStatisticsResponse>(
       `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics${suffix}`
@@ -2465,11 +2500,12 @@ export const api = {
   getEvaluationStatisticsByDimension: (
     roundId: string,
     dimension: 'city' | 'app' | 'supervisor' | 'nationality' | 'factors' | 'trend',
-    filters?: { city?: string; nationalityId?: string }
+    filters?: { city?: string; nationalityId?: string; section?: string }
   ) => {
     const qs = new URLSearchParams();
     if (filters?.city) qs.set('city', filters.city);
     if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    if (filters?.section) qs.set('section', filters.section);
     const suffix = qs.toString() ? `?${qs}` : '';
     return handleRequest<EvaluationDimensionStatisticsResponse>(
       `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics/${encodeURIComponent(dimension)}${suffix}`
@@ -2493,72 +2529,49 @@ export const api = {
         body: JSON.stringify(payload),
       }
     ),
-  exportEvaluationWorkbook: (roundId: string) =>
-    handleRequest<Blob>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/export`),
-  getEvaluationSupervisorScorecard: (roundId: string, filters?: EvaluationScorecardFilters) => {
-    const qs = new URLSearchParams();
-    if (filters?.city) qs.set('city', filters.city);
-    if (filters?.app) qs.set('app', filters.app);
-    if (filters?.department) qs.set('department', filters.department);
-    if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
-    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
-    const suffix = qs.toString() ? `?${qs}` : '';
-    return handleRequest<EvaluationSupervisorScorecard>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/supervisors${suffix}`
-    );
+  exportEvaluationWorkbook: (roundId: string, section?: string) => {
+    const qs = section ? `?section=${encodeURIComponent(section)}` : '';
+    return handleRequest<Blob>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/export${qs}`);
   },
-  getEvaluationAppScorecard: (roundId: string, filters?: EvaluationScorecardFilters) => {
-    const qs = new URLSearchParams();
-    if (filters?.city) qs.set('city', filters.city);
-    if (filters?.app) qs.set('app', filters.app);
-    if (filters?.department) qs.set('department', filters.department);
-    if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
-    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
-    const suffix = qs.toString() ? `?${qs}` : '';
-    return handleRequest<EvaluationAppScorecard>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/apps${suffix}`
-    );
-  },
-  getEvaluationHeatmapScorecard: (roundId: string, filters?: EvaluationScorecardFilters) => {
-    const qs = new URLSearchParams();
-    if (filters?.city) qs.set('city', filters.city);
-    if (filters?.app) qs.set('app', filters.app);
-    if (filters?.department) qs.set('department', filters.department);
-    if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
-    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
-    const suffix = qs.toString() ? `?${qs}` : '';
-    return handleRequest<EvaluationHeatmapScorecard>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/heatmap${suffix}`
-    );
-  },
-  getEvaluationCityAppScorecard: (roundId: string, filters?: EvaluationScorecardFilters) => {
-    const qs = new URLSearchParams();
-    if (filters?.city) qs.set('city', filters.city);
-    if (filters?.app) qs.set('app', filters.app);
-    if (filters?.department) qs.set('department', filters.department);
-    if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
-    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
-    const suffix = qs.toString() ? `?${qs}` : '';
-    return handleRequest<EvaluationCityAppScorecard>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/city-app${suffix}`
-    );
-  },
+  getEvaluationSupervisorScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<EvaluationSupervisorScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/supervisors${scorecardQuery(filters)}`
+    ),
+  getEvaluationAppScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<EvaluationAppScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/apps${scorecardQuery(filters)}`
+    ),
+  getEvaluationFinanceScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<{
+      roundId: string;
+      totalResponses: number;
+      confidenceNoteAr?: string;
+      items: Array<{
+        app: string;
+        ratedCount: number;
+        skippedCount?: number;
+        average?: number | null;
+        factors?: Array<{ key: string; count: number; average?: number | null }>;
+        lowSample?: boolean;
+      }>;
+      allowedActions?: string[];
+    }>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/finance${scorecardQuery(filters)}`),
+  getEvaluationHeatmapScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<EvaluationHeatmapScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/heatmap${scorecardQuery(filters)}`
+    ),
+  getEvaluationCityAppScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<EvaluationCityAppScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/city-app${scorecardQuery(filters)}`
+    ),
   exportEvaluationScorecard: (
     roundId: string,
-    kind: 'supervisors' | 'apps' | 'heatmap' | 'city-app',
+    kind: 'supervisors' | 'apps' | 'heatmap' | 'city-app' | 'finance',
     filters?: EvaluationScorecardFilters
-  ) => {
-    const qs = new URLSearchParams();
-    if (filters?.city) qs.set('city', filters.city);
-    if (filters?.app) qs.set('app', filters.app);
-    if (filters?.department) qs.set('department', filters.department);
-    if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
-    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
-    const suffix = qs.toString() ? `?${qs}` : '';
-    return handleRequest<Blob>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/${encodeURIComponent(kind)}/export${suffix}`
-    );
-  },
+  ) =>
+    handleRequest<Blob>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/${encodeURIComponent(kind)}/export${scorecardQuery(filters)}`
+    ),
   getPublicEvaluationSchema: (token: string, city?: string) => {
     const qs = city ? `?city=${encodeURIComponent(city)}` : '';
     return handleRequest<PublicEvaluationSchema>(

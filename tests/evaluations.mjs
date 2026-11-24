@@ -4,6 +4,7 @@ import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import {randomBytes} from 'node:crypto';
+import {DatabaseSync} from 'node:sqlite';
 import assert from 'node:assert/strict';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
@@ -34,16 +35,37 @@ try{
   assert.ok(ready,'Synthetic SQLite API did not start');
   await request('/api/auth/setup',{username:'synthetic-admin',password});const admin=cookie;
   await request(prefix+'/staff',undefined,401,false);
-  const staff={name:'Synthetic person',cities:['Synthetic city'],departments:['Synthetic department'],roles:['Synthetic role'],apps:['Ninja']};
+  const staff={name:'Synthetic person',cities:['Synthetic city'],departments:['الحركة والمركبات'],roles:['Synthetic role'],apps:['Ninja']};
   assert.deepEqual(await request(prefix+'/staff/import',{staff:[staff,staff,{...staff,name:'Excluded synthetic person',excluded:true}]}),{imported:2,excluded:1});
-  const round=await request(prefix+'/rounds',{title:'Synthetic evaluation'});
-  assert.equal(round.staff.length,1);assert.deepEqual(round.allowedActions,['open','refresh-staff']);
+  const staffList=await request(prefix+'/staff');
+  const staffId=staffList.find(s=>s.name==='Synthetic person').id;
+  const updatedStaff=await fetch(base+prefix+'/staff/'+encodeURIComponent(staffId),{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({name:'Synthetic person',cities:['Synthetic city'],departments:['الحركة والمركبات'],roles:['Synthetic role'],apps:['Ninja'],allApps:true,allCities:false,excluded:false,active:true})});
+  assert.equal(updatedStaff.status,200);assert.equal((await updatedStaff.json()).allApps,true);checks++;
+  function makeLegacyRound(roundId){
+    const db=new DatabaseSync(path.join(data,'payroll.db'));
+    const row=db.prepare('SELECT body FROM records WHERE id=?').get(roundId);
+    const body=JSON.parse(row.body);
+    delete body.sections;
+    db.prepare('UPDATE records SET body=? WHERE id=?').run(JSON.stringify(body),roundId);
+    db.close();
+    return body.sharingToken;
+  }
+  // Legacy combined two-page path (rounds without sections still exist on live).
+  const legacyDraft=await request(prefix+'/rounds',{title:'Synthetic evaluation'});
+  assert.equal(legacyDraft.staff.length,1);assert.deepEqual(legacyDraft.allowedActions,['open','refresh-staff','delete']);
+  assert.ok(Array.isArray(legacyDraft.sections)&&legacyDraft.sections.length>=5);
+  assert.ok(legacyDraft.sections.every(s=>/^[0-9a-f]{64}$/.test(s.sharingToken)));
+  assert.equal(legacyDraft.sharingToken,undefined,'sectioned RoundView omits round sharingToken');
+  await request('/api/public/evaluations/'+legacyDraft.sections.find(s=>s.key==='app:Ninja').sharingToken,undefined,409,false);
+  // Stored round-level token only works after sections are stripped (legacy path).
+  const storedRoundToken=makeLegacyRound(legacyDraft.id);
+  const round=await request(prefix+'/rounds/'+legacyDraft.id+'/open',{});
+  assert.ok(round.sharingToken);assert.equal(round.sharingToken,storedRoundToken);
+  assert.ok(!round.sections);
   const pub='/api/public/evaluations/'+round.sharingToken;
-  await request(pub,undefined,409,false);
-  await request(prefix+'/rounds/'+round.id+'/open',{});
   const schema=await request(pub+'?city=Synthetic%20city',undefined,200,false);
   assert.equal(schema.staff.length,1);assert.equal(schema.staffDimensions.length,5);assert.equal(schema.staffRatingMax,10);assert.equal(schema.appRatingMax,5);
-  assert.ok(!JSON.stringify(schema).includes('sharingToken'));assert.ok(!JSON.stringify(schema).includes('reportingLine'));
+  assert.ok(!schema.sectionKey);assert.ok(!JSON.stringify(schema).includes('sharingToken'));assert.ok(!JSON.stringify(schema).includes('reportingLine'));
   const answer={iqama:'2000000091',name:'Synthetic rider',city:'Synthetic city',nationality:'Synthetic nationality',workApps:['Ninja'],staffAnswers:[{staffId:round.staff[0].id,ratings:Object.fromEntries(schema.staffDimensions.map(d=>[d.id,8])),complaint:true,complaintDetails:'Synthetic complaint details'}],appAnswers:round.apps.map(app=>app==='Ninja'?{app,overall:4,factorRatings:{orderVolume:5,appProblems:2}}:{app,reason:'not_worked'})};
   await request(pub,{...answer,nationality:''},400,false);
   await request(pub,{...answer,staffAnswers:[]},400,false);
@@ -85,6 +107,32 @@ try{
   await request(prefix+'/rounds/'+round.id+'/pause',{},403);
   cookie=admin;await request(prefix+'/rounds/'+round.id+'/pause',{});await request(pub,answer,409,false);
   await request(prefix+'/rounds/'+round.id+'/close',{});await request(prefix+'/rounds/'+round.id+'/open',{},400);
+
+  // Sectioned public form + finance scorecard + delete with title confirm
+  const sectionRound=await request(prefix+'/rounds',{title:'Synthetic sectioned evaluation'});
+  assert.equal(sectionRound.sharingToken,undefined);
+  const sectionNinja=sectionRound.sections.find(s=>s.key==='app:Ninja');assert.ok(sectionNinja);
+  await request(prefix+'/rounds/'+sectionRound.id+'/open',{});
+  // Round-level token of a sectioned round must 404; only section tokens open the form.
+  {
+    const db=new DatabaseSync(path.join(data,'payroll.db'));
+    const sectionedStored=JSON.parse(db.prepare('SELECT body FROM records WHERE id=?').get(sectionRound.id).body);
+    db.close();
+    await request('/api/public/evaluations/'+sectionedStored.sharingToken,undefined,404,false);
+  }
+  const sectionPub='/api/public/evaluations/'+sectionNinja.sharingToken;
+  const sectionSchema=await request(sectionPub+'?city=Synthetic%20city',undefined,200,false);
+  assert.equal(sectionSchema.schema,'evaluation-section-v1');assert.equal(sectionSchema.sectionKey,'app:Ninja');assert.equal(sectionSchema.includeFinanceCard,true);
+  assert.equal(sectionSchema.apps.length,1);assert.equal(sectionSchema.apps[0],'Ninja');
+  const sectionAnswer={iqama:'2000000093',name:'Synthetic section rider',city:'Synthetic city',nationality:'Synthetic nationality',workApps:['Ninja'],staffAnswers:sectionSchema.staff.map(s=>({staffId:s.id,ratings:Object.fromEntries(sectionSchema.staffDimensions.map(d=>[d.id,7]))})),appAnswers:[{app:'Ninja',overall:5,factorRatings:{orderVolume:4}}],financeAnswer:{reason:'',overall:4,factorRatings:{responsiveness:3,accuracy:4,correctionSpeed:5,clarity:2},notes:'Synthetic finance note',complaint:false,complaintDetails:'',attachments:[]}};
+  const sectionReply=await request(sectionPub,sectionAnswer,200,false);assert.ok(sectionReply.receipt);
+  assert.equal((await request(prefix+'/rounds/'+sectionRound.id+'/statistics?section='+encodeURIComponent('app:Ninja'))).totalResponses,1);
+  const financeCard=await request(prefix+'/rounds/'+sectionRound.id+'/scorecards/finance');
+  assert.ok((financeCard.items||[]).some(i=>i.app==='Ninja'&&Number(i.ratedCount)>=1));
+  const delWrong=await fetch(base+prefix+'/rounds/'+sectionRound.id,{method:'DELETE',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({title:'wrong title'})});
+  assert.equal(delWrong.status,400);checks++;
+  const delOk=await fetch(base+prefix+'/rounds/'+sectionRound.id,{method:'DELETE',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({title:'Synthetic sectioned evaluation'})});
+  assert.equal(delOk.status,200);const delBody=await delOk.json();assert.equal(delBody.repliesDeleted,1);checks++;
   await request('/api/rider-mobile/evaluations',undefined,401,false);
   console.log(`PASS ${checks} evaluation HTTP checks on synthetic SQLite`);
 }catch(e){console.error(logs);throw e;}

@@ -19,20 +19,25 @@ public sealed class EvaluationLaunchTests
         ctx.Request.Host = new HostString("synthetic.invalid");
         return ctx;
     }
-    static JsonObject OpenRound(PayFixture f) => f.Store.Write((c, tx) =>
+    static JsonObject OpenRound(PayFixture f)
     {
-        EvaluationSurvey.ImportStaff(c, tx, PayFixture.Maker, new()
+        var opened = f.Store.Write((c, tx) =>
         {
-            ["staff"] = new JsonArray(new JsonObject
+            EvaluationSurvey.ImportStaff(c, tx, PayFixture.Maker, new()
             {
-                ["name"] = "Synthetic staff", ["cities"] = new JsonArray("Synthetic city"),
-                ["departments"] = new JsonArray("Synthetic department"), ["roles"] = new JsonArray("Synthetic role"),
-                ["apps"] = new JsonArray("Ninja"), ["active"] = true
-            })
+                ["staff"] = new JsonArray(new JsonObject
+                {
+                    ["name"] = "Synthetic staff", ["cities"] = new JsonArray("Synthetic city"),
+                    ["departments"] = new JsonArray("Synthetic department"), ["roles"] = new JsonArray("Synthetic role"),
+                    ["apps"] = new JsonArray("Ninja"), ["active"] = true
+                })
+            });
+            var draft = EvaluationSurvey.CreateRound(c, tx, PayFixture.Maker, new() { ["title"] = "Synthetic launch round" });
+            return EvaluationSurvey.Transition(c, tx, PayFixture.Maker, draft.S("id"), "open");
         });
-        var draft = EvaluationSurvey.CreateRound(c, tx, PayFixture.Maker, new() { ["title"] = "Synthetic launch round" });
-        return EvaluationSurvey.Transition(c, tx, PayFixture.Maker, draft.S("id"), "open");
-    });
+        // Rider-mobile launch lists only legacy (non-sectioned) rounds.
+        return f.MakeLegacyEvaluationRound(opened);
+    }
     static void SeedRiderSession(PayFixture f)
     {
         f.Store.Write((c, tx) =>
@@ -102,11 +107,11 @@ public sealed class EvaluationLaunchTests
         using var f = new PayFixture();
         SeedRiderSession(f);
         var a = OpenRound(f);
-        var b = f.Store.Write((c, tx) =>
+        var b = f.MakeLegacyEvaluationRound(f.Store.Write((c, tx) =>
         {
             var draft = EvaluationSurvey.CreateRound(c, tx, PayFixture.Maker, new() { ["title"] = "Other round" });
             return EvaluationSurvey.Transition(c, tx, PayFixture.Maker, draft.S("id"), "open");
-        });
+        }));
         var launched = f.Store.Write((c, tx) => EvaluationSurvey.IssueLaunch(c, tx, Rider, a.S("sharingToken"), "https://synthetic.invalid"));
         string code = LaunchCodeFromUrl(launched.S("url"));
         var ex = Assert.ThrowsExactly<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.ExchangeLaunch(c, tx, b.S("sharingToken"), code)));
@@ -119,11 +124,11 @@ public sealed class EvaluationLaunchTests
         using var f = new PayFixture();
         SeedRiderSession(f);
         var a = OpenRound(f);
-        var b = f.Store.Write((c, tx) =>
+        var b = f.MakeLegacyEvaluationRound(f.Store.Write((c, tx) =>
         {
             var draft = EvaluationSurvey.CreateRound(c, tx, PayFixture.Maker, new() { ["title"] = "Other round" });
             return EvaluationSurvey.Transition(c, tx, PayFixture.Maker, draft.S("id"), "open");
-        });
+        }));
         var launched = f.Store.Write((c, tx) => EvaluationSurvey.IssueLaunch(c, tx, Rider, a.S("sharingToken"), "https://synthetic.invalid"));
         string code = LaunchCodeFromUrl(launched.S("url"));
         string survey = f.Store.Write((c, tx) => EvaluationSurvey.ExchangeLaunch(c, tx, a.S("sharingToken"), code)).S("accessToken");

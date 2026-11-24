@@ -17,12 +17,17 @@ public sealed class EvaluationSurveyTests
         ["departments"] = new JsonArray("Synthetic department"), ["roles"] = new JsonArray("Synthetic role"),
         ["apps"] = new JsonArray("Ninja"), ["active"] = true
     };
-    static JsonObject Setup(PayFixture f) => f.Store.Write((c, tx) =>
+    static JsonObject Setup(PayFixture f)
     {
-        EvaluationSurvey.ImportStaff(c, tx, Admin, new() { ["staff"] = new JsonArray(Staff(), Staff()) });
-        var round = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Synthetic round" });
-        return EvaluationSurvey.Transition(c, tx, Admin, round.S("id"), "open");
-    });
+        var round = f.Store.Write((c, tx) =>
+        {
+            EvaluationSurvey.ImportStaff(c, tx, Admin, new() { ["staff"] = new JsonArray(Staff(), Staff()) });
+            var created = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Synthetic round" });
+            return EvaluationSurvey.Transition(c, tx, Admin, created.S("id"), "open");
+        });
+        // Combined two-page path: strip sections so the round sharingToken remains valid (live legacy rounds).
+        return f.MakeLegacyEvaluationRound(round);
+    }
     static JsonObject Reply(JsonObject round, string iqama = "2000000091") => new()
     {
         ["iqama"] = iqama, ["name"] = "Synthetic rider", ["city"] = "Synthetic city", ["nationality"] = "Synthetic nationality",
@@ -348,11 +353,11 @@ public sealed class EvaluationSurveyTests
             var a = Staff("Synthetic A"); a["cities"] = new JsonArray("CityA", "CityB");
             return EvaluationSurvey.ImportStaff(c, tx, Admin, new() { ["staff"] = new JsonArray(a) });
         });
-        var round = f.Store.Write((c, tx) =>
+        var round = f.MakeLegacyEvaluationRound(f.Store.Write((c, tx) =>
         {
             var created = EvaluationSurvey.CreateRound(c, tx, Admin, new() { ["title"] = "Synthetic multi-city" });
             return EvaluationSurvey.Transition(c, tx, Admin, created.S("id"), "open");
-        });
+        }));
         JsonObject Make(string city, string iqama, int rating) => new()
         {
             ["iqama"] = iqama, ["name"] = "Synthetic rider", ["city"] = city, ["nationality"] = "Saudi",

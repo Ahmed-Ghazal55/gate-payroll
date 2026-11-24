@@ -135,7 +135,8 @@ public static partial class EvaluationSurvey
             var prior = imported.GetValueOrDefault(id) ?? Store.Get(c, id, StaffKind, tx);
             var doc = new JsonObject { ["id"] = id, ["name"] = name, ["active"] = raw.NullableBool("active") ?? true, ["excluded"] = raw.B("excluded"), ["pendingRoleApproval"] = raw.B("pendingRoleApproval"),
                 // Remote teams (call centre, technical support) serve riders in every work city; their own office is not a work city.
-                ["allCities"] = raw.NullableBool("allCities") ?? prior?.NullableBool("allCities") ?? false };
+                ["allCities"] = raw.NullableBool("allCities") ?? prior?.NullableBool("allCities") ?? false,
+                ["allApps"] = raw.NullableBool("allApps") ?? prior?.NullableBool("allApps") ?? false };
             foreach (string field in new[] { "cities", "departments", "roles", "apps" })
                 doc[field] = Array(Strings(raw, field).Concat(prior == null ? [] : Strings(prior, field)).Distinct(StringComparer.Ordinal));
             J.Need(Strings(doc, "apps").All(a => PayPlatforms.Table.Any(p => p.Platform == a)), "استخدم معرفات المنصات المعتمدة في ملف الاستيراد.");
@@ -160,7 +161,7 @@ public static partial class EvaluationSurvey
             ["title"] = Text(input, "title", 200, true), ["status"] = "draft", ["createdAt"] = Now(),
             ["sharingToken"] = CampaignLinks.NewToken(), ["staff"] = Array(staff),
             ["apps"] = Array(PayPlatforms.Table.Select(a => a.Platform)), ["cities"] = Array(WorkCities(staff)),
-            ["schemaVersion"] = 1
+            ["schemaVersion"] = 2, ["sections"] = BuildSections(staff)
         };
         J.Need(Strings(round, "cities").Length > 0, "لا توجد مدينة عمل: كل الموظفين معلّمون «كل المدن».");
         Store.Save(c, RoundKind, round, tx);
@@ -185,6 +186,7 @@ public static partial class EvaluationSurvey
         var cities = WorkCities(staff);
         J.Need(cities.Length > 0, "لا توجد مدينة عمل: كل الموظفين معلّمون «كل المدن».");
         round["staff"] = Array(staff); round["cities"] = Array(cities); round["updatedAt"] = Now();
+        if (IsSectioned(round)) RefreshSectionStaff(round);
         Store.Save(c, RoundKind, round, tx); Store.Audit(c, tx, "evaluation.staff_refreshed", id, user.Identity!.Name!);
         return round;
     }
@@ -199,7 +201,19 @@ public static partial class EvaluationSurvey
     public static JsonObject ByToken(DbConnection c, string token, DbTransaction? tx = null)
     {
         if (token.Length != 64 || !token.All(Uri.IsHexDigit)) throw new ApiError("النموذج غير متاح.", 404);
+        foreach (var candidate in Store.List(c, RoundKind, tx))
+        {
+            if (!IsSectioned(candidate)) continue;
+            var section = candidate["sections"]!.AsArray().OfType<JsonObject>().FirstOrDefault(s => s.S("sharingToken") == token);
+            if (section == null) continue;
+            if (candidate.S("status") != "open") throw new ApiError("جولة التقييم غير متاحة حاليًا.", 409);
+            var view = candidate.Clone();
+            view["activeSection"] = section.Clone();
+            return view;
+        }
         var round = Store.ListWhere(c, RoundKind, tx, 1, ("sharingToken", token)).SingleOrDefault() ?? throw new ApiError("النموذج غير متاح.", 404);
+        // Sectioned rounds are opened only by section tokens; the stored round token stays for legacy rounds without sections.
+        if (IsSectioned(round)) throw new ApiError("النموذج غير متاح.", 404);
         if (round.S("status") != "open") throw new ApiError("جولة التقييم غير متاحة حاليًا.", 409);
         return round;
     }
@@ -208,6 +222,11 @@ public static partial class EvaluationSurvey
         var cards = input[field] as JsonArray ?? throw new ApiError("إجابات البطاقات مطلوبة: " + field);
         J.Need(cards.Count <= 500 && cards.All(x => x is JsonObject), "بطاقات غير صالحة.");
         return cards.OfType<JsonObject>().ToList();
+    }
+    static List<JsonObject> CardsOptional(JsonObject input, string field)
+    {
+        if (input[field] == null) return [];
+        return Cards(input, field);
     }
     static decimal Rating(JsonObject input, string key, int max)
     {
@@ -230,8 +249,20 @@ public static partial class EvaluationSurvey
     static JsonArray Answers(JsonObject round, JsonObject input, bool staff, string city, Store? store, DbConnection? c, DbTransaction? tx, string replyId, ref long replyBytes, AttachmentWriteBatch? batch)
     {
         string field = staff ? "staffAnswers" : "appAnswers", key = staff ? "staffId" : "app";
-        var expected = staff ? round["staff"]!.AsArray().OfType<JsonObject>().Where(s => ServesCity(s, city)).Select(s => s.S("id")).ToArray() : Strings(round, "apps");
-        var cards = Cards(input, field);
+        var section = ActiveSection(round);
+        string[] expected;
+        if (section != null)
+        {
+            if (staff)
+                expected = SectionMembers(round, section).Where(s => ServesCity(s, city)).Select(s => s.S("id")).Distinct().ToArray();
+            else if (section.S("kind") == "app")
+                expected = [section.S("key")["app:".Length..]];
+            else
+                expected = [];
+        }
+        else
+            expected = staff ? round["staff"]!.AsArray().OfType<JsonObject>().Where(s => ServesCity(s, city)).Select(s => s.S("id")).ToArray() : Strings(round, "apps");
+        var cards = expected.Length == 0 && !staff ? CardsOptional(input, field) : Cards(input, field);
         J.Need(cards.Count == expected.Length && cards.Select(a => a.S(key)).Distinct().Count() == expected.Length && cards.All(a => expected.Contains(a.S(key))), "أجب عن كل بطاقة مرة واحدة.", "cards_incomplete");
         var clean = new JsonArray();
         foreach (var card in cards)
@@ -262,7 +293,7 @@ public static partial class EvaluationSurvey
             if (card["attachments"] is JsonArray arr && arr.Count > 0)
             {
                 if (arr.All(x => x is JsonObject o && o.S("id") != "" && o.S("dataBase64") == ""))
-                    answer["attachments"] = arr.DeepClone();
+                    answer["attachments"] = PreservedAttachments(c, tx, replyId, key, card.S(key), arr);
                 else
                 {
                     J.Need(store != null && c != null && tx != null && batch != null, "رفع المرفقات غير متاح.", "attachment_unavailable");
@@ -277,13 +308,14 @@ public static partial class EvaluationSurvey
     public static JsonObject Submit(DbConnection c, DbTransaction tx, string token, JsonObject input, string? authenticatedIqama = null, Store? store = null, AttachmentWriteBatch? attachments = null)
     {
         var round = ByToken(c, token, tx);
+        var section = ActiveSection(round);
         string iqama = J.Iqama(authenticatedIqama ?? input.Required("iqama"));
         J.Need(authenticatedIqama == null || input.S("iqama") is "" || J.Iqama(input.S("iqama")) == iqama, "هوية المندوب لا تطابق الجلسة.", "identity_mismatch");
         var rider = Store.Get(c, iqama, "rider", tx);
         // A directory rider may bind a reply only through the mobile or survey session — never from a typed iqama alone.
         if (authenticatedIqama == null && rider != null)
             throw new ApiError("أرسل الرد من جلسة المندوب أو رابط التقييم الآمن.", 401, "session_required");
-        string id = ReplyId(round.S("id"), iqama);
+        string id = section == null ? ReplyId(round.S("id"), iqama) : ReplyId(round.S("id"), section.S("key"), iqama);
         if (Store.Get(c, id, ResponseKind, tx) != null) throw new ApiError("سبق إرسال هذا الرد؛ يمكنك تعديله إن كانت الجولة ما زالت مفتوحة.", 409, "already_submitted");
         string city = Text(input, "city", 100, true); J.Need(Strings(round, "cities").Contains(city), "اختر مدينة من الجولة.", "invalid_city");
         var workApps = Strings(input, "workApps"); J.Need(workApps.Length > 0 && workApps.All(a => Strings(round, "apps").Contains(a)), "اختر منصات العمل الحالية.", "invalid_apps");
@@ -294,7 +326,7 @@ public static partial class EvaluationSurvey
         long replyBytes = 0;
         var reply = new JsonObject
         {
-            ["id"] = id, ["roundId"] = round.S("id"), ["schemaVersion"] = 1, ["iqama"] = iqama,
+            ["id"] = id, ["roundId"] = round.S("id"), ["schemaVersion"] = section == null ? 1 : 2, ["iqama"] = iqama,
             ["name"] = authenticatedIqama == null ? Text(input, "name", 200, true) : rider?.Required("name") ?? throw new ApiError("المندوب غير موجود.", 404, "not_found"),
             ["city"] = city, ["nationality"] = nationalityDisplay, ["nationalityId"] = nationalityId,
             ["phone"] = input.S("phone") == "" ? "" : RiderDirectory.Phone(input.S("phone")), ["workApps"] = Array(workApps),
@@ -304,9 +336,18 @@ public static partial class EvaluationSurvey
             ["appAnswers"] = Answers(round, input, false, city, store, c, tx, id, ref replyBytes, attachments),
             ["createdAt"] = Now()
         };
+        if (section != null)
+        {
+            reply["sectionKey"] = section.S("key");
+            reply["sectionTitle"] = section.S("title");
+            if (section.S("kind") == "app")
+                reply["financeAnswer"] = ParseFinanceAnswer(input, store, c, tx, id, ref replyBytes, attachments);
+        }
         Store.Save(c, ResponseKind, reply, tx);
         foreach (var answer in reply["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => a.B("complaint")))
             CreateComplaint(c, tx, reply, answer);
+        if (reply["financeAnswer"] is JsonObject finance && finance.B("complaint"))
+            CreateFinanceComplaint(c, tx, reply, finance);
         Store.Audit(c, tx, "evaluation.submitted", id, authenticatedIqama == null ? "public-form" : "rider-app");
         return new() { ["receipt"] = editReceipt, ["allowedActions"] = new JsonArray("edit"), ["editCount"] = 0, ["editsRemaining"] = MaxEdits, ["editPolicyPending"] = false, ["uploadsPolicyPending"] = false };
     }
@@ -326,16 +367,46 @@ public static partial class EvaluationSurvey
         };
         Store.Save(c, RiderAsks.ServiceKind, request, tx);
     }
+    static void CreateFinanceComplaint(DbConnection c, DbTransaction tx, JsonObject reply, JsonObject answer)
+    {
+        var titles = RiderAsks.RequestTypeTitles("complaint");
+        string app = reply["appAnswers"]!.AsArray().OfType<JsonObject>().Select(a => a.S("app")).FirstOrDefault(a => a != "") ?? "";
+        var request = new JsonObject
+        {
+            ["id"] = "sreq:" + Guid.NewGuid().ToString("N"), ["requestType"] = "complaint", ["source"] = "evaluation",
+            ["evaluationResponseId"] = reply.S("id"), ["direction"] = "rider_to_admin", ["riderIqama"] = reply.S("iqama"),
+            ["riderName"] = reply.S("name"), ["companyId"] = reply.S("companyId"),
+            ["titleAr"] = titles.Ar, ["titleEn"] = titles.En, ["titleUr"] = titles.Ur,
+            ["reason"] = titles.Ar, ["status"] = "open", ["approvalStage"] = "awaiting_review", ["confidential"] = true,
+            ["requiresSecondApprover"] = false, ["createdAt"] = reply.S("createdAt"), ["updatedAt"] = reply.S("createdAt"),
+            ["payload"] = new JsonObject
+            {
+                ["targetKind"] = "department", ["target"] = DeptFinance, ["subject"] = titles.Ar,
+                ["details"] = answer.S("complaintDetails"), ["app"] = app
+            },
+            ["replies"] = new JsonArray(), ["timeline"] = new JsonArray(new JsonObject { ["at"] = reply.S("createdAt"), ["status"] = "open", ["labelAr"] = titles.Ar, ["labelEn"] = titles.En, ["labelUr"] = titles.Ur, ["byRole"] = "rider" })
+        };
+        Store.Save(c, RiderAsks.ServiceKind, request, tx);
+    }
     static bool InScope(DbConnection c, ClaimsPrincipal user, JsonObject row)
     {
         if (AccessPolicy.Administrator(user)) return true;
         bool company = row.S("companyId") != "" && FinancialScopes.Sponsor(user, row.S("companyId"));
         if (!user.FindAll("finance.sponsorIds").Any() && AccessPolicy.Has(user, SubmissionChoices.PermAllCompanies)) company = true;
         if (!company && FinancialScopes.AllCompanies(user)) company = true;
-        // An absent platform scope means unrestricted; an explicit scope must cover every current work app.
+        // Absent platform scope = unrestricted. Sectioned app replies key off sectionKey; dept/legacy keep workApps.
         var platforms = user.FindAll("finance.platforms").Select(p => p.Value).ToArray();
-        return company && (platforms.Length == 0 || Strings(row, "workApps").All(platforms.Contains));
+        if (!company) return false;
+        if (platforms.Length == 0) return true;
+        string sectionKey = row.S("sectionKey");
+        if (sectionKey.StartsWith("app:", StringComparison.Ordinal))
+            return platforms.Contains(sectionKey["app:".Length..]);
+        return Strings(row, "workApps").All(platforms.Contains);
     }
+    static bool FinanceAnswerInPlatformScope(JsonObject row, string[] platforms) =>
+        platforms.Length == 0
+        || (row.S("sectionKey").StartsWith("app:", StringComparison.Ordinal)
+            && platforms.Contains(row.S("sectionKey")["app:".Length..]));
     public static bool CanSeeComplaint(DbConnection c, ClaimsPrincipal user, JsonObject request, DbTransaction? tx = null)
     {
         if (!CanView(user)) return false;
@@ -343,10 +414,13 @@ public static partial class EvaluationSurvey
         if (response == null || !InScope(c, user, response)) return false;
         if (AccessPolicy.Administrator(user)) return true;
         var scope = user.FindAll("finance.platforms").Select(p => p.Value).ToArray();
+        // Finance card complaints target a department (no staff card); visibility follows reply scope + payload.app.
+        if (request["payload"].S("targetKind") == "department")
+            return scope.Length == 0 || scope.Contains(request["payload"].S("app"));
         var staff = Round(c, response.S("roundId"), tx)["staff"]!.AsArray().OfType<JsonObject>().SingleOrDefault(s => s.S("id") == request["payload"].S("targetId"));
         return staff != null && (scope.Length == 0 || Strings(staff, "apps").All(scope.Contains));
     }
-    public static List<JsonObject> Responses(DbConnection c, ClaimsPrincipal user, string id, string? supervisorId = null, string? department = null)
+    public static List<JsonObject> Responses(DbConnection c, ClaimsPrincipal user, string id, string? supervisorId = null, string? department = null, string? section = null)
     {
         Demand(user); Round(c, id);
         var scope = user.FindAll("finance.platforms").Select(p => p.Value).ToArray();
@@ -357,8 +431,11 @@ public static partial class EvaluationSurvey
             r["appAnswers"] = Array(r["appAnswers"]!.AsArray().OfType<JsonObject>().Where(a => scope.Contains(a.S("app"))));
             var ids = round["staff"]!.AsArray().OfType<JsonObject>().Where(s => Strings(s, "apps").All(scope.Contains)).Select(s => s.S("id")).ToHashSet();
             r["staffAnswers"] = Array(r["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => ids.Contains(a.S("staffId"))));
+            if (!FinanceAnswerInPlatformScope(r, scope)) r.Remove("financeAnswer");
             return r;
         }).ToList();
+        if (!string.IsNullOrEmpty(section))
+            rows = rows.Where(r => r.S("sectionKey") == section).ToList();
         if (!string.IsNullOrEmpty(supervisorId))
             rows = rows.Where(r => r["staffAnswers"]!.AsArray().OfType<JsonObject>().Any(a => a.S("staffId") == supervisorId && a.S("reason") == "")).ToList();
         if (!string.IsNullOrEmpty(department))
@@ -369,9 +446,9 @@ public static partial class EvaluationSurvey
         }
         return rows;
     }
-    public static JsonObject Statistics(DbConnection c, ClaimsPrincipal user, string id, string? city = null, string? nationalityId = null)
+    public static JsonObject Statistics(DbConnection c, ClaimsPrincipal user, string id, string? city = null, string? nationalityId = null, string? section = null)
     {
-        var rows = Responses(c, user, id);
+        var rows = Responses(c, user, id, section: section);
         if (!string.IsNullOrEmpty(city)) rows = rows.Where(r => r.S("city") == city).ToList();
         if (!string.IsNullOrEmpty(nationalityId)) rows = rows.Where(r => r.S("nationalityId") == nationalityId || r.S("nationality") == nationalityId).ToList();
         JsonObject Summary(string key, IEnumerable<JsonObject> subset)

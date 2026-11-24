@@ -1,4 +1,5 @@
 using Microsoft.VisualStudio.TestTools.UnitTesting;
+using System.Data.Common;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
 using Microsoft.Data.Sqlite;
@@ -27,6 +28,15 @@ public sealed class PayFixture:IDisposable
     }
     public static JsonObject Eligibility()=>new(){["name"]="Synthetic own-app eligibility",["rules"]=new JsonArray(new JsonObject{["metric"]="orders",["operator"]="gte",["threshold"]=10,["effect"]=new JsonObject{["type"]="zero"}})};
     public JsonObject Global(string date="2026-10-01",JsonObject? values=null)=>Store.Write((c,tx)=>PaySettings.Create(c,tx,Maker,"pay_setting","global",values==null?new(){["effectiveFrom"]=date,["fromDefaults"]=true}:new(){["effectiveFrom"]=date,["data"]=values}));
+    /// <summary>Live legacy rounds have no sections array; strip sections so ByToken accepts the round sharingToken.</summary>
+    public static JsonObject StripEvaluationSections(DbConnection c, DbTransaction tx, JsonObject round)
+    {
+        round.Remove("sections");
+        Store.Save(c, EvaluationSurvey.RoundKind, round, tx);
+        return round;
+    }
+    public JsonObject MakeLegacyEvaluationRound(JsonObject round) => Store.Write((c, tx) =>
+        StripEvaluationSections(c, tx, EvaluationSurvey.Round(c, round.S("id"), tx)));
     public void Dispose(){SqliteConnection.ClearAllPools();if(Directory.Exists(DirectoryPath))Directory.Delete(DirectoryPath,true);}
 }
 
