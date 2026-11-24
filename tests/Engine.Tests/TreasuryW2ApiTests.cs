@@ -149,7 +149,11 @@ public sealed class TreasuryW2ApiTests
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,Maker,adjustId))).Status);
         // Bank timing CoA not defined — approve blocks (no vault-variance accounts).
         Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,Checker,adjustId))).Status);
-        Assert.IsTrue(f.Store.Read(c=>Store.List(c,"audit").Any(a=>a.S("action")=="treasury.bank_statement_uploaded"&&(a.S("entity")==statementId||a.S("recordId")==statementId))));
+        var uploadAudit=f.Store.Read(c=>Store.List(c,"audit").First(a=>a.S("action")=="treasury.bank_statement_uploaded"));
+        Assert.AreEqual(statementId,uploadAudit.S("entity"));
+        Assert.AreEqual(statementId,uploadAudit.S("recordId"));
+        Assert.AreEqual(1m,uploadAudit.N("lineCount"));
+        Assert.IsTrue(uploadAudit.S("fileHash").Length==64);
     }
 
     [TestMethod]

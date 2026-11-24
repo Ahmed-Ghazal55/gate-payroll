@@ -312,21 +312,28 @@ public sealed partial class Store
         }
         Reporting.Refresh(c,tx,kind,doc);
     }
-    public static void Audit(DbConnection c, DbTransaction tx, string action, string entity, string actor)
+    public static void Audit(DbConnection c, DbTransaction tx, string action, string entity, string actor, JsonObject? extra=null)
     {
-        // M-0606: short data-change row only (never call for reads). Keep legacy keys for existing readers.
-        Save(c, "audit", new()
+        // M-0606: short data-change row only (never call for reads).
+        // Legacy keys entity/recordId stay beside entityId/entityRef (TRIAL4/5 bank upload readers).
+        var row=new JsonObject
         {
             ["id"] = Guid.NewGuid().ToString("N"),
             ["action"] = action,
             ["actionAr"] = AuditApi.LabelAr(action),
             ["entityId"] = entity,
             ["entityRef"] = entity,
+            ["entity"] = entity,
+            ["recordId"] = entity,
             ["actor"] = actor,
             ["at"] = DateTimeOffset.UtcNow.ToString("O"),
             ["occurredAt"] = DateTimeOffset.UtcNow.ToString("O"),
             ["source"] = "نظام"
-        }, tx);
+        };
+        if(extra!=null)
+            foreach(var kv in extra)
+                if(kv.Value!=null)row[kv.Key]=kv.Value.DeepClone();
+        Save(c, "audit", row, tx);
         Notifications.OnAudit(c,tx,action,entity,actor);
     }
 }

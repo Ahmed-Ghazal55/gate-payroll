@@ -71,8 +71,13 @@ public static class TreasuryBankStatementsApi
         }
 
         // One Store.Audit row per file (M-0606 / FLOW1) so Notifications.OnAudit fires.
-        _=lineNo;_=hash;_=bankAccountId;
-        Store.Audit(c,tx,"treasury.bank_statement_uploaded",statementId,actorName);
+        // entity/recordId + lineCount/fileHash required by TreasuryW2ApiTests + grok-TRIAL4.
+        Store.Audit(c,tx,"treasury.bank_statement_uploaded",statementId,actorName,new()
+        {
+            ["lineCount"]=lineNo,
+            ["fileHash"]=Convert.ToHexString(hash),
+            ["bankAccountId"]=bankAccountId
+        });
         return View(c,tx,actor,statementId);
     }
 

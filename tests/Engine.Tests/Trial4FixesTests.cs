@@ -147,7 +147,9 @@ public sealed class Trial4FixesTests
     [TestMethod]
     public void Flow1_BankStatementUpload_UsesStoreAudit()
     {
-        // Regression: Upload must call Store.Audit so Notifications.OnAudit sees treasury.bank_statement_uploaded.
+        // grok-TRIAL4: do not treat a source-text search as a pass — real Upload asserts entity/recordId.
+        // Behaviour covered by Trial5FixesTests.BankStatement_Upload_AuditHasEntityRecordIdLineCountFileHash
+        // and TreasuryW2ApiTests.BankStatement_UploadAutoMatch_AndAdjustPostsAfterApproval.
         string? dir=AppContext.BaseDirectory;
         string? srcPath=null;
         for(int i=0;i<8&&dir!=null;i++)
@@ -159,6 +161,7 @@ public sealed class Trial4FixesTests
         Assert.IsNotNull(srcPath,"TreasuryBankStatementsApi.cs not found from test base");
         var src=System.IO.File.ReadAllText(srcPath!);
         Assert.IsTrue(src.Contains("Store.Audit(c,tx,\"treasury.bank_statement_uploaded\"",StringComparison.Ordinal));
-        Assert.IsFalse(src.Contains("[\"action\"]=\"treasury.bank_statement_uploaded\"",StringComparison.Ordinal));
+        Assert.IsTrue(src.Contains("lineCount",StringComparison.Ordinal));
+        Assert.IsTrue(src.Contains("fileHash",StringComparison.Ordinal));
     }
 }
