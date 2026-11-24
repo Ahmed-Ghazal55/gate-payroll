@@ -33,12 +33,16 @@ public static class SalSalaryApprove
 
             // TRIAL6 / grok-TRIAL5: Independent for EVERY calculator/preparer (calculatedBy[]), not only createdBy.
             var calculators=rider["calculatedBy"] as JsonArray??new JsonArray();
-            if(calculators.Count==0&&rider.S("createdBy")!="")calculators.Add(rider.S("createdBy"));
-            if(calculators.Count==0&&run.S("createdBy")!="")calculators.Add(run.S("createdBy"));
+            if(calculators.Count==0)
+            {
+                string preparer=rider.S("createdBy");
+                if(preparer.Length==0)preparer=run.S("createdBy");
+                if(preparer.Length>0)calculators.Add(preparer);
+            }
             foreach(var node in calculators)
             {
                 string calcBy=node?.ToString()??"";
-                if(calcBy=="")continue;
+                if(calcBy.Length==0)continue;
                 J.Need(AccessPolicy.Independent(actor,calcBy,"sal.salary_approved",c,tx,rider,scope:AccessPolicy.ScopePayApprovals),
                     "معدّ كشف الراتب لا يعتمده ولا يرحّله؛ يلزم مراجع مستقل عن كل من احتسب الصف.",403);
             }
@@ -607,15 +611,15 @@ public static class SalSalaryApprove
         using var r=cmd.ExecuteReader();
         J.Need(r.Read(),"المندوب غير موجود في المسير.",404);
         var calculatedBy=new JsonArray();
-        string createdBy=r["created_by"] is DBNull?"":r["created_by"].ToString()!;
+        string preparerName=r["created_by"] is DBNull?"":r["created_by"].ToString()!;
         string calcJson=r["calculated_by_json"] is DBNull or null?"":r["calculated_by_json"].ToString()!;
         if(!string.IsNullOrWhiteSpace(calcJson))
         {
             try{foreach(var n in JsonNode.Parse(calcJson)!.AsArray())if(n is not null)calculatedBy.Add(n.GetValue<string>());}
             catch{/* ignore corrupt */}
         }
-        if(createdBy!=""&&!calculatedBy.Any(n=>string.Equals(n?.ToString(),createdBy,StringComparison.OrdinalIgnoreCase)))
-            calculatedBy.Insert(0,createdBy);
+        if(preparerName.Length>0&&!NameListed(calculatedBy,preparerName))
+            calculatedBy.Insert(0,preparerName);
         return new()
         {
             ["id"]=r["id"].ToString()!,["erpRiderId"]=r["erp_rider_id"].ToString()!,
@@ -626,10 +630,13 @@ public static class SalSalaryApprove
             ["salaryApprovedAt"]=r["salary_approved_at"] is DBNull?"":r["salary_approved_at"].ToString()!,
             ["keetaIneligible"]=Convert.ToInt32(r["keeta_ineligible"])==1,
             ["protectedSalary"]=Convert.ToInt32(r["protected_salary"])==1,
-            ["createdBy"]=createdBy,
+            ["createdBy"]=preparerName,
             ["calculatedBy"]=calculatedBy
         };
     }
+
+    static bool NameListed(JsonArray names,string who)=>
+        names.Any(n=>string.Equals(n?.ToString(),who,StringComparison.OrdinalIgnoreCase));
 
 
     static Guid ResolvePeriod(DbConnection c,DbTransaction tx,string companyId,string month)

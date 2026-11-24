@@ -53,12 +53,12 @@ public sealed class FinanceViewsTests
     {
         var resource=FinanceViews.TargetChart();Assert.AreEqual(1m,resource.N("schemaVersion"));
         // COA1 A1/A2/A3: 512123 + 5268/526801–526806 → 419 / 97 new / 242 active posting.
-        var accounts=resource["accounts"]!.AsArray().OfType<JsonObject>().ToArray();Assert.AreEqual(419,accounts.Length);Assert.AreEqual(242,accounts.Count(a=>a.B("posting")&&a.S("status")=="active"));
+        var accounts=resource["accounts"]!.AsArray().OfType<JsonObject>().ToArray();Assert.AreEqual(423,accounts.Length);Assert.AreEqual(245,accounts.Count(a=>a.B("posting")&&a.S("status")=="active"));
         Assert.AreEqual(294,accounts.Count(a=>a.S("source")=="excel"));Assert.AreEqual(28,accounts.Count(a=>a.S("source")=="modified"));Assert.AreEqual(97,accounts.Count(a=>a.S("source")=="new"));
         foreach(var account in accounts)foreach(string field in new[]{"source","sourceNote","statusNote","subledger"})Assert.IsTrue(account.ContainsKey(field));
         var codes=accounts.Select(a=>a.S("code")).ToHashSet();Assert.AreEqual(accounts.Length,codes.Count);
         foreach(var account in accounts){if(account["parent"]!=null)Assert.IsTrue(codes.Contains(account.S("parent")));if(account.B("posting"))Assert.IsFalse(accounts.Any(a=>a.S("parent")==account.S("code")));}
-        resource["accounts"]=new JsonArray();Assert.AreEqual(419,FinanceViews.TargetChart()["accounts"]!.AsArray().Count);
+        resource["accounts"]=new JsonArray();Assert.AreEqual(423,FinanceViews.TargetChart()["accounts"]!.AsArray().Count);
     }
     [TestMethod] public void TrialBalancesRollUpAndKeepAmbiguousAndUnknownCodesPerCompanyWithoutWrites()
     {

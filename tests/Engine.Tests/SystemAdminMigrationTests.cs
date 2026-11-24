@@ -21,9 +21,12 @@ public sealed class SystemAdminMigrationTests
         Assert.AreEqual(UserAccess.PermissionsCatalog.Length,template["permissions"]!.AsArray().Count);
         Assert.IsNotNull(f.Store.Read(c=>Store.Get(c,UserAccess.SystemAdminMigrationMarker,"setting")));
         var user=f.Store.Read(c=>Store.Get(c,"synthetic-sysadmin","user"))!;
-        Assert.AreEqual(UserAccess.PermissionsCatalog.Length,UserAccess.EffectivePermissions(user).Length);
-        Assert.IsTrue(UserAccess.EffectivePermissions(user).Contains("users.manage"));
-        Assert.IsTrue(UserAccess.EffectivePermissions(user).Contains("approval.bypass_maker_checker"));
+        // TRIAL6: approvals.approve_own stays OFF for SystemAdmin unless granted in customPermissions.
+        var effective=UserAccess.EffectivePermissions(user);
+        Assert.AreEqual(UserAccess.PermissionsCatalog.Length-1,effective.Length);
+        Assert.IsFalse(effective.Contains(AccessPolicy.ApproveOwnPermission));
+        Assert.IsTrue(effective.Contains("users.manage"));
+        Assert.IsTrue(effective.Contains("approval.bypass_maker_checker"));
         UserAccess.SeedSystemAdmin(f.Store);
         Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"audit").Count(a=>a.S("action")=="admin.system_admin_permissions_seeded")));
 

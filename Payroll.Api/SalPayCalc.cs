@@ -649,13 +649,13 @@ public static class SalPayCalc
             catch{/* start fresh if corrupt */}
         }
         object? created=SchemaSql.Scalar(c,tx,$"SELECT created_by FROM {SchemaSql.Q(c,"sal","pay_run_rider")} WHERE id=@id",("@id",riderId));
-        string createdBy=created is null or DBNull?"":created.ToString()!;
-        if(createdBy!=""&&!arr.Any(n=>string.Equals(n?.ToString(),createdBy,StringComparison.OrdinalIgnoreCase)))
-            arr.Insert(0,createdBy);
-        if(!arr.Any(n=>string.Equals(n?.ToString(),who,StringComparison.OrdinalIgnoreCase)))
-            arr.Add(who);
+        string preparer=created is null or DBNull?"":created.ToString()!;
+        if(preparer.Length>0&&!NameListed(arr,preparer))arr.Insert(0,preparer);
+        if(!NameListed(arr,who))arr.Add(who);
         return arr.ToJsonString();
     }
+    static bool NameListed(JsonArray names,string who)=>
+        names.Any(n=>string.Equals(n?.ToString(),who,StringComparison.OrdinalIgnoreCase));
 
     static string? FindPendingRider(DbConnection c,DbTransaction tx,string payRunId,string erpRider)
     {
