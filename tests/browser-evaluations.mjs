@@ -377,7 +377,7 @@ try {
   await publicPage.locator('.success-symbol').waitFor();
   assert.match(await publicPage.locator('.edit-credentials').textContent(), /^[0-9a-f]{64}$/);
 
-  async function fillSectionIdentity(page, { iqama, name, nationality, app }) {
+  async function fillSectionIdentity(page, { iqama, name, nationality, app, phone }) {
     await page.locator('[data-testid="eval-section-flow"]').waitFor();
     await page.getByRole('button', { name: /متابعة|Continue|جاری/ }).first().click();
     await page.locator('[data-testid="eval-section-city"]').waitFor();
@@ -385,6 +385,7 @@ try {
     await page.locator('[data-testid="eval-section-iqama"]').fill(iqama);
     await page.locator('[data-testid="eval-section-name"]').fill(name);
     await page.locator('[data-testid="eval-section-nationality"]').fill(nationality);
+    if (phone) await page.locator('input[name="phone"], [data-testid="eval-section-phone"]').first().fill(phone);
     const appLabel = app === 'Ninja' ? 'نينجا' : app === 'Keeta' ? 'كيتا' : app;
     await page.locator(`label:has-text("${appLabel}") input[type="checkbox"]`).check();
     await page.getByRole('button', { name: /^التالي$|^Next$|^اگلا$/ }).click();
@@ -408,7 +409,9 @@ try {
   await fillSectionIdentity(hrPage, {
     iqama: '2000000813',
     name: 'Synthetic HR Section Rider',
-    nationality: 'Synthetic Nationality HR',
+    // Same as EvaluationSectionFlow: nationality label that maps to id + local 05 phone.
+    nationality: 'مصري',
+    phone: '0501234567',
     app: 'Ninja',
   });
   // Card 1: tap ratings + confidential complaint
@@ -423,6 +426,22 @@ try {
   await hrPage.locator('[data-testid="eval-section-review"]').waitFor();
   await hrPage.getByRole('button', { name: /تأكيد|Confirm|تصدیق|إرسال/i }).click();
   await hrPage.locator('[data-testid="eval-section-done"]').waitFor();
+
+  // Edit the section reply once through the UI (identity lock: nationality id + 05 phone).
+  await hrPage.locator('[data-testid="eval-section-edit-btn"]').click();
+  await hrPage.locator('[data-testid="eval-section-staff-step"]').waitFor();
+  await rateStaffCard(hrPage, 8);
+  await hrPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
+  await hrPage.locator('[data-testid="eval-section-staff-step"]').waitFor();
+  await hrPage.locator('[data-testid="eval-section-staff-reason"]').selectOption('not_dealt');
+  await hrPage.getByRole('button', { name: /التالي|Next|اگلا/ }).click();
+  await hrPage.locator('[data-testid="eval-section-review"]').waitFor();
+  await hrPage.getByRole('button', { name: /حفظ التعديل|Save edit|ترمیم محفوظ/i }).click();
+  await hrPage.locator('[data-testid="eval-section-done"]').waitFor();
+  assert.match(
+    await hrPage.locator('[data-testid="eval-section-edit-btn"]').textContent(),
+    /2/
+  );
 
   // 3c. App section link → staff → platform → finance → send
   const sectionPage = await phoneCtx.newPage();
@@ -539,7 +558,7 @@ try {
   const byNatText = await adminPage
     .locator('[data-testid="eval-chart-by-nationality"]')
     .textContent();
-  assert.match(byNatText, /Synthetic Nationality HR/);
+  assert.match(byNatText, /Egyptian|مصري|egyptian/i);
   assert.match(byNatText, /Synthetic Nationality AppSec/);
 
   const byAppText = await adminPage.locator('[data-testid="eval-chart-by-app"]').textContent();
@@ -560,7 +579,7 @@ try {
   await adminPage.click('[data-dimension="nationality"]');
   assert.match(
     await adminPage.locator('[data-testid="eval-chart-by-nationality"]').textContent(),
-    /Synthetic Nationality HR/
+    /Egyptian|مصري|egyptian/i
   );
   await adminPage.click('[data-dimension="all"]');
 

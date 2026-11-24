@@ -18,8 +18,24 @@ public static partial class EvaluationSurvey
         J.Need(round.S("status") == "open", "الجولة مغلقة للتعديل.", "round_closed", 409);
         int edits = (int)reply.N("editCount");
         J.Need(edits < MaxEdits, "وصلت للحد الأقصى لتعديل هذا الرد (3 مرات).", "edit_limit", 409);
-        foreach (string locked in new[] { "iqama", "name", "city", "nationality", "nationalityId", "phone", "workApps" })
+        foreach (string locked in new[] { "iqama", "name", "city", "workApps" })
             J.Need(input[locked] == null || input.S(locked) == "" || input.S(locked) == reply.S(locked), "لا يمكن تعديل الهوية أو المدينة أو الجنسية.", "edit_identity_forbidden");
+        // Section flow sends nationality id (egyptian) and local 05 phone; stored values are display + E.164.
+        if (input["nationality"] != null && input.S("nationality") != "")
+        {
+            string raw = input.S("nationality");
+            string canonicalId = CanonicalNationality(raw, out string display);
+            J.Need(raw == reply.S("nationality") || raw == reply.S("nationalityId") || canonicalId == reply.S("nationalityId") || display == reply.S("nationality"),
+                "لا يمكن تعديل الهوية أو المدينة أو الجنسية.", "edit_identity_forbidden");
+        }
+        if (input["nationalityId"] != null && input.S("nationalityId") != "")
+            J.Need(input.S("nationalityId") == reply.S("nationalityId"), "لا يمكن تعديل الهوية أو المدينة أو الجنسية.", "edit_identity_forbidden");
+        if (input["phone"] != null && input.S("phone") != "")
+        {
+            string normalized = RiderDirectory.Phone(input.S("phone"));
+            J.Need(normalized == reply.S("phone") || input.S("phone") == reply.S("phone"),
+                "لا يمكن تعديل الهوية أو المدينة أو الجنسية.", "edit_identity_forbidden");
+        }
 
         long replyBytes = 0;
         var staffInput = WithPreservedAttachments(reply, input, true);

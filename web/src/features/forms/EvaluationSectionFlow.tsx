@@ -670,6 +670,7 @@ export function EvaluationSectionFlow({
           <label className="block text-sm">
             {localizedLabel(schema.identityFields?.find((f) => f.id === 'phone'), lang)}
             <input
+              data-testid="eval-section-phone"
               className="mt-1 w-full rounded border border-[var(--line)] bg-[var(--bg)] px-3 py-2"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}

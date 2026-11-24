@@ -275,6 +275,33 @@ public sealed class EvaluationSectionTests
     }
 
     [TestMethod]
+    public void SectionEditAcceptsNationalityIdAndLocalPhoneFromSectionFlow()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f);
+        var ninja = Section(round, "app:Ninja");
+        // Exact shape EvaluationSectionFlow.buildPayload sends: nationality id + local 05 phone.
+        var input = SectionReply(ninja);
+        input["nationality"] = "egyptian";
+        input["phone"] = "0501234567";
+        var submitted = f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, ninja.S("sharingToken"), input));
+        Assert.AreEqual(0m, submitted.N("editCount"));
+        Assert.AreEqual(3m, submitted.N("editsRemaining"));
+        var stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single();
+        Assert.AreEqual("Egyptian", stored.S("nationality"));
+        Assert.AreEqual("egyptian", stored.S("nationalityId"));
+        Assert.AreEqual("+966501234567", stored.S("phone"));
+
+        var edit = SectionReply(ninja);
+        edit["nationality"] = "egyptian";
+        edit["phone"] = "0501234567";
+        edit["staffAnswers"]![0]!["ratings"] = new JsonObject(EvaluationSurvey.StaffDimensions.Select(k => KeyValuePair.Create<string, JsonNode?>(k, JsonValue.Create(5))));
+        var result = f.Store.Write((c, tx) => EvaluationSurvey.Edit(c, tx, ninja.S("sharingToken"), edit, "2000000091"));
+        Assert.AreEqual(1m, result.N("editCount"));
+        Assert.AreEqual(2m, result.N("editsRemaining"));
+    }
+
+    [TestMethod]
     public void FinanceDepartmentComplaintsVisibleToInScopeNonAdminViewers()
     {
         using var f = new PayFixture();
