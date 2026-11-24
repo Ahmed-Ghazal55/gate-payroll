@@ -9756,6 +9756,9 @@ export interface paths {
                                 totalInclVat?: number;
                                 transactionCount?: number;
                                 fuelType?: string;
+                                usageSource?: string;
+                                coveredFrom?: string;
+                                coveredTo?: string;
                                 cap?: number;
                                 capSource?: string;
                                 status?: string;

@@ -19,148 +19,53 @@ public static class PaySourcesLiveQuery
 
     public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewFuelConsumptionSql(
         LiveOperationsQuery.Scope? scope = null)
-    {
-        using var cmd = new SqlCommand();
-        Add(cmd, "@month", new DateTime(2026, 10, 1));
-        Add(cmd, "@skip", 0);
-        Add(cmd, "@take", 50);
-        string sql = FuelConsumptionSql(ScopeSponsor(scope, cmd, "s")) + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
-        return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
-    }
-
-    public static PageResult FuelConsumption(DbConnection source, DateOnly month, int page, int pageSize,
-        string search, LiveOperationsQuery.Scope scope, CancellationToken ct = default)
-    {
-        EnsureSql(source);
-        pageSize = Math.Min(Math.Max(1, pageSize), MaxPageSize);
-        page = Math.Max(1, page);
-        int skip = checked((page - 1) * pageSize);
-        using var cmd = source.CreateCommand();
-        cmd.CommandTimeout = CommandTimeoutSeconds;
-        using var cancel = SyncCancellation.Register(cmd, ct);
-        Add(cmd, "@month", new DateTime(month.Year, month.Month, 1));
-        string scopeSql = ScopeSponsor(scope, cmd, "s");
-        if (search.Length > 0) Add(cmd, "@q", "%" + EscapeLike(search) + "%");
-        Add(cmd, "@skip", skip);
-        Add(cmd, "@take", pageSize);
-        cmd.CommandText = FuelConsumptionSql(scopeSql, search.Length > 0)
-            + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
-        long total = 0;
-        var summary = EmptyFuelSummary();
-        var items = new List<JsonObject>();
-        using (var reader = cmd.ExecuteReader())
-        {
-            while (reader.Read())
-            {
-                ct.ThrowIfCancellationRequested();
-                if (items.Count == 0)
-                {
-                    total = Long(reader, "TotalCount");
-                    summary = new JsonObject
-                    {
-                        ["rows"] = total,
-                        ["riders"] = Long(reader, "RiderCount"),
-                        ["totalLiters"] = Decimal(reader, "SumLiters"),
-                        ["totalInclVat"] = Decimal(reader, "SumAmount")
-                    };
-                }
-                items.Add(MapFuelRow(reader, month));
-            }
-        }
-        if (items.Count == 0)
-            summary = FuelSummaryOnly(source, month, search, scope, ct);
-        return new(items, total, summary, DateTimeOffset.UtcNow);
-    }
-
-    static JsonObject FuelSummaryOnly(DbConnection source, DateOnly month, string search,
-        LiveOperationsQuery.Scope scope, CancellationToken ct)
-    {
-        using var cmd = source.CreateCommand();
-        cmd.CommandTimeout = CommandTimeoutSeconds;
-        using var cancel = SyncCancellation.Register(cmd, ct);
-        Add(cmd, "@month", new DateTime(month.Year, month.Month, 1));
-        string scopeSql = ScopeSponsor(scope, cmd, "s");
-        if (search.Length > 0) Add(cmd, "@q", "%" + EscapeLike(search) + "%");
-        Add(cmd, "@skip", 0);
-        Add(cmd, "@take", 1);
-        cmd.CommandText = FuelConsumptionSql(scopeSql, search.Length > 0)
-            + "\nOFFSET @skip ROWS FETCH NEXT @take ROWS ONLY";
-        using var reader = cmd.ExecuteReader();
-        if (!reader.Read()) return EmptyFuelSummary();
-        return new JsonObject
-        {
-            ["rows"] = Long(reader, "TotalCount"),
-            ["riders"] = Long(reader, "RiderCount"),
-            ["totalLiters"] = Decimal(reader, "SumLiters"),
-            ["totalInclVat"] = Decimal(reader, "SumAmount")
-        };
-    }
-
-    static JsonObject EmptyFuelSummary() => new()
-    {
-        ["rows"] = 0L,
-        ["riders"] = 0L,
-        ["totalLiters"] = 0m,
-        ["totalInclVat"] = 0m
-    };
+        => OperationsLiveQuery.PreviewFuelCardsSql(scope);
 
     /// <summary>
-    /// One row per FuelCardMonthlyUsages in the report month: rider + card/plate + liters/amount facts.
-    /// Vehicle is the card plate text (ERP has no vehicle FK on usages).
+    /// F13b: one row per fuel card in the pay-cycle range (same daily/monthly + coverage rules as operations fuel).
     /// </summary>
-    static string FuelConsumptionSql(string scopeSql, bool search = false)
+    public static PageResult FuelConsumption(DbConnection source, DateOnly from, DateOnly to, int page, int pageSize,
+        string search, LiveOperationsQuery.Scope scope, CancellationToken ct = default)
     {
-        string searchPred = search
-            ? " AND (fc.[CardNumber] LIKE @q OR fc.[PlateNumberText] LIKE @q OR e.[FullNameAr] LIKE @q OR e.[IqamaNo] LIKE @q OR CONVERT(nvarchar(36), u.[RiderProfileId]) LIKE @q)"
-            : "";
-        return $"""
-            WITH filtered AS (
-                SELECT u.[Id], u.[FuelCardId], u.[RiderProfileId], u.[EmployeeId], u.[ReportMonth],
-                       u.[TotalLiters], u.[AmountBeforeTax], u.[VatAmount], u.[TotalAmount],
-                       u.[TransactionCount], u.[FuelType],
-                       fc.[CardNumber], fc.[Provider], fc.[PlateNumberText],
-                       e.[FullNameAr] AS RiderNameAr, e.[IqamaNo],
-                       s.[UnifiedNationalNumber] AS SponsorUnifiedNumber
-                FROM [app].[FuelCardMonthlyUsages] u
-                INNER JOIN [app].[FuelCards] fc ON fc.[Id]=u.[FuelCardId] AND fc.[IsDeleted]=0
-                LEFT JOIN [app].[Sponsors] s ON s.[Id]=fc.[SponsorId] AND s.[IsDeleted]=0
-                LEFT JOIN [app].[Employees] e ON e.[Id]=u.[EmployeeId] AND e.[IsDeleted]=0
-                WHERE u.[IsDeleted]=0 AND u.[ReportMonth]=@month{scopeSql}{searchPred}
-            ),
-            agg AS (
-                SELECT COUNT_BIG(*) AS TotalCount,
-                       COUNT_BIG(DISTINCT RiderProfileId) AS RiderCount,
-                       ISNULL(SUM(TotalLiters),0) AS SumLiters,
-                       ISNULL(SUM(TotalAmount),0) AS SumAmount
-                FROM filtered
-            )
-            SELECT f.*, a.TotalCount, a.RiderCount, a.SumLiters, a.SumAmount
-            FROM filtered f CROSS JOIN agg a
-            ORDER BY f.ReportMonth, f.Id
-            """;
+        var result = OperationsLiveQuery.FuelCards(source, from, to, "", page, pageSize, search, scope, ct);
+        string period = from.ToString("yyyy-MM", CultureInfo.InvariantCulture);
+        var items = result.Items.Select(r => new JsonObject
+        {
+            ["id"] = r["id"]?.DeepClone(),
+            ["fuelCardId"] = r["id"]?.DeepClone(),
+            ["cardNumber"] = r["cardNumber"]?.DeepClone(),
+            ["provider"] = r["provider"]?.DeepClone(),
+            ["plateNumber"] = r["plateNumber"]?.DeepClone(),
+            ["riderProfileId"] = r["riderProfileId"]?.DeepClone() ?? "",
+            ["employeeId"] = r["employeeId"]?.DeepClone() ?? "",
+            ["riderNameAr"] = r["riderNameAr"]?.DeepClone(),
+            ["iqama"] = r["iqama"]?.DeepClone(),
+            ["period"] = period,
+            ["from"] = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["to"] = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            ["liters"] = r["liters"]?.DeepClone(),
+            ["amountBeforeTax"] = r["amountBeforeTax"]?.DeepClone(),
+            ["vat"] = r["vat"]?.DeepClone(),
+            ["totalInclVat"] = r["totalInclVat"]?.DeepClone(),
+            ["transactionCount"] = r["transactionCount"]?.DeepClone(),
+            ["fuelType"] = r["fuelType"]?.DeepClone(),
+            ["usageSource"] = r["usageSource"]?.DeepClone(),
+            ["coveredFrom"] = r["coveredFrom"]?.DeepClone(),
+            ["coveredTo"] = r["coveredTo"]?.DeepClone(),
+            ["sponsorUnifiedNumber"] = ""
+        }).ToList();
+        var summary = new JsonObject
+        {
+            ["rows"] = result.Total,
+            ["riders"] = result.Summary["consumingRiders"]?.DeepClone() ?? JsonValue.Create(0L),
+            ["totalLiters"] = result.Summary["totalLiters"]?.DeepClone() ?? JsonValue.Create(0m),
+            ["totalInclVat"] = result.Summary["totalInclVat"]?.DeepClone() ?? JsonValue.Create(0m),
+            ["coveredFrom"] = result.Summary["coveredFrom"]?.DeepClone() ?? "",
+            ["coveredTo"] = result.Summary["coveredTo"]?.DeepClone() ?? "",
+            ["uncoveredDays"] = result.Summary["uncoveredDays"]?.DeepClone() ?? JsonValue.Create(0L)
+        };
+        return new(items, result.Total, summary, result.AsOf);
     }
-
-    static JsonObject MapFuelRow(IDataRecord r, DateOnly month) => new()
-    {
-        ["id"] = Str(r, "Id"),
-        ["fuelCardId"] = Str(r, "FuelCardId"),
-        ["cardNumber"] = Str(r, "CardNumber"),
-        ["provider"] = FuelProviderLabel(Str(r, "Provider")),
-        ["plateNumber"] = Str(r, "PlateNumberText"),
-        ["riderProfileId"] = Str(r, "RiderProfileId"),
-        ["employeeId"] = Str(r, "EmployeeId"),
-        ["riderNameAr"] = Str(r, "RiderNameAr"),
-        ["iqama"] = Str(r, "IqamaNo"),
-        ["period"] = month.ToString("yyyy-MM", CultureInfo.InvariantCulture),
-        ["reportMonth"] = month.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
-        ["liters"] = NullDecimal(r, "TotalLiters"),
-        ["amountBeforeTax"] = NullDecimal(r, "AmountBeforeTax"),
-        ["vat"] = NullDecimal(r, "VatAmount"),
-        ["totalInclVat"] = NullDecimal(r, "TotalAmount"),
-        ["transactionCount"] = NullLong(r, "TransactionCount"),
-        ["fuelType"] = Str(r, "FuelType"),
-        ["sponsorUnifiedNumber"] = Str(r, "SponsorUnifiedNumber")
-    };
 
     public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewVehicleAssignmentPeriodsSql(
         LiveOperationsQuery.Scope? scope = null)

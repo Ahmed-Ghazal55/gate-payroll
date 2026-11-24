@@ -17502,6 +17502,15 @@
                           "fuelType": {
                             "type": "string"
                           },
+                          "usageSource": {
+                            "type": "string"
+                          },
+                          "coveredFrom": {
+                            "type": "string"
+                          },
+                          "coveredTo": {
+                            "type": "string"
+                          },
                           "cap": {
                             "type": "number"
                           },

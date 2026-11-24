@@ -33,16 +33,16 @@ public static class PaySourcesLiveApi
     static object Fuel(Store store, IConfiguration config, IHostEnvironment env, HttpContext ctx)
     {
         AccessPolicy.Demand(ctx.User, "pay.view");
-        DateOnly month = ParseMonth(ctx);
+        var (from, to) = ParseFuelRange(ctx);
         var (page, pageSize, search) = ParsePage(ctx);
         if (Operations.SourceMode(config, env) == Operations.SourceStore)
-            return store.Read(c => Envelope(StoreFuel(c, ctx.User, month, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
+            return store.Read(c => Envelope(StoreFuel(c, ctx.User, from, to, page, pageSize), Operations.SourceStore, DateTimeOffset.UtcNow, Actions(ctx.User)));
         return LiveRead(ctx, token =>
         {
             using var erp = OpenErp(config);
             return store.Read(c =>
             {
-                var result = PaySourcesLiveQuery.FuelConsumption(erp, month, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
+                var result = PaySourcesLiveQuery.FuelConsumption(erp, from, to, page, pageSize, search, Operations.LiveScope(c, ctx.User), token);
                 return Envelope(new
                 {
                     items = result.Items,
@@ -50,7 +50,8 @@ public static class PaySourcesLiveApi
                     page,
                     pageSize,
                     summary = result.Summary,
-                    month = month.ToString("yyyy-MM", CultureInfo.InvariantCulture)
+                    from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                    to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
                 }, Operations.SourceLive, result.AsOf, Actions(ctx.User));
             });
         }, "pay-sources-fuel");
@@ -196,16 +197,15 @@ public static class PaySourcesLiveApi
         }, "pay-sources-hs-stamp");
     }
 
-    static object StoreFuel(DbConnection c, ClaimsPrincipal user, DateOnly month, int page, int pageSize)
+    static object StoreFuel(DbConnection c, ClaimsPrincipal user, DateOnly from, DateOnly to, int page, int pageSize)
     {
-        string period = month.ToString("yyyy-MM", CultureInfo.InvariantCulture);
-        string reportMonth = month.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture);
+        string period = from.ToString("yyyy-MM", CultureInfo.InvariantCulture);
         var rows = Operations.List(c, user, "fuel_usage")
             .Where(r =>
             {
                 string rm = r.S("ReportMonth", r.S("reportMonth", r.S("month", r.S("period"))));
                 if (rm.Length >= 7 && rm[..7] == period) return true;
-                return rm.StartsWith(reportMonth, StringComparison.Ordinal);
+                return false;
             })
             .Select(r => new JsonObject
             {
@@ -219,13 +219,17 @@ public static class PaySourcesLiveApi
                 ["riderNameAr"] = r.S("riderNameAr"),
                 ["iqama"] = r.S("iqama"),
                 ["period"] = period,
-                ["reportMonth"] = reportMonth,
+                ["from"] = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["to"] = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 ["liters"] = r.N("TotalLiters", r.N("liters")),
                 ["amountBeforeTax"] = r.N("AmountBeforeTax", r.N("amountBeforeTax")),
                 ["vat"] = r.N("VatAmount", r.N("vat")),
                 ["totalInclVat"] = r.N("TotalAmount", r.N("totalAmount", r.N("amount"))),
                 ["transactionCount"] = r.N("TransactionCount", r.N("transactionCount")),
                 ["fuelType"] = r.S("FuelType", r.S("fuelType")),
+                ["usageSource"] = r.S("usageSource", "monthly"),
+                ["coveredFrom"] = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+                ["coveredTo"] = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
                 ["sponsorUnifiedNumber"] = ""
             }).ToList();
         int skip = (page - 1) * pageSize;
@@ -237,7 +241,16 @@ public static class PaySourcesLiveApi
             ["totalLiters"] = rows.Sum(r => r.N("liters")),
             ["totalInclVat"] = rows.Sum(r => r.N("totalInclVat"))
         };
-        return new { items, total = rows.Count, page, pageSize, summary, month = period };
+        return new
+        {
+            items,
+            total = rows.Count,
+            page,
+            pageSize,
+            summary,
+            from = from.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture),
+            to = to.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture)
+        };
     }
 
     static object StoreVehiclePeriods(DbConnection c, ClaimsPrincipal user, DateOnly from, DateOnly to, int page, int pageSize)
@@ -401,6 +414,16 @@ public static class PaySourcesLiveApi
         if (DateOnly.TryParseExact(raw + "-01", "yyyy-MM-dd", CultureInfo.InvariantCulture, DateTimeStyles.None, out var m))
             return m;
         throw new ApiError("الشهر يجب أن يكون yyyy-MM أو yyyy-MM-dd.");
+    }
+
+    static (DateOnly From, DateOnly To) ParseFuelRange(HttpContext ctx)
+    {
+        string fromRaw = (ctx.Request.Query["from"].ToString() ?? "").Trim();
+        string toRaw = (ctx.Request.Query["to"].ToString() ?? "").Trim();
+        if (fromRaw.Length > 0 || toRaw.Length > 0)
+            return ParsePeriod(ctx);
+        DateOnly month = ParseMonth(ctx);
+        return (month, new DateOnly(month.Year, month.Month, DateTime.DaysInMonth(month.Year, month.Month)));
     }
 
     static JsonArray Actions(ClaimsPrincipal user)
