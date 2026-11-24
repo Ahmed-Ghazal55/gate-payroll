@@ -62,7 +62,8 @@ import { ApprovalBypassPanel } from '../../features/admin/ApprovalBypassPanel';
 import { AdminSettingsPanel } from '../../features/admin/AdminSettingsPanel';
 import { AdminReadSummaryPanel } from '../../features/admin/AdminReadSummaryPanel';
 import { ArchivePanel } from '../../features/admin/ArchivePanel';
-import { ScreenShell } from '../../components/ui/ScreenShell';
+import { NotifySettingsPanel } from '../../features/admin/NotifySettingsPanel';
+import { StaffChatPanel } from '../../features/admin/StaffChatPanel';
 import { RolePermissionsEditor, UserAccessDialog, type AccessCatalog, type AccessUser } from '../../features/admin/UserAccessDialog';
 import type {
   OrgCatalog,
@@ -1493,13 +1494,9 @@ function AdminPageInner() {
       {activeTab === 'settings' && <AdminSettingsPanel />}
 
       {activeTab === 'read_summary' && <AdminReadSummaryPanel />}
-      {activeTab === 'notify_settings' && (
-        <ScreenShell title="إعدادات الإشعارات والمهام" description="مصفوفة التنبيهات وإرسال الإشعارات والمهام التشغيلية." />
-      )}
+      {activeTab === 'notify_settings' && <NotifySettingsPanel />}
       {activeTab === 'archive' && <ArchivePanel />}
-      {activeTab === 'staff_chat' && (
-        <ScreenShell title="محادثة الموظفين" description="قنوات الإدارة والأقسام مع إشراف ومنع الفيديو." />
-      )}
+      {activeTab === 'staff_chat' && <StaffChatPanel />}
 
       {/* Add User Dialog */}
       <Dialog
