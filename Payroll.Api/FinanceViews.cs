@@ -107,6 +107,8 @@ public static class FinanceViews
                 if(string.CompareOrdinal(journal.S("period"),period.From)<0)movement.Opening+=line.N("debit")-line.N("credit");
                 else {movement.Debit+=line.N("debit");movement.Credit+=line.N("credit");}
             }
+            // COA1 B38: include W2 fin.period_balance with the legacy journal store (target view only).
+            if(view=="target")MergeFinPeriodBalances(c,company.Id,period.From,period.To,direct,chartByCode);
             var rolled=chart.ToDictionary(a=>a.S("code"),_=>new Movement().Json());
             foreach(var pair in direct){string? code=pair.Key;var visited=new HashSet<string>();while(code!=null&&rolled.TryGetValue(code,out var total)&&visited.Add(code)){foreach(var amount in pair.Value.Json())total[amount.Key]=total.N(amount.Key)+amount.Value!.GetValue<decimal>();code=chartByCode[code]["parent"]?.ToString();}}
             var rows=new JsonArray();foreach(var account in chart){var row=account.Clone();row["name"]=account.S("nameAr");foreach(var amount in rolled[account.S("code")])row[amount.Key]=amount.Value?.DeepClone();rows.Add(row);}
@@ -117,6 +119,39 @@ public static class FinanceViews
         }
         return new(){["version"]=Resource.S("version"),["view"]=view,["from"]=period.From,["to"]=period.To,["companies"]=output};
     }
+    static void MergeFinPeriodBalances(DbConnection c,string companyId,string from,string to,Dictionary<string,Movement> direct,Dictionary<string,JsonObject> chartByCode)
+    {
+        if(!SchemaSql.TableExists(c,null,"fin","period_balance")||!SchemaSql.TableExists(c,null,"fin","account"))return;
+        using var cmd=Store.Command(c,null,$"""
+            SELECT a.code,
+                   SUM(pb.debit) AS period_debit,
+                   SUM(pb.credit) AS period_credit,
+                   pb.period_month
+            FROM {SchemaSql.Q(c,"fin","period_balance")} pb
+            JOIN {SchemaSql.Q(c,"fin","account")} a ON a.id=pb.account_id
+            WHERE pb.company_id=@c
+            GROUP BY a.code, pb.period_month
+            """,("@c",companyId));
+        using var reader=cmd.ExecuteReader();
+        while(reader.Read())
+        {
+            string code=reader.GetString(0);
+            if(!chartByCode.ContainsKey(code))continue;
+            decimal debit=Convert.ToDecimal(reader.GetValue(1));
+            decimal credit=Convert.ToDecimal(reader.GetValue(2));
+            string monthRaw=reader.GetValue(3) switch
+            {
+                DateTime dt=>dt.ToString("yyyy-MM"),
+                DateOnly d=>d.ToString("yyyy-MM"),
+                string s=>s.Length>=7?s[..7]:s,
+                _=>Convert.ToDateTime(reader.GetValue(3)).ToString("yyyy-MM")
+            };
+            if(!direct.TryGetValue(code,out var movement))direct[code]=movement=new();
+            if(string.CompareOrdinal(monthRaw,from)<0)movement.Opening+=debit-credit;
+            else if(string.CompareOrdinal(monthRaw,to)<=0){movement.Debit+=debit;movement.Credit+=credit;}
+        }
+    }
+
     public static JsonObject IncomeStatement(DbConnection c,ClaimsPrincipal user,string? sponsorId,string? from,string? to,string view="target")
     {
         var trial=TrialBalance(c,user,sponsorId,from,to,view);var companies=new JsonArray();

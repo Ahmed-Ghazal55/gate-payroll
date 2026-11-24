@@ -818,18 +818,12 @@ public static partial class SalBankFiles
 
     public static string InterCompanyAccountCode(DbConnection c,DbTransaction? tx,string targetCompanyId,string? otherCompanyId=null)
     {
+        // COA1 A15: never hash-fallback to another company's current account (unstable across process restarts).
         string code=LoadCompanyCode(c,tx,targetCompanyId).Trim().ToUpperInvariant();
         if(code.StartsWith("BW",StringComparison.Ordinal)||code=="A")return "112701";
         if(code.StartsWith("EX",StringComparison.Ordinal)||code=="B")return "112702";
         if(code.StartsWith("TR",StringComparison.Ordinal)||code=="C")return "112703";
-        string[] pool=["112701","112702","112703"];
-        int idx=Math.Abs(StringComparer.OrdinalIgnoreCase.GetHashCode(targetCompanyId))%3;
-        if(!string.IsNullOrEmpty(otherCompanyId))
-        {
-            int otherIdx=Math.Abs(StringComparer.OrdinalIgnoreCase.GetHashCode(otherCompanyId))%3;
-            if(idx==otherIdx)idx=(idx+1)%3;
-        }
-        return pool[idx];
+        throw new ApiError("حساب الجاري غير مربوط للشركة.",409);
     }
 
     static string EnsurePendingSettlement(DbConnection c,DbTransaction tx,string lineId,string periodMonth,string payingCompanyId,string entitlementCompanyId,decimal amount,string actorGuid,string now)

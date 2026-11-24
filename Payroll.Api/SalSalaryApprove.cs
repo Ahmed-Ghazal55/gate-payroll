@@ -151,23 +151,51 @@ public static class SalSalaryApprove
         })).WithTags("Payroll").WithSummary("Final salary approval after debt confirmation");
     }
 
-    /// <summary>Platform entitlement = gross − commission (Chefz: RiderAmount already net). Posted whenever positive.</summary>
+    /// <summary>Platform entitlement = gross − commission (Chefz: RiderAmount already net). Posted whenever positive.
+    /// COA1 B2: salary scheme → Dr 512101 / Cr 212103; commission (agent) → Dr receivable / Cr 212103 + Cr agent revenue.</summary>
     static void PostEntitlementAccrual(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject run,JsonObject rider)
     {
-        decimal entitlement=J.Money(rider.N("gross")-rider.N("commission"));
-        if(entitlement<=0)return;
+        decimal gross=J.Money(rider.N("gross"));
+        decimal commission=J.Money(rider.N("commission"));
+        decimal entitlement=J.Money(gross-commission);
+        if(entitlement<=0&&commission<=0)return;
         Guid company=Guid.Parse(run.S("companyId"));
         Guid periodId=ResolvePeriod(c,tx,run.S("companyId"),run.S("periodMonth"));
-        Guid expenseAcc=AccountId(c,tx,"512101");
         Guid payableAcc=AccountId(c,tx,"212103");
+        string scheme=rider.S("schemeType","commission");
+        string app=PayPlatforms.App(run.S("app"));
+        bool commissionScheme=!string.Equals(scheme,"salary",StringComparison.OrdinalIgnoreCase)
+            &&PayPlatforms.For(app).Agent is {Length:>0};
+        if(commissionScheme)
+        {
+            // BR §23.5 / §24.8: Dr platform receivable (gross) / Cr 212103 (entitlement) + Cr agent revenue (commission).
+            if(gross<=0)return;
+            Guid receivable=AccountId(c,tx,PayPlatforms.Active(PayPlatforms.For(app).Receivable));
+            string agentCode=PayPlatforms.Revenue(app,"agent");
+            Guid revenueAcc=AccountId(c,tx,agentCode);
+            var lines=new List<JournalPosting.Line>
+            {
+                new(receivable,SchemaOrgCostCentre.NoneId,app,gross,0m,"استحقاق عمولة — مدين المنصة"),
+                new(payableAcc,SchemaOrgCostCentre.NoneId,app,0m,entitlement,"استحقاق عمولة — دائن المندوب")
+            };
+            if(commission>0)lines.Add(new(revenueAcc,SchemaOrgCostCentre.NoneId,app,0m,commission,"إيراد عمولة الوكيل"));
+            JournalPosting.Post(c,tx,new JournalPosting.Draft(
+                company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
+                "sal_pay_run_rider",Guid.Parse(rider.S("id")),"salary_accrual",(byte)run.N("runMode"),run.B("payoutBlocked"),
+                actor.Identity!.Name!,lines));
+            return;
+        }
+        if(entitlement<=0)return;
+        Guid expenseAcc=AccountId(c,tx,"512101");
         JournalPosting.Post(c,tx,new JournalPosting.Draft(
             company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
             DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
             "sal_pay_run_rider",Guid.Parse(rider.S("id")),"salary_accrual",(byte)run.N("runMode"),run.B("payoutBlocked"),
             actor.Identity!.Name!,
             [
-                new(expenseAcc,SchemaOrgCostCentre.NoneId,run.S("app"),entitlement,0m,"استحقاق راتب"),
-                new(payableAcc,SchemaOrgCostCentre.NoneId,run.S("app"),0m,entitlement,"استحقاق راتب")
+                new(expenseAcc,SchemaOrgCostCentre.NoneId,app,entitlement,0m,"استحقاق راتب"),
+                new(payableAcc,SchemaOrgCostCentre.NoneId,app,0m,entitlement,"استحقاق راتب")
             ]));
     }
 

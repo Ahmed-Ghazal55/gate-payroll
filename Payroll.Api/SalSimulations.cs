@@ -65,7 +65,8 @@ public static class SalSimulations
             if(net>0)
             {
                 lines.Add(new JsonObject{["side"]="credit",["accountHint"]="212103",["erpRiderId"]=rider["erp_rider_id"]!.ToString(),["amount"]=net,["labelAr"]="صافي راتب متوقع"});
-                lines.Add(new JsonObject{["side"]="debit",["accountHint"]="526401",["erpRiderId"]=rider["erp_rider_id"]!.ToString(),["amount"]=net,["labelAr"]="مصروف راتب متوقع"});
+                // COA1 A13 / BR §22.9.2 step 1: expected salary expense is 512101, not government fines 526401.
+                lines.Add(new JsonObject{["side"]="debit",["accountHint"]="512101",["erpRiderId"]=rider["erp_rider_id"]!.ToString(),["amount"]=net,["labelAr"]="مصروف راتب متوقع"});
                 debit+=net;credit+=net;
             }
             else

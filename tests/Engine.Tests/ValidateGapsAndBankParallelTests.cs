@@ -82,7 +82,7 @@ public sealed class ValidateGapsAndBankParallelTests
             return true;
         });
         var preview=f.Store.Read(c=>BankPayrollFiles.Preview(c,PayFixture.Maker,new(){["sponsorId"]=company,["period"]="2026-10"}));
-        var mark=new JsonObject{["sponsorId"]=company,["period"]="2026-10",["markSent"]=true,["bankAccountCode"]="111101",["previewToken"]=preview.S("previewToken"),["rows"]=preview["rows"]!.DeepClone()};
+        var mark=new JsonObject{["sponsorId"]=company,["period"]="2026-10",["markSent"]=true,["bankAccountCode"]="111201",["previewToken"]=preview.S("previewToken"),["rows"]=preview["rows"]!.DeepClone()};
         // Permission alone is not enough — no recorded two-person dual decision yet.
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,PayFixture.Maker,mark))).Status);
         string reference="bank-payout:"+company+":2026-10:2026-10";

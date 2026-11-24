@@ -180,13 +180,28 @@ public static class ConfigLists
         {
             const string v2="migration:config-lists:v2-adjustments";
             if(Store.Get(c,v2,"setting",tx)!=null)return false;
-            foreach(var (code,name,account,direction) in new[]{("bonus","حافز / مكافأة","512122","increase"),("compensation","تعويض","512122","increase"),("correction","تصحيح راتب بالخصم","512101","decrease")})
+            // COA1 A10 / spec 03 §10.3: compensation → 512118 (not 512122 bonuses).
+            foreach(var (code,name,account,direction) in new[]{("bonus","حافز / مكافأة","512122","increase"),("compensation","تعويض","512118","increase"),("correction","تصحيح راتب بالخصم","512101","decrease")})
             {
                 string id=ItemId("pay_adjustment_types",code);if(Store.Get(c,id,ItemKind,tx)!=null)continue;
                 var item=new JsonObject{["id"]=id,["group"]="pay_adjustment_types",["code"]=code,["version"]=0,["history"]=new JsonArray(),["active"]=true};
                 Apply(item,new JsonObject{["nameAr"]=name,["values"]=new JsonObject{["account"]=account,["direction"]=direction},["active"]=true,["by"]="system-seed"},"system-seed (BR §29)");Store.Save(c,ItemKind,item,tx);
             }
             Store.Save(c,"setting",new(){["id"]=v2,["version"]=1},tx);return true;
+        },false);
+        // COA1 A10: upgrade stores that seeded compensation as 512122.
+        store.Write((c,tx)=>
+        {
+            const string v2b="migration:config-lists:v2b-compensation-512118";
+            if(Store.Get(c,v2b,"setting",tx)!=null)return false;
+            string id=ItemId("pay_adjustment_types","compensation");
+            var item=Store.Get(c,id,ItemKind,tx)?.Clone();
+            if(item?["current"] is JsonObject cur&&cur["values"] is JsonObject vals&&vals.S("account")=="512122")
+            {
+                vals["account"]="512118";
+                Store.Save(c,ItemKind,item,tx);
+            }
+            Store.Save(c,"setting",new(){["id"]=v2b,["version"]=1},tx);return true;
         },false);
         const string marker="migration:config-lists:v1";
         store.Write((c,tx)=>

@@ -134,6 +134,9 @@ public static class ChartOfAccountsApi
         J.Need(code.Length is >=1 and <=16,"رمز الحساب من 1 إلى 16.",400);
         J.Need(nameAr.Length is >=1 and <=200,"اسم الحساب مطلوب.",400);
         J.Need(Convert.ToInt64(SchemaSql.Scalar(c,tx,$"SELECT COUNT(1) FROM {T(c)} WHERE code=@code",("@code",code))??0)==0,"رمز الحساب مكرر.",409);
+        // COA1 A22: hierarchical code must start with the parent code (spec 02:19).
+        if(!string.IsNullOrWhiteSpace(parentCode))
+            J.Need(code.StartsWith(parentCode,StringComparison.Ordinal)&&code.Length>parentCode.Length,"رمز الحساب يجب أن يبدأ برمز الأب ويزيد طوله.",400);
 
         var parent=Parent(c,tx,parentCode);
         byte nature=parent?.Nature??(input.S("nature") is "credit" or "2"?(byte)2:(byte)1);

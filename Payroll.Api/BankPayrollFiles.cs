@@ -237,7 +237,11 @@ public static class BankPayrollFiles
             MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.BankSent);
             // M-0672 / WC1H: recorded two-person dual bound to this file's content hash (edits after approval void it).
             ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,user,ApprovalsArea.DualBankFile,payoutRef,fileHash);
-            string bank=input.S("bankAccountCode",PipelineSettings.Current().S("payrollBankAccount","111101"));
+            // COA1 A14 / B14: require a real bank leaf (not cash box 111101, not restricted Jahez 111204).
+            string bank=input.S("bankAccountCode");
+            if(bank=="")bank=PipelineSettings.Current().S("payrollBankAccount");
+            J.Need(bank!="","اختر حساب بنك للصرف (لا صندوق نقدي افتراضي).");
+            J.Need(bank!="111204"&&FinanceViews.Accounts.Any(a=>a.S("code")==bank&&a.S("type")=="bank"&&a.B("posting")&&a.S("status")=="active"),"اختر حساب بنك فعلي؛ أموال تصفيات جاهز معزولة.");
             MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.Payout);
             PostPayout(c,tx,user,request,checkedRows,actor,bank);
         }

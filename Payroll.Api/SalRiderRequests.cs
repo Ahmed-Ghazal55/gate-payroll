@@ -259,9 +259,41 @@ public static class SalRiderRequests
 
         if(kind=="hold")
             ApplyHoldToPayRunRiders(c,tx,row.S("companyId"),row.S("erpRiderId"),row.S("periodMonth"),row.S("appCode"),actorName,now);
+        // COA1 A11 / BR §29: Dr 112505 / Cr 421302 when the deduction request is approved (salary approval later recovers 112505).
+        if(kind=="deduction")
+            PostAdminDeductionAccrual(c,tx,actorName,row);
 
         Store.Audit(c,tx,"sal.rider_request_approved",id,actorName);
         return LoadRequestView(c,tx,actor,id);
+    }
+
+    static void PostAdminDeductionAccrual(DbConnection c,DbTransaction tx,string actorName,JsonObject row)
+    {
+        decimal amount=J.Money(row.N("amount"));
+        if(amount<=0)return;
+        string companyId=row.S("companyId");
+        string periodMonth=row.S("periodMonth");
+        DateOnly month=DateOnly.Parse(periodMonth.Length>=10?periodMonth[..10]:periodMonth+"-01",CultureInfo.InvariantCulture);
+        object? periodId=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","accounting_period")} WHERE company_id=@c AND period_month=@pm",
+            ("@c",companyId),("@pm",month.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)));
+        J.Need(periodId is not null and not DBNull,"الفترة المحاسبية غير مفتوحة لهذا الشهر.",409);
+        Guid receivable=AccountId(c,tx,"112505");
+        Guid revenue=AccountId(c,tx,"421302");
+        string app=PayPlatforms.App(row.S("appCode"));
+        JournalPosting.Post(c,tx,new JournalPosting.Draft(
+            Guid.Parse(companyId),Guid.Parse(periodId!.ToString()!),month,month,
+            "sal_rider_request",Guid.Parse(row.S("id")),"admin_deduction_accrual",0,false,actorName,
+            [
+                new(receivable,SchemaOrgCostCentre.NoneId,app,amount,0m,"خصم إداري — مدين على المندوب"),
+                new(revenue,SchemaOrgCostCentre.NoneId,app,0m,amount,"إيراد جزاءات وخصومات إدارية")
+            ]));
+    }
+
+    static Guid AccountId(DbConnection c,DbTransaction tx,string code)
+    {
+        object? id=SchemaSql.Scalar(c,tx,$"SELECT id FROM {SchemaSql.Q(c,"fin","account")} WHERE code=@code AND is_postable=1",("@code",code));
+        J.Need(id is not null && id is not DBNull,"حساب الترحيل غير موجود: "+code,409);
+        return Guid.Parse(id!.ToString()!);
     }
 
     public static JsonObject Reject(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id,JsonObject input)

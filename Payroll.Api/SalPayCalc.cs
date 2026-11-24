@@ -182,7 +182,13 @@ public static class SalPayCalc
                 // Persist debt_id only here; settle balances at debt-confirm / salary-approve (SchemaDebt source guards).
             }
             Persist(Item("invoice","gross",gross,true,"212103",null),"invoice");
-            if(commission!=0&&!chefz)Persist(Item("commission","commission",commission,true,"411104",null),"commission");
+            // COA1 A12 / BR §24.8: agent commission revenue per app; leave empty when the app has no agent account.
+            if(commission!=0&&!chefz)
+            {
+                string? agentRev=PayPlatforms.For(PayPlatforms.App(run.S("app"))).Agent;
+                string commissionAccount=agentRev is {Length:>0}?PayPlatforms.Active(agentRev):"";
+                Persist(Item("commission","commission",commission,true,commissionAccount,null),"commission");
+            }
             foreach(var it in l1Items)Persist(it,"level1");
             Persist(Item("net","net_after_l1",netAfterL1,true,"212103",null),"net");
             foreach(var it in l2Items)Persist(it,"level2");
