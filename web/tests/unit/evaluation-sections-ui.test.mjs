@@ -72,6 +72,21 @@ describe('EV5 S3 section public form', () => {
     assert.match(helpers, /النماذج سهلة وواضحة/);
   });
 
+  it('EV6 R3/R4 staff editor has الإدارة department and appCities', () => {
+    const tab = readWeb('src/features/forms/EvaluationsTab.tsx');
+    const helpers = readWeb('src/features/forms/evaluation-helpers.ts');
+    const sections = readRepo('Payroll.Api/EvaluationSurvey.Sections.cs');
+    assert.match(helpers, /الإدارة/);
+    assert.match(helpers, /STAFF_DEPARTMENT_OPTIONS/);
+    assert.match(tab, /eval-staff-departments/);
+    assert.match(tab, /eval-staff-app-cities/);
+    assert.match(tab, /appCities/);
+    assert.match(tab, /مدن هذا التطبيق/);
+    assert.match(sections, /الإدارة والموارد البشرية/);
+    assert.match(sections, /DeptManagement/);
+    assert.match(sections, /ServesAppCity/);
+  });
+
   it('server-hosted rider form redirects section tokens to the web client', () => {
     const rider = readRepo('RiderForm/src/rider-form.ts');
     assert.match(rider, /sectionKey/);

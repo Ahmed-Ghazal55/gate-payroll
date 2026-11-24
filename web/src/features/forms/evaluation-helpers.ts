@@ -87,6 +87,16 @@ export const ROUND_STATUS_LABELS_AR: Record<string, string> = {
   closed: 'مغلقة',
 };
 
+/** Known evaluation staff departments (matches server StaffDepartmentOptions). */
+export const STAFF_DEPARTMENT_OPTIONS = [
+  'الحركة والمركبات',
+  'المالية والحسابات',
+  'الموارد البشرية',
+  'الإدارة',
+  'الدعم الفني والكول سنتر',
+  'العمليات',
+] as const;
+
 export function normalizeEvalDigits(raw: string): string {
   return String(raw || '')
     .replace(/[٠-٩]/g, (d) => String(d.charCodeAt(0) - 0x0660))

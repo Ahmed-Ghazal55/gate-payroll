@@ -65,13 +65,21 @@ public static partial class EvaluationSurvey
             ["complaintConfidentialityReminderEn"] = "Your complaint is confidential and will not be used against you.",
             ["complaintConfidentialityReminderUr"] = "آپ کی شکایت خفیہ ہے اور آپ کے خلاف استعمال نہیں ہوگی۔",
             ["cities"] = round["cities"]!.DeepClone(), ["apps"] = apps,
-            ["staff"] = Array(staffSource.Where(s => string.IsNullOrEmpty(city) || ServesCity(s, city)).Select(s => new JsonObject
+            ["staff"] = Array(staffSource.Where(s =>
+            {
+                if (string.IsNullOrEmpty(city)) return true;
+                if (section?.S("kind") == "app")
+                    return ServesAppCity(s, section.S("key")["app:".Length..], city);
+                return ServesCity(s, city);
+            }).Select(s => new JsonObject
             {
                 // Remote staff are listed under every work city, so older clients that filter by cities still show them.
                 ["id"] = s.S("id"), ["name"] = s.S("name"), ["cities"] = s.B("allCities") ? round["cities"]!.DeepClone() : s["cities"]!.DeepClone(), ["departments"] = s["departments"]!.DeepClone(),
                 ["apps"] = s["apps"]!.DeepClone(), ["roles"] = s.B("pendingRoleApproval") ? new JsonArray("بانتظار موافقة غزال") : s["roles"]!.DeepClone(),
-                ["allApps"] = s.B("allApps"), ["allCities"] = s.B("allCities")
+                ["allApps"] = s.B("allApps"), ["allCities"] = s.B("allCities"),
+                ["appCities"] = s["appCities"]?.DeepClone() ?? new JsonObject()
             })),
+            ["departmentOptions"] = Array(StaffDepartmentOptions),
             ["identityFields"] = Array(new[] {
                 Label("iqama", "رقم الإقامة", "Iqama", "اقامہ نمبر"), Label("name", "الاسم", "Name", "نام"),
                 Label("city", "مدينة العمل", "Work city", "کام کا شہر"), Label("nationality", "الجنسية", "Nationality", "قومیت"),

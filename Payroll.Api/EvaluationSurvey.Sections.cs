@@ -23,8 +23,12 @@ public static partial class EvaluationSurvey
     [
         ("dept:movement", "الحركة والمركبات", DeptMovement),
         ("dept:finance", "المالية والحسابات", DeptFinance),
-        ("dept:hr", "الموارد البشرية", DeptHr),
+        ("dept:hr", "الإدارة والموارد البشرية", DeptHr),
         ("dept:support", "الكول سنتر والدعم الفني", DeptSupport)
+    ];
+    public static readonly string[] StaffDepartmentOptions =
+    [
+        DeptMovement, DeptFinance, DeptHr, DeptManagement, DeptSupport, DeptOperations
     ];
 
     /// <summary>Arabic-first section titles (UI platform names); English/Urdu for the rider form.</summary>
@@ -39,7 +43,7 @@ public static partial class EvaluationSurvey
         {
             "dept:movement" => (DeptMovement, "Movement & vehicles", "نقل و گاڑیاں"),
             "dept:finance" => (DeptFinance, "Finance & accounts", "مالیہ اور حسابات"),
-            "dept:hr" => (DeptHr, "Human resources", "انسانی وسائل"),
+            "dept:hr" => ("الإدارة والموارد البشرية", "Management and HR", "انتظامیہ اور انسانی وسائل"),
             "dept:support" => ("الكول سنتر والدعم الفني", "Call centre & support", "کال سینٹر اور سپورٹ"),
             _ => (key, key, key)
         };
@@ -83,7 +87,9 @@ public static partial class EvaluationSurvey
             if (removed.Contains(id)) continue;
             bool match = key.StartsWith("app:", StringComparison.Ordinal)
                 ? MatchesAppSection(staff, key["app:".Length..])
-                : DepartmentSections.Any(d => d.Key == key && InDepartment(staff, d.Department));
+                : key == "dept:hr"
+                    ? InDepartment(staff, DeptHr) || InDepartment(staff, DeptManagement)
+                    : DepartmentSections.Any(d => d.Key == key && InDepartment(staff, d.Department));
             if (match || added.Contains(id)) ids.Add(id);
         }
         foreach (string id in added)
@@ -204,12 +210,35 @@ public static partial class EvaluationSurvey
         };
         foreach (string field in new[] { "cities", "departments", "roles", "apps" })
             doc[field] = Array(Strings(input, field));
+        doc["appCities"] = NormalizeAppCities(input["appCities"] as JsonObject, Strings(doc, "apps"), Strings(doc, "cities"), doc.B("allCities"));
         J.Need(Strings(doc, "apps").All(a => PayPlatforms.Table.Any(p => p.Platform == a)), "استخدم معرفات المنصات المعتمدة.");
         J.Need(Strings(doc, "cities").Length > 0, "مدينة الموظف مطلوبة.");
         if (doc.B("pendingRoleApproval")) doc["roles"] = new JsonArray("بانتظار موافقة غزال");
         Store.Save(c, StaffKind, doc, tx);
         Store.Audit(c, tx, "evaluation.staff_updated", id, user.Identity!.Name!);
         return doc;
+    }
+
+    static JsonObject NormalizeAppCities(JsonObject? raw, string[] apps, string[] cities, bool allCities)
+    {
+        var result = new JsonObject();
+        if (raw == null) return result;
+        var appSet = apps.Concat(PayPlatforms.Table.Select(p => p.Platform)).ToHashSet(StringComparer.Ordinal);
+        foreach (var prop in raw)
+        {
+            if (!appSet.Contains(prop.Key)) continue;
+            // Cities may be prior work cities (person moved) — do not force them into the person's current cities list.
+            var list = (prop.Value as JsonArray)?.Select(x => x?.GetValue<string>() ?? "").Where(c => c != "").Distinct(StringComparer.Ordinal).ToArray() ?? [];
+            if (list.Length > 0) result[prop.Key] = Array(list);
+        }
+        return result;
+    }
+
+    public static bool ServesAppCity(JsonObject staff, string platform, string city)
+    {
+        if (staff["appCities"] is JsonObject map && map[platform] is JsonArray arr && arr.Count > 0)
+            return arr.OfType<JsonValue>().Select(v => v.GetValue<string>()).Contains(city);
+        return ServesCity(staff, city);
     }
 
     public static JsonObject DeleteRound(DbConnection c, DbTransaction tx, ClaimsPrincipal user, string id, JsonObject input, Store store)

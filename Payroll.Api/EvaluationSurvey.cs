@@ -139,6 +139,12 @@ public static partial class EvaluationSurvey
                 ["allApps"] = raw.NullableBool("allApps") ?? prior?.NullableBool("allApps") ?? false };
             foreach (string field in new[] { "cities", "departments", "roles", "apps" })
                 doc[field] = Array(Strings(raw, field).Concat(prior == null ? [] : Strings(prior, field)).Distinct(StringComparer.Ordinal));
+            var priorCities = prior?["appCities"] as JsonObject;
+            var mergedAppCities = priorCities?.DeepClone() as JsonObject ?? new JsonObject();
+            if (raw["appCities"] is JsonObject incoming)
+                foreach (var prop in incoming)
+                    mergedAppCities[prop.Key] = prop.Value?.DeepClone();
+            doc["appCities"] = NormalizeAppCities(mergedAppCities, Strings(doc, "apps"), Strings(doc, "cities"), doc.B("allCities"));
             J.Need(Strings(doc, "apps").All(a => PayPlatforms.Table.Any(p => p.Platform == a)), "استخدم معرفات المنصات المعتمدة في ملف الاستيراد.");
             J.Need(Strings(doc, "cities").Length > 0, "مدينة الموظف مطلوبة.");
             if (doc.B("pendingRoleApproval")) doc["roles"] = new JsonArray("بانتظار موافقة غزال");
@@ -168,12 +174,19 @@ public static partial class EvaluationSurvey
         Store.Audit(c, tx, "evaluation.created", round.S("id"), user.Identity!.Name!);
         return round;
     }
-    /// <summary>Work cities a rider can pick: cities of city-bound staff, minus the offices of remote (all-cities) staff.</summary>
+    /// <summary>Work cities a rider can pick: cities of city-bound staff (plus per-app city limits), minus remote offices.</summary>
     public static string[] WorkCities(IEnumerable<JsonObject> staff)
     {
         var list = staff.ToList();
         var offices = list.Where(s => s.B("allCities")).SelectMany(s => Strings(s, "cities")).ToHashSet(StringComparer.Ordinal);
-        return list.Where(s => !s.B("allCities")).SelectMany(s => Strings(s, "cities")).Where(c => !offices.Contains(c)).Distinct(StringComparer.Ordinal).ToArray();
+        IEnumerable<string> AppCityValues(JsonObject s) =>
+            s["appCities"] is JsonObject map
+                ? map.SelectMany(p => (p.Value as JsonArray)?.Select(x => x?.GetValue<string>() ?? "") ?? []).Where(c => c != "")
+                : [];
+        return list.Where(s => !s.B("allCities"))
+            .SelectMany(s => Strings(s, "cities").Concat(AppCityValues(s)))
+            .Where(c => !offices.Contains(c))
+            .Distinct(StringComparer.Ordinal).ToArray();
     }
     public static bool ServesCity(JsonObject staff, string city) => staff.B("allCities") || Strings(staff, "cities").Contains(city);
     /// <summary>Re-reads the current staff list into an unclosed round. Existing replies keep their answers; a later edit must answer the city's current cards.</summary>

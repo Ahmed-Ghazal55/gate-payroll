@@ -192,4 +192,63 @@ public sealed class EvaluationEv6Tests
         }, "test"));
         Assert.IsTrue(f.Store.Read(c => EvaluationSurvey.CanSeeComplaint(c, ninjaReviewer, complaints[0])));
     }
+
+    [TestMethod]
+    public void R3_HrSectionIncludesManagementDepartmentAndUpdatedTitle()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f,
+            Person("Synthetic hr", EvaluationSurvey.DeptHr, apps: []),
+            Person("Synthetic management", EvaluationSurvey.DeptManagement, apps: []),
+            Person("Synthetic finance", EvaluationSurvey.DeptFinance, apps: []));
+        var hr = Section(round, "dept:hr");
+        Assert.AreEqual("الإدارة والموارد البشرية", hr.S("title"));
+        Assert.AreEqual("Management and HR", hr.S("titleEn"));
+        Assert.IsTrue(hr.S("titleUr").Length > 0);
+        var titles = EvaluationSurvey.SectionTitles("dept:hr");
+        Assert.AreEqual("الإدارة والموارد البشرية", titles.Ar);
+        var names = hr["staff"]!.AsArray().OfType<JsonObject>()
+            .Select(s => round["staff"]!.AsArray().OfType<JsonObject>().Single(x => x.S("id") == s.S("id")).S("name"))
+            .ToArray();
+        CollectionAssert.Contains(names, "Synthetic hr");
+        CollectionAssert.Contains(names, "Synthetic management");
+        CollectionAssert.DoesNotContain(names, "Synthetic finance");
+        CollectionAssert.Contains(EvaluationSurvey.StaffDepartmentOptions, EvaluationSurvey.DeptManagement);
+    }
+
+    [TestMethod]
+    public void R4_AppCitiesLimitsAppSectionAndLeavesDeptSectionsAlone()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f,
+            Person("Synthetic mover", EvaluationSurvey.DeptOperations, city: "Synthetic city", apps: ["Ninja"],
+                appCities: new JsonObject { ["Ninja"] = new JsonArray("Other city") }),
+            Person("Synthetic movement", EvaluationSurvey.DeptMovement, city: "Synthetic city", apps: []));
+        var ninja = Section(round, "app:Ninja");
+        var schemaOther = f.Store.Read(c => EvaluationSurvey.Schema(EvaluationSurvey.ByToken(c, ninja.S("sharingToken")), "Other city"));
+        var schemaSynth = f.Store.Read(c => EvaluationSurvey.Schema(EvaluationSurvey.ByToken(c, ninja.S("sharingToken")), "Synthetic city"));
+        CollectionAssert.Contains(schemaOther["staff"]!.AsArray().OfType<JsonObject>().Select(s => s.S("name")).ToArray(), "Synthetic mover");
+        CollectionAssert.DoesNotContain(schemaSynth["staff"]!.AsArray().OfType<JsonObject>().Select(s => s.S("name")).ToArray(), "Synthetic mover");
+
+        var movement = Section(round, "dept:movement");
+        var moveSchema = f.Store.Read(c => EvaluationSurvey.Schema(EvaluationSurvey.ByToken(c, movement.S("sharingToken")), "Synthetic city"));
+        CollectionAssert.Contains(moveSchema["staff"]!.AsArray().OfType<JsonObject>().Select(s => s.S("name")).ToArray(), "Synthetic movement");
+
+        var put = f.Store.Write((c, tx) =>
+        {
+            var staff = Store.List(c, EvaluationSurvey.StaffKind, tx).Single(s => s.S("name") == "Synthetic mover");
+            return EvaluationSurvey.PutStaff(c, tx, Admin, staff.S("id"), new()
+            {
+                ["name"] = staff.S("name"),
+                ["cities"] = new JsonArray("Synthetic city", "Other city"),
+                ["departments"] = new JsonArray(EvaluationSurvey.DeptOperations),
+                ["roles"] = new JsonArray("Synthetic role"),
+                ["apps"] = new JsonArray("Ninja"),
+                ["appCities"] = new JsonObject { ["Ninja"] = new JsonArray("Synthetic city") },
+                ["active"] = true
+            });
+        });
+        Assert.AreEqual(1, put["appCities"]!["Ninja"]!.AsArray().Count);
+        Assert.AreEqual("Synthetic city", put["appCities"]!["Ninja"]![0]!.GetValue<string>());
+    }
 }
