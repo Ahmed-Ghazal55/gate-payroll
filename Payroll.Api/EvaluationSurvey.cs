@@ -394,10 +394,19 @@ public static partial class EvaluationSurvey
         bool company = row.S("companyId") != "" && FinancialScopes.Sponsor(user, row.S("companyId"));
         if (!user.FindAll("finance.sponsorIds").Any() && AccessPolicy.Has(user, SubmissionChoices.PermAllCompanies)) company = true;
         if (!company && FinancialScopes.AllCompanies(user)) company = true;
-        // An absent platform scope means unrestricted; an explicit scope must cover every current work app.
+        // Absent platform scope = unrestricted. Sectioned app replies key off sectionKey; dept/legacy keep workApps.
         var platforms = user.FindAll("finance.platforms").Select(p => p.Value).ToArray();
-        return company && (platforms.Length == 0 || Strings(row, "workApps").All(platforms.Contains));
+        if (!company) return false;
+        if (platforms.Length == 0) return true;
+        string sectionKey = row.S("sectionKey");
+        if (sectionKey.StartsWith("app:", StringComparison.Ordinal))
+            return platforms.Contains(sectionKey["app:".Length..]);
+        return Strings(row, "workApps").All(platforms.Contains);
     }
+    static bool FinanceAnswerInPlatformScope(JsonObject row, string[] platforms) =>
+        platforms.Length == 0
+        || (row.S("sectionKey").StartsWith("app:", StringComparison.Ordinal)
+            && platforms.Contains(row.S("sectionKey")["app:".Length..]));
     public static bool CanSeeComplaint(DbConnection c, ClaimsPrincipal user, JsonObject request, DbTransaction? tx = null)
     {
         if (!CanView(user)) return false;
@@ -419,6 +428,7 @@ public static partial class EvaluationSurvey
             r["appAnswers"] = Array(r["appAnswers"]!.AsArray().OfType<JsonObject>().Where(a => scope.Contains(a.S("app"))));
             var ids = round["staff"]!.AsArray().OfType<JsonObject>().Where(s => Strings(s, "apps").All(scope.Contains)).Select(s => s.S("id")).ToHashSet();
             r["staffAnswers"] = Array(r["staffAnswers"]!.AsArray().OfType<JsonObject>().Where(a => ids.Contains(a.S("staffId"))));
+            if (!FinanceAnswerInPlatformScope(r, scope)) r.Remove("financeAnswer");
             return r;
         }).ToList();
         if (!string.IsNullOrEmpty(section))

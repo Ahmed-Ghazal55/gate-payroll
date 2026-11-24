@@ -228,6 +228,52 @@ public sealed class EvaluationSectionTests
         Assert.AreEqual("not_dealt_finance", stored["financeAnswer"]!.S("reason"));
     }
 
+    static ClaimsPrincipal PlatformReviewer(string platform) =>
+        new(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.Name, "synthetic-platform-reviewer"),
+            new Claim(ClaimTypes.Role, "Reviewer"),
+            new Claim("permission", EvaluationSurvey.ViewPermission),
+            new Claim("permission", SubmissionChoices.PermAllCompanies),
+            new Claim("finance.platforms", platform)
+        }, "test"));
+
+    [TestMethod]
+    public void PlatformScopeUsesSectionKeyAndBlanksFinanceOutsideAppScope()
+    {
+        using var f = new PayFixture();
+        var round = OpenSectionedRound(f);
+        var ninja = Section(round, "app:Ninja");
+        var hs = Section(round, "app:HungerStation");
+        var hr = Section(round, "dept:hr");
+        // Rider ticked Ninja on an HS form — workApps must not leak that reply to a Ninja-scoped reviewer.
+        var hsReply = SectionReply(hs, "2000000091");
+        hsReply["workApps"] = new JsonArray("Ninja");
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, hs.S("sharingToken"), hsReply));
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, ninja.S("sharingToken"), SectionReply(ninja, "2000000092")));
+        // Dept section: keep workApps rule — Ninja in workApps keeps HR reply visible to Ninja scope.
+        var hrReply = SectionReply(hr, "2000000093");
+        hrReply["workApps"] = new JsonArray("Ninja");
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, hr.S("sharingToken"), hrReply));
+
+        var ninjaUser = PlatformReviewer("Ninja");
+        var rows = f.Store.Read(c => EvaluationSurvey.Responses(c, ninjaUser, round.S("id")));
+        CollectionAssert.AreEquivalent(new[] { "2000000092", "2000000093" }, rows.Select(r => r.S("iqama")).ToArray());
+        Assert.IsFalse(rows.Any(r => r.S("sectionKey") == "app:HungerStation"));
+        var ninjaRow = rows.Single(r => r.S("sectionKey") == "app:Ninja");
+        Assert.IsNotNull(ninjaRow["financeAnswer"]);
+        Assert.IsTrue(ninjaRow["financeAnswer"]!["overall"] != null || ninjaRow["financeAnswer"]!.S("reason") != "" || ninjaRow["financeAnswer"]!["factorRatings"] != null);
+
+        var hsUser = PlatformReviewer("HungerStation");
+        var hsRows = f.Store.Read(c => EvaluationSurvey.Responses(c, hsUser, round.S("id")));
+        Assert.HasCount(1, hsRows);
+        Assert.AreEqual("app:HungerStation", hsRows[0].S("sectionKey"));
+        Assert.IsNotNull(hsRows[0]["financeAnswer"]);
+        // Ninja-scoped view of a Ninja app reply keeps finance; HS-scoped view of Ninja reply is out of scope entirely.
+        var keetaUser = PlatformReviewer("Keeta");
+        Assert.HasCount(0, f.Store.Read(c => EvaluationSurvey.Responses(c, keetaUser, round.S("id"))));
+    }
+
     [TestMethod]
     public void DeleteRoundRemovesRepliesFilesAndComplaintsWithTitleConfirm()
     {
