@@ -77,14 +77,18 @@ public static class ManualJournals
         J.Need(draft.S("status")=="draft","الرفض للمسودة فقط؛ القيد المعتمد يُعكس.");PayValues.Fields(input,"reason");string reason=input.Required("reason");J.Need(reason.Length is >=3 and <=1000,"سبب الرفض من 3 إلى 1000 حرف.");
         draft["status"]="rejected";draft["rejectionReason"]=reason;draft["rejectedBy"]=actor.Identity!.Name;draft["rejectedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,Kind,draft,tx);Store.Audit(c,tx,"finance.manual_rejected",id,actor.Identity!.Name!);return WithActions(actor,draft,c,tx);
     }
-    // The author (or an administrator) removes a draft or a rejected draft; nothing was posted, so nothing is reversed.
+    // M-0588 / M-0632 / M-0731 / TRACE U-W1-24: drafts are cancelled and kept (never hard-deleted).
     public static JsonObject Delete(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string id)
     {
-        var draft=Get(c,tx,actor,id,CreatePermission);J.Need(draft.S("status") is "draft" or "rejected","الحذف للمسودة أو المرفوضة فقط؛ القيد المعتمد يُعكس.");
+        var draft=Get(c,tx,actor,id,CreatePermission);J.Need(draft.S("status") is "draft" or "rejected","الإلغاء للمسودة أو المرفوضة فقط؛ القيد المعتمد يُعكس.");
         if(!AccessPolicy.Administrator(actor)&&!string.Equals(actor.Identity!.Name,draft.S("createdBy"),StringComparison.OrdinalIgnoreCase))throw new ApiError("المسودة لصاحبها أو مسؤول النظام فقط.",403);
-        foreach(var (rid,kind) in new[]{(id,Kind),(draft.S("attachmentId"),"financial_attachment")}.Where(x=>x.Item1!=""))
-        {using var command=Store.Command(c,tx,"DELETE FROM records WHERE id=@id AND kind=@kind",("@id",rid),("@kind",kind));command.ExecuteNonQuery();}
-        Store.Audit(c,tx,"finance.manual_deleted",id,actor.Identity!.Name!);return new(){["id"]=id,["deleted"]=true};
+        if(draft.S("status")=="cancelled")return WithActions(actor,draft,c,tx);
+        draft["status"]="cancelled";
+        draft["cancelledBy"]=actor.Identity!.Name;
+        draft["cancelledAt"]=DateTimeOffset.UtcNow.ToString("O");
+        Store.Save(c,Kind,draft,tx);
+        Store.Audit(c,tx,"finance.manual_cancelled",id,actor.Identity!.Name!);
+        return WithActions(actor,draft,c,tx);
     }
     // The UI renders buttons from this list only, so it never offers an action the API will refuse.
     public static JsonObject WithActions(ClaimsPrincipal actor,JsonObject d,DbConnection c,DbTransaction? tx)
@@ -98,8 +102,8 @@ public static class ManualJournals
             else if(!independent)blockers.Add("اعتماد القيد لمستخدم مستقل عن منشئه.");
             else{actions.Add((JsonNode)"approve");actions.Add((JsonNode)"reject");}
         }
-        if(status is "draft" or "rejected"&&(author||admin)&&AccessPolicy.Has(actor,CreatePermission))actions.Add((JsonNode)"delete");
-        if(status=="approved"&&d.S("reversesJournalId")==""&&AccessPolicy.Has(actor,CreatePermission)&&!Store.List(c,Kind,tx).Any(x=>x.S("reversesManualJournalId")==d.S("id")&&x.S("status")!="rejected"))actions.Add((JsonNode)"reverse");
+        if(status is "draft" or "rejected"&&(author||admin)&&AccessPolicy.Has(actor,CreatePermission))actions.Add((JsonNode)"cancel");
+        if(status=="approved"&&d.S("reversesJournalId")==""&&AccessPolicy.Has(actor,CreatePermission)&&!Store.List(c,Kind,tx).Any(x=>x.S("reversesManualJournalId")==d.S("id")&&x.S("status")!="rejected"&&x.S("status")!="cancelled"))actions.Add((JsonNode)"reverse");
         var copy=d.DeepClone().AsObject();copy["allowedActions"]=actions;copy["approvalBlockers"]=blockers;return copy;
     }
     public static void Map(RouteGroupBuilder api,Store store)
@@ -107,7 +111,7 @@ public static class ManualJournals
         api.MapPost("/finance/journals/manual",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Create(c,tx,ctx.User,input))).WithTags("Accounting and reports").WithSummary("Draft a balanced manual target-chart journal in an open company period");
         api.MapPost("/finance/journals/manual/{id}/approve",(string id,HttpContext ctx)=>store.Write((c,tx)=>Approve(c,tx,ctx.User,id))).WithTags("Accounting and reports").WithSummary("Independently approve a manual journal or its reversal");
         api.MapPost("/finance/journals/manual/{id}/reject",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Reject(c,tx,ctx.User,id,input))).WithTags("Accounting and reports").WithSummary("Reject a manual journal draft with a reason (checker only)");
-        api.MapDelete("/finance/journals/manual/{id}",(string id,HttpContext ctx)=>store.Write((c,tx)=>Delete(c,tx,ctx.User,id))).WithTags("Accounting and reports").WithSummary("Delete an unposted manual journal draft (author or administrator)");
+        api.MapDelete("/finance/journals/manual/{id}",(string id,HttpContext ctx)=>store.Write((c,tx)=>Delete(c,tx,ctx.User,id))).WithTags("Accounting and reports").WithSummary("Cancel an unposted manual journal draft (kept; author or administrator)");
         api.MapPost("/finance/journals/manual/{id}/reverse",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Reverse(c,tx,ctx.User,id,input))).WithTags("Accounting and reports").WithSummary("Create a reasoned open-period reversal draft requiring independent approval");
         api.MapGet("/finance/journals/manual",(HttpContext ctx)=>
         {

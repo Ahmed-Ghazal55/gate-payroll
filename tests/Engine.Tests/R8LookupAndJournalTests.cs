@@ -57,8 +57,10 @@ public sealed class R8LookupAndJournalTests
         Assert.AreEqual("rejected",rejected.S("status"));
         Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>ManualJournals.Approve(c,tx,checker,draft.S("id"))));
         Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>ManualJournals.Delete(c,tx,Actor("synthetic-other","FinancialAccountant"),draft.S("id"))));
-        f.Store.Write((c,tx)=>ManualJournals.Delete(c,tx,Actor("synthetic-maker","FinancialAccountant"),draft.S("id")));
-        Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,ManualJournals.Kind).Count));
+        var cancelled=f.Store.Write((c,tx)=>ManualJournals.Delete(c,tx,Actor("synthetic-maker","FinancialAccountant"),draft.S("id")));
+        // M-0588 / TRACE U-W1-24: cancelled drafts are kept (never hard-deleted).
+        Assert.AreEqual("cancelled",cancelled.S("status"));
+        Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,ManualJournals.Kind).Count(j=>j.S("status")=="cancelled")));
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"journal").Count),"nothing was ever posted");
         var posted=f.Store.Write((c,tx)=>ManualJournals.Create(c,tx,Actor("synthetic-maker","FinancialAccountant"),Input("SYN-R8-C7-B")));
         f.Store.Write((c,tx)=>ManualJournals.Approve(c,tx,checker,posted.S("id")));

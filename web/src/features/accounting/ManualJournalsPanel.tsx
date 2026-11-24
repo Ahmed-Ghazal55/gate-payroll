@@ -381,16 +381,16 @@ export function ManualJournalsPanel({
   };
 
   const handleDeleteJournal = async (journal: ManualJournal) => {
-    if (!window.confirm('هل أنت متأكد من رغبتك في حذف مسودة هذا القيد؟ لن يمكن التراجع.')) {
+    if (!window.confirm('هل أنت متأكد من إلغاء مسودة هذا القيد؟ تبقى في السجل بحالة ملغاة (بدون حذف).')) {
       return;
     }
     try {
       await api.deleteManualJournal(journal.id);
-      toast('تم حذف مسودة القيد بنجاح', 'success');
+      toast('تم إلغاء مسودة القيد (محفوظة كملغاة)', 'success');
       if (drawerOpen) setDrawerOpen(false);
       loadJournals();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل حذف مسودة القيد';
+      const msg = err instanceof Error ? err.message : 'فشل إلغاء مسودة القيد';
       toast(msg, 'danger');
     }
   };
@@ -877,14 +877,14 @@ export function ManualJournalsPanel({
                   </button>
                 )}
 
-                {selectedJournal.allowedActions?.includes('delete') && (
+                {(selectedJournal.allowedActions?.includes('cancel') || selectedJournal.allowedActions?.includes('delete')) && (
                   <button
                     type="button"
                     onClick={() => handleDeleteJournal(selectedJournal)}
                     className="px-4 py-2 rounded-xl border border-[var(--line)] text-[var(--danger)] text-xs font-bold hover:bg-[var(--raised)] transition inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     <Trash2 size={15} />
-                    <span>حذف المسودة</span>
+                    <span>إلغاء المسودة</span>
                   </button>
                 )}
 
