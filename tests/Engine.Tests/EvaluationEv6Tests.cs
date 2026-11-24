@@ -118,8 +118,19 @@ public sealed class EvaluationEv6Tests
         Assert.AreEqual("تقييم الأنظمة والبيانات", schema.S("systemsTitleAr"));
         CollectionAssert.AreEquivalent(EvaluationSurvey.SystemsFactors, schema["systemsFactors"]!.AsArray().OfType<JsonObject>().Select(x => x.S("id")).ToArray());
 
-        var missing = AppReply(ninja, "2000000301", withSystems: false);
-        Assert.ThrowsExactly<ApiError>(() => f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, ninja.S("sharingToken"), missing)));
+        // Grok EV6 H1: a client that predates the systems card (cached 0.33.5 page, rider-app payload) still submits.
+        var older = AppReply(ninja, "2000000302", withSystems: false);
+        f.Store.Write((c, tx) => EvaluationSurvey.Submit(c, tx, ninja.S("sharingToken"), older));
+        var olderStored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single(r => r.S("iqama") == "2000000302");
+        Assert.IsNull(olderStored["systemsAnswer"]);
+        Assert.AreEqual(3m, olderStored["financeAnswer"]!.N("overall"));
+        // Grok EV6 H2: an edit without the field keeps finance and is not forced to add the systems card.
+        var olderEdit = AppReply(ninja, "2000000302", withSystems: false);
+        olderEdit["financeAnswer"]!["overall"] = 4;
+        Assert.AreEqual(1m, f.Store.Write((c, tx) => EvaluationSurvey.Edit(c, tx, ninja.S("sharingToken"), olderEdit, "2000000302")).N("editCount"));
+        olderStored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single(r => r.S("iqama") == "2000000302");
+        Assert.IsNull(olderStored["systemsAnswer"]);
+        Assert.AreEqual(4m, olderStored["financeAnswer"]!.N("overall"));
 
         var input = AppReply(ninja, "2000000301");
         input["systemsAnswer"]!["complaint"] = true;
@@ -137,6 +148,11 @@ public sealed class EvaluationEv6Tests
         };
         var edited = f.Store.Write((c, tx) => EvaluationSurvey.Edit(c, tx, ninja.S("sharingToken"), edit, "2000000301"));
         Assert.AreEqual(1m, edited.N("editCount"));
+        stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single(r => r.S("iqama") == "2000000301");
+        Assert.AreEqual("not_used_forms_data", stored["systemsAnswer"]!.S("reason"));
+        // An edit from an older client (no systemsAnswer) keeps the stored systems card.
+        var keepEdit = AppReply(ninja, "2000000301", withSystems: false);
+        f.Store.Write((c, tx) => EvaluationSurvey.Edit(c, tx, ninja.S("sharingToken"), keepEdit, "2000000301"));
         stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single(r => r.S("iqama") == "2000000301");
         Assert.AreEqual("not_used_forms_data", stored["systemsAnswer"]!.S("reason"));
 
@@ -191,6 +207,15 @@ public sealed class EvaluationEv6Tests
             new Claim("finance.platforms", "Ninja")
         }, "test"));
         Assert.IsTrue(f.Store.Read(c => EvaluationSurvey.CanSeeComplaint(c, ninjaReviewer, complaints[0])));
+        var keetaReviewer = new ClaimsPrincipal(new ClaimsIdentity(new[]
+        {
+            new Claim(ClaimTypes.Name, "synthetic-other-platform-reviewer"),
+            new Claim(ClaimTypes.Role, "Reviewer"),
+            new Claim("permission", EvaluationSurvey.ViewPermission),
+            new Claim("permission", SubmissionChoices.PermAllCompanies),
+            new Claim("finance.platforms", "Keeta")
+        }, "test"));
+        Assert.IsFalse(f.Store.Read(c => EvaluationSurvey.CanSeeComplaint(c, keetaReviewer, complaints[0])));
     }
 
     [TestMethod]

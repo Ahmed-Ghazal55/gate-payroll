@@ -1227,7 +1227,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
-                                appCities?: Record<string, never>;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             identityFields?: {
                                 id: string;
@@ -1569,7 +1571,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
-                                appCities?: Record<string, never>;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             identityFields?: {
                                 id: string;
@@ -17744,7 +17748,9 @@ export interface paths {
                             pendingRoleApproval?: boolean;
                             allCities?: boolean;
                             allApps?: boolean;
-                            appCities?: Record<string, never>;
+                            appCities?: {
+                                [key: string]: string[];
+                            };
                         }[];
                     };
                 };
@@ -17843,7 +17849,9 @@ export interface paths {
                             pendingRoleApproval?: boolean;
                             allCities?: boolean;
                             allApps?: boolean;
-                            appCities?: Record<string, never>;
+                            appCities?: {
+                                [key: string]: string[];
+                            };
                         };
                     };
                 };
@@ -17898,7 +17906,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
-                                appCities?: Record<string, never>;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             cities: string[];
                             apps: string[];
@@ -17923,7 +17933,9 @@ export interface paths {
                                     pendingRoleApproval?: boolean;
                                     allCities?: boolean;
                                     allApps?: boolean;
-                                    appCities?: Record<string, never>;
+                                    appCities?: {
+                                        [key: string]: string[];
+                                    };
                                 }[];
                             }[];
                             createdAt?: string;
@@ -17975,7 +17987,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
-                                appCities?: Record<string, never>;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             cities: string[];
                             apps: string[];
@@ -18000,7 +18014,9 @@ export interface paths {
                                     pendingRoleApproval?: boolean;
                                     allCities?: boolean;
                                     allApps?: boolean;
-                                    appCities?: Record<string, never>;
+                                    appCities?: {
+                                        [key: string]: string[];
+                                    };
                                 }[];
                             }[];
                             createdAt?: string;
@@ -18062,7 +18078,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
-                                appCities?: Record<string, never>;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             cities: string[];
                             apps: string[];
@@ -18087,7 +18105,9 @@ export interface paths {
                                     pendingRoleApproval?: boolean;
                                     allCities?: boolean;
                                     allApps?: boolean;
-                                    appCities?: Record<string, never>;
+                                    appCities?: {
+                                        [key: string]: string[];
+                                    };
                                 }[];
                             }[];
                             createdAt?: string;
@@ -18178,7 +18198,9 @@ export interface paths {
                             pendingRoleApproval?: boolean;
                             allCities?: boolean;
                             allApps?: boolean;
-                            appCities?: Record<string, never>;
+                            appCities?: {
+                                [key: string]: string[];
+                            };
                         };
                     };
                 };
@@ -18216,7 +18238,9 @@ export interface paths {
                             pendingRoleApproval?: boolean;
                             allCities?: boolean;
                             allApps?: boolean;
-                            appCities?: Record<string, never>;
+                            appCities?: {
+                                [key: string]: string[];
+                            };
                         };
                     };
                 };
@@ -18274,7 +18298,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
-                                appCities?: Record<string, never>;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             cities: string[];
                             apps: string[];
@@ -18299,7 +18325,9 @@ export interface paths {
                                     pendingRoleApproval?: boolean;
                                     allCities?: boolean;
                                     allApps?: boolean;
-                                    appCities?: Record<string, never>;
+                                    appCities?: {
+                                        [key: string]: string[];
+                                    };
                                 }[];
                             }[];
                             createdAt?: string;
@@ -19303,7 +19331,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
-                                appCities?: Record<string, never>;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             cities: string[];
                             apps: string[];
@@ -19328,7 +19358,9 @@ export interface paths {
                                     pendingRoleApproval?: boolean;
                                     allCities?: boolean;
                                     allApps?: boolean;
-                                    appCities?: Record<string, never>;
+                                    appCities?: {
+                                        [key: string]: string[];
+                                    };
                                 }[];
                             }[];
                             createdAt?: string;

@@ -238,6 +238,14 @@ public static partial class EvaluationSurvey
     public static bool ServesSectionCity(JsonObject staff, JsonObject? section, string city) =>
         section?.S("kind") == "app" ? ServesAppCity(staff, section.S("key")["app:".Length..], city) : ServesCity(staff, city);
 
+    /// <summary>Cities where a section's form shows this card: the per-app limit for app sections, else all work cities for remote staff, else the card's cities.</summary>
+    public static string[] FormCities(JsonObject staff, JsonObject? section, string[] workCities)
+    {
+        if (section?.S("kind") == "app" && staff["appCities"] is JsonObject map && map[section.S("key")["app:".Length..]] is JsonArray arr && arr.Count > 0)
+            return arr.OfType<JsonValue>().Select(v => v.GetValue<string>()).Distinct(StringComparer.Ordinal).ToArray();
+        return staff.B("allCities") ? workCities : Strings(staff, "cities");
+    }
+
     public static bool ServesAppCity(JsonObject staff, string platform, string city)
     {
         if (staff["appCities"] is JsonObject map && map[platform] is JsonArray arr && arr.Count > 0)

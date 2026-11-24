@@ -356,7 +356,9 @@ public static partial class EvaluationSurvey
             if (section.S("kind") == "app")
             {
                 reply["financeAnswer"] = ParseFinanceAnswer(input, store, c, tx, id, ref replyBytes, attachments);
-                reply["systemsAnswer"] = ParseSystemsAnswer(input, store, c, tx, id, ref replyBytes, attachments);
+                // Optional for clients that predate the systems card (cached 0.33.5 page, rider-app payload): absent = no systems card.
+                if (input["systemsAnswer"] is JsonObject)
+                    reply["systemsAnswer"] = ParseSystemsAnswer(input, store, c, tx, id, ref replyBytes, attachments);
             }
         }
         Store.Save(c, ResponseKind, reply, tx);

@@ -53,6 +53,25 @@ public sealed class EvaluationEv6R4Tests
         var stored = f.Store.Read(c => Store.List(c, EvaluationSurvey.ResponseKind)).Single();
         Assert.IsFalse(stored["staffAnswers"]!.AsArray().OfType<JsonObject>().Any(a => a.S("staffId") == moverId));
 
+        // Grok EV6 H3: the page loads the schema WITHOUT a city and filters cards by their `cities`.
+        // Those lists must give exactly the cards the server expects (ServesSectionCity) in every work city.
+        var full = f.Store.Read(c => EvaluationSurvey.Schema(EvaluationSurvey.ByToken(c, ninja.S("sharingToken"))));
+        foreach (var workCity in new[] { "Synthetic city", "Other city" })
+        {
+            var page = full["staff"]!.AsArray().OfType<JsonObject>().Where(s => s["cities"]!.AsArray().Select(x => x!.GetValue<string>()).Contains(workCity)).Select(s => s.S("id")).OrderBy(x => x).ToArray();
+            var server = Section(f.Store.Read(c => EvaluationSurvey.Round(c, round.S("id"))), "app:Ninja")["staff"]!.AsArray().OfType<JsonObject>()
+                .Where(s => EvaluationSurvey.ServesSectionCity(s, ninja, workCity)).Select(s => s.S("id")).OrderBy(x => x).ToArray();
+            CollectionAssert.AreEqual(server, page, workCity);
+        }
+        var moverCard = full["staff"]!.AsArray().OfType<JsonObject>().Single(s => s.S("name") == "Synthetic mover");
+        CollectionAssert.AreEqual(new[] { "Other city" }, moverCard["cities"]!.AsArray().Select(x => x!.GetValue<string>()).ToArray());
+
+        // Grok EV6 H4: dashboard city filter follows the section rule (app section honours appCities, department section ignores it).
+        var inSynthApp = f.Store.Read(c => EvaluationSurvey.SupervisorScorecard(c, Admin, round.S("id"), city: "Synthetic city", section: "app:Ninja"));
+        Assert.IsFalse(inSynthApp["items"]!.AsArray().OfType<JsonObject>().Any(i => i.S("name") == "Synthetic mover"));
+        var inOtherApp = f.Store.Read(c => EvaluationSurvey.SupervisorScorecard(c, Admin, round.S("id"), city: "Other city", section: "app:Ninja"));
+        Assert.IsTrue(inOtherApp["items"]!.AsArray().OfType<JsonObject>().Any(i => i.S("name") == "Synthetic mover"));
+
         var movement = Section(round, "dept:movement");
         var moveSchema = f.Store.Read(c => EvaluationSurvey.Schema(EvaluationSurvey.ByToken(c, movement.S("sharingToken")), "Synthetic city"));
         CollectionAssert.Contains(moveSchema["staff"]!.AsArray().OfType<JsonObject>().Select(s => s.S("name")).ToArray(), "Synthetic movement");

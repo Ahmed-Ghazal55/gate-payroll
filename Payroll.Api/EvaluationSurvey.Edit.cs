@@ -45,7 +45,9 @@ public static partial class EvaluationSurvey
         if (section != null && section.S("kind") == "app")
         {
             reply["financeAnswer"] = ParseFinanceAnswer(input, store, c, tx, id, ref replyBytes, attachments);
-            reply["systemsAnswer"] = ParseSystemsAnswer(input, store, c, tx, id, ref replyBytes, attachments);
+            // Absent on edit = keep the stored systems card (replies stored before the card, or older clients).
+            if (input["systemsAnswer"] is JsonObject)
+                reply["systemsAnswer"] = ParseSystemsAnswer(input, store, c, tx, id, ref replyBytes, attachments);
         }
         reply["editCount"] = edits + 1;
         reply["updatedAt"] = Now();

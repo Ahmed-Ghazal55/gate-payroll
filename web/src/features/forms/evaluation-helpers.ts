@@ -304,3 +304,31 @@ export function appendSuggestedChip(current: string, chip: string): string {
   if (value.includes(chip)) return value;
   return `${value}\n${chip}`;
 }
+
+/** Staff card fields the city rule needs (round staff and staff list rows both have them). */
+export type CityRuleStaff = {
+  cities?: string[] | null;
+  allCities?: boolean | null;
+  appCities?: Record<string, string[]> | null;
+};
+
+/**
+ * Same city rule as the server (EvaluationSurvey ServesSectionCity / scorecard ServesFilterCity):
+ * an app section — or, with no section, an app filter — uses the per-app list when it has cities;
+ * a department section never does. Remote (allCities) staff serve every city otherwise.
+ */
+export function servesFilterCity(
+  staff: CityRuleStaff,
+  city: string,
+  sectionKey?: string | null,
+  app?: string | null
+): boolean {
+  const platform = sectionKey
+    ? sectionKey.startsWith('app:')
+      ? sectionKey.slice('app:'.length)
+      : null
+    : app || null;
+  const limit = platform ? staff.appCities?.[platform] : undefined;
+  if (limit && limit.length > 0) return limit.includes(city);
+  return Boolean(staff.allCities) || (staff.cities || []).includes(city);
+}

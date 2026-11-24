@@ -46,6 +46,7 @@ import {
   ROUND_STATUS_LABELS_AR,
   STAFF_DEPARTMENT_OPTIONS,
   PLATFORM_NAMES,
+  servesFilterCity,
 } from './evaluation-helpers';
 import {
   EvaluationScorecardsPanel,
@@ -395,6 +396,19 @@ export function EvaluationsTab() {
       : stats?.dailyTrend || [];
   }, [stats, dimensionFocus, dimensionItems]);
 
+  const knownStaffCities = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          staffList.flatMap((s) => [
+            ...((s.cities || []) as string[]),
+            ...Object.values((s.appCities || {}) as Record<string, string[]>).flat(),
+          ])
+        )
+      ).filter(Boolean),
+    [staffList]
+  );
+
   const supervisorRows = useMemo((): SupervisorTableRow[] => {
     const rawBuckets =
       dimensionFocus === 'supervisor' && dimensionItems
@@ -413,7 +427,16 @@ export function EvaluationsTab() {
     return candidates
       .filter((s) => {
         if (supervisorFilter !== 'ALL' && s.id !== supervisorFilter) return false;
-        if (cityFilter !== 'ALL' && !(s.cities || []).includes(cityFilter)) return false;
+        if (
+          cityFilter !== 'ALL' &&
+          !servesFilterCity(
+            s,
+            cityFilter,
+            sectionFilter !== 'ALL' ? sectionFilter : null,
+            appFilter !== 'ALL' ? appFilter : null
+          )
+        )
+          return false;
         if (appFilter !== 'ALL' && !(s.apps || []).includes(appFilter)) return false;
         if (
           departmentFilter !== 'ALL' &&
@@ -466,6 +489,7 @@ export function EvaluationsTab() {
     cityFilter,
     appFilter,
     departmentFilter,
+    sectionFilter,
   ]);
 
   // Overall KPIs
@@ -2075,11 +2099,16 @@ export function EvaluationsTab() {
                   .map((p) => p.trim())
                   .filter(Boolean);
                 const selected = staffEditDraft.appCities[app] || [];
+                // A former city (person moved) may be chosen here without adding it to the card's cities,
+                // so the person is not added to department forms in that city.
+                const cityChoices = Array.from(
+                  new Set([...personCities, ...knownStaffCities, ...selected])
+                );
                 return (
                   <div key={app} className="rounded-lg border border-[var(--line)] p-2 space-y-1">
                     <div className="font-semibold">{platformDisplayName(app, 'ar')}</div>
                     <div className="flex flex-wrap gap-1">
-                      {personCities.map((city) => {
+                      {cityChoices.map((city) => {
                         const on = selected.includes(city);
                         return (
                           <button
@@ -2107,7 +2136,7 @@ export function EvaluationsTab() {
                           </button>
                         );
                       })}
-                      {personCities.length === 0 && (
+                      {cityChoices.length === 0 && (
                         <span className="text-[var(--muted)]">أضف مدن الشخص أولًا</span>
                       )}
                     </div>

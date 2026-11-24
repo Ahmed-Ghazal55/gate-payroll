@@ -71,8 +71,9 @@ public static partial class EvaluationSurvey
                 return ServesSectionCity(s, section, city);
             }).Select(s => new JsonObject
             {
-                // Remote staff are listed under every work city, so older clients that filter by cities still show them.
-                ["id"] = s.S("id"), ["name"] = s.S("name"), ["cities"] = s.B("allCities") ? round["cities"]!.DeepClone() : s["cities"]!.DeepClone(), ["departments"] = s["departments"]!.DeepClone(),
+                // "cities" = the cities where THIS form shows the card (same rule the server checks on submit: ServesSectionCity),
+                // so every client that filters by cities (current page, cached older pages) shows exactly the expected cards.
+                ["id"] = s.S("id"), ["name"] = s.S("name"), ["cities"] = Array(FormCities(s, section, Strings(round, "cities"))), ["departments"] = s["departments"]!.DeepClone(),
                 ["apps"] = s["apps"]!.DeepClone(), ["roles"] = s.B("pendingRoleApproval") ? new JsonArray("بانتظار موافقة غزال") : s["roles"]!.DeepClone(),
                 ["allApps"] = s.B("allApps"), ["allCities"] = s.B("allCities"),
                 ["appCities"] = s["appCities"]?.DeepClone() ?? new JsonObject()

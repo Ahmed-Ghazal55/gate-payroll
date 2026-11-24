@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   suggestedChipsFor,
   EVAL_IDENTITY_STORAGE_KEY,
+  servesFilterCity,
 } from '../../src/features/forms/evaluation-helpers.ts';
 
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -95,5 +96,25 @@ describe('EV5 S3 section public form', () => {
     assert.match(rider, /q\.set\(['"]evaluation['"]/);
     assert.doesNotMatch(rider, /eval-finance-card/);
     assert.doesNotMatch(rider, /eval-section-flow/);
+  });
+});
+
+describe('EV6 city rule (same as server ServesSectionCity / ServesFilterCity)', () => {
+  const mover = { cities: ['City A'], appCities: { Ninja: ['City B'] } };
+  const remote = { cities: ['Office'], allCities: true };
+  it('app section honours the per-app list', () => {
+    assert.equal(servesFilterCity(mover, 'City B', 'app:Ninja'), true);
+    assert.equal(servesFilterCity(mover, 'City A', 'app:Ninja'), false);
+    assert.equal(servesFilterCity(mover, 'City A', 'app:Keeta'), true);
+  });
+  it('department section ignores the per-app list', () => {
+    assert.equal(servesFilterCity(mover, 'City A', 'dept:movement', 'Ninja'), true);
+    assert.equal(servesFilterCity(mover, 'City B', 'dept:movement'), false);
+  });
+  it('no section: an app filter uses the per-app list; otherwise card cities or all cities', () => {
+    assert.equal(servesFilterCity(mover, 'City B', null, 'Ninja'), true);
+    assert.equal(servesFilterCity(mover, 'City A', null, 'Ninja'), false);
+    assert.equal(servesFilterCity(mover, 'City A'), true);
+    assert.equal(servesFilterCity(remote, 'Any city'), true);
   });
 });

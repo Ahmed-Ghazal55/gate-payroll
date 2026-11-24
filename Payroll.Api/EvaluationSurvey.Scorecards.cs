@@ -38,10 +38,19 @@ public static partial class EvaluationSurvey
         return rows;
     }
 
+    /// <summary>City rule for the dashboard: an app section (or, with no section, an app filter) honours appCities; a department section never does.</summary>
+    static bool ServesFilterCity(JsonObject staff, ScorecardFilter filter)
+    {
+        string city = filter.City!;
+        if (!string.IsNullOrEmpty(filter.Section))
+            return filter.Section!.StartsWith("app:", StringComparison.Ordinal) ? ServesAppCity(staff, filter.Section!["app:".Length..], city) : ServesCity(staff, city);
+        return string.IsNullOrEmpty(filter.App) ? ServesCity(staff, city) : ServesAppCity(staff, filter.App!, city);
+    }
+
     static bool StaffMatches(JsonObject staff, ScorecardFilter filter)
     {
         if (!string.IsNullOrEmpty(filter.SupervisorId) && staff.S("id") != filter.SupervisorId) return false;
-        if (!string.IsNullOrEmpty(filter.City) && !(string.IsNullOrEmpty(filter.App) ? ServesCity(staff, filter.City!) : ServesAppCity(staff, filter.App!, filter.City!))) return false;
+        if (!string.IsNullOrEmpty(filter.City) && !ServesFilterCity(staff, filter)) return false;
         if (!string.IsNullOrEmpty(filter.App) && !Strings(staff, "apps").Contains(filter.App!)) return false;
         if (!string.IsNullOrEmpty(filter.Department) && !Strings(staff, "departments").Contains(filter.Department!)) return false;
         return true;

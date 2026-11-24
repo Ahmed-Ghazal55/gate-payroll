@@ -1097,7 +1097,13 @@
                             "type": "boolean"
                           },
                           "appCities": {
-                            "type": "object"
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
                           }
                         }
                       }
@@ -1849,7 +1855,13 @@
                             "type": "boolean"
                           },
                           "appCities": {
-                            "type": "object"
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
                           }
                         }
                       }
@@ -29074,7 +29086,13 @@
                         "type": "boolean"
                       },
                       "appCities": {
-                        "type": "object"
+                        "type": "object",
+                        "additionalProperties": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        }
                       }
                     }
                   }
@@ -29215,7 +29233,13 @@
                       "type": "boolean"
                     },
                     "appCities": {
-                      "type": "object"
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
                     }
                   }
                 }
@@ -29327,7 +29351,13 @@
                               "type": "boolean"
                             },
                             "appCities": {
-                              "type": "object"
+                              "type": "object",
+                              "additionalProperties": {
+                                "type": "array",
+                                "items": {
+                                  "type": "string"
+                                }
+                              }
                             }
                           }
                         }
@@ -29444,7 +29474,13 @@
                                     "type": "boolean"
                                   },
                                   "appCities": {
-                                    "type": "object"
+                                    "type": "object",
+                                    "additionalProperties": {
+                                      "type": "array",
+                                      "items": {
+                                        "type": "string"
+                                      }
+                                    }
                                   }
                                 }
                               }
@@ -29584,7 +29620,13 @@
                             "type": "boolean"
                           },
                           "appCities": {
-                            "type": "object"
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
                           }
                         }
                       }
@@ -29701,7 +29743,13 @@
                                   "type": "boolean"
                                 },
                                 "appCities": {
-                                  "type": "object"
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -29842,7 +29890,13 @@
                             "type": "boolean"
                           },
                           "appCities": {
-                            "type": "object"
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
                           }
                         }
                       }
@@ -29959,7 +30013,13 @@
                                   "type": "boolean"
                                 },
                                 "appCities": {
-                                  "type": "object"
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -30138,7 +30198,13 @@
                       "type": "boolean"
                     },
                     "appCities": {
-                      "type": "object"
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
                     }
                   }
                 }
@@ -30240,7 +30306,13 @@
                       "type": "boolean"
                     },
                     "appCities": {
-                      "type": "object"
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
                     }
                   }
                 }
@@ -30368,7 +30440,13 @@
                             "type": "boolean"
                           },
                           "appCities": {
-                            "type": "object"
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
                           }
                         }
                       }
@@ -30485,7 +30563,13 @@
                                   "type": "boolean"
                                 },
                                 "appCities": {
-                                  "type": "object"
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
                                 }
                               }
                             }
@@ -33189,7 +33273,13 @@
                             "type": "boolean"
                           },
                           "appCities": {
-                            "type": "object"
+                            "type": "object",
+                            "additionalProperties": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
+                              }
+                            }
                           }
                         }
                       }
@@ -33306,7 +33396,13 @@
                                   "type": "boolean"
                                 },
                                 "appCities": {
-                                  "type": "object"
+                                  "type": "object",
+                                  "additionalProperties": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
+                                    }
+                                  }
                                 }
                               }
                             }
