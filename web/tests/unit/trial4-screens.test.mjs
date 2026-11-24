@@ -29,6 +29,30 @@ test('FLOW1 audit prefixes cover sal/treasury/payment', () => {
   const src = readFileSync(join(root, 'src/lib/audit-labels.ts'), 'utf8');
   assert.match(src, /prefix:\s*'sal\.'/);
   assert.match(src, /prefix:\s*'treasury\.'/);
+  assert.match(src, /prefix:\s*'debt\.'/);
   assert.match(src, /finance\.manual_cancelled/);
   assert.match(src, /treasury\.bank_adjust_rejected/);
+});
+
+test('TRACE H7: advance payouts under payments; bank file under payroll only', () => {
+  const src = readFileSync(join(root, 'src/components/layout/Sidebar.tsx'), 'utf8');
+  assert.match(src, /id:\s*'pay-advance-payouts'/);
+  assert.match(src, /id:\s*'pr-bank'/);
+  assert.doesNotMatch(src, /id:\s*'treasury-advance-payouts'/);
+  assert.doesNotMatch(src, /id:\s*'treasury-bankfile'/);
+});
+
+test('FLOW1/TRACE: admin notify and staff chat panels are wired', () => {
+  const src = readFileSync(join(root, 'src/app/admin/page.tsx'), 'utf8');
+  assert.match(src, /NotifySettingsPanel/);
+  assert.match(src, /StaffChatPanel/);
+  assert.doesNotMatch(src, /activeTab === 'notify_settings' && \(\s*<ScreenShell/);
+});
+
+test('FLOW1/TRACE: treasury shells replaced with real panels', () => {
+  const src = readFileSync(join(root, 'src/app/treasury/page.tsx'), 'utf8');
+  assert.match(src, /VaultCountsPanel/);
+  assert.match(src, /BankReconPanel/);
+  assert.match(src, /TreasuryTransfersPanel/);
+  assert.match(src, /requestAdvancePayout/);
 });

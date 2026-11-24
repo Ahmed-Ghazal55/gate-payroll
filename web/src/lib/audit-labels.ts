@@ -188,6 +188,7 @@ const AUDIT_ACTION_LABELS_AR: Record<string, string> = {
   "supplier.paid": "صرف لمورد",
   "treasury.bank_adjust_rejected": "رفض تسوية بنكية",
   "treasury.bank_adjust_requested": "طلب تسوية بنكية",
+  "treasury.bank_statement_uploaded": "رفع كشف بنك",
   "treasury.bank_statement_auto_matched": "مطابقة كشف بنك تلقائية",
   "treasury.legacy_cash_allocated": "توزيع نقد قديم",
   "treasury.opening_reconciled": "مطابقة افتتاح خزينة",
@@ -221,6 +222,9 @@ const AUDIT_ACTION_PREFIX_LABELS_AR: Array<{ prefix: string; label: string }> = 
   { prefix: 'notify.', label: 'إشعار نظام' },
   { prefix: 'recurring_', label: 'مستفيد دوري' },
   { prefix: 'jahez.day_', label: 'يوم مطابقة جاهز' },
+  { prefix: 'debt.', label: 'عملية مديونية' },
+  { prefix: 'admin.notify_', label: 'إعدادات إشعارات' },
+  { prefix: 'advance.', label: 'عملية سلفة' },
 ];
 
 export function auditActionLabelAr(action: string | null | undefined): string {

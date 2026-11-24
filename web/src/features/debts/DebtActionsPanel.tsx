@@ -14,12 +14,21 @@ export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: str
   const { toast } = useToast();
   const canCollect = can('debts.collect') || can('debts.manage') || isAdmin;
   const canCreate = can('debts.create') || can('debts.manage') || isAdmin;
-  const canView = can('debts.view') || canCollect || canCreate || isAdmin;
+  const canLedgerAct = can('debts.waive') || can('debts.collect') || can('debts.manage') || isAdmin;
+  const canView = can('debts.view') || canCollect || canCreate || canLedgerAct || isAdmin;
   const [settlements, setSettlements] = useState<Array<Record<string, unknown>>>([]);
   const [loading, setLoading] = useState(false);
   const [busy, setBusy] = useState(false);
   const [debtId, setDebtId] = useState(selectedDebtId);
   const [collect, setCollect] = useState({ collectedAmount: '', waivedAmount: '0', receiptRef: '', targetVaultCode: '', period: '2026-10', notes: '', waiverReason: '' });
+  const [ledger, setLedger] = useState({
+    amount: '',
+    reason: '',
+    approvalRequestId: '',
+    period: '2026-10',
+    cashAccountCode: '111101',
+    companyId: '',
+  });
   const [createForm, setCreateForm] = useState({ iqama: '', category: 'CashAdvance', totalAmount: '', monthlyInstallment: '', creditorSponsorId: 'BW', notes: '' });
 
   useEffect(() => { if (selectedDebtId) setDebtId(selectedDebtId); }, [selectedDebtId]);
@@ -110,6 +119,127 @@ export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: str
           ))}
           <button type="submit" disabled={busy} className="px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50">تحصيل</button>
         </form>
+      )}
+
+      {canLedgerAct && (
+        <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+          <h3 className="sm:col-span-2 lg:col-span-3 text-sm font-bold">إعفاء / تحمّل / تحصيل دفتر W2 (بعد اعتماد)</h3>
+          <input
+            placeholder="debtId"
+            value={debtId}
+            onChange={(e) => setDebtId(e.target.value)}
+            className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono"
+          />
+          {(['amount', 'reason', 'approvalRequestId', 'period', 'cashAccountCode', 'companyId'] as const).map((k) => (
+            <input
+              key={k}
+              placeholder={k}
+              value={ledger[k]}
+              onChange={(e) => setLedger({ ...ledger, [k]: e.target.value })}
+              className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono"
+            />
+          ))}
+          <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap gap-2">
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void (async () => {
+                  setBusy(true);
+                  try {
+                    await api.waiveDebtLedger(debtId, {
+                      amount: Number(ledger.amount),
+                      reason: ledger.reason,
+                      approvalRequestId: ledger.approvalRequestId,
+                      period: ledger.period,
+                    });
+                    toast('تم الإعفاء على دفتر W2', 'success');
+                    loadSettlements();
+                  } catch (err: unknown) {
+                    toast(err instanceof ApiError ? err.message : 'تعذر الإعفاء', 'danger');
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+              className="px-3 py-2 rounded-xl border border-[var(--line)] text-xs font-bold disabled:opacity-50"
+            >
+              إعفاء
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void (async () => {
+                  setBusy(true);
+                  try {
+                    await api.absorbDebtLedger(debtId, {
+                      amount: Number(ledger.amount),
+                      reason: ledger.reason,
+                      approvalRequestId: ledger.approvalRequestId,
+                      period: ledger.period,
+                    });
+                    toast('تم تحمّل الشركة للدين', 'success');
+                    loadSettlements();
+                  } catch (err: unknown) {
+                    toast(err instanceof ApiError ? err.message : 'تعذر التحمّل', 'danger');
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+              className="px-3 py-2 rounded-xl border border-[var(--line)] text-xs font-bold disabled:opacity-50"
+            >
+              تحمّل الشركة
+            </button>
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => {
+                void (async () => {
+                  setBusy(true);
+                  try {
+                    await api.collectDebtLedger(debtId, {
+                      collectedAmount: Number(ledger.amount),
+                      period: ledger.period,
+                      cashAccountCode: ledger.cashAccountCode || '111101',
+                      notes: ledger.reason,
+                    });
+                    toast('تم التحصيل على دفتر W2', 'success');
+                    loadSettlements();
+                  } catch (err: unknown) {
+                    toast(err instanceof ApiError ? err.message : 'تعذر التحصيل الدفتري', 'danger');
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+              className="px-3 py-2 rounded-xl border border-[var(--line)] text-xs font-bold disabled:opacity-50"
+            >
+              تحصيل دفتري
+            </button>
+            <button
+              type="button"
+              disabled={busy || !ledger.companyId}
+              onClick={() => {
+                void (async () => {
+                  setBusy(true);
+                  try {
+                    const res = await api.printDebtsRegister(ledger.companyId);
+                    toast(`جاهز للطباعة (${Array.isArray((res as { items?: unknown[] }).items) ? (res as { items: unknown[] }).items.length : '—'} صف)`, 'success');
+                  } catch (err: unknown) {
+                    toast(err instanceof ApiError ? err.message : 'تعذر تحميل سجل الطباعة', 'danger');
+                  } finally {
+                    setBusy(false);
+                  }
+                })();
+              }}
+              className="px-3 py-2 rounded-xl border border-[var(--line)] text-xs font-bold disabled:opacity-50"
+            >
+              طباعة السجل
+            </button>
+          </div>
+        </div>
       )}
 
       <div className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] overflow-hidden">
