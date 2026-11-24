@@ -193,8 +193,9 @@ public static class TreasuryBankStatementsApi
         J.Need(draft.S("status")=="pending_approval","التسوية ليست بانتظار الاعتماد.");
         string reason=input.S("reason").Trim();
         J.Need(reason.Length is >=3 and <=500,"سبب الرفض من 3 إلى 500 حرف.");
-        J.Need(AccessPolicy.Independent(actor,draft.S("createdBy"),"treasury.bank_adjust_reject",c,tx,draft,scope:AccessPolicy.ScopePayApprovals)
-            ||string.Equals(actor.Identity?.Name,draft.S("createdBy"),StringComparison.OrdinalIgnoreCase),
+        // Maker may cancel their own pending request; checker uses Independent (AccessPolicy.SamePerson — no raw name compare).
+        J.Need(AccessPolicy.SamePerson(actor,draft.S("createdBy"))
+            ||AccessPolicy.Independent(actor,draft.S("createdBy"),"treasury.bank_adjust_reject",c,tx,draft,scope:AccessPolicy.ScopePayApprovals),
             "رفض التسوية للمراجع المستقل أو لمنشئ الطلب.",403);
         draft["status"]="rejected";
         draft["rejectedBy"]=actor.Identity!.Name;

@@ -92,7 +92,18 @@ public sealed class Trial4FixesTests
     {
         // Non-advance documents must also refuse maker==checker (FLOW1 Critical).
         using var f=new PaymentsEngineTests.Fixture(false);
-        var doc=f.Create(f.Input("expense")); // non-advance: previously skipped maker≠checker
+        // purchase posts 211101 on approve — FLOW1 requires Independent (expense stays permission-based until voucher dual).
+        var input=f.Input("purchase");
+        input["supplierId"]=MoneySchemaFixture.Id();
+        // Ensure supplier row exists for purchase create.
+        f.Store.Write((c,tx)=>{
+            SchemaSql.Exec(c,tx,$"""
+                INSERT INTO {SchemaSql.Q(c,"pay","supplier")}(id,company_id,name_ar,status,created_by,created_at)
+                VALUES(@id,@c,'مورد مصطنع',1,@by,{SchemaSql.NowLiteral(c)})
+                """,("@id",input.S("supplierId")),("@c",f.Company),("@by",f.Maker.Identity!.Name!));
+            return true;
+        });
+        var doc=f.Create(input);
         f.Store.Write((c,tx)=>PaymentsEngine.Transition(c,tx,f.Maker,doc.S("id"),"submit",new()));
         var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PaymentsEngine.Transition(c,tx,f.Maker,doc.S("id"),"approve",new())));
         Assert.AreEqual(403,err.Status);

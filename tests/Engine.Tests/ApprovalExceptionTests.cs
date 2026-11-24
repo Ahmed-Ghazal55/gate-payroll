@@ -19,7 +19,7 @@ public sealed class ApprovalExceptionTests
         var request=new JsonObject{["id"]="synthetic-self-request",["requestedBy"]="ghazal",["targetDepartment"]="FIN",["requiredRankLevel"]=5,["dualPermission"]="approvals.dual.payment_out"};
         Assert.IsTrue(AccessPolicy.ApprovalException(actor),"legacy claim fields still parse");
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>AccessPolicy.ValidateApproval(actor,request,new(),"approvals.decide",dualPermission:"approvals.dual.payment_out")).Status,"dated exception alone cannot self-approve");
-        f.Store.Write((c,tx)=>{Store.Save(c,"user",user,tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="ghazal",["from"]=Day(0),["to"]=Day(2),["reason"]="§35 grant replaces dated exception"});return true;});
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",user,tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="ghazal",["from"]=Day(0),["to"]=Day(2),["reason"]="§35 grant replaces dated exception",["scope"]=ApprovalsArea.DualPaymentOut});return true;});
         f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(actor,request,new(),"approvals.decide",c,tx,dualPermission:"approvals.dual.payment_out");Store.Save(c,"approval_request",request,tx);return true;});
         Assert.IsTrue(f.Store.Read(c=>Store.Get(c,request.S("id"),"approval_request")!.B("selfApprovedException")));
         var audits=f.Store.Read(c=>Store.List(c,"audit").Where(a=>a.S("action")=="approval.bypass_maker_checker").ToList());

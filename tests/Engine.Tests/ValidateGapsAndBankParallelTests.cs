@@ -86,14 +86,14 @@ public sealed class ValidateGapsAndBankParallelTests
         // Permission alone is not enough — no recorded two-person dual decision yet.
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,PayFixture.Maker,mark))).Status);
         string reference="bank-payout:"+company+":2026-10:2026-10";
-        // Self-approval via bypass must not unlock money-out mark-sent.
+        // TRACE H2 / M-0677: pay_approvals bypass must NOT self-approve DualBankFile (explicit dual scope required).
         f.Store.Write((c,tx)=>{
             var maker=UserAccess.Find(c,"synthetic-pay-maker",tx)??Store.Get(c,"synthetic-pay-maker","user",tx)??new JsonObject{["id"]="u-bank-maker",["username"]="synthetic-pay-maker",["role"]="Admin"};
             maker["customPermissions"]=new JsonArray(ApprovalsArea.DualBankFile,"approvals.decide");
             Store.Save(c,"user",maker,tx);
             AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-pay-maker",["from"]=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd"),["to"]=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).AddDays(7).ToString("yyyy-MM-dd"),["reason"]="pay approvals scope",["scope"]=AccessPolicy.ScopePayApprovals});
             var req=FinancialCore.CreateMutualApproval(c,tx,"bank_sent","اعتماد إرسال ملف بنك","مرجع اختبار", "OPS","FIN",1,reference,new(){["amountSar"]=100}, "synthetic-pay-maker");
-            ApprovalsArea.Decide(c,tx,PayFixture.Maker,req.S("id"),new(){["decision"]="approve",["note"]="self via bypass"});
+            Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>ApprovalsArea.Decide(c,tx,PayFixture.Maker,req.S("id"),new(){["decision"]="approve",["note"]="self via pay_approvals bypass"})).Status);
             return true;
         });
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,PayFixture.Maker,mark))).Status);

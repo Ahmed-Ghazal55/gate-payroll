@@ -18,7 +18,7 @@ public sealed class ApprovalsAreaTests
         // Dual: same actor blocked without bypass.
         request["dualPermission"]="approvals.dual.payment_out";
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>AccessPolicy.ValidateApproval(maker,request,new(),"approvals.decide",dualPermission:"approvals.dual.payment_out")).Status);
-        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="u1",["username"]="same-user",["role"]="FinancialAccountant",["customPermissions"]=new JsonArray("approvals.dual.payment_out","approvals.decide")},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="same-user",["from"]=Day(0),["to"]=Day(7),["reason"]="M-0677 pay approvals"});return true;});
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="u1",["username"]="same-user",["role"]="FinancialAccountant",["customPermissions"]=new JsonArray("approvals.dual.payment_out","approvals.decide")},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="same-user",["from"]=Day(0),["to"]=Day(7),["reason"]="M-0677 dual payment-out grant",["scope"]=ApprovalsArea.DualPaymentOut});return true;});
         maker=UserAccess.Principal(new JsonObject{["username"]="same-user",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=4,["customPermissions"]=new JsonArray("approvals.dual.payment_out","approvals.decide")});
         f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(maker,request,new(),"approvals.decide",c,tx,"approval.decide",request,"approvals.dual.payment_out");return true;});
         Assert.IsTrue(request.B("selfApprovedException"));

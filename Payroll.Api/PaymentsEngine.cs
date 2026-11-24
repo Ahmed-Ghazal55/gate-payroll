@@ -152,9 +152,12 @@ public static partial class PaymentsEngine
         if(next==3)
         {
             MoneyWriteGuards.Demand((int)doc.N("runMode"),doc.B("payoutBlocked"),MoneyEffectKind.Accounting);
-            // FLOW1 Critical: every payment document needs an independent checker (advances keep their extra coverage checks).
-            J.Need(AccessPolicy.Independent(actor,doc.S("createdBy"),"payment.document.approve",c,tx,doc,scope:AccessPolicy.ScopePayApprovals),
-                "لا يجوز اعتماد مستند أنشأته؛ يلزم مراجع مستقل أو تجاوز مؤرخ.",403);
+            // FLOW1 Critical: types that post or bind money on document-approve need an independent checker.
+            // Expense/recurring stay permission-based here — dual money-out is on the voucher (BR §35 / RecurringPayees).
+            string type=doc.S("type");
+            if(type is "purchase" or "government" or "rent" or "installment" or "hr_fee" or "traffic_violation" or "quick")
+                J.Need(AccessPolicy.Independent(actor,doc.S("createdBy"),"payment.document.approve",c,tx,doc,scope:AccessPolicy.ScopePayApprovals),
+                    "لا يجوز اعتماد مستند أنشأته؛ يلزم مراجع مستقل أو تجاوز مؤرخ.",403);
             PaymentAdvances.DemandApproval(c,tx,actor,doc,input);
             AccessPolicy.DemandApprovalLimit(actor,doc,c,tx);approved=SchemaApprovals.EnsureAuthUserId(c,tx,Me(actor));
         }
