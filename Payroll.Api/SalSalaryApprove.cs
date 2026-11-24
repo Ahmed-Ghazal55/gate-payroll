@@ -173,11 +173,12 @@ public static class SalSalaryApprove
             Guid receivable=AccountId(c,tx,PayPlatforms.Active(PayPlatforms.For(app).Receivable));
             string agentCode=PayPlatforms.Revenue(app,"agent");
             Guid revenueAcc=AccountId(c,tx,agentCode);
+            // COA1 B2 / grok-TRIAL4: omit zero Cr 212103 when entitlement is 0 (gross == commission).
             var lines=new List<JournalPosting.Line>
             {
-                new(receivable,SchemaOrgCostCentre.NoneId,app,gross,0m,"استحقاق عمولة — مدين المنصة"),
-                new(payableAcc,SchemaOrgCostCentre.NoneId,app,0m,entitlement,"استحقاق عمولة — دائن المندوب")
+                new(receivable,SchemaOrgCostCentre.NoneId,app,gross,0m,"استحقاق عمولة — مدين المنصة")
             };
+            if(entitlement>0)lines.Add(new(payableAcc,SchemaOrgCostCentre.NoneId,app,0m,entitlement,"استحقاق عمولة — دائن المندوب"));
             if(commission>0)lines.Add(new(revenueAcc,SchemaOrgCostCentre.NoneId,app,0m,commission,"إيراد عمولة الوكيل"));
             JournalPosting.Post(c,tx,new JournalPosting.Draft(
                 company,periodId,DateOnly.Parse(run.S("periodMonth"),CultureInfo.InvariantCulture),
