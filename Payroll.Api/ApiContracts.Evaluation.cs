@@ -113,6 +113,7 @@ public static partial class ApiContracts
             if (path.EndsWith("/scorecards/supervisors", StringComparison.Ordinal)) return EvaluationSupervisorScorecard();
             if (path.EndsWith("/scorecards/apps", StringComparison.Ordinal)) return EvaluationAppScorecard();
             if (path.EndsWith("/scorecards/finance", StringComparison.Ordinal)) return EvaluationFinanceScorecard();
+            if (path.EndsWith("/scorecards/systems", StringComparison.Ordinal)) return EvaluationFinanceScorecard();
             if (path.EndsWith("/scorecards/heatmap", StringComparison.Ordinal)) return EvaluationHeatmap();
             if (path.EndsWith("/scorecards/city-app", StringComparison.Ordinal)) return EvaluationCityAppMatrix();
             if (path.EndsWith("/export", StringComparison.Ordinal)) return null;

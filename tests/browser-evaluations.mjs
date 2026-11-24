@@ -258,7 +258,7 @@ try {
   assert.ok(ninjaSection?.sharingToken, 'app:Ninja section token');
   assert.ok(hrSection?.sharingToken, 'dept:hr section token');
   assert.ok((hrSection.staff || []).length >= 2, 'HR section has at least two staff cards');
-  assert.equal(hrSection.title, 'الموارد البشرية');
+  assert.equal(hrSection.title, 'الإدارة والموارد البشرية');
   assert.equal(ninjaSection.title, 'تطبيق نينجا');
   assert.equal(await adminPage.locator('[data-testid="eval-copy-link-btn"]').count(), 0);
   assert.equal(await adminPage.locator('[data-testid="eval-preview-mobile-btn"]').count(), 0);
@@ -545,7 +545,7 @@ try {
     await adminPage.getByRole('option', { name: label, exact: true }).click();
     await adminPage.waitForTimeout(500);
   }
-  await pickSectionFilter('الموارد البشرية');
+  await pickSectionFilter('الإدارة والموارد البشرية');
   const hrRows = await (
     await adminPage.request.get(
       `${base}/api/forms/evaluations/rounds/${encodeURIComponent(round.id)}/responses?page=1&pageSize=20&section=${encodeURIComponent('dept:hr')}`

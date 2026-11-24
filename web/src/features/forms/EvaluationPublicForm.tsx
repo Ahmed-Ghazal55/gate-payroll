@@ -555,6 +555,12 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
       : lang === 'ur'
       ? schema?.noticeUr || schema?.noticeAr
       : schema?.noticeAr;
+  const noticeLines: string[] =
+    schema?.noticeLines && schema.noticeLines.length > 0
+      ? schema.noticeLines
+          .map((line) => (lang === 'en' ? line.en || line.ar : lang === 'ur' ? line.ur || line.ar : line.ar) || '')
+          .filter(Boolean)
+      : (notice || '').split('\n').filter(Boolean);
 
   return (
     <div dir={dir} lang={lang} className="space-y-4 py-4" data-testid="evaluation-public-form">
@@ -636,22 +642,7 @@ export function EvaluationPublicForm({ token, mode = 'public' }: EvaluationPubli
                 🛡️
               </span>
               <ul className="space-y-2">
-                {(
-                  (
-                    schema as {
-                      noticeLines?: { ar?: string; en?: string; ur?: string }[];
-                    }
-                  ).noticeLines || []
-                ).length > 0
-                  ? (
-                      schema as {
-                        noticeLines: { ar?: string; en?: string; ur?: string }[];
-                      }
-                    ).noticeLines.map((line) =>
-                      lang === 'en' ? line.en || line.ar : lang === 'ur' ? line.ur || line.ar : line.ar
-                    )
-                  : notice.split('\n').filter(Boolean)
-                ).map((line) => (
+                {noticeLines.map((line) => (
                   <li key={line}>{line}</li>
                 ))}
               </ul>

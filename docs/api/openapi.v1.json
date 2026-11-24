@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:46093/"
+      "url": "http://127.0.0.1:19481/"
     }
   ],
   "paths": {
@@ -994,6 +994,32 @@
                     "noticeUr": {
                       "type": "string"
                     },
+                    "noticeLines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ar": {
+                            "type": "string"
+                          },
+                          "en": {
+                            "type": "string"
+                          },
+                          "ur": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "complaintConfidentialityReminderAr": {
+                      "type": "string"
+                    },
+                    "complaintConfidentialityReminderEn": {
+                      "type": "string"
+                    },
+                    "complaintConfidentialityReminderUr": {
+                      "type": "string"
+                    },
                     "cities": {
                       "type": "array",
                       "items": {
@@ -1001,6 +1027,12 @@
                       }
                     },
                     "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "departmentOptions": {
                       "type": "array",
                       "items": {
                         "type": "string"
@@ -1063,6 +1095,9 @@
                           },
                           "allApps": {
                             "type": "boolean"
+                          },
+                          "appCities": {
+                            "type": "object"
                           }
                         }
                       }
@@ -1218,6 +1253,9 @@
                     "includeFinanceCard": {
                       "type": "boolean"
                     },
+                    "includeSystemsCard": {
+                      "type": "boolean"
+                    },
                     "financeFactors": {
                       "type": "array",
                       "items": {
@@ -1245,6 +1283,67 @@
                       }
                     },
                     "financeReasons": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "systemsTitleAr": {
+                      "type": "string"
+                    },
+                    "systemsTitleEn": {
+                      "type": "string"
+                    },
+                    "systemsTitleUr": {
+                      "type": "string"
+                    },
+                    "systemsFactors": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "systemsReasons": {
                       "type": "array",
                       "items": {
                         "required": [
@@ -1356,14 +1455,14 @@
                         "type": "string"
                       }
                     },
-                    "editPolicyPending": {
-                      "type": "boolean"
-                    },
                     "editCount": {
                       "type": "number"
                     },
                     "editsRemaining": {
                       "type": "number"
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
                     },
                     "uploadsPolicyPending": {
                       "type": "boolean"
@@ -1422,14 +1521,14 @@
                         "type": "string"
                       }
                     },
-                    "editPolicyPending": {
-                      "type": "boolean"
-                    },
                     "editCount": {
                       "type": "number"
                     },
                     "editsRemaining": {
                       "type": "number"
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
                     },
                     "uploadsPolicyPending": {
                       "type": "boolean"
@@ -1647,6 +1746,32 @@
                     "noticeUr": {
                       "type": "string"
                     },
+                    "noticeLines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "ar": {
+                            "type": "string"
+                          },
+                          "en": {
+                            "type": "string"
+                          },
+                          "ur": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "complaintConfidentialityReminderAr": {
+                      "type": "string"
+                    },
+                    "complaintConfidentialityReminderEn": {
+                      "type": "string"
+                    },
+                    "complaintConfidentialityReminderUr": {
+                      "type": "string"
+                    },
                     "cities": {
                       "type": "array",
                       "items": {
@@ -1654,6 +1779,12 @@
                       }
                     },
                     "apps": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "departmentOptions": {
                       "type": "array",
                       "items": {
                         "type": "string"
@@ -1716,6 +1847,9 @@
                           },
                           "allApps": {
                             "type": "boolean"
+                          },
+                          "appCities": {
+                            "type": "object"
                           }
                         }
                       }
@@ -1871,6 +2005,9 @@
                     "includeFinanceCard": {
                       "type": "boolean"
                     },
+                    "includeSystemsCard": {
+                      "type": "boolean"
+                    },
                     "financeFactors": {
                       "type": "array",
                       "items": {
@@ -1898,6 +2035,67 @@
                       }
                     },
                     "financeReasons": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "systemsTitleAr": {
+                      "type": "string"
+                    },
+                    "systemsTitleEn": {
+                      "type": "string"
+                    },
+                    "systemsTitleUr": {
+                      "type": "string"
+                    },
+                    "systemsFactors": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "labelAr",
+                          "labelEn",
+                          "labelUr"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "labelEn": {
+                            "type": "string"
+                          },
+                          "labelUr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "systemsReasons": {
                       "type": "array",
                       "items": {
                         "required": [
@@ -2009,14 +2207,14 @@
                         "type": "string"
                       }
                     },
-                    "editPolicyPending": {
-                      "type": "boolean"
-                    },
                     "editCount": {
                       "type": "number"
                     },
                     "editsRemaining": {
                       "type": "number"
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
                     },
                     "uploadsPolicyPending": {
                       "type": "boolean"
@@ -2075,14 +2273,14 @@
                         "type": "string"
                       }
                     },
-                    "editPolicyPending": {
-                      "type": "boolean"
-                    },
                     "editCount": {
                       "type": "number"
                     },
                     "editsRemaining": {
                       "type": "number"
+                    },
+                    "editPolicyPending": {
+                      "type": "boolean"
                     },
                     "uploadsPolicyPending": {
                       "type": "boolean"
@@ -28874,6 +29072,9 @@
                       },
                       "allApps": {
                         "type": "boolean"
+                      },
+                      "appCities": {
+                        "type": "object"
                       }
                     }
                   }
@@ -29012,6 +29213,9 @@
                     },
                     "allApps": {
                       "type": "boolean"
+                    },
+                    "appCities": {
+                      "type": "object"
                     }
                   }
                 }
@@ -29121,6 +29325,9 @@
                             },
                             "allApps": {
                               "type": "boolean"
+                            },
+                            "appCities": {
+                              "type": "object"
                             }
                           }
                         }
@@ -29235,6 +29442,9 @@
                                   },
                                   "allApps": {
                                     "type": "boolean"
+                                  },
+                                  "appCities": {
+                                    "type": "object"
                                   }
                                 }
                               }
@@ -29372,6 +29582,9 @@
                           },
                           "allApps": {
                             "type": "boolean"
+                          },
+                          "appCities": {
+                            "type": "object"
                           }
                         }
                       }
@@ -29486,6 +29699,9 @@
                                 },
                                 "allApps": {
                                   "type": "boolean"
+                                },
+                                "appCities": {
+                                  "type": "object"
                                 }
                               }
                             }
@@ -29624,6 +29840,9 @@
                           },
                           "allApps": {
                             "type": "boolean"
+                          },
+                          "appCities": {
+                            "type": "object"
                           }
                         }
                       }
@@ -29738,6 +29957,9 @@
                                 },
                                 "allApps": {
                                   "type": "boolean"
+                                },
+                                "appCities": {
+                                  "type": "object"
                                 }
                               }
                             }
@@ -29914,6 +30136,9 @@
                     },
                     "allApps": {
                       "type": "boolean"
+                    },
+                    "appCities": {
+                      "type": "object"
                     }
                   }
                 }
@@ -30013,6 +30238,9 @@
                     },
                     "allApps": {
                       "type": "boolean"
+                    },
+                    "appCities": {
+                      "type": "object"
                     }
                   }
                 }
@@ -30138,6 +30366,9 @@
                           },
                           "allApps": {
                             "type": "boolean"
+                          },
+                          "appCities": {
+                            "type": "object"
                           }
                         }
                       }
@@ -30252,6 +30483,9 @@
                                 },
                                 "allApps": {
                                   "type": "boolean"
+                                },
+                                "appCities": {
+                                  "type": "object"
                                 }
                               }
                             }
@@ -30582,6 +30816,49 @@
                                     "type": "number"
                                   },
                                   "clarity": {
+                                    "type": "number"
+                                  }
+                                }
+                              },
+                              "notes": {
+                                "type": "string"
+                              },
+                              "complaint": {
+                                "type": "boolean"
+                              },
+                              "complaintDetails": {
+                                "type": "string"
+                              },
+                              "attachments": {
+                                "type": "array",
+                                "items": {
+                                  "type": "object"
+                                }
+                              }
+                            }
+                          },
+                          "systemsAnswer": {
+                            "type": "object",
+                            "properties": {
+                              "reason": {
+                                "type": "string"
+                              },
+                              "overall": {
+                                "type": "number"
+                              },
+                              "factorRatings": {
+                                "type": "object",
+                                "properties": {
+                                  "formsEase": {
+                                    "type": "number"
+                                  },
+                                  "dataClarity": {
+                                    "type": "number"
+                                  },
+                                  "helpfulness": {
+                                    "type": "number"
+                                  },
+                                  "responsiveness": {
                                     "type": "number"
                                   }
                                 }
@@ -32234,6 +32511,149 @@
         }
       }
     },
+    "/api/forms/evaluations/rounds/{id}/scorecards/systems": {
+      "get": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Systems-card evaluation scorecard per app",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "city",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "app",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "nationalityId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "section",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "roundId",
+                    "totalResponses",
+                    "confidenceNoteAr",
+                    "items",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "roundId": {
+                      "type": "string"
+                    },
+                    "totalResponses": {
+                      "type": "number"
+                    },
+                    "confidenceNoteAr": {
+                      "type": "string"
+                    },
+                    "labelsAr": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "string"
+                      }
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "app",
+                          "ratedCount",
+                          "factors"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "app": {
+                            "type": "string"
+                          },
+                          "ratedCount": {
+                            "type": "number"
+                          },
+                          "skippedCount": {
+                            "type": "number"
+                          },
+                          "average": {
+                            "type": [
+                              "null",
+                              "number"
+                            ]
+                          },
+                          "factors": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "key",
+                                "count"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "key": {
+                                  "type": "string"
+                                },
+                                "count": {
+                                  "type": "number"
+                                },
+                                "average": {
+                                  "type": [
+                                    "null",
+                                    "number"
+                                  ]
+                                }
+                              }
+                            }
+                          },
+                          "lowSample": {
+                            "type": "boolean"
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/forms/evaluations/rounds/{id}/scorecards/heatmap": {
       "get": {
         "tags": [
@@ -32767,6 +33187,9 @@
                           },
                           "allApps": {
                             "type": "boolean"
+                          },
+                          "appCities": {
+                            "type": "object"
                           }
                         }
                       }
@@ -32881,6 +33304,9 @@
                                 },
                                 "allApps": {
                                   "type": "boolean"
+                                },
+                                "appCities": {
+                                  "type": "object"
                                 }
                               }
                             }
