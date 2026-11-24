@@ -9701,6 +9701,9 @@ export interface paths {
                                 cap?: number;
                                 capSource?: string;
                                 status?: string;
+                                usageSource?: string;
+                                coveredFrom?: string;
+                                coveredTo?: string;
                             }[];
                             total: number;
                             page?: number;

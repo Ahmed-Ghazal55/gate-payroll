@@ -65,15 +65,23 @@ public sealed class PaySourcesLiveSqlServerTests
             var from = new DateOnly(2026, 10, 1);
             var to = new DateOnly(2026, 10, 31);
 
-            var fuel = PaySourcesLiveQuery.FuelConsumption(conn, month, 1, 50, "", all);
+            var fuel = PaySourcesLiveQuery.FuelConsumption(conn, from, to, 1, 50, "", all);
             Assert.AreEqual(1, fuel.Items.Count);
             Assert.AreEqual(80m, fuel.Items[0]["totalInclVat"]!.GetValue<decimal>());
-            Assert.AreEqual(ProfileIn.ToString("D"), fuel.Items[0]["riderProfileId"]!.GetValue<string>(), ignoreCase: true);
+            Assert.AreEqual("monthly", fuel.Items[0]["usageSource"]!.GetValue<string>());
+            // F13c MEDIUM: pay-source must map UsageEmployeeId / RiderProfileId (not empty strings)
+            Assert.AreEqual(EmpIn.ToString(), fuel.Items[0]["employeeId"]!.GetValue<string>(),
+                "FuelConsumption must map UsageEmployeeId");
+            Assert.AreEqual(ProfileIn.ToString(), fuel.Items[0]["riderProfileId"]!.GetValue<string>(),
+                "FuelConsumption must map RiderProfileId");
 
-            var fuelScoped = PaySourcesLiveQuery.FuelConsumption(conn, month, 1, 50, "", one);
+            var fuelScoped = PaySourcesLiveQuery.FuelConsumption(conn, from, to, 1, 50, "", one);
             Assert.AreEqual(1, fuelScoped.Items.Count);
-            var fuelOut = PaySourcesLiveQuery.FuelConsumption(conn, month, 1, 50, "", new LiveOperationsQuery.Scope(false, ["7000000099"], [], [], []));
+            var fuelOut = PaySourcesLiveQuery.FuelConsumption(conn, from, to, 1, 50, "", new LiveOperationsQuery.Scope(false, ["7000000099"], [], [], []));
             Assert.AreEqual(0, fuelOut.Items.Count);
+            // F13c HIGH: empty filtered card list must still return real uncovered days
+            Assert.AreEqual(31L, fuelOut.Summary["uncoveredDays"]!.GetValue<long>(),
+                "scoped-out empty result must still report uncovered days for October");
 
             var vehicles = PaySourcesLiveQuery.VehicleAssignmentPeriods(conn, from, to, 1, 50, "", all);
             Assert.AreEqual(1, vehicles.Items.Count);
@@ -131,7 +139,8 @@ public sealed class PaySourcesLiveSqlServerTests
             CREATE TABLE app.Housing (Id uniqueidentifier NOT NULL PRIMARY KEY, Code nvarchar(50) NULL, NameAr nvarchar(200) NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE app.HousingRooms (Id uniqueidentifier NOT NULL PRIMARY KEY, HousingId uniqueidentifier NOT NULL, Name nvarchar(100) NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE app.HousingResidencePeriods (Id uniqueidentifier NOT NULL PRIMARY KEY, EmployeeId uniqueidentifier NOT NULL, RoomId uniqueidentifier NOT NULL, EffectiveFrom date NOT NULL, EffectiveTo date NULL, MoveInReason nvarchar(200) NULL, MoveOutReason nvarchar(200) NULL, SourceReference nvarchar(200) NULL);
-            CREATE TABLE app.FuelCards (Id uniqueidentifier NOT NULL PRIMARY KEY, Provider int NOT NULL, CardNumber nvarchar(50) NULL, PlateNumberText nvarchar(50) NULL, SponsorId uniqueidentifier NULL, IsDeleted bit NOT NULL DEFAULT 0);
+            CREATE TABLE app.FuelCards (Id uniqueidentifier NOT NULL PRIMARY KEY, Provider int NOT NULL, CardNumber nvarchar(50) NULL, PlateNumberText nvarchar(50) NULL, Notes nvarchar(500) NULL, SponsorId uniqueidentifier NULL, IsDeleted bit NOT NULL DEFAULT 0);
+            CREATE TABLE app.FuelCardRiderAssignments (Id uniqueidentifier NOT NULL PRIMARY KEY, FuelCardId uniqueidentifier NOT NULL, EmployeeId uniqueidentifier NULL, EffectiveFrom date NOT NULL, EffectiveTo date NULL, AssignmentReason nvarchar(200) NULL, EndReason nvarchar(200) NULL);
             CREATE TABLE app.FuelCardMonthlyUsages (Id uniqueidentifier NOT NULL PRIMARY KEY, FuelCardId uniqueidentifier NOT NULL, EmployeeId uniqueidentifier NULL, RiderProfileId uniqueidentifier NULL, ReportMonth date NOT NULL, TotalLiters decimal(18,2) NULL, AmountBeforeTax decimal(18,2) NULL, VatAmount decimal(18,2) NULL, TotalAmount decimal(18,2) NULL, TransactionCount int NULL, FuelType nvarchar(50) NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE platform.ClientPlatforms (Id uniqueidentifier NOT NULL PRIMARY KEY, Code nvarchar(50) NOT NULL, NameAr nvarchar(100) NULL, IsDeleted bit NOT NULL DEFAULT 0);
             CREATE TABLE app.PlatformRiderAccounts (Id uniqueidentifier NOT NULL PRIMARY KEY, ClientPlatformId uniqueidentifier NOT NULL, Code nvarchar(50) NULL, ExternalAccountId nvarchar(100) NULL, SponsorId uniqueidentifier NULL, IsDeleted bit NOT NULL DEFAULT 0);
@@ -205,6 +214,7 @@ public sealed class PaySourcesLiveSqlServerTests
             INSERT INTO app.HousingResidencePeriods(Id,EmployeeId,RoomId,EffectiveFrom,EffectiveTo)
               VALUES (@res,@e,@r,'2026-10-01','2026-10-15');
             INSERT INTO app.FuelCards(Id,Provider,CardNumber,PlateNumberText,SponsorId) VALUES (@fc,1,N'CARD-1',N'أ ب ج 1234',@s);
+            INSERT INTO app.FuelCardRiderAssignments(Id,FuelCardId,EmployeeId,EffectiveFrom) VALUES (NEWID(),@fc,@e,'2026-10-01');
             INSERT INTO app.FuelCardMonthlyUsages(Id,FuelCardId,EmployeeId,RiderProfileId,ReportMonth,TotalLiters,AmountBeforeTax,VatAmount,TotalAmount,TransactionCount,FuelType)
               VALUES (@fu,@fc,@e,@p,'2026-10-01',40,69.57,10.43,80,3,N'91');
             INSERT INTO platform.ClientPlatforms(Id,Code,NameAr) VALUES (@cp,N'KEETA',N'Keeta');
