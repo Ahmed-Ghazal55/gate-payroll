@@ -17,11 +17,11 @@ public static partial class AccessPolicy
         // WC1H: no wildcard — empty needed never matches; only an explicit matching scope returns true.
         if(string.IsNullOrWhiteSpace(needed)||string.IsNullOrWhiteSpace(grantScope))return false;
         if(string.Equals(grantScope,needed,StringComparison.OrdinalIgnoreCase))return true;
-        // M-0677 / answers: pay approvals (+ invoice on every platform) — not shared-rider or Jahez / vault count.
-        // W1 seed scope is pay.approvals; API grant scope is pay_approvals.
+        // M-0677 / TRACE H2: pay_approvals bypass never satisfies two-person money-out duals (DualBankFile / DualPaymentOut).
+        // Those need an explicit dual-scoped grant. Invoice / pay.approve / approvals.decide stay covered.
         if((string.Equals(grantScope,ScopePayApprovals,StringComparison.OrdinalIgnoreCase)
             ||string.Equals(grantScope,"pay.approvals",StringComparison.OrdinalIgnoreCase))
-           &&needed is ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or "pay.approve" or "approvals.decide")
+           &&needed is "pay.approve" or "approvals.decide")
             return true;
         if(string.Equals(grantScope,ScopeInvoiceApprovals,StringComparison.OrdinalIgnoreCase)
            &&needed.Contains("invoice",StringComparison.OrdinalIgnoreCase)

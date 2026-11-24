@@ -246,6 +246,10 @@ public static class SalRiderRequests
         DemandInScope(actor,row.S("companyId"),row.S("appCode"));
         int st=(int)row.N("statusCode");
         J.Need(st is StatusDraft or StatusSent,"الطلب ليس في حالة انتظار الاعتماد.",409);
+        // FLOW1 Critical: maker cannot approve their own hold/deduction (bypass still via Independent).
+        // LoadRequestRaw exposes the maker as requestedBy (SQL created_by).
+        J.Need(AccessPolicy.Independent(actor,row.S("requestedBy"),"sal.rider_request_approved",c,tx,row,scope:AccessPolicy.ScopePayApprovals),
+            "لا يجوز اعتماد طلب أنشأته؛ يلزم مراجع مستقل أو تجاوز مؤرخ.",403);
 
         string now=DateTimeOffset.UtcNow.ToString("O",CultureInfo.InvariantCulture);
         string actorName=actor.Identity!.Name!;

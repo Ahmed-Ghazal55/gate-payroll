@@ -12,7 +12,8 @@ public sealed class ApprovalBypassTests
         using var f=new PayFixture();
         // Bypass lifts maker≠checker only — actor must still match department and rank.
         var user=new JsonObject{["id"]="synthetic-bypass-user",["username"]="synthetic-approver",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=5,["customPermissions"]=new JsonArray("approvals.dual.payment_out","approvals.decide")};
-        f.Store.Write((c,tx)=>{Store.Save(c,"user",user,tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-approver",["from"]=Day(0),["to"]=Day(7),["reason"]="Ninja October parallel run"});return true;});
+        // TRACE H2 / M-0677: money-out dual needs an explicit DualPaymentOut-scoped grant (pay_approvals alone is not enough).
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",user,tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-approver",["from"]=Day(0),["to"]=Day(7),["reason"]="Ninja October parallel run",["scope"]=ApprovalsArea.DualPaymentOut});return true;});
         var actor=UserAccess.Principal(user);
         // Dual-control path (M-0672): bypass is required only for two-person actions.
         var request=new JsonObject{["id"]="synthetic-bypass-request",["requestedBy"]="synthetic-approver",["targetDepartment"]="FIN",["requiredRankLevel"]=5,["dualPermission"]="approvals.dual.payment_out"};
@@ -39,7 +40,7 @@ public sealed class ApprovalBypassTests
         ghazal["customPermissions"]=new JsonArray("approvals.dual.payment_out","approvals.decide");
         var request=new JsonObject{["id"]="synthetic-legacy-request",["requestedBy"]="ghazal",["targetDepartment"]="FIN",["requiredRankLevel"]=1,["dualPermission"]="approvals.dual.payment_out"};
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>AccessPolicy.ValidateApproval(UserAccess.Principal(ghazal),request,new(),"approvals.decide",dualPermission:"approvals.dual.payment_out")).Status,"dated exception alone cannot approve");
-        f.Store.Write((c,tx)=>{Store.Save(c,"user",ghazal,tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="ghazal",["from"]=Day(0),["to"]=Day(2),["reason"]="§35 grant for ghazal"});return true;});
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",ghazal,tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="ghazal",["from"]=Day(0),["to"]=Day(2),["reason"]="§35 grant for ghazal",["scope"]=ApprovalsArea.DualPaymentOut});return true;});
         f.Store.Write((c,tx)=>{AccessPolicy.ValidateApproval(UserAccess.Principal(ghazal),request,new(),"approvals.decide",c,tx,dualPermission:"approvals.dual.payment_out");return true;});
     }
 }

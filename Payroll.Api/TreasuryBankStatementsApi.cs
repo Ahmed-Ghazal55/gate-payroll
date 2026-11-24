@@ -160,8 +160,8 @@ public static class TreasuryBankStatementsApi
         };
         Store.Save(c,"bank_statement_adjust",draft,tx);
         Store.Audit(c,tx,"treasury.bank_adjust_requested",adjustId,actor.Identity!.Name!);
-        draft["allowedActions"]=new JsonArray("approve");
-        draft["noteAr"]="التسوية البنكية تحتاج اعتمادًا قبل ترحيل القيد.";
+        draft["allowedActions"]=new JsonArray("approve","reject");
+        draft["noteAr"]="التسوية البنكية تحتاج اعتمادًا قبل ترحيل القيد؛ يمكن رفضها لإغلاق الحالة.";
         return draft;
     }
 
@@ -180,8 +180,30 @@ public static class TreasuryBankStatementsApi
         using(var cmd=Store.Command(c,tx,$"SELECT account_id FROM {SchemaSql.Q(c,"treasury","bank_account")} WHERE id=@id",("@id",bankAccountId)))
             chartAccountId=cmd.ExecuteScalar()?.ToString()??throw new ApiError("حساب الدليل البنكي غير موجود.",409);
         // Do NOT use vault variance 422202/542102. Chart has no bank-timing/difference account yet — block.
+        // Approve stays blocked until Ghazal picks the bank-timing difference account (COA / decision).
         _=chartAccountId;_=companyId;
         throw new ApiError("ترحيل تسوية فرق التوقيت البنكي موقوف حتى يُحدد حساب فرق/توقيت بنكي معتمد في الدليل (لا يُستخدم 422202/542102 الخاصة بجرد الخزن).",409);
+    }
+
+    /// <summary>FLOW1 Critical: close dead-end pending_approval when approve cannot post yet (reject/cancel path).</summary>
+    public static JsonObject RejectAdjust(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string adjustId,JsonObject input)
+    {
+        J.Need(AccessPolicy.Administrator(actor)||AccessPolicy.Has(actor,"approvals.decide")||AccessPolicy.Has(actor,"treasury.bank_reconcile"),"صلاحية رفض التسوية مطلوبة.",403);
+        var draft=Store.Get(c,adjustId,"bank_statement_adjust",tx)??throw new ApiError("طلب التسوية غير موجود.",404);
+        J.Need(draft.S("status")=="pending_approval","التسوية ليست بانتظار الاعتماد.");
+        string reason=input.S("reason").Trim();
+        J.Need(reason.Length is >=3 and <=500,"سبب الرفض من 3 إلى 500 حرف.");
+        J.Need(AccessPolicy.Independent(actor,draft.S("createdBy"),"treasury.bank_adjust_reject",c,tx,draft,scope:AccessPolicy.ScopePayApprovals)
+            ||string.Equals(actor.Identity?.Name,draft.S("createdBy"),StringComparison.OrdinalIgnoreCase),
+            "رفض التسوية للمراجع المستقل أو لمنشئ الطلب.",403);
+        draft["status"]="rejected";
+        draft["rejectedBy"]=actor.Identity!.Name;
+        draft["rejectedAt"]=DateTimeOffset.UtcNow.ToString("O");
+        draft["rejectionReason"]=reason;
+        draft["allowedActions"]=new JsonArray();
+        Store.Save(c,"bank_statement_adjust",draft,tx);
+        Store.Audit(c,tx,"treasury.bank_adjust_rejected",adjustId,actor.Identity!.Name!);
+        return draft;
     }
 
     public static void Map(RouteGroupBuilder api,Store store)
@@ -196,6 +218,8 @@ public static class TreasuryBankStatementsApi
             .WithTags("Banks and treasury").WithSummary("Request bank recon adjustment (needs approval)");
         api.MapPost("/treasury/bank-adjustments/{id}/approve",(string id,HttpContext ctx)=>store.Write((c,tx)=>ApproveAdjust(c,tx,ctx.User,id)))
             .WithTags("Banks and treasury").WithSummary("Approve bank recon adjustment and post journal");
+        api.MapPost("/treasury/bank-adjustments/{id}/reject",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>RejectAdjust(c,tx,ctx.User,id,input)))
+            .WithTags("Banks and treasury").WithSummary("Reject a pending bank recon adjustment (closes dead-end status)");
     }
 
     public static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string id)

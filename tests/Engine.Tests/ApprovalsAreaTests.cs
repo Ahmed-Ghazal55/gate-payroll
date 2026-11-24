@@ -99,7 +99,11 @@ public sealed class ApprovalsAreaTests
         Assert.IsFalse(AccessPolicy.ScopeCovers(AccessPolicy.ScopePayApprovals,null));
         Assert.IsFalse(AccessPolicy.ScopeCovers(AccessPolicy.ScopePayApprovals,""));
         Assert.IsFalse(AccessPolicy.ScopeCovers(null,ApprovalsArea.DualBankFile));
-        Assert.IsTrue(AccessPolicy.ScopeCovers(AccessPolicy.ScopePayApprovals,ApprovalsArea.DualBankFile));
+        // TRACE H2 / M-0677: pay_approvals never covers DualBankFile / DualPaymentOut — need explicit dual grant.
+        Assert.IsFalse(AccessPolicy.ScopeCovers(AccessPolicy.ScopePayApprovals,ApprovalsArea.DualBankFile));
+        Assert.IsFalse(AccessPolicy.ScopeCovers(AccessPolicy.ScopePayApprovals,ApprovalsArea.DualPaymentOut));
+        Assert.IsTrue(AccessPolicy.ScopeCovers(ApprovalsArea.DualBankFile,ApprovalsArea.DualBankFile));
+        Assert.IsTrue(AccessPolicy.ScopeCovers(AccessPolicy.ScopePayApprovals,"pay.approve"));
         Assert.IsFalse(AccessPolicy.ScopeCovers(AccessPolicy.ScopePayApprovals,ApprovalsArea.DualSharedRiderRelease));
     }
 
