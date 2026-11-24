@@ -31,20 +31,24 @@ public static partial class OperationsLiveQuery
         long total = 0;
         var summary = EmptyFuelSummary();
         var items = new List<JsonObject>();
+        bool summaryRead = false;
         using (var reader = cmd.ExecuteReader())
         {
             while (reader.Read())
             {
                 ct.ThrowIfCancellationRequested();
-                if (items.Count == 0)
+                if (!summaryRead)
                 {
                     total = Long(reader, "TotalCount");
                     summary = MapFuelSummary(reader);
+                    summaryRead = true;
                 }
+                if (string.IsNullOrEmpty(Str(reader, "Id"))) continue;
                 items.Add(MapFuelCardRow(reader));
             }
         }
-        if (items.Count == 0)
+        // Page past the end (or OFFSET past the coverage-only row) — still need uncovered days.
+        if (!summaryRead)
             summary = FuelSummaryOnly(source, from, to, provider, search, scope, preferDaily, importCoverage, ct);
         return new(items, total, summary, DateTimeOffset.UtcNow);
     }
@@ -170,7 +174,7 @@ public static partial class OperationsLiveQuery
                 ),
                 usage_rows AS (
                     SELECT u.[FuelCardId], u.[TotalLiters], u.[AmountBeforeTax], u.[VatAmount], u.[TotalAmount],
-                           u.[TransactionCount], u.[FuelType], u.[EmployeeId],
+                           u.[TransactionCount], u.[FuelType], u.[EmployeeId], u.[RiderProfileId],
                            CAST('daily' AS nvarchar(16)) AS UsageSource
                     FROM [app].[FuelCardMonthlyUsages] u
                     INNER JOIN month_daily md ON md.[FuelCardId]=u.[FuelCardId] AND md.[ReportMonth]=u.[ReportMonth]
@@ -179,7 +183,7 @@ public static partial class OperationsLiveQuery
                       AND u.[UsageDate] >= CONVERT(date,@from) AND u.[UsageDate] <= CONVERT(date,@to)
                     UNION ALL
                     SELECT u.[FuelCardId], u.[TotalLiters], u.[AmountBeforeTax], u.[VatAmount], u.[TotalAmount],
-                           u.[TransactionCount], u.[FuelType], u.[EmployeeId],
+                           u.[TransactionCount], u.[FuelType], u.[EmployeeId], u.[RiderProfileId],
                            CAST('monthly' AS nvarchar(16)) AS UsageSource
                     FROM [app].[FuelCardMonthlyUsages] u
                     INNER JOIN month_daily md ON md.[FuelCardId]=u.[FuelCardId] AND md.[ReportMonth]=u.[ReportMonth]
@@ -191,7 +195,7 @@ public static partial class OperationsLiveQuery
             : """
                 usage_rows AS (
                     SELECT u.[FuelCardId], u.[TotalLiters], u.[AmountBeforeTax], u.[VatAmount], u.[TotalAmount],
-                           u.[TransactionCount], u.[FuelType], u.[EmployeeId],
+                           u.[TransactionCount], u.[FuelType], u.[EmployeeId], u.[RiderProfileId],
                            CAST('monthly' AS nvarchar(16)) AS UsageSource
                     FROM [app].[FuelCardMonthlyUsages] u
                     WHERE u.[IsDeleted]=0
@@ -257,6 +261,7 @@ public static partial class OperationsLiveQuery
                        SUM(u.[TransactionCount]) AS TransactionCount,
                        MAX(u.[FuelType]) AS FuelType,
                        MAX(u.[EmployeeId]) AS UsageEmployeeId,
+                       MAX(u.[RiderProfileId]) AS UsageRiderProfileId,
                        CASE WHEN MAX(CASE WHEN u.[UsageSource]=N'daily' THEN 1 ELSE 0 END)=1
                             THEN N'daily' ELSE N'monthly' END AS UsageSource
                 FROM usage_rows u
@@ -267,7 +272,7 @@ public static partial class OperationsLiveQuery
                        COALESCE(ue.[FullNameAr], ae.[FullNameAr]) AS RiderNameAr,
                        COALESCE(ue.[IqamaNo], ae.[IqamaNo]) AS IqamaNo,
                        ua.[TotalLiters], ua.[AmountBeforeTax], ua.[VatAmount], ua.[TotalAmount], ua.[TransactionCount], ua.[FuelType],
-                       ua.[UsageEmployeeId], ua.[UsageSource],
+                       ua.[UsageEmployeeId], ua.[UsageRiderProfileId], ua.[UsageSource],
                        CASE WHEN fa.[Id] IS NOT NULL THEN 1 ELSE 0 END AS HasOpenAssignment
                 FROM [app].[FuelCards] fc
                 LEFT JOIN [app].[Sponsors] s ON s.[Id]=fc.[SponsorId] AND s.[IsDeleted]=0
@@ -301,7 +306,9 @@ public static partial class OperationsLiveQuery
             SELECT f.*, a.TotalCount, a.ActiveCards, a.ConsumingRiders, a.TotalLiters AS SumLiters, a.TotalInclVat,
                    c.CoveredFrom, c.CoveredTo, c.CoveredDays,
                    CAST({rangeDaysExpr} AS bigint) - ISNULL(c.CoveredDays,0) AS UncoveredDays
-            FROM filtered f CROSS JOIN agg a CROSS JOIN coverage c
+            FROM agg a
+            CROSS JOIN coverage c
+            LEFT JOIN filtered f ON 1=1
             ORDER BY f.Provider, f.CardNumber
             """;
     }
@@ -355,16 +362,19 @@ public static partial class OperationsLiveQuery
         long total = 0;
         var summary = EmptyFuelSummary();
         var items = new List<JsonObject>();
+        bool summaryRead = false;
         using (var reader = cmd.ExecuteReader())
         {
             while (reader.Read())
             {
                 ct.ThrowIfCancellationRequested();
-                if (items.Count == 0)
+                if (!summaryRead)
                 {
                     total = Long(reader, "TotalCount");
                     summary = MapFuelSummary(reader);
+                    summaryRead = true;
                 }
+                if (string.IsNullOrEmpty(Str(reader, "Id"))) continue;
                 items.Add(MapFuelCardRow(reader));
             }
         }
@@ -389,6 +399,8 @@ public static partial class OperationsLiveQuery
             ["plateNumber"] = Str(r, "PlateNumberText"),
             ["riderNameAr"] = Str(r, "RiderNameAr"),
             ["iqama"] = Str(r, "IqamaNo"),
+            ["employeeId"] = Str(r, "UsageEmployeeId"),
+            ["riderProfileId"] = Str(r, "UsageRiderProfileId"),
             ["liters"] = NullDecimal(r, "TotalLiters"),
             ["amountBeforeTax"] = NullDecimal(r, "AmountBeforeTax"),
             ["vat"] = NullDecimal(r, "VatAmount"),

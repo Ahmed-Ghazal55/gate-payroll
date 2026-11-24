@@ -69,11 +69,19 @@ public sealed class PaySourcesLiveSqlServerTests
             Assert.AreEqual(1, fuel.Items.Count);
             Assert.AreEqual(80m, fuel.Items[0]["totalInclVat"]!.GetValue<decimal>());
             Assert.AreEqual("monthly", fuel.Items[0]["usageSource"]!.GetValue<string>());
+            // F13c MEDIUM: pay-source must map UsageEmployeeId / RiderProfileId (not empty strings)
+            Assert.AreEqual(EmpIn.ToString(), fuel.Items[0]["employeeId"]!.GetValue<string>(),
+                "FuelConsumption must map UsageEmployeeId");
+            Assert.AreEqual(ProfileIn.ToString(), fuel.Items[0]["riderProfileId"]!.GetValue<string>(),
+                "FuelConsumption must map RiderProfileId");
 
             var fuelScoped = PaySourcesLiveQuery.FuelConsumption(conn, from, to, 1, 50, "", one);
             Assert.AreEqual(1, fuelScoped.Items.Count);
             var fuelOut = PaySourcesLiveQuery.FuelConsumption(conn, from, to, 1, 50, "", new LiveOperationsQuery.Scope(false, ["7000000099"], [], [], []));
             Assert.AreEqual(0, fuelOut.Items.Count);
+            // F13c HIGH: empty filtered card list must still return real uncovered days
+            Assert.AreEqual(31L, fuelOut.Summary["uncoveredDays"]!.GetValue<long>(),
+                "scoped-out empty result must still report uncovered days for October");
 
             var vehicles = PaySourcesLiveQuery.VehicleAssignmentPeriods(conn, from, to, 1, 50, "", all);
             Assert.AreEqual(1, vehicles.Items.Count);

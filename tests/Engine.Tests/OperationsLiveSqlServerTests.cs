@@ -148,6 +148,11 @@ public sealed class OperationsLiveSqlServerTests
             var both = fuel.Items.Single(r => r["cardNumber"]!.GetValue<string>() == "FC-BOTH");
             Assert.AreEqual(35m, both["liters"]!.GetValue<decimal>(), "daily rows must win; monthly summary must not add");
             Assert.AreEqual("daily", both["usageSource"]!.GetValue<string>());
+            // F13c LOW: money columns must match the three daily rows (20+40+10 / 3+6+1.5 / 23+46+11.5 / 1+1+1)
+            Assert.AreEqual(70m, both["amountBeforeTax"]!.GetValue<decimal>());
+            Assert.AreEqual(10.5m, both["vat"]!.GetValue<decimal>());
+            Assert.AreEqual(80.5m, both["totalInclVat"]!.GetValue<decimal>());
+            Assert.AreEqual(3L, both["transactionCount"]!.GetValue<long>());
 
             var monthlyCard = fuel.Items.Single(r => r["cardNumber"]!.GetValue<string>() == "FC-MONTH");
             Assert.AreEqual(50m, monthlyCard["liters"]!.GetValue<decimal>());
@@ -158,6 +163,9 @@ public sealed class OperationsLiveSqlServerTests
             Assert.AreEqual("daily", dailyOnly["usageSource"]!.GetValue<string>());
 
             Assert.AreEqual(92m, fuel.Summary["totalLiters"]!.GetValue<decimal>(), "summary must not double-count");
+            decimal cardsTotal = fuel.Items.Sum(r => r["totalInclVat"]!.GetValue<decimal>());
+            Assert.AreEqual(cardsTotal, fuel.Summary["totalInclVat"]!.GetValue<decimal>(),
+                "summary total must equal the three card totals");
             Assert.IsTrue(fuel.Summary["uncoveredDays"]!.GetValue<long>() > 0, "gap after Nov 5 must warn");
             Assert.AreEqual("2026-11-01", fuel.Summary["coveredFrom"]!.GetValue<string>());
             Assert.AreEqual("2026-11-05", fuel.Summary["coveredTo"]!.GetValue<string>());
@@ -168,10 +176,24 @@ public sealed class OperationsLiveSqlServerTests
             var partial = OperationsLiveQuery.FuelCardsExport(conn, new DateOnly(2026, 11, 2), new DateOnly(2026, 11, 3), "", "", all, 30);
             var partialBoth = partial.Items.Single(r => r["cardNumber"]!.GetValue<string>() == "FC-BOTH");
             Assert.AreEqual(30m, partialBoth["liters"]!.GetValue<decimal>());
+            Assert.AreEqual(60m, partialBoth["amountBeforeTax"]!.GetValue<decimal>());
+            Assert.AreEqual(9m, partialBoth["vat"]!.GetValue<decimal>());
+            Assert.AreEqual(69m, partialBoth["totalInclVat"]!.GetValue<decimal>());
+            Assert.AreEqual(2L, partialBoth["transactionCount"]!.GetValue<long>());
             Assert.IsFalse(partial.Items.Any(r => r["cardNumber"]!.GetValue<string>() == "FC-MONTH"),
                 "monthly row only when range covers the whole report month");
             Assert.IsFalse(partial.Items.Any(r => r["cardNumber"]!.GetValue<string>() == "FC-DAILY"),
                 "daily-only card day 5 is outside partial range");
+
+            // F13c HIGH: monthly-only cards on a partial range after the import window → no cards,
+            // but uncovered days must equal the range length (coverage independent of filtered).
+            var emptyRangeFrom = new DateOnly(2026, 11, 20);
+            var emptyRangeTo = new DateOnly(2026, 11, 22);
+            var emptyCards = OperationsLiveQuery.FuelCardsExport(conn, emptyRangeFrom, emptyRangeTo, "", "", all, 30);
+            Assert.AreEqual(0, emptyCards.Items.Count, "no daily rows and monthly excluded on partial range");
+            Assert.AreEqual(3L, emptyCards.Summary["uncoveredDays"]!.GetValue<long>(),
+                "empty card list must still report uncovered days for the range");
+            Assert.AreEqual(0m, emptyCards.Summary["totalLiters"]!.GetValue<decimal>());
         }
         finally
         {
