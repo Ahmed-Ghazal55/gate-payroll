@@ -108,4 +108,57 @@ public sealed class Trial4FixesTests
         var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>PaymentsEngine.Transition(c,tx,f.Maker,doc.S("id"),"approve",new())));
         Assert.AreEqual(403,err.Status);
     }
+
+    [TestMethod]
+    public void Flow1_AdvanceView_OffersRequestPayout_BeforeDual()
+    {
+        using var f=new HungerStationInvoiceTests.Fixture();
+        string company=FinancialCore.Sponsors[0].Id,rider=HungerStationInvoiceTests.Rider,reqId="synthetic-adv-view-rp";
+        var custodian=UserAccess.Principal(new JsonObject
+        {
+            ["username"]="synthetic-custodian-view",["role"]="FinancialAccountant",["department"]="FIN",["rankLevel"]=5,
+            ["customPermissions"]=new JsonArray("advances.payout",ApprovalsArea.DualPaymentOut,"approvals.decide","approvals.view")
+        });
+        f.Store.Write((c,tx)=>
+        {
+            Store.Save(c,"user",new()
+            {
+                ["id"]="synthetic-custodian-view",["username"]="synthetic-custodian-view",["role"]="FinancialAccountant",
+                ["department"]="FIN",["rankLevel"]=5,
+                ["customPermissions"]=new JsonArray("advances.payout",ApprovalsArea.DualPaymentOut,"approvals.decide","approvals.view")
+            },tx);
+            OrgDirectory.AddMembership(c,tx,PayFixture.Maker,new(){["userId"]="synthetic-custodian-view",["department"]="FIN",["rank"]="C",["validFrom"]="2026-01-01"});
+            OrgDirectory.AddRouting(c,tx,PayFixture.Maker,new(){["operation"]="advance.payout:MAIN.BW.DEBT",["department"]="FIN",["minRank"]="C",["users"]=new JsonArray("synthetic-custodian-view"),["validFrom"]="2026-01-01"});
+            Store.Save(c,AdvanceRequests.Kind,new()
+            {
+                ["id"]=reqId,["type"]="cash",["vaultCode"]="MAIN.BW.DEBT",["companyId"]=company,["riderIqama"]=rider,
+                ["riderName"]="Synthetic Rider",["amount"]=80,["monthlyInstallment"]=40,
+                ["requestedBy"]="synthetic-supervisor",["approvedBy"]="synthetic-independent-reviewer",
+                ["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),["status"]="approved",["decisions"]=new JsonArray()
+            },tx);
+            return true;
+        });
+        var view=f.Store.Read(c=>AdvanceRequests.Read(c,custodian,reqId));
+        var actions=(view["allowedActions"] as JsonArray)?.Select(x=>x?.ToString()).ToHashSet(StringComparer.Ordinal)??[];
+        Assert.IsTrue(actions.Contains("request_payout"),"approved advance must offer request_payout before dual opens");
+        Assert.IsFalse(actions.Contains("payout"),"payout stays hidden until dual request exists");
+    }
+
+    [TestMethod]
+    public void Flow1_BankStatementUpload_UsesStoreAudit()
+    {
+        // Regression: Upload must call Store.Audit so Notifications.OnAudit sees treasury.bank_statement_uploaded.
+        string? dir=AppContext.BaseDirectory;
+        string? srcPath=null;
+        for(int i=0;i<8&&dir!=null;i++)
+        {
+            string candidate=System.IO.Path.Combine(dir,"Payroll.Api","TreasuryBankStatementsApi.cs");
+            if(System.IO.File.Exists(candidate)){srcPath=candidate;break;}
+            dir=System.IO.Path.GetDirectoryName(dir.TrimEnd(System.IO.Path.DirectorySeparatorChar));
+        }
+        Assert.IsNotNull(srcPath,"TreasuryBankStatementsApi.cs not found from test base");
+        var src=System.IO.File.ReadAllText(srcPath!);
+        Assert.IsTrue(src.Contains("Store.Audit(c,tx,\"treasury.bank_statement_uploaded\"",StringComparison.Ordinal));
+        Assert.IsFalse(src.Contains("[\"action\"]=\"treasury.bank_statement_uploaded\"",StringComparison.Ordinal));
+    }
 }

@@ -70,14 +70,9 @@ public static class TreasuryBankStatementsApi
                 ("@a",amount),("@ref",(object?)line.S("reference")??DBNull.Value));
         }
 
-        // One audit row per file (count + hash) — M-0606.
-        Store.Save(c,"audit",new()
-        {
-            ["id"]=Guid.NewGuid().ToString("N"),["action"]="treasury.bank_statement_uploaded",
-            ["entity"]=statementId,["recordId"]=statementId,["actor"]=actorName,
-            ["at"]=DateTimeOffset.UtcNow.ToString("O"),["lineCount"]=lineNo,
-            ["fileHash"]=Convert.ToHexString(hash),["bankAccountId"]=bankAccountId
-        },tx);
+        // One Store.Audit row per file (M-0606 / FLOW1) so Notifications.OnAudit fires.
+        _=lineNo;_=hash;_=bankAccountId;
+        Store.Audit(c,tx,"treasury.bank_statement_uploaded",statementId,actorName);
         return View(c,tx,actor,statementId);
     }
 

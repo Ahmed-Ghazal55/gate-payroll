@@ -238,7 +238,11 @@ public static class AdvanceRequests
             if(!AccessPolicy.Has(actor,"advances.payout"))blockers.Add("صلاحية صرف السلف مطلوبة.");
             else if(!custodian)blockers.Add("لست مكلّفًا بصرف هذه الخزنة أو البنك.");
             else if(!independent)blockers.Add("صاحب الطلب لا يصرفه.");
-            else actions.Add("payout");
+            else if(string.IsNullOrWhiteSpace(r.S("payoutRequestId")))
+                // FLOW1: UI must open two-person dual via request-payout before PayOut.
+                actions.Add("request_payout");
+            else
+                actions.Add("payout");
         }
         result["allowedActions"]=actions;result["approvalBlockers"]=blockers;return result;
     }
