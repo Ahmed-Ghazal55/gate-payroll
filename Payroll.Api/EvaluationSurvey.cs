@@ -130,13 +130,16 @@ public static partial class EvaluationSurvey
         // done in the staff editor only). Several rows of the same person inside one file still combine.
         var provided = new HashSet<(string Id, string Field)>();
         var emptyInFile = new HashSet<(string Id, string Field)>();
+        var emptyApps = new HashSet<(string Id, string App)>();
+        var providedApps = new HashSet<(string Id, string App)>();
         foreach (var item in items)
         {
             var raw = item as JsonObject ?? throw new ApiError("موظف غير صالح.");
             string name = Text(raw, "name", 200, true);
             // Seed has no ids: deterministic keys make repeat imports idempotent and merge multi-role people.
             string id = "evstaff:" + Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(name.Normalize().ToUpperInvariant()))).ToLowerInvariant();
-            var prior = imported.GetValueOrDefault(id) ?? Store.Get(c, id, StaffKind, tx);
+            var stored = Store.Get(c, id, StaffKind, tx);
+            var prior = imported.GetValueOrDefault(id) ?? stored;
             var doc = new JsonObject { ["id"] = id, ["name"] = name, ["active"] = raw.NullableBool("active") ?? true, ["excluded"] = raw.B("excluded"), ["pendingRoleApproval"] = raw.B("pendingRoleApproval"),
                 // Remote teams (call centre, technical support) serve riders in every work city; their own office is not a work city.
                 ["allCities"] = raw.NullableBool("allCities") ?? prior?.NullableBool("allCities") ?? false,
@@ -153,13 +156,18 @@ public static partial class EvaluationSurvey
             if (raw["appCities"] is JsonNode rawAppCities)
             {
                 var map = rawAppCities as JsonObject ?? throw new ApiError("قائمة غير صالحة: appCities");
-                var limits = map.Select(p => (App: p.Key, Cities: Strings(map, p.Key))).Where(p => p.Cities.Length > 0).ToList();
+                var entries = map.Select(p => (App: p.Key, Cities: Strings(map, p.Key))).ToList();
+                var limits = entries.Where(p => p.Cities.Length > 0).ToList();
+                foreach (var entry in entries) (entry.Cities.Length > 0 ? providedApps : emptyApps).Add((id, entry.App));
                 if (limits.Count == 0) emptyInFile.Add((id, "appCities"));
                 else
                 {
                     if (provided.Add((id, "appCities"))) appCities = new JsonObject();
                     foreach (var limit in limits) appCities[limit.App] = Array(limit.Cities);
                 }
+                // An app written with no cities keeps its stored cities, also when a sibling app replaces the map.
+                foreach (var (_, app) in emptyApps.Where(e => e.Id == id))
+                    if (!appCities.ContainsKey(app) && stored?["appCities"]?[app] is JsonNode storedCities) appCities[app] = storedCities.DeepClone();
             }
             doc["appCities"] = NormalizeAppCities(appCities, Strings(doc, "apps"), Strings(doc, "cities"), doc.B("allCities"));
             J.Need(Strings(doc, "apps").All(a => PayPlatforms.Table.Any(p => p.Platform == a)), "استخدم معرفات المنصات المعتمدة في ملف الاستيراد.");
@@ -170,8 +178,10 @@ public static partial class EvaluationSurvey
         foreach (var doc in imported.Values) Store.Save(c, StaffKind, doc, tx);
         Store.Audit(c, tx, "evaluation.staff_imported", imported.Count.ToString(), user.Identity!.Name!);
         static bool HasValue(JsonObject card, string field) => field == "appCities" ? card[field] is JsonObject { Count: > 0 } : Strings(card, field).Length > 0;
-        var kept = imported.Values.Select(card => (Card: card, Fields: emptyInFile
-                .Where(e => e.Id == card.S("id") && !provided.Contains(e) && HasValue(card, e.Field)).Select(e => e.Field).ToArray()))
+        bool KeptApp(JsonObject card) => emptyApps.Any(e => e.Id == card.S("id") && !providedApps.Contains(e) && card["appCities"]?[e.App] != null);
+        var kept = imported.Values.Select(card => (Card: card, Fields: new[] { "cities", "departments", "roles", "apps", "appCities" }
+                .Where(field => emptyInFile.Contains((card.S("id"), field)) && !provided.Contains((card.S("id"), field)) && HasValue(card, field)
+                    || field == "appCities" && KeptApp(card)).ToArray()))
             .Where(x => x.Fields.Length > 0)
             .Select(x => new JsonObject { ["id"] = x.Card.S("id"), ["name"] = x.Card.S("name"), ["fields"] = Array(x.Fields) });
         return new() { ["imported"] = imported.Count, ["excluded"] = imported.Values.Count(s => s.B("excluded")), ["kept"] = Array(kept) };

@@ -68,6 +68,45 @@ public sealed class EvaluationStaffReplaceTests
     }
 
     [TestMethod]
+    public void EmptyAppEntryKeepsItsStoredCitiesWhenASiblingAppHasCities()
+    {
+        using var f = new PayFixture();
+        JsonObject Row(JsonObject appCities) => new() { ["name"] = "Synthetic one", ["appCities"] = appCities };
+        JsonObject Stored3() => new() { ["Keeta"] = List("City B"), ["Ninja"] = List("City A"), ["Jahez"] = List("City A") };
+        JsonObject Map() => Stored(f, "Synthetic one")["appCities"]!.AsObject();
+        Import(f, Card("Synthetic one"));
+
+        // Keeta is empty (kept), Ninja has cities (replaced), Jahez is omitted from a non-empty map (removed).
+        Import(f, Row(Stored3()));
+        var result = Import(f, Row(new JsonObject { ["Keeta"] = new JsonArray(), ["Ninja"] = List("City C") }));
+        CollectionAssert.AreEquivalent(new[] { "Keeta", "Ninja" }, Map().Select(p => p.Key).ToArray());
+        CollectionAssert.AreEqual(new[] { "City B" }, Values(Map(), "Keeta"));
+        CollectionAssert.AreEqual(new[] { "City C" }, Values(Map(), "Ninja"));
+        CollectionAssert.AreEqual(new[] { "appCities" }, Values(result["kept"]!.AsArray().OfType<JsonObject>().Single(), "fields"));
+
+        // Same rule when the rows of one person are split, in either order.
+        foreach (bool emptyFirst in new[] { true, false })
+        {
+            Import(f, Row(Stored3()));
+            JsonObject empty = Row(new JsonObject { ["Keeta"] = new JsonArray() }), full = Row(new JsonObject { ["Ninja"] = List("City C") });
+            var split = emptyFirst ? Import(f, empty, full) : Import(f, full, empty);
+            CollectionAssert.AreEquivalent(new[] { "Keeta", "Ninja" }, Map().Select(p => p.Key).ToArray(), emptyFirst.ToString());
+            CollectionAssert.AreEqual(new[] { "City B" }, Values(Map(), "Keeta"));
+            Assert.HasCount(1, split["kept"]!.AsArray());
+        }
+
+        // Cities given for the app in another row win over the empty entry, and nothing is reported as kept.
+        Import(f, Row(Stored3()));
+        var won = Import(f, Row(new JsonObject { ["Keeta"] = new JsonArray() }), Row(new JsonObject { ["Keeta"] = List("City C") }));
+        CollectionAssert.AreEqual(new[] { "City C" }, Values(Map(), "Keeta"));
+        Assert.IsEmpty(won["kept"]!.AsArray());
+
+        // An empty entry for an app with nothing stored keeps nothing and is not reported.
+        Import(f, Row(new JsonObject { ["Ninja"] = List("City A") }));
+        Assert.IsEmpty(Import(f, Row(new JsonObject { ["Chefz"] = new JsonArray(), ["Ninja"] = List("City A") }))["kept"]!.AsArray());
+    }
+
+    [TestMethod]
     public void NullKeepsAndBlankTextIsRejectedWithoutSaving()
     {
         using var f = new PayFixture();
