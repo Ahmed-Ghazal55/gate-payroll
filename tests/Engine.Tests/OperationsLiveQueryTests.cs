@@ -79,7 +79,8 @@ public sealed class OperationsLiveQueryTests
         Assert.DoesNotContain("CapLimit", sql, StringComparison.OrdinalIgnoreCase);
         // Snapshot has no UsageDate — default preview must not require the column.
         Assert.DoesNotContain("[UsageDate]", sql, StringComparison.Ordinal);
-        CollectionAssert.Contains(names.ToList(), "@month");
+        CollectionAssert.Contains(names.ToList(), "@from");
+        CollectionAssert.Contains(names.ToList(), "@to");
         Assert.AreEqual("شركة بترو اب", OperationsLiveQuery.FuelProviderNameAr("1"));
         Assert.AreEqual("شركة سيارة اب", OperationsLiveQuery.FuelProviderNameAr("2"));
         Assert.AreEqual("نشطة", OperationsLiveQuery.FuelStatusLabel("active"));
@@ -88,6 +89,11 @@ public sealed class OperationsLiveQueryTests
         var (dailySql, _) = OperationsLiveQuery.PreviewFuelCardsSql(preferDailyUsage: true);
         Assert.Contains("[UsageDate]", dailySql, StringComparison.Ordinal);
         Assert.Contains("HasDaily", dailySql, StringComparison.Ordinal);
+        Assert.Contains("EOMONTH", dailySql, StringComparison.Ordinal);
+
+        var (coverageSql, _) = OperationsLiveQuery.PreviewFuelCardsSql(preferDailyUsage: true, importCoverage: true);
+        Assert.Contains("FuelCardImports", coverageSql, StringComparison.Ordinal);
+        Assert.Contains("UncoveredDays", coverageSql, StringComparison.Ordinal);
     }
 
     [TestMethod]

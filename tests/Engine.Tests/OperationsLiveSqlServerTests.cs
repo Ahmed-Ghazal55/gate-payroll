@@ -41,11 +41,11 @@ public sealed class OperationsLiveSqlServerTests
     static readonly Guid PurchaseDeleted = Guid.Parse("1d1d1d1d-1d1d-1d1d-1d1d-1d1d1d1d1d1d");
 
     /// <summary>
-    /// F13: when UsageDate exists, a card-month with daily rows must sum only those days
-    /// (ignore the monthly summary row); a card with only monthly rows stays monthly.
+    /// F13b: date range + daily/monthly rule + coverage warning (never zero liters for a gap).
+    /// Cases: daily-only, monthly-only, both (= daily sum), partial range, uncovered gap.
     /// </summary>
     [TestMethod]
-    public void FuelCards_DailyRowsWinOverMonthly_NoDoubleCount()
+    public void FuelCards_RangeDailyMonthlyAndCoverage()
     {
         string? configured = Environment.GetEnvironmentVariable("PAYROLL_TEST_SQL_CONNECTION");
         if (string.IsNullOrWhiteSpace(configured))
@@ -94,43 +94,84 @@ public sealed class OperationsLiveSqlServerTests
                     TransactionCount int NULL,
                     FuelType nvarchar(50) NULL,
                     IsDeleted bit NOT NULL DEFAULT 0);
+                CREATE TABLE app.FuelCardImports (
+                    Id uniqueidentifier NOT NULL PRIMARY KEY,
+                    Provider int NOT NULL,
+                    ReportMonth date NOT NULL,
+                    UsageFrom date NULL,
+                    UsageTo date NULL,
+                    InvalidRows int NOT NULL DEFAULT 0,
+                    ReportThroughAtUtc datetimeoffset NULL,
+                    CreatedAtUtc datetimeoffset NOT NULL DEFAULT SYSUTCDATETIME(),
+                    IsDeleted bit NOT NULL DEFAULT 0);
                 """);
 
-            var cardDaily = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1");
+            var cardBoth = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa1");
             var cardMonthly = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa2");
+            var cardDailyOnly = Guid.Parse("aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaa3");
             Exec(conn, $"""
                 INSERT INTO app.Sponsors(Id,RegistryNameAr,UnifiedNationalNumber,Status) VALUES('{SponsorA}',N'شركة أ','7000000001',1);
                 INSERT INTO app.Employees(Id,FullNameAr,IqamaNo,SponsorId,Status,IsEmployee) VALUES('{EmpInScope}',N'مندوب','2500000001','{SponsorA}',3,0);
                 INSERT INTO app.FuelCards(Id,Provider,CardNumber,PlateNumberText,Notes,SponsorId) VALUES
-                  ('{cardDaily}',1,'FC-DAILY',N'أ 1',N'بطاقة يومية','{SponsorA}'),
-                  ('{cardMonthly}',1,'FC-MONTH',N'أ 2',N'بطاقة شهرية','{SponsorA}');
+                  ('{cardBoth}',1,'FC-BOTH',N'أ 1',N'بطاقة مختلطة','{SponsorA}'),
+                  ('{cardMonthly}',1,'FC-MONTH',N'أ 2',N'بطاقة شهرية','{SponsorA}'),
+                  ('{cardDailyOnly}',1,'FC-DAILY',N'أ 3',N'بطاقة يومية','{SponsorA}');
                 INSERT INTO app.FuelCardRiderAssignments(Id,FuelCardId,EmployeeId,EffectiveFrom) VALUES
-                  (NEWID(),'{cardDaily}','{EmpInScope}','2026-11-01'),
-                  (NEWID(),'{cardMonthly}','{EmpInScope}','2026-11-01');
-                -- Card with both: monthly summary 100L/230 + two daily rows 10+20 = 30L/69 — must use daily only
+                  (NEWID(),'{cardBoth}','{EmpInScope}','2026-11-01'),
+                  (NEWID(),'{cardMonthly}','{EmpInScope}','2026-11-01'),
+                  (NEWID(),'{cardDailyOnly}','{EmpInScope}','2026-11-01');
+                -- Both kinds: monthly 100L + daily 10+20 → daily only (30)
                 INSERT INTO app.FuelCardMonthlyUsages(Id,FuelCardId,EmployeeId,ReportMonth,UsageDate,TotalLiters,AmountBeforeTax,VatAmount,TotalAmount,TransactionCount,FuelType) VALUES
-                  (NEWID(),'{cardDaily}','{EmpInScope}','2026-11-01',NULL,100,200,30,230,10,N'91'),
-                  (NEWID(),'{cardDaily}','{EmpInScope}','2026-11-01','2026-11-02',10,20,3,23,1,N'91'),
-                  (NEWID(),'{cardDaily}','{EmpInScope}','2026-11-01','2026-11-03',20,40,6,46,1,N'91');
-                -- Card monthly-only: keep the monthly row
+                  (NEWID(),'{cardBoth}','{EmpInScope}','2026-11-01',NULL,100,200,30,230,10,N'91'),
+                  (NEWID(),'{cardBoth}','{EmpInScope}','2026-11-01','2026-11-02',10,20,3,23,1,N'91'),
+                  (NEWID(),'{cardBoth}','{EmpInScope}','2026-11-01','2026-11-03',20,40,6,46,1,N'91'),
+                  (NEWID(),'{cardBoth}','{EmpInScope}','2026-11-01','2026-11-10',5,10,1.5,11.5,1,N'91');
+                -- Monthly-only
                 INSERT INTO app.FuelCardMonthlyUsages(Id,FuelCardId,EmployeeId,ReportMonth,UsageDate,TotalLiters,AmountBeforeTax,VatAmount,TotalAmount,TransactionCount,FuelType) VALUES
                   (NEWID(),'{cardMonthly}','{EmpInScope}','2026-11-01',NULL,50,100,15,115,4,N'91');
+                -- Daily-only
+                INSERT INTO app.FuelCardMonthlyUsages(Id,FuelCardId,EmployeeId,ReportMonth,UsageDate,TotalLiters,AmountBeforeTax,VatAmount,TotalAmount,TransactionCount,FuelType) VALUES
+                  (NEWID(),'{cardDailyOnly}','{EmpInScope}','2026-11-01','2026-11-05',7,14,2.1,16.1,1,N'91');
+                -- Import covers Nov 1–5 only (gap after → uncovered warning)
+                INSERT INTO app.FuelCardImports(Id,Provider,ReportMonth,UsageFrom,UsageTo,InvalidRows) VALUES
+                  (NEWID(),1,'2026-11-01','2026-11-01','2026-11-05',0);
                 """);
 
             var all = new LiveOperationsQuery.Scope(true, [], [], [], []);
-            var fuel = OperationsLiveQuery.FuelCardsExport(conn, new DateOnly(2026, 11, 1), "", "", all, 30);
-            Assert.AreEqual(2, fuel.Items.Count);
+            var from = new DateOnly(2026, 11, 1);
+            var to = new DateOnly(2026, 11, 30);
 
-            var dailyCard = fuel.Items.Single(r => r["cardNumber"]!.GetValue<string>() == "FC-DAILY");
-            Assert.AreEqual(30m, dailyCard["liters"]!.GetValue<decimal>(), "daily rows must win; monthly summary must not add");
-            Assert.AreEqual(69m, dailyCard["totalInclVat"]!.GetValue<decimal>());
+            // Full month: both → daily; monthly-only kept; daily-only kept
+            var fuel = OperationsLiveQuery.FuelCardsExport(conn, from, to, "", "", all, 30);
+            Assert.AreEqual(3, fuel.Items.Count);
+
+            var both = fuel.Items.Single(r => r["cardNumber"]!.GetValue<string>() == "FC-BOTH");
+            Assert.AreEqual(35m, both["liters"]!.GetValue<decimal>(), "daily rows must win; monthly summary must not add");
+            Assert.AreEqual("daily", both["usageSource"]!.GetValue<string>());
 
             var monthlyCard = fuel.Items.Single(r => r["cardNumber"]!.GetValue<string>() == "FC-MONTH");
             Assert.AreEqual(50m, monthlyCard["liters"]!.GetValue<decimal>());
-            Assert.AreEqual(115m, monthlyCard["totalInclVat"]!.GetValue<decimal>());
+            Assert.AreEqual("monthly", monthlyCard["usageSource"]!.GetValue<string>());
 
-            Assert.AreEqual(80m, fuel.Summary["totalLiters"]!.GetValue<decimal>(), "summary must not double-count");
-            Assert.AreEqual(184m, fuel.Summary["totalInclVat"]!.GetValue<decimal>());
+            var dailyOnly = fuel.Items.Single(r => r["cardNumber"]!.GetValue<string>() == "FC-DAILY");
+            Assert.AreEqual(7m, dailyOnly["liters"]!.GetValue<decimal>());
+            Assert.AreEqual("daily", dailyOnly["usageSource"]!.GetValue<string>());
+
+            Assert.AreEqual(92m, fuel.Summary["totalLiters"]!.GetValue<decimal>(), "summary must not double-count");
+            Assert.IsTrue(fuel.Summary["uncoveredDays"]!.GetValue<long>() > 0, "gap after Nov 5 must warn");
+            Assert.AreEqual("2026-11-01", fuel.Summary["coveredFrom"]!.GetValue<string>());
+            Assert.AreEqual("2026-11-05", fuel.Summary["coveredTo"]!.GetValue<string>());
+            // Liters stay real — uncovered days never force zero
+            Assert.AreNotEqual(0m, fuel.Summary["totalLiters"]!.GetValue<decimal>());
+
+            // Partial range Nov 2–3: only those daily liters; monthly excluded (range not whole month)
+            var partial = OperationsLiveQuery.FuelCardsExport(conn, new DateOnly(2026, 11, 2), new DateOnly(2026, 11, 3), "", "", all, 30);
+            var partialBoth = partial.Items.Single(r => r["cardNumber"]!.GetValue<string>() == "FC-BOTH");
+            Assert.AreEqual(30m, partialBoth["liters"]!.GetValue<decimal>());
+            Assert.IsFalse(partial.Items.Any(r => r["cardNumber"]!.GetValue<string>() == "FC-MONTH"),
+                "monthly row only when range covers the whole report month");
+            Assert.IsFalse(partial.Items.Any(r => r["cardNumber"]!.GetValue<string>() == "FC-DAILY"),
+                "daily-only card day 5 is outside partial range");
         }
         finally
         {
@@ -240,7 +281,7 @@ public sealed class OperationsLiveSqlServerTests
             // H3 export = no OFFSET, all rows
             var housingExport = OperationsLiveQuery.HousingExport(conn, "", "", "", all, 30);
             Assert.AreEqual(housingExport.Total, housingExport.Items.Count);
-            var fuelExport = OperationsLiveQuery.FuelCardsExport(conn, new DateOnly(2026, 11, 1), "", "", all, 30);
+            var fuelExport = OperationsLiveQuery.FuelCardsExport(conn, new DateOnly(2026, 11, 1), new DateOnly(2026, 11, 30), "", "", all, 30);
             Assert.AreEqual(fuelExport.Total, fuelExport.Items.Count);
             Assert.AreEqual("PetroApp", fuelExport.Items[0]["provider"]!.GetValue<string>());
             Assert.AreEqual("شركة بترو اب", fuelExport.Items[0]["providerNameAr"]!.GetValue<string>());

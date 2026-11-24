@@ -329,7 +329,34 @@ public static class LiveOperationsQuery
                 parts.Add($"{dayExpr(col)} < DATEADD(day,1,CONVERT(date,@pt)) AND ({prefix}[{endCol}] IS NULL OR {dayExpr(endCol)} >= CONVERT(date,@pf))");
             }
             else if(spec.Kind=="fuel_usage")
-                parts.Add($"{dayExpr(col)} >= CONVERT(date,@pf) AND {dayExpr(col)} < DATEADD(day,1,CONVERT(date,@pt))");
+            {
+                // F13b: when UsageDate exists, take daily rows in the pay-cycle range; legacy monthly
+                // only if that card-month has no daily rows and the range covers the whole month.
+                bool preferDaily = cmd.Connection is { State: ConnectionState.Open }
+                    && HasFuelUsageDateColumnLive(cmd.Connection);
+                if (preferDaily)
+                {
+                    parts.Add($"""
+                        (
+                          ({prefix}[UsageDate] IS NOT NULL
+                           AND {prefix}[UsageDate] >= CONVERT(date,@pf)
+                           AND {prefix}[UsageDate] <= CONVERT(date,@pt))
+                          OR
+                          ({prefix}[UsageDate] IS NULL
+                           AND CONVERT(date,@pf) <= {prefix}[ReportMonth]
+                           AND CONVERT(date,@pt) >= EOMONTH({prefix}[ReportMonth])
+                           AND NOT EXISTS (
+                             SELECT 1 FROM [app].[FuelCardMonthlyUsages] d
+                             WHERE d.[IsDeleted]=0
+                               AND d.[FuelCardId]={prefix}[FuelCardId]
+                               AND d.[ReportMonth]={prefix}[ReportMonth]
+                               AND d.[UsageDate] IS NOT NULL))
+                        )
+                        """);
+                }
+                else
+                    parts.Add($"{dayExpr(col)} >= CONVERT(date,@pf) AND {dayExpr(col)} < DATEADD(day,1,CONVERT(date,@pt))");
+            }
             else
                 // Widen one day each side for timezone/edge rows on plain date columns.
                 parts.Add($"{dayExpr(col)} >= DATEADD(day,-1,CONVERT(date,@pf)) AND {dayExpr(col)} < DATEADD(day,2,CONVERT(date,@pt))");
@@ -367,6 +394,13 @@ public static class LiveOperationsQuery
     }
     static string EscapeLike(string value)=>value.Replace("\\","\\\\",StringComparison.Ordinal).Replace("%","\\%",StringComparison.Ordinal).Replace("_","\\_",StringComparison.Ordinal).Replace("[","\\[",StringComparison.Ordinal);
     static void Add(DbCommand cmd,string name,object value){var p=cmd.CreateParameter();p.ParameterName=name;p.Value=value??DBNull.Value;cmd.Parameters.Add(p);}
+    static bool HasFuelUsageDateColumnLive(DbConnection source)
+    {
+        using var probe=source.CreateCommand();
+        probe.CommandText="SELECT CASE WHEN COL_LENGTH('app.FuelCardMonthlyUsages','UsageDate') IS NULL THEN 0 ELSE 1 END";
+        object? value=probe.ExecuteScalar();
+        return value is not null and not DBNull && Convert.ToInt32(value,CultureInfo.InvariantCulture)==1;
+    }
 
     static List<JsonObject> Read(DbCommand cmd,CancellationToken cancellationToken)
     {

@@ -65,14 +65,14 @@ public sealed class PaySourcesLiveSqlServerTests
             var from = new DateOnly(2026, 10, 1);
             var to = new DateOnly(2026, 10, 31);
 
-            var fuel = PaySourcesLiveQuery.FuelConsumption(conn, month, 1, 50, "", all);
+            var fuel = PaySourcesLiveQuery.FuelConsumption(conn, from, to, 1, 50, "", all);
             Assert.AreEqual(1, fuel.Items.Count);
             Assert.AreEqual(80m, fuel.Items[0]["totalInclVat"]!.GetValue<decimal>());
-            Assert.AreEqual(ProfileIn.ToString("D"), fuel.Items[0]["riderProfileId"]!.GetValue<string>(), ignoreCase: true);
+            Assert.AreEqual("monthly", fuel.Items[0]["usageSource"]!.GetValue<string>());
 
-            var fuelScoped = PaySourcesLiveQuery.FuelConsumption(conn, month, 1, 50, "", one);
+            var fuelScoped = PaySourcesLiveQuery.FuelConsumption(conn, from, to, 1, 50, "", one);
             Assert.AreEqual(1, fuelScoped.Items.Count);
-            var fuelOut = PaySourcesLiveQuery.FuelConsumption(conn, month, 1, 50, "", new LiveOperationsQuery.Scope(false, ["7000000099"], [], [], []));
+            var fuelOut = PaySourcesLiveQuery.FuelConsumption(conn, from, to, 1, 50, "", new LiveOperationsQuery.Scope(false, ["7000000099"], [], [], []));
             Assert.AreEqual(0, fuelOut.Items.Count);
 
             var vehicles = PaySourcesLiveQuery.VehicleAssignmentPeriods(conn, from, to, 1, 50, "", all);
