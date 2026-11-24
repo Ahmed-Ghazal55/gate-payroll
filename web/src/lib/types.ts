@@ -1286,6 +1286,9 @@ export interface AdvanceRequest {
   coverageReason?: string;
   debtId?: string;
   journalEntryId?: string;
+  payoutRequestId?: string;
+  allowedActions?: string[];
+  approvalBlockers?: string[];
   proposal?: {
     type: 'cash' | 'bank' | 'internet';
     amount: number;

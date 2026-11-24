@@ -47,7 +47,6 @@ import { api, ApiError } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
 import { useToast } from '../../components/ui/Toast';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { ScreenShell } from '../../components/ui/ScreenShell';
 import { StatCard } from '../../components/ui/StatCard';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { Drawer } from '../../components/ui/Drawer';
@@ -63,6 +62,9 @@ import type {
   CompanySponsor,
 } from '../../lib/types';
 import { JahezWorkspace } from '../../features/treasury/JahezWorkspace';
+import { VaultCountsPanel } from '../../features/treasury/VaultCountsPanel';
+import { BankReconPanel } from '../../features/treasury/BankReconPanel';
+import { TreasuryTransfersPanel } from '../../features/treasury/TreasuryTransfersPanel';
 
 type TabId = TreasuryTab;
 
@@ -261,6 +263,19 @@ function TreasuryPageContent() {
     setPayoutNote('');
     setPayoutServerError(null);
     setPayoutModalOpen(true);
+  };
+
+  const handleRequestPayout = async (req: AdvanceRequest) => {
+    setSubmittingPayout(true);
+    try {
+      await api.requestAdvancePayout(req.id);
+      toast('فُتح طلب اعتماد ثنائي للصرف — أكمل الاعتماد ثم نفّذ الصرف', 'success');
+      loadAdvancePayouts();
+    } catch (err: any) {
+      toast(err.message || 'تعذر فتح طلب الصرف الثنائي', 'danger');
+    } finally {
+      setSubmittingPayout(false);
+    }
   };
 
   const handleExecutePayout = async (e: React.FormEvent) => {
@@ -644,15 +659,39 @@ function TreasuryPageContent() {
                         </td>
                         <td className="p-3">
                           <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              id={`btn-payout-advance-${req.id}`}
-                              onClick={() => handleOpenPayoutDialog(req)}
-                              className="px-3 py-1.5 rounded-lg bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1"
-                            >
-                              <Check size={13} />
-                              <span>صرف السلفة</span>
-                            </button>
+                            {req.allowedActions?.includes('request_payout') && (
+                              <button
+                                type="button"
+                                id={`btn-request-payout-advance-${req.id}`}
+                                disabled={submittingPayout}
+                                onClick={() => void handleRequestPayout(req)}
+                                className="px-3 py-1.5 rounded-lg border border-[var(--accent)] text-[var(--accent)] text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1 disabled:opacity-50"
+                              >
+                                <span>طلب اعتماد الصرف</span>
+                              </button>
+                            )}
+                            {req.allowedActions?.includes('payout') && (
+                              <button
+                                type="button"
+                                id={`btn-payout-advance-${req.id}`}
+                                onClick={() => handleOpenPayoutDialog(req)}
+                                className="px-3 py-1.5 rounded-lg bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <Check size={13} />
+                                <span>صرف السلفة</span>
+                              </button>
+                            )}
+                            {!req.allowedActions?.length && (
+                              <button
+                                type="button"
+                                id={`btn-request-payout-advance-${req.id}`}
+                                disabled={submittingPayout}
+                                onClick={() => void handleRequestPayout(req)}
+                                className="px-3 py-1.5 rounded-lg border border-[var(--accent)] text-[var(--accent)] text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1 disabled:opacity-50"
+                              >
+                                <span>طلب اعتماد الصرف</span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => setPayoutDetailsReq(req)}
@@ -837,12 +876,9 @@ function TreasuryPageContent() {
       {/* Sub-tab 4: سجل حركات الخزينة والقيود                      */}
       {/* ======================================================== */}
 
-      {(activeTab === 'transfers' || activeTab === 'bank_recon' || activeTab === 'vault_counts') && (
-        <ScreenShell
-          title={TREASURY_TAB_LABELS[activeTab]}
-          description="شاشة الخزينة قيد التجهيز لهذا التبويب."
-        />
-      )}
+      {activeTab === 'transfers' && <TreasuryTransfersPanel />}
+      {activeTab === 'bank_recon' && <BankReconPanel />}
+      {activeTab === 'vault_counts' && <VaultCountsPanel />}
       {activeTab === 'jahez' && <JahezWorkspace />}
 
       {activeTab === 'movements' && (

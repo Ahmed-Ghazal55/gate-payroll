@@ -1318,6 +1318,81 @@ export const api = {
   getAdminNotifySettings: () => handleRequest<Record<string, unknown>>('/admin/notify-settings'),
   putAdminNotifySettings: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/admin/notify-settings', { method: 'PUT', body: JSON.stringify(input) }),
+  listStaffChatChannels: () =>
+    handleRequest<{ items?: Array<Record<string, unknown>>; allowedActions?: string[] }>('/chat/channels'),
+  createStaffChatChannel: (input: { code: string; nameAr: string; companyId?: string }) =>
+    handleRequest<Record<string, unknown>>('/chat/channels', { method: 'POST', body: JSON.stringify(input) }),
+  listStaffChatMessages: (channelId: string, after?: string) => {
+    const q = after ? `?after=${encodeURIComponent(after)}` : '';
+    return handleRequest<{ items?: Array<Record<string, unknown>> } | Array<Record<string, unknown>>>(
+      `/chat/channels/${encodeURIComponent(channelId)}/messages${q}`
+    );
+  },
+  postStaffChatMessage: (channelId: string, input: { bodyAr: string }) =>
+    handleRequest<Record<string, unknown>>(`/chat/channels/${encodeURIComponent(channelId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listVaultCounts: (companyId?: string) => {
+    const q = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+    return handleRequest<{ items?: Array<Record<string, unknown>>; allowedActions?: string[] }>(
+      `/treasury/vault-counts${q}`
+    );
+  },
+  createVaultCount: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/treasury/vault-counts', { method: 'POST', body: JSON.stringify(input) }),
+  submitVaultCount: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/treasury/vault-counts/${encodeURIComponent(id)}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  approveVaultCount: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/treasury/vault-counts/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  uploadBankStatement: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/treasury/bank-statements/upload', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getBankStatement: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/treasury/bank-statements/${encodeURIComponent(id)}`),
+  autoMatchBankStatement: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/treasury/bank-statements/${encodeURIComponent(id)}/auto-match`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  requestBankAdjust: (id: string, input: { amount: number; reason: string }) =>
+    handleRequest<Record<string, unknown>>(`/treasury/bank-statements/${encodeURIComponent(id)}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  rejectBankAdjust: (id: string, input: { reason: string }) =>
+    handleRequest<Record<string, unknown>>(`/treasury/bank-adjustments/${encodeURIComponent(id)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  waiveDebtLedger: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/debts/${encodeURIComponent(id)}/waive`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  absorbDebtLedger: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/debts/${encodeURIComponent(id)}/absorb`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  collectDebtLedger: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/debts/${encodeURIComponent(id)}/collect-ledger`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  printDebtsRegister: (companyId: string, status?: string) => {
+    const q = new URLSearchParams({ companyId });
+    if (status) q.set('status', status);
+    return handleRequest<Record<string, unknown>>(`/debts/print?${q.toString()}`);
+  },
   getArchivePolicies: () =>
     handleRequest<{
       items?: Array<Record<string, unknown>>;
@@ -2012,6 +2087,11 @@ export const api = {
     handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}/respond`, {
       method: 'POST',
       body: JSON.stringify(body),
+    }),
+  requestAdvancePayout: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/advance-requests/${encodeURIComponent(id)}/request-payout`, {
+      method: 'POST',
+      body: JSON.stringify({}),
     }),
   payoutAdvanceRequest: (id: string, body: { reference: string; note?: string }) =>
     handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}/payout`, {
