@@ -56,3 +56,17 @@ test('FLOW1/TRACE: treasury shells replaced with real panels', () => {
   assert.match(src, /TreasuryTransfersPanel/);
   assert.match(src, /requestAdvancePayout/);
 });
+
+test('TRIAL6: bank recon line actions + Arabic labels + allowedActions', () => {
+  const panel = readFileSync(join(root, 'src/features/treasury/BankReconPanel.tsx'), 'utf8');
+  const api = readFileSync(join(root, 'src/lib/api.ts'), 'utf8');
+  assert.match(panel, /إنشاء سند صرف/);
+  assert.match(panel, /إنشاء سند قبض/);
+  assert.match(panel, /تسجيل قيد/);
+  assert.match(panel, /فرق توقيت/);
+  assert.match(panel, /فتح القيد الأصلي للتصحيح/);
+  assert.match(panel, /allowedActions/);
+  assert.match(panel, /bankStatementLineAction/);
+  assert.match(api, /bank-statements\/\$\{encodeURIComponent\(statementId\)\}\/lines\/\$\{encodeURIComponent\(lineId\)\}\/actions/);
+  assert.doesNotMatch(panel, /طلب تسوية/);
+});

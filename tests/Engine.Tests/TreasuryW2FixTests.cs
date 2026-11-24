@@ -294,9 +294,9 @@ public sealed class TreasuryW2FixTests
     [TestMethod]
     public void BankAdjust_BlocksVaultVarianceAccounts()
     {
+        // TRIAL6: generic adjust removed — RequestAdjust/ApproveAdjust both 409; never vault variance.
         using var f=new PayFixture();
         string company=FinancialCore.Sponsors[0].Id;
-        string adjustId="";
         f.Store.Write((c,tx)=>
         {
             EnsureSponsorCompany(c,tx,company);
@@ -307,13 +307,12 @@ public sealed class TreasuryW2FixTests
                 ["bankAccountId"]=bank,["periodMonth"]="2026-11",["openingBalance"]=0,["closingBalance"]=5,
                 ["lines"]=new JsonArray(new JsonObject{["occurredOn"]="2026-11-10",["amount"]=5,["reference"]="TIMING"})
             });
-            var draft=TreasuryBankStatementsApi.RequestAdjust(c,tx,Maker,uploaded.S("id"),new(){["amount"]=5,["reason"]="فرق توقيت بنكي"});
-            adjustId=draft.S("id");
+            var err=Assert.ThrowsExactly<ApiError>(()=>TreasuryBankStatementsApi.RequestAdjust(c,tx,Maker,uploaded.S("id"),new(){["amount"]=5,["reason"]="فرق توقيت بنكي"}));
+            Assert.AreEqual(409,err.Status);
+            Assert.IsTrue(err.Message.Contains("422202",StringComparison.Ordinal)||err.Message.Contains("سطر",StringComparison.Ordinal)||err.Message.Contains("قيد",StringComparison.Ordinal));
             return true;
         });
-        var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,Checker,adjustId)));
-        Assert.AreEqual(409,err.Status);
-        Assert.IsTrue(err.Message.Contains("توقيت",StringComparison.Ordinal)||err.Message.Contains("حساب",StringComparison.Ordinal));
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,Checker,"legacy-adjust"))).Status);
     }
 
     [TestMethod]

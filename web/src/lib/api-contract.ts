@@ -10245,6 +10245,56 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pay/apps/{app}/omar-commission-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Omar ERP daily/percentage commission rates per city (read-only; Jahez/Chefz) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            app: string;
+                            program?: number;
+                            asOf: string;
+                            readAt?: string;
+                            source: string;
+                            rates?: Record<string, never>[];
+                            byCity?: Record<string, never>[];
+                            schemeRows: Record<string, never>[];
+                            missing?: Record<string, never>[];
+                            writable: boolean;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/operations/{kind}": {
         parameters: {
             query?: never;
@@ -22991,13 +23041,56 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Request bank recon adjustment (needs approval) */
+        /** Deprecated generic adjust — use line actions */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
                 path: {
                     id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/treasury/bank-statements/{id}/lines/{lineId}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Bank statement line action: timing, payment, receipt, journal, or open original */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    lineId: string;
                 };
                 cookie?: never;
             };
@@ -23033,7 +23126,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve bank recon adjustment and post journal */
+        /** Deprecated — line documents approve via manual journals */
         post: {
             parameters: {
                 query?: never;
@@ -23044,6 +23137,48 @@ export interface paths {
                 cookie?: never;
             };
             requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": Record<string, never>;
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/treasury/bank-adjustments/{id}/reject": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reject a legacy pending bank recon adjustment */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
             responses: {
                 /** @description Successful response (stored wire field names) */
                 200: {
@@ -23610,7 +23745,7 @@ export interface paths {
         get?: never;
         put?: never;
         post?: never;
-        /** Delete an unposted manual journal draft (author or administrator) */
+        /** Cancel an unposted manual journal draft (kept; author or administrator) */
         delete: {
             parameters: {
                 query?: never;
@@ -26538,6 +26673,8 @@ export interface components {
             receivable: string;
             principal: null | string;
             agent: null | string;
+            /** @default true */
+            hasEligibility: boolean;
         };
         AnonymousTypeOfboolean: {
             ok: boolean;

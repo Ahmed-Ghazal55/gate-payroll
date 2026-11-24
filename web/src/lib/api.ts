@@ -1368,6 +1368,18 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(input),
     }),
+  bankStatementLineAction: (
+    statementId: string,
+    lineId: string,
+    input: { kind: string; note?: string; reason?: string }
+  ) =>
+    handleRequest<Record<string, unknown>>(
+      `/treasury/bank-statements/${encodeURIComponent(statementId)}/lines/${encodeURIComponent(lineId)}/actions`,
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }
+    ),
   rejectBankAdjust: (id: string, input: { reason: string }) =>
     handleRequest<Record<string, unknown>>(`/treasury/bank-adjustments/${encodeURIComponent(id)}/reject`, {
       method: 'POST',

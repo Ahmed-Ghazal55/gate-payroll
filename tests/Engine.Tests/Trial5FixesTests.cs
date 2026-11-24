@@ -164,12 +164,10 @@ public sealed class Trial5FixesTests
     [TestMethod]
     public void BankAdjust_ApproveBlockedUntilBankTimingAccount_RejectCloses()
     {
-        // Ghazal 11-24: bank difference account not chosen — approve stays 409; reject closes pending.
+        // TRIAL6: generic adjust path removed (409); vault variance accounts never used.
         using var f=new PayFixture();
         var maker=PayFixture.Actor("synthetic-trial5-bank-maker","Admin");
-        var checker=PayFixture.Actor("synthetic-trial5-bank-checker","Admin");
         string company=FinancialCore.Sponsors[0].Id;
-        string adjustId="";
         f.Store.Write((c,tx)=>
         {
             EnsureSponsorCompany(c,tx,company);
@@ -186,18 +184,12 @@ public sealed class Trial5FixesTests
                 ["bankAccountId"]=bank,["periodMonth"]="2026-11",["openingBalance"]=0,["closingBalance"]=100,
                 ["lines"]=new JsonArray(new JsonObject{["occurredOn"]="2026-11-10",["amount"]=100,["reference"]="SYN-ADJ"})
             });
-            var draft=TreasuryBankStatementsApi.RequestAdjust(c,tx,maker,uploaded.S("id"),new(){["amount"]=5,["reason"]="فرق توقيت بنكي تجريبي"});
-            adjustId=draft.S("id");
+            var err=Assert.ThrowsExactly<ApiError>(()=>TreasuryBankStatementsApi.RequestAdjust(c,tx,maker,uploaded.S("id"),new(){["amount"]=5,["reason"]="فرق توقيت بنكي تجريبي"}));
+            Assert.AreEqual(409,err.Status);
+            Assert.IsTrue(err.Message.Contains("سطر",StringComparison.Ordinal)||err.Message.Contains("قيد",StringComparison.Ordinal)||err.Message.Contains("422202",StringComparison.Ordinal));
             return true;
         });
-        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,maker,adjustId))).Status);
-        var blocked=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,checker,adjustId)));
-        Assert.AreEqual(409,blocked.Status);
-        Assert.IsTrue(blocked.Message.Contains("توقيت",StringComparison.Ordinal)||blocked.Message.Contains("فرق",StringComparison.Ordinal));
-        Assert.IsTrue(blocked.Message.Contains("422202",StringComparison.Ordinal)||blocked.Message.Contains("542102",StringComparison.Ordinal));
-        var rejected=f.Store.Write((c,tx)=>TreasuryBankStatementsApi.RejectAdjust(c,tx,checker,adjustId,new(){["reason"]="إغلاق الطلب بانتظار حساب التوقيت البنكي"}));
-        Assert.AreEqual("rejected",rejected.S("status"));
-        Assert.AreEqual("rejected",f.Store.Read(c=>Store.Get(c,adjustId,"bank_statement_adjust")!.S("status")));
+        Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>TreasuryBankStatementsApi.ApproveAdjust(c,tx,maker,"legacy-adjust"))).Status);
     }
 
     [TestMethod]

@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:37027/"
+      "url": "http://127.0.0.1:44211/"
     }
   ],
   "paths": {
@@ -17506,6 +17506,94 @@
                     },
                     "month": {
                       "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/{app}/omar-commission-rates": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Omar ERP daily/percentage commission rates per city (read-only; Jahez/Chefz)",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "app",
+                    "source",
+                    "asOf",
+                    "schemeRows",
+                    "writable",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "type": "string"
+                    },
+                    "program": {
+                      "type": "number"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "readAt": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "rates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "byCity": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "schemeRows": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "missing": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "writable": {
+                      "type": "boolean"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   }
                 }
@@ -37334,10 +37422,58 @@
         "tags": [
           "Banks and treasury"
         ],
-        "summary": "Request bank recon adjustment (needs approval)",
+        "summary": "Deprecated generic adjust — use line actions",
         "parameters": [
           {
             "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/treasury/bank-statements/{id}/lines/{lineId}/actions": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Bank statement line action: timing, payment, receipt, journal, or open original",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "lineId",
             "in": "path",
             "required": true,
             "schema": {
@@ -37374,7 +37510,7 @@
         "tags": [
           "Banks and treasury"
         ],
-        "summary": "Approve bank recon adjustment and post journal",
+        "summary": "Deprecated — line documents approve via manual journals",
         "parameters": [
           {
             "name": "id",
@@ -37385,6 +37521,46 @@
             }
           }
         ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/treasury/bank-adjustments/{id}/reject": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Reject a legacy pending bank recon adjustment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
         "responses": {
           "200": {
             "description": "Successful response (stored wire field names)",
@@ -38062,7 +38238,7 @@
         "tags": [
           "Accounting and reports"
         ],
-        "summary": "Delete an unposted manual journal draft (author or administrator)",
+        "summary": "Cancel an unposted manual journal draft (kept; author or administrator)",
         "parameters": [
           {
             "name": "id",
@@ -41336,6 +41512,10 @@
               "null",
               "string"
             ]
+          },
+          "hasEligibility": {
+            "type": "boolean",
+            "default": true
           }
         }
       },
