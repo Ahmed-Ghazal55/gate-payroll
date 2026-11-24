@@ -3,6 +3,7 @@ import os
 import hashlib
 import io
 import json
+import re
 from pathlib import Path
 import urllib.parse
 import urllib.request
@@ -26,6 +27,13 @@ def required_favicons(root):
         if not (root/name).is_file():raise RuntimeError('Missing required favicon: '+name)
     if (root/REQUIRED_FAVICONS[0]).read_bytes()!=(root/REQUIRED_FAVICONS[1]).read_bytes():
         raise RuntimeError('Favicon alias differs from SVG')
+
+def release_version():
+    """Version the deployed API reports (single source: Payroll.Api/ReleaseSafety.cs)."""
+    source=(Path(__file__).resolve().parents[1]/'Payroll.Api'/'ReleaseSafety.cs').read_text(encoding='utf-8')
+    match=re.search(r'Version\s*=\s*"(\d+\.\d+\.\d+)"',source)
+    if not match:raise RuntimeError('Release version not found in ReleaseSafety.cs')
+    return match.group(1)
 
 def digest_file(path):
     digest=hashlib.sha256()
@@ -66,7 +74,7 @@ def verify_http_assets(root,base='https://payroll.marketingalbawaba.com'):
         # a .br download URL is not promised. All sidecars remain fully hashed by FTPS.
         if path.suffix in {'.br','.gz'} and path.with_suffix('').is_file():continue
         route='/'+'/'.join(urllib.parse.quote(p) for p in relative.parts[1:])
-        request=urllib.request.Request(base+route+'?release=0.14.2',headers={'Cache-Control':'no-cache','Accept-Encoding':'identity'})
+        request=urllib.request.Request(base+route+'?release='+release_version(),headers={'Cache-Control':'no-cache','Accept-Encoding':'identity'})
         try:
             with urllib.request.urlopen(request,timeout=30) as response:
                 actual=hashlib.sha256(response.read()).hexdigest()
@@ -83,10 +91,11 @@ def main():
     try:
         if lifecycle.read_marker(ftp) is not None:raise RuntimeError('An IIS maintenance marker remains active.')
         proof=verify_bundle(ftp,root)
+        version=release_version()
         # Only release metadata is read from App_Data. No record bodies or secret contents are downloaded.
-        checkpoint=io.BytesIO();ftp.retrbinary('RETR App_Data/release-backups/0.14.2/checkpoint.json',checkpoint.write)
+        checkpoint=io.BytesIO();ftp.retrbinary('RETR App_Data/release-backups/'+version+'/checkpoint.json',checkpoint.write)
         metadata=json.loads(checkpoint.getvalue());before=metadata.get('before',{})
-        if metadata.get('version')!='0.14.2' or not before.get('recordsSha256'):raise RuntimeError('Release checkpoint metadata is incomplete.')
+        if metadata.get('version')!=version or not before.get('recordsSha256'):raise RuntimeError('Release checkpoint metadata is incomplete.')
         proof['checkpoint']={'version':metadata['version'],'counts':before.get('counts',{}),'recordsSha256':before['recordsSha256']}
     finally:ftp.close()
     target=Path('artifacts/deployment-verification-v070.json')

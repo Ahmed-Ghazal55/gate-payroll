@@ -44,6 +44,9 @@ import {
   APP_SKIP_REASON_LABELS_AR,
   FACTOR_LABELS_AR,
   ROUND_STATUS_LABELS_AR,
+  STAFF_DEPARTMENT_OPTIONS,
+  PLATFORM_NAMES,
+  servesFilterCity,
 } from './evaluation-helpers';
 import {
   EvaluationScorecardsPanel,
@@ -156,6 +159,7 @@ export function EvaluationsTab() {
     departmentsText: string;
     rolesText: string;
     appsText: string;
+    appCities: Record<string, string[]>;
     allApps: boolean;
     allCities: boolean;
     excluded: boolean;
@@ -392,6 +396,19 @@ export function EvaluationsTab() {
       : stats?.dailyTrend || [];
   }, [stats, dimensionFocus, dimensionItems]);
 
+  const knownStaffCities = useMemo(
+    () =>
+      Array.from(
+        new Set(
+          staffList.flatMap((s) => [
+            ...((s.cities || []) as string[]),
+            ...Object.values((s.appCities || {}) as Record<string, string[]>).flat(),
+          ])
+        )
+      ).filter(Boolean),
+    [staffList]
+  );
+
   const supervisorRows = useMemo((): SupervisorTableRow[] => {
     const rawBuckets =
       dimensionFocus === 'supervisor' && dimensionItems
@@ -410,7 +427,16 @@ export function EvaluationsTab() {
     return candidates
       .filter((s) => {
         if (supervisorFilter !== 'ALL' && s.id !== supervisorFilter) return false;
-        if (cityFilter !== 'ALL' && !(s.cities || []).includes(cityFilter)) return false;
+        if (
+          cityFilter !== 'ALL' &&
+          !servesFilterCity(
+            s,
+            cityFilter,
+            sectionFilter !== 'ALL' ? sectionFilter : null,
+            appFilter !== 'ALL' ? appFilter : null
+          )
+        )
+          return false;
         if (appFilter !== 'ALL' && !(s.apps || []).includes(appFilter)) return false;
         if (
           departmentFilter !== 'ALL' &&
@@ -463,6 +489,7 @@ export function EvaluationsTab() {
     cityFilter,
     appFilter,
     departmentFilter,
+    sectionFilter,
   ]);
 
   // Overall KPIs
@@ -672,6 +699,11 @@ export function EvaluationsTab() {
   };
 
   const openStaffEditor = (s: EvaluationStaffItem) => {
+    const rawAppCities = (s as { appCities?: Record<string, string[]> }).appCities || {};
+    const appCities: Record<string, string[]> = {};
+    for (const [app, cities] of Object.entries(rawAppCities)) {
+      if (Array.isArray(cities)) appCities[app] = cities.map(String);
+    }
     setStaffEditDraft({
       id: s.id,
       name: s.name || '',
@@ -679,6 +711,7 @@ export function EvaluationsTab() {
       departmentsText: (s.departments || []).join('، '),
       rolesText: (s.roles || []).join('، '),
       appsText: (s.apps || []).join('، '),
+      appCities,
       allApps: Boolean(s.allApps),
       allCities: Boolean(s.allCities),
       excluded: Boolean(s.excluded),
@@ -704,6 +737,7 @@ export function EvaluationsTab() {
         departments: split(staffEditDraft.departmentsText),
         roles: split(staffEditDraft.rolesText),
         apps: split(staffEditDraft.appsText),
+        appCities: staffEditDraft.appCities,
         allApps: staffEditDraft.allApps,
         allCities: staffEditDraft.allCities,
         excluded: staffEditDraft.excluded,
@@ -1987,8 +2021,44 @@ export function EvaluationsTab() {
                 className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs"
               />
             </label>
-            <label className="block space-y-1 text-xs">
+            <div className="space-y-1 text-xs" data-testid="eval-staff-departments">
               <span className="font-bold">الأقسام</span>
+              <div className="flex flex-wrap gap-1.5">
+                {STAFF_DEPARTMENT_OPTIONS.map((dept) => {
+                  const selected = staffEditDraft.departmentsText
+                    .split(/[،,\n]+/)
+                    .map((p) => p.trim())
+                    .filter(Boolean)
+                    .includes(dept);
+                  return (
+                    <button
+                      key={dept}
+                      type="button"
+                      aria-pressed={selected}
+                      onClick={() =>
+                        setStaffEditDraft((d) => {
+                          if (!d) return d;
+                          const current = d.departmentsText
+                            .split(/[،,\n]+/)
+                            .map((p) => p.trim())
+                            .filter(Boolean);
+                          const next = selected
+                            ? current.filter((x) => x !== dept)
+                            : [...current, dept];
+                          return { ...d, departmentsText: next.join('، ') };
+                        })
+                      }
+                      className={`rounded-full border px-2.5 py-1 text-[11px] font-bold ${
+                        selected
+                          ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]'
+                          : 'border-[var(--line)] bg-[var(--bg)]'
+                      }`}
+                    >
+                      {dept}
+                    </button>
+                  );
+                })}
+              </div>
               <input
                 type="text"
                 value={staffEditDraft.departmentsText}
@@ -1996,8 +2066,9 @@ export function EvaluationsTab() {
                   setStaffEditDraft((d) => (d ? { ...d, departmentsText: e.target.value } : d))
                 }
                 className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs"
+                placeholder="أو اكتب أقسامًا إضافية مفصولة بفاصلة"
               />
-            </label>
+            </div>
             <label className="block space-y-1 text-xs">
               <span className="font-bold">الأدوار</span>
               <input
@@ -2020,6 +2091,59 @@ export function EvaluationsTab() {
                 className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs"
               />
             </label>
+            <div className="space-y-2 text-xs" data-testid="eval-staff-app-cities">
+              <span className="font-bold">مدن هذا التطبيق (اختياري — فارغ = كل مدن الشخص)</span>
+              {Object.keys(PLATFORM_NAMES).map((app) => {
+                const personCities = staffEditDraft.citiesText
+                  .split(/[،,\n]+/)
+                  .map((p) => p.trim())
+                  .filter(Boolean);
+                const selected = staffEditDraft.appCities[app] || [];
+                // A former city (person moved) may be chosen here without adding it to the card's cities,
+                // so the person is not added to department forms in that city.
+                const cityChoices = Array.from(
+                  new Set([...personCities, ...knownStaffCities, ...selected])
+                );
+                return (
+                  <div key={app} className="rounded-lg border border-[var(--line)] p-2 space-y-1">
+                    <div className="font-semibold">{platformDisplayName(app, 'ar')}</div>
+                    <div className="flex flex-wrap gap-1">
+                      {cityChoices.map((city) => {
+                        const on = selected.includes(city);
+                        return (
+                          <button
+                            key={city}
+                            type="button"
+                            aria-pressed={on}
+                            onClick={() =>
+                              setStaffEditDraft((d) => {
+                                if (!d) return d;
+                                const cur = d.appCities[app] || [];
+                                const next = on ? cur.filter((c) => c !== city) : [...cur, city];
+                                const appCities = { ...d.appCities };
+                                if (next.length === 0) delete appCities[app];
+                                else appCities[app] = next;
+                                return { ...d, appCities };
+                              })
+                            }
+                            className={`rounded-full border px-2 py-0.5 text-[10px] font-bold ${
+                              on
+                                ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]'
+                                : 'border-[var(--line)]'
+                            }`}
+                          >
+                            {city}
+                          </button>
+                        );
+                      })}
+                      {cityChoices.length === 0 && (
+                        <span className="text-[var(--muted)]">أضف مدن الشخص أولًا</span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
             <div className="grid grid-cols-2 gap-2 text-xs">
               {(
                 [

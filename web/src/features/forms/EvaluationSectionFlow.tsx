@@ -53,15 +53,26 @@ type Step = 'notice' | 'identity' | 'cards' | 'review' | 'done';
 type CardRef =
   | { kind: 'staff'; id: string; name: string; roles: string[] }
   | { kind: 'app'; id: string }
-  | { kind: 'finance' };
+  | { kind: 'finance' }
+  | { kind: 'systems' };
 
 type SchemaExtra = PublicEvaluationSchema & {
   sectionKey?: string;
   includeFinanceCard?: boolean;
+  includeSystemsCard?: boolean;
   titleEn?: string;
   titleUr?: string;
+  noticeLines?: { ar?: string; en?: string; ur?: string }[];
+  complaintConfidentialityReminderAr?: string;
+  complaintConfidentialityReminderEn?: string;
+  complaintConfidentialityReminderUr?: string;
   financeFactors?: { id: string; labelAr?: string; labelEn?: string; labelUr?: string }[];
   financeReasons?: { id: string; labelAr?: string; labelEn?: string; labelUr?: string }[];
+  systemsTitleAr?: string;
+  systemsTitleEn?: string;
+  systemsTitleUr?: string;
+  systemsFactors?: { id: string; labelAr?: string; labelEn?: string; labelUr?: string }[];
+  systemsReasons?: { id: string; labelAr?: string; labelEn?: string; labelUr?: string }[];
 };
 
 const COPY: Record<EvalLanguage, Record<string, string>> = {
@@ -73,6 +84,7 @@ const COPY: Record<EvalLanguage, Record<string, string>> = {
     cardOf: 'من',
     appTitle: 'تقييم المنصة',
     financeTitle: 'تقييم القسم المالي',
+    systemsTitle: 'تقييم الأنظمة والبيانات',
     next: 'التالي',
     prevBtn: 'السابق',
     submitBtn: 'إرسال التقييم',
@@ -110,6 +122,7 @@ const COPY: Record<EvalLanguage, Record<string, string>> = {
     cardOf: 'of',
     appTitle: 'Platform rating',
     financeTitle: 'Finance department rating',
+    systemsTitle: 'Systems and data',
     next: 'Next',
     prevBtn: 'Back',
     submitBtn: 'Submit evaluation',
@@ -147,6 +160,7 @@ const COPY: Record<EvalLanguage, Record<string, string>> = {
     cardOf: 'از',
     appTitle: 'پلیٹ فارم درجہ بندی',
     financeTitle: 'مالیہ کی درجہ بندی',
+    systemsTitle: 'نظام اور ڈیٹا',
     next: 'اگلا',
     prevBtn: 'پیچھے',
     submitBtn: 'درجہ بندی جمع کریں',
@@ -314,10 +328,24 @@ export function EvaluationSectionFlow({
   const schemaX = schema as SchemaExtra;
   const sectionKey = String(schemaX.sectionKey || '');
   const includeFinance = Boolean(schemaX.includeFinanceCard);
+  const includeSystems = Boolean(schemaX.includeSystemsCard);
+  const complaintReminder =
+    lang === 'en'
+      ? schemaX.complaintConfidentialityReminderEn || schemaX.complaintConfidentialityReminderAr
+      : lang === 'ur'
+        ? schemaX.complaintConfidentialityReminderUr || schemaX.complaintConfidentialityReminderAr
+        : schemaX.complaintConfidentialityReminderAr;
   const chipKind = sectionChipKindFromKey(sectionKey);
   const staffChips = suggestedChipsFor(chipKind === 'app' ? 'staff' : chipKind, lang);
   const appChips = suggestedChipsFor('app', lang);
   const financeChips = suggestedChipsFor('finance', lang);
+  const systemsChips = suggestedChipsFor('systems', lang);
+  const systemsTitle =
+    lang === 'en'
+      ? schemaX.systemsTitleEn || t('systemsTitle')
+      : lang === 'ur'
+        ? schemaX.systemsTitleUr || t('systemsTitle')
+        : schemaX.systemsTitleAr || t('systemsTitle');
   const sectionTitle =
     lang === 'en'
       ? schemaX.titleEn || schema.title
@@ -336,6 +364,7 @@ export function EvaluationSectionFlow({
   const [staffAnswers, setStaffAnswers] = useState<Record<string, StaffDraft>>({});
   const [appAnswers, setAppAnswers] = useState<Record<string, AppDraft>>({});
   const [financeAnswer, setFinanceAnswer] = useState<FinanceDraft>(emptyFinance());
+  const [systemsAnswer, setSystemsAnswer] = useState<FinanceDraft>(emptyFinance());
   const [formError, setFormError] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [receipt, setReceipt] = useState('');
@@ -377,8 +406,9 @@ export function EvaluationSectionFlow({
     }));
     for (const app of schema.apps || []) list.push({ kind: 'app', id: app });
     if (includeFinance) list.push({ kind: 'finance' });
+    if (includeSystems) list.push({ kind: 'systems' });
     return list;
-  }, [cityStaff, schema.apps, includeFinance]);
+  }, [cityStaff, schema.apps, includeFinance, includeSystems]);
 
   const current = cards[cardIndex];
 
@@ -400,13 +430,16 @@ export function EvaluationSectionFlow({
     return Number.isInteger(a.overall) && a.overall >= 1 && a.overall <= 5;
   };
 
-  const isFinanceComplete = () => {
-    if (financeAnswer.complaint && financeAnswer.complaintDetails.trim().length < 5) return false;
-    if (financeAnswer.reason) {
-      return (schemaX.financeReasons || []).some((r) => r.id === financeAnswer.reason);
-    }
-    return Number.isInteger(financeAnswer.overall) && financeAnswer.overall >= 1 && financeAnswer.overall <= 5;
+  const isDeptCardComplete = (
+    draft: FinanceDraft,
+    reasons: { id: string }[] | undefined
+  ) => {
+    if (draft.complaint && draft.complaintDetails.trim().length < 5) return false;
+    if (draft.reason) return (reasons || []).some((r) => r.id === draft.reason);
+    return Number.isInteger(draft.overall) && draft.overall >= 1 && draft.overall <= 5;
   };
+  const isFinanceComplete = () => isDeptCardComplete(financeAnswer, schemaX.financeReasons);
+  const isSystemsComplete = () => isDeptCardComplete(systemsAnswer, schemaX.systemsReasons);
 
   const updateStaff = (id: string, updater: (prev: StaffDraft) => StaffDraft) => {
     setStaffAnswers((prev) => ({ ...prev, [id]: updater(prev[id] || emptyStaff()) }));
@@ -471,11 +504,23 @@ export function EvaluationSectionFlow({
         attachments: financeAnswer.attachments || [],
       };
     }
+    if (includeSystems) {
+      payload.systemsAnswer = {
+        reason: systemsAnswer.reason,
+        ...(systemsAnswer.reason === ''
+          ? { overall: systemsAnswer.overall, factorRatings: systemsAnswer.factorRatings }
+          : {}),
+        notes: systemsAnswer.notes.trim(),
+        complaint: Boolean(systemsAnswer.complaint),
+        complaintDetails: systemsAnswer.complaint ? systemsAnswer.complaintDetails.trim() : '',
+        attachments: systemsAnswer.attachments || [],
+      };
+    }
     return payload;
   };
 
   const submitAll = async (asEdit: boolean) => {
-    if (includeFinance && !isFinanceComplete()) {
+    if ((includeFinance && !isFinanceComplete()) || (includeSystems && !isSystemsComplete())) {
       setFormError(t('unansweredCard'));
       return;
     }
@@ -545,6 +590,7 @@ export function EvaluationSectionFlow({
     if (!current) return true;
     if (current.kind === 'staff') return isStaffComplete(current.id);
     if (current.kind === 'app') return isAppComplete(current.id);
+    if (current.kind === 'systems') return isSystemsComplete();
     return isFinanceComplete();
   };
 
@@ -601,8 +647,31 @@ export function EvaluationSectionFlow({
 
       {step === 'notice' && (
         <div className="space-y-4">
-          <div className="rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-            {lang === 'en' ? schema.noticeEn : lang === 'ur' ? schema.noticeUr : schema.noticeAr}
+          <div
+            className="flex gap-3 rounded-xl border-2 border-amber-400 bg-amber-50 p-4 text-sm font-semibold text-amber-950 shadow-sm"
+            data-testid="eval-confidential-notice"
+            id="eval-confidential-notice"
+          >
+            <span className="text-2xl leading-none" aria-hidden>
+              🛡️
+            </span>
+            <ul className="space-y-2">
+              {(schemaX.noticeLines && schemaX.noticeLines.length > 0
+                ? schemaX.noticeLines.map((line) =>
+                    lang === 'en' ? line.en || line.ar : lang === 'ur' ? line.ur || line.ar : line.ar
+                  )
+                : (lang === 'en'
+                    ? schema.noticeEn
+                    : lang === 'ur'
+                      ? schema.noticeUr
+                      : schema.noticeAr
+                  )
+                    ?.split('\n')
+                    .filter(Boolean) || []
+              ).map((line) => (
+                <li key={line}>{line}</li>
+              ))}
+            </ul>
           </div>
           <button
             type="button"
@@ -835,6 +904,11 @@ export function EvaluationSectionFlow({
                     }
                     placeholder={t('complaintDetails')}
                   />
+                  {complaintReminder && (
+                    <p className="text-xs font-semibold text-amber-800" data-testid="eval-complaint-reminder">
+                      {complaintReminder}
+                    </p>
+                  )}
                   <ChipRow
                     chips={staffChips}
                     hint={t('chipsHint')}
@@ -1140,11 +1214,181 @@ export function EvaluationSectionFlow({
                     }
                     placeholder={t('complaintDetails')}
                   />
+                  {complaintReminder && (
+                    <p className="text-xs font-semibold text-amber-800" data-testid="eval-complaint-reminder">
+                      {complaintReminder}
+                    </p>
+                  )}
                   <ChipRow
                     chips={financeChips}
                     hint={t('chipsHint')}
                     onPick={(chip) =>
                       setFinanceAnswer((prev) => ({
+                        ...prev,
+                        complaintDetails: appendSuggestedChip(prev.complaintDetails, chip),
+                      }))
+                    }
+                  />
+                </>
+              )}
+            </div>
+          )}
+
+          {current.kind === 'systems' && (
+            <div data-testid="eval-systems-card" className="space-y-3">
+              <h2 className="text-lg font-semibold">{systemsTitle}</h2>
+              <label className="block space-y-1 text-xs">
+                <span className="font-semibold text-[var(--muted)]">{t('skipLabel')}</span>
+                <select
+                  className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2"
+                  value={systemsAnswer.reason}
+                  onChange={(e) =>
+                    setSystemsAnswer((prev) => ({
+                      ...prev,
+                      reason: e.target.value,
+                      overall: e.target.value ? 0 : prev.overall,
+                      factorRatings: e.target.value ? {} : prev.factorRatings,
+                    }))
+                  }
+                >
+                  <option value="">★ {t('starsLabel')}</option>
+                  {(schemaX.systemsReasons || []).map((r) => (
+                    <option key={r.id} value={r.id}>
+                      {localizedLabel(r, lang)}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              {!systemsAnswer.reason && (
+                <>
+                  <div className="space-y-1">
+                    <div className="flex justify-between text-xs font-semibold">
+                      <span>{t('starsLabel')}</span>
+                      <span>
+                        {systemsAnswer.overall ? `${systemsAnswer.overall} / 5 ★` : '—'}
+                      </span>
+                    </div>
+                    <div className="grid grid-cols-5 gap-1.5">
+                      {[1, 2, 3, 4, 5].map((star) => (
+                        <button
+                          key={star}
+                          type="button"
+                          data-systems-star={star}
+                          aria-pressed={systemsAnswer.overall === star}
+                          onClick={() =>
+                            setSystemsAnswer((prev) => ({ ...prev, reason: '', overall: star }))
+                          }
+                          className={`rounded-lg border py-2 text-xs font-bold ${
+                            systemsAnswer.overall === star
+                              ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]'
+                              : 'border-[var(--line)] bg-[var(--bg)]'
+                          }`}
+                        >
+                          {star} ★
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  {(schemaX.systemsFactors || []).map((f) => {
+                    const stars = systemsAnswer.factorRatings[f.id] || 0;
+                    return (
+                      <div key={f.id} className="space-y-1">
+                        <div className="flex justify-between text-[11px]">
+                          <span>{localizedLabel(f, lang)}</span>
+                          <span>{stars ? `${stars} / 5 ★` : '—'}</span>
+                        </div>
+                        <div className="grid grid-cols-5 gap-1.5">
+                          {[1, 2, 3, 4, 5].map((star) => (
+                            <button
+                              key={star}
+                              type="button"
+                              data-systems-factor={f.id}
+                              data-stars={star}
+                              onClick={() =>
+                                setSystemsAnswer((prev) => {
+                                  const next = { ...prev.factorRatings };
+                                  if (next[f.id] === star) delete next[f.id];
+                                  else next[f.id] = star;
+                                  return { ...prev, reason: '', factorRatings: next };
+                                })
+                              }
+                              className={`rounded-lg border py-1.5 text-[11px] font-bold ${
+                                stars === star
+                                  ? 'border-[var(--accent)] bg-[var(--accent)] text-[var(--accent-ink)]'
+                                  : 'border-[var(--line)] bg-[var(--bg)]'
+                              }`}
+                            >
+                              {star} ★
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </>
+              )}
+              <textarea
+                className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs"
+                rows={2}
+                value={systemsAnswer.notes}
+                onChange={(e) => setSystemsAnswer((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder={t('notes')}
+              />
+              <ChipRow
+                chips={systemsChips}
+                hint={t('chipsHint')}
+                onPick={(chip) =>
+                  setSystemsAnswer((prev) => ({
+                    ...prev,
+                    notes: appendSuggestedChip(prev.notes, chip),
+                  }))
+                }
+              />
+              <AttachmentFields
+                attachments={systemsAnswer.attachments}
+                onChange={(next) => setSystemsAnswer((prev) => ({ ...prev, attachments: next }))}
+                t={t}
+                setError={setFormError}
+              />
+              <button
+                type="button"
+                aria-pressed={systemsAnswer.complaint}
+                onClick={() =>
+                  setSystemsAnswer((prev) => ({
+                    ...prev,
+                    complaint: !prev.complaint,
+                    complaintDetails: !prev.complaint ? prev.complaintDetails : '',
+                  }))
+                }
+                className={`rounded-lg border px-3 py-1.5 text-xs font-bold ${
+                  systemsAnswer.complaint
+                    ? 'border-[var(--danger)] bg-[var(--danger)]/15 text-[var(--danger)]'
+                    : 'border-[var(--line)]'
+                }`}
+              >
+                {systemsAnswer.complaint ? t('complaintActive') : t('complaintBtn')}
+              </button>
+              {systemsAnswer.complaint && (
+                <>
+                  <textarea
+                    className="w-full rounded-lg border border-[var(--danger)] bg-[var(--bg)] px-3 py-2 text-xs"
+                    rows={2}
+                    value={systemsAnswer.complaintDetails}
+                    onChange={(e) =>
+                      setSystemsAnswer((prev) => ({ ...prev, complaintDetails: e.target.value }))
+                    }
+                    placeholder={t('complaintDetails')}
+                  />
+                  {complaintReminder && (
+                    <p className="text-xs font-semibold text-amber-800" data-testid="eval-complaint-reminder">
+                      {complaintReminder}
+                    </p>
+                  )}
+                  <ChipRow
+                    chips={systemsChips}
+                    hint={t('chipsHint')}
+                    onPick={(chip) =>
+                      setSystemsAnswer((prev) => ({
                         ...prev,
                         complaintDetails: appendSuggestedChip(prev.complaintDetails, chip),
                       }))
@@ -1178,6 +1422,11 @@ export function EvaluationSectionFlow({
       {step === 'review' && (
         <div className="space-y-3" data-testid="eval-section-review">
           <h2 className="text-lg font-semibold">{t('reviewTitle')}</h2>
+          {complaintReminder && (
+            <p className="text-sm font-semibold text-amber-800" data-testid="eval-complaint-reminder">
+              {complaintReminder}
+            </p>
+          )}
           <ul className="space-y-1 text-sm text-[var(--muted)]">
             <li>
               {name} · {city} · {workApps.map((a) => platformDisplayName(a, lang)).join('، ')}

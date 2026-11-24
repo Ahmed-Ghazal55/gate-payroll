@@ -38,10 +38,19 @@ public static partial class EvaluationSurvey
         return rows;
     }
 
+    /// <summary>City rule for the dashboard: an app section (or, with no section, an app filter) honours appCities; a department section never does.</summary>
+    static bool ServesFilterCity(JsonObject staff, ScorecardFilter filter)
+    {
+        string city = filter.City!;
+        if (!string.IsNullOrEmpty(filter.Section))
+            return filter.Section!.StartsWith("app:", StringComparison.Ordinal) ? ServesAppCity(staff, filter.Section!["app:".Length..], city) : ServesCity(staff, city);
+        return string.IsNullOrEmpty(filter.App) ? ServesCity(staff, city) : ServesAppCity(staff, filter.App!, city);
+    }
+
     static bool StaffMatches(JsonObject staff, ScorecardFilter filter)
     {
         if (!string.IsNullOrEmpty(filter.SupervisorId) && staff.S("id") != filter.SupervisorId) return false;
-        if (!string.IsNullOrEmpty(filter.City) && !ServesCity(staff, filter.City!)) return false;
+        if (!string.IsNullOrEmpty(filter.City) && !ServesFilterCity(staff, filter)) return false;
         if (!string.IsNullOrEmpty(filter.App) && !Strings(staff, "apps").Contains(filter.App!)) return false;
         if (!string.IsNullOrEmpty(filter.Department) && !Strings(staff, "departments").Contains(filter.Department!)) return false;
         return true;
@@ -409,7 +418,9 @@ public static partial class EvaluationSurvey
         return ExportWorkbook(columns, rows);
     }
 
-    public static JsonObject FinanceScorecard(DbConnection c, ClaimsPrincipal user, string id,
+    static JsonObject DepartmentCardScorecard(
+        DbConnection c, ClaimsPrincipal user, string id, string answerKey, string[] factors,
+        string titleAr, string factorsLabelAr,
         string? city = null, string? app = null, string? nationalityId = null, string? section = null)
     {
         var filter = F(city, app, null, null, nationalityId, section);
@@ -419,14 +430,13 @@ public static partial class EvaluationSurvey
         var apps = Strings(round, "apps").Where(a => string.IsNullOrEmpty(filter.App) || a == filter.App).ToList();
         var items = apps.Select(platform =>
         {
-            var financeCards = rows
+            var cards = rows
                 .Where(r => r.S("sectionKey") == "app:" + platform || (r.S("sectionKey") == "" && Strings(r, "workApps").Contains(platform)))
-                .Select(r => r["financeAnswer"] as JsonObject)
+                .Select(r => r[answerKey] as JsonObject)
                 .Where(a => a != null).Cast<JsonObject>().ToList();
-            // A finance card belongs only to the app form it was answered in; no fallback to other apps' answers.
-            var rated = financeCards.Where(a => a.S("reason") == "" && a["overall"] != null).ToList();
+            var rated = cards.Where(a => a.S("reason") == "" && a["overall"] != null).ToList();
             int n = rated.Count;
-            var factors = FinanceFactors.Select(factor =>
+            var factorRows = factors.Select(factor =>
             {
                 var vals = rated.Where(a => a["factorRatings"]?[factor] is JsonValue).Select(a => a["factorRatings"]!.N(factor)).ToList();
                 return new JsonObject
@@ -440,9 +450,9 @@ public static partial class EvaluationSurvey
             {
                 ["app"] = platform,
                 ["ratedCount"] = n,
-                ["skippedCount"] = financeCards.Count - n,
+                ["skippedCount"] = cards.Count - n,
                 ["average"] = Round2(rated.Select(a => a.N("overall"))) is { } avg ? JsonValue.Create(avg) : null,
-                ["factors"] = Array(factors),
+                ["factors"] = Array(factorRows),
                 ["lowSample"] = n > 0 && n < LowSampleThreshold
             };
         }).Where(i => i.N("ratedCount") > 0 || i.N("skippedCount") > 0).ToList();
@@ -453,14 +463,24 @@ public static partial class EvaluationSurvey
             ["confidenceNoteAr"] = items.Any(i => i.B("lowSample")) || rows.Count < LowSampleThreshold ? ConfidenceNoteAr : "",
             ["labelsAr"] = new JsonObject
             {
-                ["title"] = "بطاقة المالية حسب المنصة",
+                ["title"] = titleAr,
                 ["average"] = "متوسط التقييم العام",
-                ["factors"] = "متوسط عوامل المالية"
+                ["factors"] = factorsLabelAr
             },
             ["items"] = Array(items),
             ["allowedActions"] = AccessPolicy.Has(user, ExportPermission) ? new JsonArray("export") : new JsonArray()
         };
     }
+
+    public static JsonObject FinanceScorecard(DbConnection c, ClaimsPrincipal user, string id,
+        string? city = null, string? app = null, string? nationalityId = null, string? section = null) =>
+        DepartmentCardScorecard(c, user, id, "financeAnswer", FinanceFactors,
+            "بطاقة المالية حسب المنصة", "متوسط عوامل المالية", city, app, nationalityId, section);
+
+    public static JsonObject SystemsScorecard(DbConnection c, ClaimsPrincipal user, string id,
+        string? city = null, string? app = null, string? nationalityId = null, string? section = null) =>
+        DepartmentCardScorecard(c, user, id, "systemsAnswer", SystemsFactors,
+            "بطاقة الأنظمة والبيانات حسب المنصة", "متوسط عوامل الأنظمة", city, app, nationalityId, section);
 
     public static byte[] ExportScorecard(DbConnection c, ClaimsPrincipal user, string id, string kind,
         string? city = null, string? app = null, string? department = null, string? supervisorId = null, string? nationalityId = null, string? section = null)
@@ -470,24 +490,28 @@ public static partial class EvaluationSurvey
         {
             "supervisors" => ExportSupervisorScorecard(c, user, id, city, app, department, supervisorId, nationalityId, section),
             "apps" => ExportAppScorecard(c, user, id, city, app, department, supervisorId, nationalityId, section),
-            "finance" => ExportFinanceScorecard(c, user, id, city, app, nationalityId, section),
+            "finance" => ExportDepartmentScorecard(c, user, id, "finance", city, app, nationalityId, section),
+            "systems" => ExportDepartmentScorecard(c, user, id, "systems", city, app, nationalityId, section),
             "heatmap" => ExportHeatmap(c, user, id, city, app, department, supervisorId, nationalityId, section),
             "city-app" => ExportCityApp(c, user, id, city, app, department, supervisorId, nationalityId, section),
             _ => throw new ApiError("نوع بطاقة غير معروف.", 404)
         };
     }
 
-    static byte[] ExportFinanceScorecard(DbConnection c, ClaimsPrincipal user, string id,
+    static byte[] ExportDepartmentScorecard(DbConnection c, ClaimsPrincipal user, string id, string kind,
         string? city, string? app, string? nationalityId, string? section)
     {
-        var card = FinanceScorecard(c, user, id, city, app, nationalityId, section);
+        var card = kind == "systems"
+            ? SystemsScorecard(c, user, id, city, app, nationalityId, section)
+            : FinanceScorecard(c, user, id, city, app, nationalityId, section);
+        var factorKeys = kind == "systems" ? SystemsFactors : FinanceFactors;
         var columns = new List<ExcelColumn> { new("المنصة"), new("عدد التقييمات", true), new("المتوسط", true), new("تخطّي", true) };
-        columns.AddRange(FinanceFactors.Select(f => new ExcelColumn(f, true)));
+        columns.AddRange(factorKeys.Select(f => new ExcelColumn(f, true)));
         var rows = card["items"]!.AsArray().OfType<JsonObject>().Select(item =>
         {
             var factors = item["factors"]!.AsArray().OfType<JsonObject>().ToDictionary(x => x.S("key"), x => x);
             var values = new List<object?> { item.S("app"), item.N("ratedCount"), item["average"] == null ? null : item.N("average"), item.N("skippedCount") };
-            values.AddRange(FinanceFactors.Select(f => (object?)(factors.TryGetValue(f, out var row) && row["average"] != null ? row.N("average") : null)));
+            values.AddRange(factorKeys.Select(f => (object?)(factors.TryGetValue(f, out var row) && row["average"] != null ? row.N("average") : null)));
             return values.ToArray();
         }).ToList();
         return ExportWorkbook(columns, rows);

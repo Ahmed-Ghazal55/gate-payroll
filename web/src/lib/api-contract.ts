@@ -1204,8 +1204,17 @@ export interface paths {
                             noticeAr?: string;
                             noticeEn?: string;
                             noticeUr?: string;
+                            noticeLines?: {
+                                ar?: string;
+                                en?: string;
+                                ur?: string;
+                            }[];
+                            complaintConfidentialityReminderAr?: string;
+                            complaintConfidentialityReminderEn?: string;
+                            complaintConfidentialityReminderUr?: string;
                             cities: string[];
                             apps: string[];
+                            departmentOptions?: string[];
                             staff: {
                                 id: string;
                                 name: string;
@@ -1218,6 +1227,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             identityFields?: {
                                 id: string;
@@ -1256,6 +1268,7 @@ export interface paths {
                             sectionKey?: string;
                             sectionKind?: string;
                             includeFinanceCard?: boolean;
+                            includeSystemsCard?: boolean;
                             financeFactors?: {
                                 id: string;
                                 labelAr: string;
@@ -1263,6 +1276,21 @@ export interface paths {
                                 labelUr: string;
                             }[];
                             financeReasons?: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            systemsTitleAr?: string;
+                            systemsTitleEn?: string;
+                            systemsTitleUr?: string;
+                            systemsFactors?: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            systemsReasons?: {
                                 id: string;
                                 labelAr: string;
                                 labelEn: string;
@@ -1308,9 +1336,9 @@ export interface paths {
                         "application/json": {
                             receipt: string;
                             allowedActions: string[];
-                            editPolicyPending: boolean;
                             editCount?: number;
                             editsRemaining?: number;
+                            editPolicyPending: boolean;
                             uploadsPolicyPending?: boolean;
                         };
                     };
@@ -1342,9 +1370,9 @@ export interface paths {
                         "application/json": {
                             receipt: string;
                             allowedActions: string[];
-                            editPolicyPending: boolean;
                             editCount?: number;
                             editsRemaining?: number;
+                            editPolicyPending: boolean;
                             uploadsPolicyPending?: boolean;
                         };
                     };
@@ -1520,8 +1548,17 @@ export interface paths {
                             noticeAr?: string;
                             noticeEn?: string;
                             noticeUr?: string;
+                            noticeLines?: {
+                                ar?: string;
+                                en?: string;
+                                ur?: string;
+                            }[];
+                            complaintConfidentialityReminderAr?: string;
+                            complaintConfidentialityReminderEn?: string;
+                            complaintConfidentialityReminderUr?: string;
                             cities: string[];
                             apps: string[];
+                            departmentOptions?: string[];
                             staff: {
                                 id: string;
                                 name: string;
@@ -1534,6 +1571,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             identityFields?: {
                                 id: string;
@@ -1572,6 +1612,7 @@ export interface paths {
                             sectionKey?: string;
                             sectionKind?: string;
                             includeFinanceCard?: boolean;
+                            includeSystemsCard?: boolean;
                             financeFactors?: {
                                 id: string;
                                 labelAr: string;
@@ -1579,6 +1620,21 @@ export interface paths {
                                 labelUr: string;
                             }[];
                             financeReasons?: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            systemsTitleAr?: string;
+                            systemsTitleEn?: string;
+                            systemsTitleUr?: string;
+                            systemsFactors?: {
+                                id: string;
+                                labelAr: string;
+                                labelEn: string;
+                                labelUr: string;
+                            }[];
+                            systemsReasons?: {
                                 id: string;
                                 labelAr: string;
                                 labelEn: string;
@@ -1624,9 +1680,9 @@ export interface paths {
                         "application/json": {
                             receipt: string;
                             allowedActions: string[];
-                            editPolicyPending: boolean;
                             editCount?: number;
                             editsRemaining?: number;
+                            editPolicyPending: boolean;
                             uploadsPolicyPending?: boolean;
                         };
                     };
@@ -1658,9 +1714,9 @@ export interface paths {
                         "application/json": {
                             receipt: string;
                             allowedActions: string[];
-                            editPolicyPending: boolean;
                             editCount?: number;
                             editsRemaining?: number;
+                            editPolicyPending: boolean;
                             uploadsPolicyPending?: boolean;
                         };
                     };
@@ -17695,6 +17751,9 @@ export interface paths {
                             pendingRoleApproval?: boolean;
                             allCities?: boolean;
                             allApps?: boolean;
+                            appCities?: {
+                                [key: string]: string[];
+                            };
                         }[];
                     };
                 };
@@ -17793,6 +17852,9 @@ export interface paths {
                             pendingRoleApproval?: boolean;
                             allCities?: boolean;
                             allApps?: boolean;
+                            appCities?: {
+                                [key: string]: string[];
+                            };
                         };
                     };
                 };
@@ -17847,6 +17909,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             cities: string[];
                             apps: string[];
@@ -17871,6 +17936,9 @@ export interface paths {
                                     pendingRoleApproval?: boolean;
                                     allCities?: boolean;
                                     allApps?: boolean;
+                                    appCities?: {
+                                        [key: string]: string[];
+                                    };
                                 }[];
                             }[];
                             createdAt?: string;
@@ -17922,6 +17990,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             cities: string[];
                             apps: string[];
@@ -17946,6 +18017,9 @@ export interface paths {
                                     pendingRoleApproval?: boolean;
                                     allCities?: boolean;
                                     allApps?: boolean;
+                                    appCities?: {
+                                        [key: string]: string[];
+                                    };
                                 }[];
                             }[];
                             createdAt?: string;
@@ -18007,6 +18081,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             cities: string[];
                             apps: string[];
@@ -18031,6 +18108,9 @@ export interface paths {
                                     pendingRoleApproval?: boolean;
                                     allCities?: boolean;
                                     allApps?: boolean;
+                                    appCities?: {
+                                        [key: string]: string[];
+                                    };
                                 }[];
                             }[];
                             createdAt?: string;
@@ -18121,6 +18201,9 @@ export interface paths {
                             pendingRoleApproval?: boolean;
                             allCities?: boolean;
                             allApps?: boolean;
+                            appCities?: {
+                                [key: string]: string[];
+                            };
                         };
                     };
                 };
@@ -18158,6 +18241,9 @@ export interface paths {
                             pendingRoleApproval?: boolean;
                             allCities?: boolean;
                             allApps?: boolean;
+                            appCities?: {
+                                [key: string]: string[];
+                            };
                         };
                     };
                 };
@@ -18215,6 +18301,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             cities: string[];
                             apps: string[];
@@ -18239,6 +18328,9 @@ export interface paths {
                                     pendingRoleApproval?: boolean;
                                     allCities?: boolean;
                                     allApps?: boolean;
+                                    appCities?: {
+                                        [key: string]: string[];
+                                    };
                                 }[];
                             }[];
                             createdAt?: string;
@@ -18362,6 +18454,20 @@ export interface paths {
                                         accuracy?: number;
                                         correctionSpeed?: number;
                                         clarity?: number;
+                                    };
+                                    notes?: string;
+                                    complaint?: boolean;
+                                    complaintDetails?: string;
+                                    attachments?: Record<string, never>[];
+                                };
+                                systemsAnswer?: {
+                                    reason?: string;
+                                    overall?: number;
+                                    factorRatings?: {
+                                        formsEase?: number;
+                                        dataClarity?: number;
+                                        helpfulness?: number;
+                                        responsiveness?: number;
                                     };
                                     notes?: string;
                                     complaint?: boolean;
@@ -18935,6 +19041,69 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forms/evaluations/rounds/{id}/scorecards/systems": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Systems-card evaluation scorecard per app */
+        get: {
+            parameters: {
+                query?: {
+                    city?: string;
+                    app?: string;
+                    nationalityId?: string;
+                    section?: string;
+                };
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            roundId: string;
+                            totalResponses: number;
+                            confidenceNoteAr: string;
+                            labelsAr?: {
+                                [key: string]: string;
+                            };
+                            items: {
+                                app: string;
+                                ratedCount: number;
+                                skippedCount?: number;
+                                average?: null | number;
+                                factors: {
+                                    key: string;
+                                    count: number;
+                                    average?: null | number;
+                                }[];
+                                lowSample?: boolean;
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forms/evaluations/rounds/{id}/scorecards/heatmap": {
         parameters: {
             query?: never;
@@ -19165,6 +19334,9 @@ export interface paths {
                                 pendingRoleApproval?: boolean;
                                 allCities?: boolean;
                                 allApps?: boolean;
+                                appCities?: {
+                                    [key: string]: string[];
+                                };
                             }[];
                             cities: string[];
                             apps: string[];
@@ -19189,6 +19361,9 @@ export interface paths {
                                     pendingRoleApproval?: boolean;
                                     allCities?: boolean;
                                     allApps?: boolean;
+                                    appCities?: {
+                                        [key: string]: string[];
+                                    };
                                 }[];
                             }[];
                             createdAt?: string;

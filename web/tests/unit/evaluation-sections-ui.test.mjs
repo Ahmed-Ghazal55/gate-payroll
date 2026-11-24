@@ -6,6 +6,7 @@ import { fileURLToPath } from 'node:url';
 import {
   suggestedChipsFor,
   EVAL_IDENTITY_STORAGE_KEY,
+  servesFilterCity,
 } from '../../src/features/forms/evaluation-helpers.ts';
 
 const webRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../..');
@@ -50,6 +51,43 @@ describe('EV5 S3 section public form', () => {
     assert.match(flow, /eval-section-review/);
   });
 
+  it('EV6 R1 shows highlighted notice lines and complaint confidentiality reminder', () => {
+    const flow = readWeb('src/features/forms/EvaluationSectionFlow.tsx');
+    const api = readRepo('Payroll.Api/EvaluationSurvey.Api.cs');
+    assert.match(flow, /eval-confidential-notice/);
+    assert.match(flow, /noticeLines/);
+    assert.match(flow, /eval-complaint-reminder/);
+    assert.match(flow, /complaintConfidentialityReminder/);
+    assert.match(api, /تقييمك وشكواك سرية تمامًا/);
+    assert.match(api, /شكواك سرية ولن تُستخدم ضدك/);
+  });
+
+  it('EV6 R2 systems card follows finance in app forms with chips', () => {
+    const flow = readWeb('src/features/forms/EvaluationSectionFlow.tsx');
+    const helpers = readWeb('src/features/forms/evaluation-helpers.ts');
+    assert.match(flow, /includeSystems/);
+    assert.match(flow, /systemsAnswer/);
+    assert.match(flow, /eval-systems-card/);
+    assert.match(flow, /kind: 'systems'/);
+    assert.match(helpers, /systems:/);
+    assert.match(helpers, /النماذج سهلة وواضحة/);
+  });
+
+  it('EV6 R3/R4 staff editor has الإدارة department and appCities', () => {
+    const tab = readWeb('src/features/forms/EvaluationsTab.tsx');
+    const helpers = readWeb('src/features/forms/evaluation-helpers.ts');
+    const sections = readRepo('Payroll.Api/EvaluationSurvey.Sections.cs');
+    assert.match(helpers, /الإدارة/);
+    assert.match(helpers, /STAFF_DEPARTMENT_OPTIONS/);
+    assert.match(tab, /eval-staff-departments/);
+    assert.match(tab, /eval-staff-app-cities/);
+    assert.match(tab, /appCities/);
+    assert.match(tab, /مدن هذا التطبيق/);
+    assert.match(sections, /الإدارة والموارد البشرية/);
+    assert.match(sections, /DeptManagement/);
+    assert.match(sections, /ServesAppCity/);
+  });
+
   it('server-hosted rider form redirects section tokens to the web client', () => {
     const rider = readRepo('RiderForm/src/rider-form.ts');
     assert.match(rider, /sectionKey/);
@@ -58,5 +96,25 @@ describe('EV5 S3 section public form', () => {
     assert.match(rider, /q\.set\(['"]evaluation['"]/);
     assert.doesNotMatch(rider, /eval-finance-card/);
     assert.doesNotMatch(rider, /eval-section-flow/);
+  });
+});
+
+describe('EV6 city rule (same as server ServesSectionCity / ServesFilterCity)', () => {
+  const mover = { cities: ['City A'], appCities: { Ninja: ['City B'] } };
+  const remote = { cities: ['Office'], allCities: true };
+  it('app section honours the per-app list', () => {
+    assert.equal(servesFilterCity(mover, 'City B', 'app:Ninja'), true);
+    assert.equal(servesFilterCity(mover, 'City A', 'app:Ninja'), false);
+    assert.equal(servesFilterCity(mover, 'City A', 'app:Keeta'), true);
+  });
+  it('department section ignores the per-app list', () => {
+    assert.equal(servesFilterCity(mover, 'City A', 'dept:movement', 'Ninja'), true);
+    assert.equal(servesFilterCity(mover, 'City B', 'dept:movement'), false);
+  });
+  it('no section: an app filter uses the per-app list; otherwise card cities or all cities', () => {
+    assert.equal(servesFilterCity(mover, 'City B', null, 'Ninja'), true);
+    assert.equal(servesFilterCity(mover, 'City A', null, 'Ninja'), false);
+    assert.equal(servesFilterCity(mover, 'City A'), true);
+    assert.equal(servesFilterCity(remote, 'Any city'), true);
   });
 });
