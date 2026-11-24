@@ -612,6 +612,17 @@ try {
     fullPage: true,
   });
 
+  // An empty list in the import file keeps the stored one and says so on screen.
+  await adminPage.evaluate(() => window.scrollTo(0, 0));
+  await adminPage.locator('button', { hasText: 'استيراد بطاقات الموظفين' }).first().click();
+  await adminPage.fill(
+    '[data-testid="eval-import-json-textarea"]',
+    JSON.stringify({ staff: [{ name: 'Synthetic Excluded Executive', cities: ['Synthetic City One'], roles: ['Executive'], apps: [], excluded: true }] })
+  );
+  await adminPage.click('[data-testid="eval-confirm-import-staff-btn"]');
+  const keptText = await adminPage.locator('[data-testid="eval-import-kept"]').textContent();
+  assert.match(keptText, /Synthetic Excluded Executive: المنصات/);
+
   // Delete one staff card from the directory: locked until the exact name is typed.
   const directory = adminPage.locator('[data-testid="eval-staff-directory-section"]');
   const leaverRow = directory.locator('tr', { hasText: 'Synthetic Excluded Executive' });

@@ -27,6 +27,7 @@ import {
   type EvaluationReplyItem,
   type EvaluationRoundItem,
   type EvaluationStaffItem,
+  type EvaluationStaffImportResponse,
   type EvaluationStatisticsResponse,
 } from '../../lib/api';
 import { useAuth } from '../../lib/auth-context';
@@ -47,6 +48,7 @@ import {
   STAFF_DEPARTMENT_OPTIONS,
   PLATFORM_NAMES,
   servesFilterCity,
+  IMPORT_FIELD_LABELS_AR,
 } from './evaluation-helpers';
 import {
   EvaluationScorecardsPanel,
@@ -169,6 +171,7 @@ export function EvaluationsTab() {
     allowedActions: string[];
   } | null>(null);
   const [savingStaff, setSavingStaff] = useState(false);
+  const [importKept, setImportKept] = useState<EvaluationStaffImportResponse['kept']>([]);
   const [staffDeleteOpen, setStaffDeleteOpen] = useState(false);
   const [staffDeleteName, setStaffDeleteName] = useState('');
   const [deletingStaff, setDeletingStaff] = useState(false);
@@ -606,6 +609,7 @@ export function EvaluationsTab() {
         `تم استيراد ${res.imported} بطاقة موظف بنجاح (منها ${res.excluded} مستبعدة من العرض للمناديب)`,
         'success'
       );
+      setImportKept(res.kept);
       setImportOpen(false);
       setImportJsonText('');
       await loadRoundsAndStaff();
@@ -1964,6 +1968,26 @@ export function EvaluationsTab() {
               <h3 className="text-base font-bold text-[var(--ink)]">
                 دليل بطاقات الموظفين المستوردة ({staffList.length})
               </h3>
+              {importKept.length > 0 && (
+                <div
+                  className="space-y-1 rounded-lg border border-[var(--line)] bg-[var(--raised)] p-3 text-xs"
+                  data-testid="eval-import-kept"
+                >
+                  <div className="flex items-center justify-between gap-2 font-bold">
+                    <span>قوائم فاضية في الملف، فبقي المحفوظ كما هو (المسح من تعديل البطاقة فقط):</span>
+                    <button type="button" onClick={() => setImportKept([])} className="text-[var(--muted)]">
+                      إخفاء
+                    </button>
+                  </div>
+                  <ul className="list-disc ps-5">
+                    {importKept.map((k) => (
+                      <li key={k.id}>
+                        {k.name}: {k.fields.map((field) => IMPORT_FIELD_LABELS_AR[field] || field).join('، ')}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
               <DataTable
                 tableId="eval-staff-directory-table"
                 columns={staffDirectoryColumns}
@@ -2312,7 +2336,7 @@ export function EvaluationsTab() {
         open={importOpen}
         onClose={() => (importing ? null : setImportOpen(false))}
         title="استيراد متقدم لبطاقات الموظفين (JSON)"
-        description="اختر ملف بيانات الموظفين المحلي أو الصق محتوى JSON. ما يكتبه الملف لكل موظف (المدن والأقسام والأدوار والمنصات) يستبدل المحفوظ ولا يُدمج معه، ومن لا يذكره الملف يبقى كما هو. للتعديل السريع استخدم زر تعديل البطاقة في الجدول دون JSON."
+        description="اختر ملف بيانات الموظفين المحلي أو الصق محتوى JSON. ما يكتبه الملف لكل موظف (المدن والأقسام والأدوار والمنصات) يستبدل المحفوظ ولا يُدمج معه. القائمة الفاضية أو غير المذكورة لا تغيّر المحفوظ، ومسح قائمة كاملة من تعديل البطاقة فقط. للتعديل السريع استخدم زر تعديل البطاقة في الجدول دون JSON."
         actions={
           <>
             <button

@@ -103,7 +103,7 @@ public static partial class ApiContracts
         bool get = method == "GET";
         if (path.StartsWith("/api/forms/evaluations/", StringComparison.Ordinal))
         {
-            if (path.EndsWith("/staff/import", StringComparison.Ordinal)) return O(new() { ["imported"] = N(), ["excluded"] = N() }, "imported", "excluded");
+            if (path.EndsWith("/staff/import", StringComparison.Ordinal)) return O(new() { ["imported"] = N(), ["excluded"] = N(), ["kept"] = A(O(new() { ["id"] = S(), ["name"] = S(), ["fields"] = A(S()) }, "id", "name", "fields")) }, "imported", "excluded", "kept");
             if (method == "DELETE" && System.Text.RegularExpressions.Regex.IsMatch(path, @"/evaluations/staff/\{[^}]+\}$"))
                 return O(new() { ["id"] = S(), ["deleted"] = B() }, "id", "deleted");
             if (System.Text.RegularExpressions.Regex.IsMatch(path, @"/staff/\{[^}]+\}$")) return EvaluationStaff();

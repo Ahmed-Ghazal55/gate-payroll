@@ -29145,7 +29145,8 @@
                 "schema": {
                   "required": [
                     "imported",
-                    "excluded"
+                    "excluded",
+                    "kept"
                   ],
                   "type": "object",
                   "properties": {
@@ -29154,6 +29155,31 @@
                     },
                     "excluded": {
                       "type": "number"
+                    },
+                    "kept": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "name",
+                          "fields"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "name": {
+                            "type": "string"
+                          },
+                          "fields": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
                     }
                   }
                 }

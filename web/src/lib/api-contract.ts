@@ -17799,6 +17799,11 @@ export interface paths {
                         "application/json": {
                             imported: number;
                             excluded: number;
+                            kept: {
+                                id: string;
+                                name: string;
+                                fields: string[];
+                            }[];
                         };
                     };
                 };

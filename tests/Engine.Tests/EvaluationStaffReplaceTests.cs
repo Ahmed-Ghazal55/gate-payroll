@@ -14,7 +14,7 @@ public sealed class EvaluationStaffReplaceTests
         ["roles"] = List("Old role"), ["apps"] = List("Ninja", "Keeta"),
         ["appCities"] = new JsonObject { ["Keeta"] = List("City B") }, ["allApps"] = true
     };
-    static void Import(PayFixture f, params JsonObject[] cards) => f.Store.Write((c, tx) =>
+    static JsonObject Import(PayFixture f, params JsonObject[] cards) => f.Store.Write((c, tx) =>
         EvaluationSurvey.ImportStaff(c, tx, Admin, new() { ["staff"] = new JsonArray(cards.Select(x => (JsonNode?)x).ToArray()) }));
     static JsonObject Stored(PayFixture f, string name) =>
         f.Store.Read(c => Store.List(c, EvaluationSurvey.StaffKind)).Single(s => s.S("name") == name);
@@ -27,17 +27,63 @@ public sealed class EvaluationStaffReplaceTests
         Import(f, Card("Synthetic one"), Card("Synthetic untouched"));
         Import(f, new JsonObject
         {
-            ["name"] = "Synthetic one", ["cities"] = List("City A"), ["departments"] = new JsonArray(),
-            ["roles"] = List("New role"), ["apps"] = List("Ninja"), ["appCities"] = new JsonObject()
+            ["name"] = "Synthetic one", ["cities"] = List("City A"), ["departments"] = List(EvaluationSurvey.DeptFinance),
+            ["roles"] = List("New role"), ["apps"] = List("Ninja"), ["appCities"] = new JsonObject { ["Ninja"] = List("City A") }
         });
         var card = Stored(f, "Synthetic one");
         CollectionAssert.AreEqual(new[] { "City A" }, Values(card, "cities"));
-        Assert.IsEmpty(Values(card, "departments"));
+        CollectionAssert.AreEqual(new[] { EvaluationSurvey.DeptFinance }, Values(card, "departments"));
         CollectionAssert.AreEqual(new[] { "New role" }, Values(card, "roles"));
         CollectionAssert.AreEqual(new[] { "Ninja" }, Values(card, "apps"));
-        Assert.IsEmpty(card["appCities"]!.AsObject());
+        CollectionAssert.AreEqual(new[] { "Ninja" }, card["appCities"]!.AsObject().Select(p => p.Key).ToArray());
         Assert.IsTrue(card.B("allApps"), "a flag the file does not mention keeps its stored value");
         CollectionAssert.AreEqual(new[] { "City A", "City B" }, Values(Stored(f, "Synthetic untouched"), "cities"));
+    }
+
+    [TestMethod]
+    public void EmptyListsKeepStoredValuesAndAreReported()
+    {
+        using var f = new PayFixture();
+        Import(f, Card("Synthetic one"), new JsonObject { ["name"] = "Synthetic bare", ["cities"] = List("City A") });
+        var result = Import(f,
+            new JsonObject
+            {
+                ["name"] = "Synthetic one", ["cities"] = new JsonArray(), ["departments"] = new JsonArray(), ["roles"] = List("New role"),
+                ["apps"] = new JsonArray(), ["appCities"] = new JsonObject()
+            },
+            new JsonObject { ["name"] = "Synthetic bare", ["cities"] = List("City A"), ["apps"] = new JsonArray() });
+        var card = Stored(f, "Synthetic one");
+        CollectionAssert.AreEqual(new[] { "City A", "City B" }, Values(card, "cities"));
+        CollectionAssert.AreEqual(new[] { EvaluationSurvey.DeptMovement }, Values(card, "departments"));
+        CollectionAssert.AreEqual(new[] { "New role" }, Values(card, "roles"));
+        CollectionAssert.AreEqual(new[] { "Ninja", "Keeta" }, Values(card, "apps"));
+        CollectionAssert.AreEqual(new[] { "City B" }, Values(card["appCities"]!.AsObject(), "Keeta"));
+        // Reported only where something stored was really kept.
+        var kept = result["kept"]!.AsArray().OfType<JsonObject>().Single();
+        Assert.AreEqual("Synthetic one", kept.S("name"));
+        CollectionAssert.AreEquivalent(new[] { "cities", "departments", "apps", "appCities" }, Values(kept, "fields"));
+        // A per-app entry with no cities is also empty: it must not drop the stored limit.
+        Import(f, new JsonObject { ["name"] = "Synthetic one", ["appCities"] = new JsonObject { ["Keeta"] = new JsonArray() } });
+        CollectionAssert.AreEqual(new[] { "City B" }, Values(Stored(f, "Synthetic one")["appCities"]!.AsObject(), "Keeta"));
+    }
+
+    [TestMethod]
+    public void NullKeepsAndBlankTextIsRejectedWithoutSaving()
+    {
+        using var f = new PayFixture();
+        Import(f, Card("Synthetic one"));
+        var kept = Import(f, new JsonObject { ["name"] = "Synthetic one", ["cities"] = null, ["departments"] = null, ["roles"] = null, ["apps"] = null, ["appCities"] = null });
+        Assert.IsEmpty(kept["kept"]!.AsArray(), "null means not mentioned, not empty");
+        CollectionAssert.AreEqual(new[] { "Ninja", "Keeta" }, Values(Stored(f, "Synthetic one"), "apps"));
+        foreach (string field in new[] { "cities", "departments", "roles", "apps", "appCities" })
+            Assert.Throws<ApiError>(() => Import(f, new JsonObject { ["name"] = "Synthetic one", [field] = "" }), field);
+        foreach (string field in new[] { "cities", "departments", "roles", "apps" })
+            Assert.Throws<ApiError>(() => Import(f, new JsonObject { ["name"] = "Synthetic one", [field] = List("") }), field);
+        Assert.Throws<ApiError>(() => Import(f, new JsonObject { ["name"] = "Synthetic one", ["appCities"] = new JsonObject { ["Keeta"] = List("") } }));
+        var card = Stored(f, "Synthetic one");
+        CollectionAssert.AreEqual(new[] { "City A", "City B" }, Values(card, "cities"));
+        CollectionAssert.AreEqual(new[] { "Old role" }, Values(card, "roles"));
+        CollectionAssert.AreEqual(new[] { "City B" }, Values(card["appCities"]!.AsObject(), "Keeta"));
     }
 
     [TestMethod]

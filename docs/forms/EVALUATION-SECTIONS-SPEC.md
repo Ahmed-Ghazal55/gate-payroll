@@ -76,5 +76,5 @@ Each notes / complaint box shows tap-to-add chips that DESCRIBE the answer (ride
 - Create the new sectioned round, open it, share each link with its target riders.
 
 ## Staff import and delete (Ghazal, 2026-11-24)
-- Import REPLACES what the file writes for a person (cities, departments, roles, apps, appCities); it does not merge with the stored card. A list the file does not mention, and the allCities / allApps flags when absent, stay as stored. People not in the file are untouched. Several rows of one person in the same file still combine.
+- Import: a NON-EMPTY list in the file REPLACES the stored one (cities, departments, roles, apps, appCities); it is not merged. A missing, null or EMPTY list keeps the stored one, and the result lists those cards as kept. Clearing a whole list is done in the staff editor only. Blank text is rejected. allCities / allApps stay as stored when absent. People not in the file are untouched. Several rows of one person in the same file still combine.
 - Delete card: management + forms.manage, confirm by typing the name. Existing rounds keep their copy until «تحديث الموظفين». If the name stays in the import file, the next import creates the card again.

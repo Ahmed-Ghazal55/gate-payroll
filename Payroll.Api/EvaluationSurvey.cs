@@ -126,9 +126,10 @@ public static partial class EvaluationSurvey
         var items = input["staff"] as JsonArray ?? throw new ApiError("قائمة الموظفين مطلوبة.");
         J.Need(items.Count is > 0 and <= 500, "حجم قائمة الموظفين غير صالح.");
         var imported = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
-        // A list written in the file REPLACES the stored one; a list the file does not mention stays as stored.
-        // Several rows of the same person inside one file still combine.
+        // A NON-EMPTY list in the file REPLACES the stored one. A missing, null or empty list keeps it (clearing a list is
+        // done in the staff editor only). Several rows of the same person inside one file still combine.
         var provided = new HashSet<(string Id, string Field)>();
+        var emptyInFile = new HashSet<(string Id, string Field)>();
         foreach (var item in items)
         {
             var raw = item as JsonObject ?? throw new ApiError("موظف غير صالح.");
@@ -142,16 +143,23 @@ public static partial class EvaluationSurvey
                 ["allApps"] = raw.NullableBool("allApps") ?? prior?.NullableBool("allApps") ?? false };
             foreach (string field in new[] { "cities", "departments", "roles", "apps" })
             {
-                var kept = prior == null ? [] : Strings(prior, field);
-                doc[field] = Array(raw[field] == null ? kept
-                    : provided.Add((id, field)) ? Strings(raw, field)
-                    : Strings(raw, field).Concat(kept).Distinct(StringComparer.Ordinal));
+                string[] current = prior == null ? [] : Strings(prior, field), incoming = Strings(raw, field);
+                if (raw[field] != null && incoming.Length == 0) emptyInFile.Add((id, field));
+                doc[field] = Array(incoming.Length == 0 ? current
+                    : provided.Add((id, field)) ? incoming
+                    : incoming.Concat(current).Distinct(StringComparer.Ordinal));
             }
             var appCities = prior?["appCities"]?.DeepClone() as JsonObject ?? new JsonObject();
-            if (raw["appCities"] is JsonObject incoming)
+            if (raw["appCities"] is JsonNode rawAppCities)
             {
-                if (provided.Add((id, "appCities"))) appCities = new JsonObject();
-                foreach (var prop in incoming) appCities[prop.Key] = prop.Value?.DeepClone();
+                var map = rawAppCities as JsonObject ?? throw new ApiError("قائمة غير صالحة: appCities");
+                var limits = map.Select(p => (App: p.Key, Cities: Strings(map, p.Key))).Where(p => p.Cities.Length > 0).ToList();
+                if (limits.Count == 0) emptyInFile.Add((id, "appCities"));
+                else
+                {
+                    if (provided.Add((id, "appCities"))) appCities = new JsonObject();
+                    foreach (var limit in limits) appCities[limit.App] = Array(limit.Cities);
+                }
             }
             doc["appCities"] = NormalizeAppCities(appCities, Strings(doc, "apps"), Strings(doc, "cities"), doc.B("allCities"));
             J.Need(Strings(doc, "apps").All(a => PayPlatforms.Table.Any(p => p.Platform == a)), "استخدم معرفات المنصات المعتمدة في ملف الاستيراد.");
@@ -161,7 +169,12 @@ public static partial class EvaluationSurvey
         }
         foreach (var doc in imported.Values) Store.Save(c, StaffKind, doc, tx);
         Store.Audit(c, tx, "evaluation.staff_imported", imported.Count.ToString(), user.Identity!.Name!);
-        return new() { ["imported"] = imported.Count, ["excluded"] = imported.Values.Count(s => s.B("excluded")) };
+        static bool HasValue(JsonObject card, string field) => field == "appCities" ? card[field] is JsonObject { Count: > 0 } : Strings(card, field).Length > 0;
+        var kept = imported.Values.Select(card => (Card: card, Fields: emptyInFile
+                .Where(e => e.Id == card.S("id") && !provided.Contains(e) && HasValue(card, e.Field)).Select(e => e.Field).ToArray()))
+            .Where(x => x.Fields.Length > 0)
+            .Select(x => new JsonObject { ["id"] = x.Card.S("id"), ["name"] = x.Card.S("name"), ["fields"] = Array(x.Fields) });
+        return new() { ["imported"] = imported.Count, ["excluded"] = imported.Values.Count(s => s.B("excluded")), ["kept"] = Array(kept) };
     }
     public static JsonObject Round(DbConnection c, string id, DbTransaction? tx = null) =>
         Store.Get(c, id, RoundKind, tx) ?? throw new ApiError("جولة التقييم غير موجودة.", 404);

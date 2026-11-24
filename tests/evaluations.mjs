@@ -36,7 +36,7 @@ try{
   await request('/api/auth/setup',{username:'synthetic-admin',password});const admin=cookie;
   await request(prefix+'/staff',undefined,401,false);
   const staff={name:'Synthetic person',cities:['Synthetic city'],departments:['الحركة والمركبات'],roles:['Synthetic role'],apps:['Ninja']};
-  assert.deepEqual(await request(prefix+'/staff/import',{staff:[staff,staff,{...staff,name:'Excluded synthetic person',excluded:true}]}),{imported:2,excluded:1});
+  assert.deepEqual(await request(prefix+'/staff/import',{staff:[staff,staff,{...staff,name:'Excluded synthetic person',excluded:true}]}),{imported:2,excluded:1,kept:[]});
   const staffList=await request(prefix+'/staff');
   const staffId=staffList.find(s=>s.name==='Synthetic person').id;
   const updatedStaff=await fetch(base+prefix+'/staff/'+encodeURIComponent(staffId),{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({name:'Synthetic person',cities:['Synthetic city'],departments:['الحركة والمركبات'],roles:['Synthetic role'],apps:['Ninja'],allApps:true,allCities:false,excluded:false,active:true})});
@@ -45,6 +45,9 @@ try{
   await request(prefix+'/staff/import',{staff:[{...staff,name:'Synthetic leaver',cities:['Synthetic city','Synthetic other city'],apps:['Ninja','Keeta']}]});
   await request(prefix+'/staff/import',{staff:[{...staff,name:'Synthetic leaver'}]});
   const leaver=(await request(prefix+'/staff')).find(s=>s.name==='Synthetic leaver');
+  const keptResult=await request(prefix+'/staff/import',{staff:[{...staff,name:'Synthetic leaver',apps:[]}]});
+  assert.deepEqual(keptResult.kept,[{id:leaver.id,name:'Synthetic leaver',fields:['apps']}]);
+  assert.deepEqual((await request(prefix+'/staff')).find(s=>s.id===leaver.id).apps,['Ninja']);
   assert.deepEqual([leaver.cities,leaver.apps,leaver.allowedActions],[['Synthetic city'],['Ninja'],['edit','delete']]);
   const deleteStaff=name=>fetch(base+prefix+'/staff/'+encodeURIComponent(leaver.id),{method:'DELETE',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({name})});
   assert.equal((await deleteStaff('Wrong name')).status,400);checks++;
