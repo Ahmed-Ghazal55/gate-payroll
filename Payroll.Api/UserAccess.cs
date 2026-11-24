@@ -19,6 +19,7 @@ public static class UserAccess
     [
         new("erp.sync.run","Admin","إدارة النظام","تشغيل مزامنة ERP (مهجور)","مهجور: أُزيلت نقاط المزامنة؛ الصلاحية تبقى كاسم مستعار فقط.",Deprecated:true),
         new("approval.bypass_maker_checker","Admin","إدارة النظام","تجاوز شرط الشخصين","منح مؤرخ بسحب؛ يرفع شرط المجهّز ≠ المعتمد فقط مع سجل وشارة."),
+        new("approvals.approve_own","Admin","إدارة النظام","اعتماد مستنداته بنفسه","صلاحية صريحة OFF افتراضيًا؛ تسمح باعتماد مستندات أنشأها المستخدم مع ختم وتدقيق. لا تسري على الصرف وملف البنك وسلف/مديونيات الصرف."),
         new("approvals.dual.bank_file","Admin","إدارة النظام","اعتماد ملف البنك بشخصين","صلاحية مستقلة لإصدار وإرسال ملف البنك باعتماد شخصين مختلفين؛ قابلة للمنح لأي دور."),
         new("approvals.dual.payment_out","Admin","إدارة النظام","اعتماد الصرف بشخصين","صلاحية مستقلة لصرف الأموال للخارج باعتماد شخصين مختلفين؛ قابلة للمنح لأي دور."),
         new("approvals.dual.shared_rider_release","Admin","إدارة النظام","فك حجز المندوب المشترك بشخصين","صلاحية مستقلة لفك حجز المندوب المشترك باعتماد شخصين مختلفين؛ قابلة للمنح لأي دور."),
@@ -281,7 +282,12 @@ public static class UserAccess
     public static string[] EffectivePermissions(JsonObject u)
     {
         string role = Role(u);
-        if (role is "Admin" or "SuperAdmin" or "SystemAdmin") return PermissionsCatalog.Select(p => p.Code).ToArray();
+        // TRIAL6: approvals.approve_own stays OFF unless granted explicitly in customPermissions (even for Admin).
+        if (role is "Admin" or "SuperAdmin" or "SystemAdmin")
+            return PermissionsCatalog.Select(p => p.Code)
+                .Where(code=>code!=AccessPolicy.ApproveOwnPermission
+                    ||(u["customPermissions"] as JsonArray??[]).Any(x=>string.Equals(x?.ToString(),AccessPolicy.ApproveOwnPermission,StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
         var def = ResolveRoleDef(role);
         // An edited role template is attached by WithRole for the current read only; never stored on the user.
         var baseline = u[RoleBaseline] is JsonArray edited ? edited.Select(p => p?.ToString() ?? "") : def.DefaultPermissions;

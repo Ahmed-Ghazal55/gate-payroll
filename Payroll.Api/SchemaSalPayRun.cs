@@ -250,6 +250,20 @@ public static class SchemaSalPayRun
             object? has=SchemaSql.Scalar(c,tx,"SELECT 1 FROM pragma_table_info('sal_pay_run_rider') WHERE name='protected_salary'");
             if(has is null or DBNull)SchemaSql.Exec(c,tx,$"ALTER TABLE {t} ADD COLUMN protected_salary INTEGER NOT NULL DEFAULT 0;");
         }
+        EnsureCalculatedBy(c,tx);
+    }
+
+    /// <summary>TRIAL6: append-only list of calculators; debt confirm must not overwrite (grok-TRIAL5).</summary>
+    static void EnsureCalculatedBy(DbConnection c,DbTransaction? tx)
+    {
+        string t=SchemaSql.Q(c,"sal","pay_run_rider");
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"IF COL_LENGTH(N'sal.pay_run_rider',N'calculated_by_json') IS NULL ALTER TABLE {t} ADD calculated_by_json nvarchar(max) NULL;");
+        else
+        {
+            object? has=SchemaSql.Scalar(c,tx,"SELECT 1 FROM pragma_table_info('sal_pay_run_rider') WHERE name='calculated_by_json'");
+            if(has is null or DBNull)SchemaSql.Exec(c,tx,$"ALTER TABLE {t} ADD COLUMN calculated_by_json TEXT NULL;");
+        }
     }
 
     /// <summary>RWC4a1 H11: combined_net on an existing shared_rider_hold table (additive).</summary>

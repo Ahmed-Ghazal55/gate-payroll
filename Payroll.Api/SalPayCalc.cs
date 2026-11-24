@@ -144,24 +144,27 @@ public static class SalPayCalc
                 J.Need(CanRecalc(c,tx,riderId),"لا إعادة احتساب بعد تأكيد الدين أو الاعتماد.",409);
                 Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"sal","pay_run_item")} SET amount=0,updated_by=@by,updated_at=@at WHERE pay_run_rider_id=@r",
                     ("@by",actor.Identity!.Name!),("@at",now),("@r",riderId));
+                string calcJson=AppendCalculatedBy(c,tx,riderId,actor.Identity!.Name!);
                 Exec(c,tx,$"""
                     UPDATE {SchemaSql.Q(c,"sal","pay_run_rider")}
-                    SET gross=@gross,commission=@comm,salary_net=@net,old_debt_instalment=@debt,keeta_ineligible=@keeta,protected_salary=@prot,updated_by=@by,updated_at=@at
+                    SET gross=@gross,commission=@comm,salary_net=@net,old_debt_instalment=@debt,keeta_ineligible=@keeta,protected_salary=@prot,calculated_by_json=@calc,updated_by=@by,updated_at=@at
                     WHERE id=@id
                     """,("@gross",gross),("@comm",commission),("@net",salaryNet),("@debt",proposedDebt),
-                    ("@keeta",keetaIneligible?1:0),("@prot",protectedSalary?1:0),("@by",actor.Identity!.Name!),("@at",now),("@id",riderId));
+                    ("@keeta",keetaIneligible?1:0),("@prot",protectedSalary?1:0),("@calc",calcJson),
+                    ("@by",actor.Identity!.Name!),("@at",now),("@id",riderId));
             }
             else
             {
                 riderId=SchemaSql.GuidText(SchemaSql.NewId());
+                string calcJson=new JsonArray(actor.Identity!.Name!).ToJsonString();
                 Exec(c,tx,$"""
                     INSERT INTO {SchemaSql.Q(c,"sal","pay_run_rider")}
-                    (id,pay_run_id,company_id,period_month,erp_rider_id,run_mode,gross,commission,salary_net,old_debt_instalment,keeta_ineligible,protected_salary,created_by,created_at)
-                    VALUES(@id,@run,@c,@pm,@erp,@rm,@gross,@comm,@net,@debt,@keeta,@prot,@by,@at)
+                    (id,pay_run_id,company_id,period_month,erp_rider_id,run_mode,gross,commission,salary_net,old_debt_instalment,keeta_ineligible,protected_salary,calculated_by_json,created_by,created_at)
+                    VALUES(@id,@run,@c,@pm,@erp,@rm,@gross,@comm,@net,@debt,@keeta,@prot,@calc,@by,@at)
                     """,("@id",riderId),("@run",payRunId),("@c",run.S("companyId")),("@pm",run.S("periodMonth")),
                     ("@erp",erpRider),("@rm",(byte)run.N("runMode")),("@gross",gross),("@comm",commission),
                     ("@net",salaryNet),("@debt",proposedDebt),("@keeta",keetaIneligible?1:0),("@prot",protectedSalary?1:0),
-                    ("@by",actor.Identity!.Name!),("@at",now));
+                    ("@calc",calcJson),("@by",actor.Identity!.Name!),("@at",now));
             }
 
             int lineNo=Convert.ToInt32(SchemaSql.Scalar(c,tx,$"SELECT COALESCE(MAX(line_no),0) FROM {SchemaSql.Q(c,"sal","pay_run_item")} WHERE pay_run_rider_id=@r",("@r",riderId))!);
@@ -633,6 +636,25 @@ public static class SalPayCalc
             WHERE r.pay_run_id=@run AND r.erp_rider_id=@erp
             """,("@run",payRunId),("@erp",erpRider));
         return amt is null or DBNull?0m:J.Money(Convert.ToDecimal(amt));
+    }
+
+    /// <summary>TRIAL6: append calculator without clearing prior names (debt confirm only touches updated_by).</summary>
+    static string AppendCalculatedBy(DbConnection c,DbTransaction tx,string riderId,string who)
+    {
+        object? raw=SchemaSql.Scalar(c,tx,$"SELECT calculated_by_json FROM {SchemaSql.Q(c,"sal","pay_run_rider")} WHERE id=@id",("@id",riderId));
+        var arr=new JsonArray();
+        if(raw is string s&&!string.IsNullOrWhiteSpace(s))
+        {
+            try{foreach(var n in JsonNode.Parse(s)!.AsArray())if(n is not null)arr.Add(n.GetValue<string>());}
+            catch{/* start fresh if corrupt */}
+        }
+        object? created=SchemaSql.Scalar(c,tx,$"SELECT created_by FROM {SchemaSql.Q(c,"sal","pay_run_rider")} WHERE id=@id",("@id",riderId));
+        string createdBy=created is null or DBNull?"":created.ToString()!;
+        if(createdBy!=""&&!arr.Any(n=>string.Equals(n?.ToString(),createdBy,StringComparison.OrdinalIgnoreCase)))
+            arr.Insert(0,createdBy);
+        if(!arr.Any(n=>string.Equals(n?.ToString(),who,StringComparison.OrdinalIgnoreCase)))
+            arr.Add(who);
+        return arr.ToJsonString();
     }
 
     static string? FindPendingRider(DbConnection c,DbTransaction tx,string payRunId,string erpRider)

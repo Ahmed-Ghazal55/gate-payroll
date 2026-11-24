@@ -31,11 +31,18 @@ public static class SalSalaryApprove
             J.Need(string.IsNullOrEmpty(rider.S("salaryApprovedAt")),"الراتب معتمد مسبقاً.",409);
             SalSharedRiders.DemandApprovable(c,tx,worked,rider.S("erpRiderId"),run.S("periodMonth"),run.S("app"));
 
-            string calcBy=rider.S("createdBy",run.S("createdBy"));
-            // Ghazal 11-24 / FLOW1: preparer cannot approve or post; Independent before any journal.
-            J.Need(AccessPolicy.Independent(actor,calcBy,"sal.salary_approved",c,tx,rider,scope:AccessPolicy.ScopePayApprovals),
-                "معدّ كشف الراتب لا يعتمده ولا يرحّله؛ يلزم مراجع مستقل.",403);
-            bool self=AccessPolicy.SamePerson(actor,calcBy);
+            // TRIAL6 / grok-TRIAL5: Independent for EVERY calculator/preparer (calculatedBy[]), not only createdBy.
+            var calculators=rider["calculatedBy"] as JsonArray??new JsonArray();
+            if(calculators.Count==0&&rider.S("createdBy")!="")calculators.Add(rider.S("createdBy"));
+            if(calculators.Count==0&&run.S("createdBy")!="")calculators.Add(run.S("createdBy"));
+            foreach(var node in calculators)
+            {
+                string calcBy=node?.ToString()??"";
+                if(calcBy=="")continue;
+                J.Need(AccessPolicy.Independent(actor,calcBy,"sal.salary_approved",c,tx,rider,scope:AccessPolicy.ScopePayApprovals),
+                    "معدّ كشف الراتب لا يعتمده ولا يرحّله؛ يلزم مراجع مستقل عن كل من احتسب الصف.",403);
+            }
+            bool self=calculators.Any(n=>AccessPolicy.SamePerson(actor,n?.ToString()??""));
             if(self)Store.Audit(c,tx,"sal.salary_self_approved",riderId,actor.Identity!.Name!);
 
             bool negDebt=false;
@@ -593,12 +600,22 @@ public static class SalSalaryApprove
     {
         using var cmd=c.CreateCommand();cmd.Transaction=tx;
         cmd.CommandText=$"""
-            SELECT id,erp_rider_id,gross,commission,salary_net,old_debt_instalment,debt_confirm_status,salary_approved_at,keeta_ineligible,protected_salary,created_by
+            SELECT id,erp_rider_id,gross,commission,salary_net,old_debt_instalment,debt_confirm_status,salary_approved_at,keeta_ineligible,protected_salary,created_by,calculated_by_json
             FROM {SchemaSql.Q(c,"sal","pay_run_rider")} WHERE id=@id AND pay_run_id=@run
             """;
         Add(cmd,"@id",riderId);Add(cmd,"@run",payRunId);
         using var r=cmd.ExecuteReader();
         J.Need(r.Read(),"المندوب غير موجود في المسير.",404);
+        var calculatedBy=new JsonArray();
+        string createdBy=r["created_by"] is DBNull?"":r["created_by"].ToString()!;
+        string calcJson=r["calculated_by_json"] is DBNull or null?"":r["calculated_by_json"].ToString()!;
+        if(!string.IsNullOrWhiteSpace(calcJson))
+        {
+            try{foreach(var n in JsonNode.Parse(calcJson)!.AsArray())if(n is not null)calculatedBy.Add(n.GetValue<string>());}
+            catch{/* ignore corrupt */}
+        }
+        if(createdBy!=""&&!calculatedBy.Any(n=>string.Equals(n?.ToString(),createdBy,StringComparison.OrdinalIgnoreCase)))
+            calculatedBy.Insert(0,createdBy);
         return new()
         {
             ["id"]=r["id"].ToString()!,["erpRiderId"]=r["erp_rider_id"].ToString()!,
@@ -609,7 +626,8 @@ public static class SalSalaryApprove
             ["salaryApprovedAt"]=r["salary_approved_at"] is DBNull?"":r["salary_approved_at"].ToString()!,
             ["keetaIneligible"]=Convert.ToInt32(r["keeta_ineligible"])==1,
             ["protectedSalary"]=Convert.ToInt32(r["protected_salary"])==1,
-            ["createdBy"]=r["created_by"] is DBNull?"":r["created_by"].ToString()!
+            ["createdBy"]=createdBy,
+            ["calculatedBy"]=calculatedBy
         };
     }
 
