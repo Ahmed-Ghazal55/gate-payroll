@@ -57,13 +57,14 @@ public static class JournalPosting
 
     static Result PostCore(DbConnection c,DbTransaction tx,Draft draft)
     {
-        J.Need(draft.Lines.Count>=2,"القيد من سطرين على الأقل.");
+        // Never post a line with 0 debit and 0 credit (Ghazal 11-24 / journal-entry skill). Drop zeros, keep balance.
         var rounded=draft.Lines.Select(l=>l with
         {
             Debit=J.Money(l.Debit),
             Credit=J.Money(l.Credit),
             AppCode=string.IsNullOrWhiteSpace(l.AppCode)?"none":l.AppCode.Trim()
-        }).ToList();
+        }).Where(l=>l.Debit!=0||l.Credit!=0).ToList();
+        J.Need(rounded.Count>=2,"القيد من سطرين على الأقل.");
         decimal sumD=rounded.Sum(l=>l.Debit),sumC=rounded.Sum(l=>l.Credit);
         J.Need(sumD==sumC,"مجموع المدين لا يساوي مجموع الدائن.");
         J.Need(rounded.All(l=>(l.Debit==0)^(l.Credit==0)&&l.Debit+l.Credit>0),"كل سطر مدين أو دائن فقط.");
