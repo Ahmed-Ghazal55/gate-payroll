@@ -74,3 +74,7 @@ Each notes / complaint box shows tap-to-add chips that DESCRIBE the answer (ride
 - Close and delete the current round (Ghazal 2026-11-23: «لا هنقفلها و نحذفها من دلوقتي»; complaints too: «امسح»).
 - Re-import the private staff file (HR: one person excluded; two operations staff gain apps; operations manager `allApps`).
 - Create the new sectioned round, open it, share each link with its target riders.
+
+## Staff import and delete (Ghazal, 2026-11-24)
+- Import REPLACES what the file writes for a person (cities, departments, roles, apps, appCities); it does not merge with the stored card. A list the file does not mention, and the allCities / allApps flags when absent, stay as stored. People not in the file are untouched. Several rows of one person in the same file still combine.
+- Delete card: management + forms.manage, confirm by typing the name. Existing rounds keep their copy until «تحديث الموظفين». If the name stays in the import file, the next import creates the card again.

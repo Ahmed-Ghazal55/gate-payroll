@@ -612,6 +612,22 @@ try {
     fullPage: true,
   });
 
+  // Delete one staff card from the directory: locked until the exact name is typed.
+  const directory = adminPage.locator('[data-testid="eval-staff-directory-section"]');
+  const leaverRow = directory.locator('tr', { hasText: 'Synthetic Excluded Executive' });
+  const rowMenu = leaverRow.locator('button[aria-label="خيارات السجل"]');
+  await rowMenu.scrollIntoViewIfNeeded();
+  await adminPage.waitForTimeout(500); // the menu closes on scroll
+  await rowMenu.click();
+  await adminPage.getByText('تعديل البطاقة', { exact: true }).last().click();
+  await adminPage.click('[data-testid="eval-staff-delete-open"]');
+  const confirmDelete = adminPage.locator('[data-testid="eval-staff-delete-confirm"]');
+  assert.equal(await confirmDelete.isDisabled(), true);
+  await adminPage.fill('[data-testid="eval-staff-delete-name"]', 'Synthetic Excluded Executive');
+  await adminPage.screenshot({ path: path.join(outDir, 'evaluations-staff-delete.png') });
+  await confirmDelete.click();
+  await leaverRow.waitFor({ state: 'detached' });
+
   assert.deepEqual(errors, [], `Unexpected page errors: ${errors.join('; ')}`);
   assert.deepEqual(cspErrors, [], `Unexpected CSP errors: ${cspErrors.join('; ')}`);
   console.log(

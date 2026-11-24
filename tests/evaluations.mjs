@@ -41,6 +41,15 @@ try{
   const staffId=staffList.find(s=>s.name==='Synthetic person').id;
   const updatedStaff=await fetch(base+prefix+'/staff/'+encodeURIComponent(staffId),{method:'PUT',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({name:'Synthetic person',cities:['Synthetic city'],departments:['الحركة والمركبات'],roles:['Synthetic role'],apps:['Ninja'],allApps:true,allCities:false,excluded:false,active:true})});
   assert.equal(updatedStaff.status,200);assert.equal((await updatedStaff.json()).allApps,true);checks++;
+  // Import replaces stored lists (never merges), and a card is deleted only after its exact name is typed.
+  await request(prefix+'/staff/import',{staff:[{...staff,name:'Synthetic leaver',cities:['Synthetic city','Synthetic other city'],apps:['Ninja','Keeta']}]});
+  await request(prefix+'/staff/import',{staff:[{...staff,name:'Synthetic leaver'}]});
+  const leaver=(await request(prefix+'/staff')).find(s=>s.name==='Synthetic leaver');
+  assert.deepEqual([leaver.cities,leaver.apps,leaver.allowedActions],[['Synthetic city'],['Ninja'],['edit','delete']]);
+  const deleteStaff=name=>fetch(base+prefix+'/staff/'+encodeURIComponent(leaver.id),{method:'DELETE',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({name})});
+  assert.equal((await deleteStaff('Wrong name')).status,400);checks++;
+  const deleted=await deleteStaff('Synthetic leaver');assert.equal(deleted.status,200);assert.deepEqual(await deleted.json(),{id:leaver.id,deleted:true});checks++;
+  assert.ok(!(await request(prefix+'/staff')).some(s=>s.id===leaver.id));
   function makeLegacyRound(roundId){
     const db=new DatabaseSync(path.join(data,'payroll.db'));
     const row=db.prepare('SELECT body FROM records WHERE id=?').get(roundId);

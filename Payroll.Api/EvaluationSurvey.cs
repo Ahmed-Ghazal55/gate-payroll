@@ -126,6 +126,9 @@ public static partial class EvaluationSurvey
         var items = input["staff"] as JsonArray ?? throw new ApiError("قائمة الموظفين مطلوبة.");
         J.Need(items.Count is > 0 and <= 500, "حجم قائمة الموظفين غير صالح.");
         var imported = new Dictionary<string, JsonObject>(StringComparer.Ordinal);
+        // A list written in the file REPLACES the stored one; a list the file does not mention stays as stored.
+        // Several rows of the same person inside one file still combine.
+        var provided = new HashSet<(string Id, string Field)>();
         foreach (var item in items)
         {
             var raw = item as JsonObject ?? throw new ApiError("موظف غير صالح.");
@@ -138,13 +141,19 @@ public static partial class EvaluationSurvey
                 ["allCities"] = raw.NullableBool("allCities") ?? prior?.NullableBool("allCities") ?? false,
                 ["allApps"] = raw.NullableBool("allApps") ?? prior?.NullableBool("allApps") ?? false };
             foreach (string field in new[] { "cities", "departments", "roles", "apps" })
-                doc[field] = Array(Strings(raw, field).Concat(prior == null ? [] : Strings(prior, field)).Distinct(StringComparer.Ordinal));
-            var priorCities = prior?["appCities"] as JsonObject;
-            var mergedAppCities = priorCities?.DeepClone() as JsonObject ?? new JsonObject();
+            {
+                var kept = prior == null ? [] : Strings(prior, field);
+                doc[field] = Array(raw[field] == null ? kept
+                    : provided.Add((id, field)) ? Strings(raw, field)
+                    : Strings(raw, field).Concat(kept).Distinct(StringComparer.Ordinal));
+            }
+            var appCities = prior?["appCities"]?.DeepClone() as JsonObject ?? new JsonObject();
             if (raw["appCities"] is JsonObject incoming)
-                foreach (var prop in incoming)
-                    mergedAppCities[prop.Key] = prop.Value?.DeepClone();
-            doc["appCities"] = NormalizeAppCities(mergedAppCities, Strings(doc, "apps"), Strings(doc, "cities"), doc.B("allCities"));
+            {
+                if (provided.Add((id, "appCities"))) appCities = new JsonObject();
+                foreach (var prop in incoming) appCities[prop.Key] = prop.Value?.DeepClone();
+            }
+            doc["appCities"] = NormalizeAppCities(appCities, Strings(doc, "apps"), Strings(doc, "cities"), doc.B("allCities"));
             J.Need(Strings(doc, "apps").All(a => PayPlatforms.Table.Any(p => p.Platform == a)), "استخدم معرفات المنصات المعتمدة في ملف الاستيراد.");
             J.Need(Strings(doc, "cities").Length > 0, "مدينة الموظف مطلوبة.");
             if (doc.B("pendingRoleApproval")) doc["roles"] = new JsonArray("بانتظار موافقة غزال");

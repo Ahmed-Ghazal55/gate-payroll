@@ -165,8 +165,13 @@ export function EvaluationsTab() {
     excluded: boolean;
     active: boolean;
     pendingRoleApproval: boolean;
+    storedName: string;
+    allowedActions: string[];
   } | null>(null);
   const [savingStaff, setSavingStaff] = useState(false);
+  const [staffDeleteOpen, setStaffDeleteOpen] = useState(false);
+  const [staffDeleteName, setStaffDeleteName] = useState('');
+  const [deletingStaff, setDeletingStaff] = useState(false);
 
   const [sectionStaffPick, setSectionStaffPick] = useState<Record<string, string>>({});
   const [sectionBusyKey, setSectionBusyKey] = useState<string | null>(null);
@@ -717,6 +722,8 @@ export function EvaluationsTab() {
       excluded: Boolean(s.excluded),
       active: s.active !== false,
       pendingRoleApproval: Boolean(s.pendingRoleApproval),
+      storedName: s.name || '',
+      allowedActions: s.allowedActions || [],
     });
     setStaffEditOpen(true);
   };
@@ -752,6 +759,24 @@ export function EvaluationsTab() {
       toast(err?.message || 'تعذر حفظ بطاقة الموظف', 'danger');
     } finally {
       setSavingStaff(false);
+    }
+  };
+
+  const handleDeleteStaff = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!staffEditDraft || staffDeleteName.trim() !== staffEditDraft.storedName) return;
+    setDeletingStaff(true);
+    try {
+      await api.deleteEvaluationStaff(staffEditDraft.id, staffDeleteName.trim());
+      toast('حُذفت بطاقة الموظف', 'success');
+      setStaffDeleteOpen(false);
+      setStaffDeleteName('');
+      setStaffEditDraft(null);
+      await loadRoundsAndStaff();
+    } catch (err: any) {
+      toast(err?.message || 'تعذر حذف بطاقة الموظف', 'danger');
+    } finally {
+      setDeletingStaff(false);
     }
   };
 
@@ -2166,8 +2191,71 @@ export function EvaluationsTab() {
                 </label>
               ))}
             </div>
+            {staffEditDraft.allowedActions.includes('delete') && (
+              <button
+                type="button"
+                disabled={savingStaff}
+                data-testid="eval-staff-delete-open"
+                onClick={() => {
+                  setStaffDeleteName('');
+                  setStaffEditOpen(false);
+                  setStaffDeleteOpen(true);
+                }}
+                className="rounded-lg border border-[var(--danger)] px-3 py-2 text-xs font-bold text-[var(--danger)] disabled:opacity-50"
+              >
+                حذف البطاقة نهائيًا
+              </button>
+            )}
           </form>
         )}
+      </Dialog>
+
+      {/* Delete staff card — type name to confirm */}
+      <Dialog
+        open={staffDeleteOpen}
+        onClose={() => (deletingStaff ? null : setStaffDeleteOpen(false))}
+        title="حذف بطاقة الموظف"
+        description="يحذف البطاقة نهائيًا. الجولات الموجودة تحتفظ بنسختها حتى الضغط على «تحديث الموظفين»، وإذا بقي الاسم في ملف الاستيراد ترجع البطاقة عند الاستيراد التالي."
+        actions={
+          <>
+            <button
+              type="button"
+              disabled={deletingStaff}
+              onClick={() => setStaffDeleteOpen(false)}
+              className="px-4 py-2 text-xs font-semibold rounded-lg border border-[var(--line)] text-[var(--muted)]"
+            >
+              إلغاء
+            </button>
+            <button
+              type="button"
+              disabled={
+                deletingStaff || !staffEditDraft || staffDeleteName.trim() !== staffEditDraft.storedName
+              }
+              onClick={handleDeleteStaff}
+              data-testid="eval-staff-delete-confirm"
+              className="px-4 py-2 text-xs font-bold rounded-lg bg-[var(--danger)] text-white disabled:opacity-50"
+            >
+              {deletingStaff ? 'جاري الحذف…' : 'حذف نهائي'}
+            </button>
+          </>
+        }
+      >
+        <form onSubmit={handleDeleteStaff} className="space-y-3">
+          <p className="text-xs text-[var(--muted)]">
+            الاسم المطلوب: <strong>{staffEditDraft?.storedName}</strong>
+          </p>
+          <label className="block space-y-1 text-xs">
+            <span className="font-bold text-[var(--ink)]">اسم الموظف</span>
+            <input
+              type="text"
+              value={staffDeleteName}
+              onChange={(e) => setStaffDeleteName(e.target.value)}
+              data-testid="eval-staff-delete-name"
+              className="w-full rounded-lg border border-[var(--line)] bg-[var(--bg)] px-3 py-2 text-xs"
+              placeholder="اكتب اسم الموظف كما هو"
+            />
+          </label>
+        </form>
       </Dialog>
 
       {/* Delete round — type title to confirm */}
@@ -2224,7 +2312,7 @@ export function EvaluationsTab() {
         open={importOpen}
         onClose={() => (importing ? null : setImportOpen(false))}
         title="استيراد متقدم لبطاقات الموظفين (JSON)"
-        description="اختر ملف بيانات الموظفين المحلي أو الصق محتوى JSON. للتعديل السريع استخدم زر تعديل البطاقة في الجدول دون JSON."
+        description="اختر ملف بيانات الموظفين المحلي أو الصق محتوى JSON. ما يكتبه الملف لكل موظف (المدن والأقسام والأدوار والمنصات) يستبدل المحفوظ ولا يُدمج معه، ومن لا يذكره الملف يبقى كما هو. للتعديل السريع استخدم زر تعديل البطاقة في الجدول دون JSON."
         actions={
           <>
             <button

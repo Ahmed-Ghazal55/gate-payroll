@@ -1104,6 +1104,12 @@
                                 "type": "string"
                               }
                             }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         }
                       }
@@ -1861,6 +1867,12 @@
                               "items": {
                                 "type": "string"
                               }
+                            }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
                             }
                           }
                         }
@@ -29093,6 +29105,12 @@
                             "type": "string"
                           }
                         }
+                      },
+                      "allowedActions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
                       }
                     }
                   }
@@ -29146,6 +29164,56 @@
       }
     },
     "/api/forms/evaluations/staff/{id}": {
+      "delete": {
+        "tags": [
+          "Forms and responses"
+        ],
+        "summary": "Delete one evaluation staff card after typing its name",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "deleted"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "deleted": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
       "put": {
         "tags": [
           "Forms and responses"
@@ -29239,6 +29307,12 @@
                         "items": {
                           "type": "string"
                         }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
                       }
                     }
                   }
@@ -29357,6 +29431,12 @@
                                 "items": {
                                   "type": "string"
                                 }
+                              }
+                            },
+                            "allowedActions": {
+                              "type": "array",
+                              "items": {
+                                "type": "string"
                               }
                             }
                           }
@@ -29480,6 +29560,12 @@
                                       "items": {
                                         "type": "string"
                                       }
+                                    }
+                                  },
+                                  "allowedActions": {
+                                    "type": "array",
+                                    "items": {
+                                      "type": "string"
                                     }
                                   }
                                 }
@@ -29627,6 +29713,12 @@
                                 "type": "string"
                               }
                             }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         }
                       }
@@ -29749,6 +29841,12 @@
                                     "items": {
                                       "type": "string"
                                     }
+                                  }
+                                },
+                                "allowedActions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
                                   }
                                 }
                               }
@@ -29897,6 +29995,12 @@
                                 "type": "string"
                               }
                             }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         }
                       }
@@ -30019,6 +30123,12 @@
                                     "items": {
                                       "type": "string"
                                     }
+                                  }
+                                },
+                                "allowedActions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
                                   }
                                 }
                               }
@@ -30205,6 +30315,12 @@
                           "type": "string"
                         }
                       }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
                     }
                   }
                 }
@@ -30312,6 +30428,12 @@
                         "items": {
                           "type": "string"
                         }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
                       }
                     }
                   }
@@ -30447,6 +30569,12 @@
                                 "type": "string"
                               }
                             }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         }
                       }
@@ -30569,6 +30697,12 @@
                                     "items": {
                                       "type": "string"
                                     }
+                                  }
+                                },
+                                "allowedActions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
                                   }
                                 }
                               }
@@ -33280,6 +33414,12 @@
                                 "type": "string"
                               }
                             }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
                           }
                         }
                       }
@@ -33402,6 +33542,12 @@
                                     "items": {
                                       "type": "string"
                                     }
+                                  }
+                                },
+                                "allowedActions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
                                   }
                                 }
                               }

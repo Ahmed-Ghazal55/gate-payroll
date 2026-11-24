@@ -28,8 +28,8 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 |---|---|---|---|---|---|
 | GET | `/api/rider-mobile/broadcasts` | Payroll.Api/FinancialCore.cs:925 | mobile.broadcast + company scope OR active rider bearer token (own and ALL) | web | keep |
 | GET | `/api/rider-mobile/broadcasts/distinct` | Payroll.Api/FinancialCore.cs:948 | mobile.broadcast | web | keep |
-| GET | `/api/rider-mobile/evaluations` | Payroll.Api/EvaluationSurvey.Api.cs:279 | mobile.broadcast | web | keep |
-| GET | `/api/rider-mobile/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:297 | mobile.broadcast | web | keep |
+| GET | `/api/rider-mobile/evaluations` | Payroll.Api/EvaluationSurvey.Api.cs:280 | mobile.broadcast | web | keep |
+| GET | `/api/rider-mobile/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:298 | mobile.broadcast | web | keep |
 | GET | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:953 | Admin / SuperAdmin | web | keep |
 | GET | `/api/rider-mobile/forms` | Payroll.Api/RiderAsks.cs:1283 | mobile.broadcast | web | keep |
 | GET | `/api/rider-mobile/portal/{iqama}` | Payroll.Api/FinancialCore.cs:1004 | own rider session / one-time inquiry code | rider app | keep |
@@ -54,8 +54,8 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/rider-mobile/broadcasts/{id}/ack` | Payroll.Api/FinancialCore.cs:1102 | own rider session / one-time inquiry code | rider app | keep |
 | POST | `/api/rider-mobile/broadcasts/{id}/read` | Payroll.Api/FinancialCore.cs:1073 | mobile.broadcast | web | keep |
 | POST | `/api/rider-mobile/device-token` | Payroll.Api/PushNotifications.cs:727 | mobile.broadcast | web | keep |
-| POST | `/api/rider-mobile/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:299 | mobile.broadcast | web | keep |
-| POST | `/api/rider-mobile/evaluations/{token}/launch` | Payroll.Api/EvaluationSurvey.Api.cs:289 | mobile.broadcast | web | keep |
+| POST | `/api/rider-mobile/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:300 | mobile.broadcast | web | keep |
+| POST | `/api/rider-mobile/evaluations/{token}/launch` | Payroll.Api/EvaluationSurvey.Api.cs:290 | mobile.broadcast | web | keep |
 | POST | `/api/rider-mobile/firebase-config` | Payroll.Api/FinancialCore.cs:980 | Admin / SuperAdmin | web | keep |
 | POST | `/api/rider-mobile/forms/{token}/submit` | Payroll.Api/RiderAsks.cs:1290 | mobile.broadcast | web | keep |
 | POST | `/api/rider-mobile/language` | Payroll.Api/PushNotifications.cs:747 | mobile.broadcast | web | keep |
@@ -71,7 +71,7 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/rider-mobile/sessions/{id}/revoke` | Payroll.Api/MobileSessions.cs:131 | mobile.sessions (Admin / SuperAdmin); company or sponsor scope; safe hash prefix only | web | keep |
 | POST | `/api/rider-mobile/statements/notify-period` | Payroll.Api/PushNotifications.cs:763 | mobile.broadcast | web | keep |
 | POST | `/api/riders` | Payroll.Api/Program.cs:207 | riders.edit (+ riders.financial_edit for financial fields) | web | keep |
-| PUT | `/api/rider-mobile/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:303 | mobile.broadcast | web | keep |
+| PUT | `/api/rider-mobile/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:304 | mobile.broadcast | web | keep |
 
 ## القوى العاملة
 
@@ -365,8 +365,9 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 |---|---|---|---|---|---|
 | DELETE | `/api/campaigns/{id}` | Payroll.Api/FormDeletion.cs:29 | Admin / SuperAdmin | web | keep |
 | DELETE | `/api/forms/builder/{id}` | Payroll.Api/FormDeletion.cs:29 | Admin / SuperAdmin | web | keep |
-| DELETE | `/api/forms/evaluations/rounds/{id}` | Payroll.Api/EvaluationSurvey.Api.cs:249 | Admin / SuperAdmin | web | keep |
-| DELETE | `/api/forms/evaluations/rounds/{id}/sections/{sectionKey}/staff/{staffId}` | Payroll.Api/EvaluationSurvey.Api.cs:252 | Admin / SuperAdmin | web | keep |
+| DELETE | `/api/forms/evaluations/rounds/{id}` | Payroll.Api/EvaluationSurvey.Api.cs:250 | Admin / SuperAdmin | web | keep |
+| DELETE | `/api/forms/evaluations/rounds/{id}/sections/{sectionKey}/staff/{staffId}` | Payroll.Api/EvaluationSurvey.Api.cs:253 | Admin / SuperAdmin | web | keep |
+| DELETE | `/api/forms/evaluations/staff/{id}` | Payroll.Api/EvaluationSurvey.Api.cs:245 | Admin / SuperAdmin | web | keep |
 | DELETE | `/api/submissions/{id}` | Payroll.Api/CampaignOperations.cs:110 | Admin / SuperAdmin | web | keep |
 | GET | `/api/campaigns` | Payroll.Api/Program.cs:285 | forms.view | web | keep |
 | GET | `/api/campaigns/{id}/analytics` | Payroll.Api/CampaignOperations.cs:109 | forms.view | web | keep |
@@ -377,23 +378,23 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | GET | `/api/forms/builder/{id}/delete-preview` | Payroll.Api/FormDeletion.cs:25 | Admin / SuperAdmin | web | keep |
 | GET | `/api/forms/builder/{id}/qr.svg` | Payroll.Api/FormBuilder.cs:99 | forms.manage | web | keep |
 | GET | `/api/forms/catalog` | Payroll.Api/FormBuilder.cs:87 | forms.view | web | keep |
-| GET | `/api/forms/evaluations/attachments/{attachmentId}` | Payroll.Api/EvaluationSurvey.Api.cs:274 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds` | Payroll.Api/EvaluationSurvey.Api.cs:246 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}` | Payroll.Api/EvaluationSurvey.Api.cs:248 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}/export` | Payroll.Api/EvaluationSurvey.Api.cs:259 | forms.evaluations.view + forms.evaluations.export; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}/responses` | Payroll.Api/EvaluationSurvey.Api.cs:255 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}/scorecards/apps` | Payroll.Api/EvaluationSurvey.Api.cs:262 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}/scorecards/city-app` | Payroll.Api/EvaluationSurvey.Api.cs:270 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}/scorecards/finance` | Payroll.Api/EvaluationSurvey.Api.cs:264 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}/scorecards/heatmap` | Payroll.Api/EvaluationSurvey.Api.cs:268 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}/scorecards/supervisors` | Payroll.Api/EvaluationSurvey.Api.cs:260 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}/scorecards/systems` | Payroll.Api/EvaluationSurvey.Api.cs:266 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}/scorecards/{kind}/export` | Payroll.Api/EvaluationSurvey.Api.cs:272 | forms.evaluations.view + forms.evaluations.export; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}/statistics` | Payroll.Api/EvaluationSurvey.Api.cs:257 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
-| GET | `/api/forms/evaluations/rounds/{id}/statistics/{dimension}` | Payroll.Api/EvaluationSurvey.Api.cs:258 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/attachments/{attachmentId}` | Payroll.Api/EvaluationSurvey.Api.cs:275 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds` | Payroll.Api/EvaluationSurvey.Api.cs:247 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}` | Payroll.Api/EvaluationSurvey.Api.cs:249 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}/export` | Payroll.Api/EvaluationSurvey.Api.cs:260 | forms.evaluations.view + forms.evaluations.export; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}/responses` | Payroll.Api/EvaluationSurvey.Api.cs:256 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}/scorecards/apps` | Payroll.Api/EvaluationSurvey.Api.cs:263 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}/scorecards/city-app` | Payroll.Api/EvaluationSurvey.Api.cs:271 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}/scorecards/finance` | Payroll.Api/EvaluationSurvey.Api.cs:265 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}/scorecards/heatmap` | Payroll.Api/EvaluationSurvey.Api.cs:269 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}/scorecards/supervisors` | Payroll.Api/EvaluationSurvey.Api.cs:261 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}/scorecards/systems` | Payroll.Api/EvaluationSurvey.Api.cs:267 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}/scorecards/{kind}/export` | Payroll.Api/EvaluationSurvey.Api.cs:273 | forms.evaluations.view + forms.evaluations.export; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}/statistics` | Payroll.Api/EvaluationSurvey.Api.cs:258 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
+| GET | `/api/forms/evaluations/rounds/{id}/statistics/{dimension}` | Payroll.Api/EvaluationSurvey.Api.cs:259 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
 | GET | `/api/forms/evaluations/staff` | Payroll.Api/EvaluationSurvey.Api.cs:243 | forms.evaluations.view; supervisors denied; company/platform scope | web | keep |
 | GET | `/api/forms/responses/{id}` | Payroll.Api/FormBuilder.cs:100 | forms.view | web | keep |
-| GET | `/api/public/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:275 | public (rider portal: own authenticated rider) | web | keep |
+| GET | `/api/public/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:276 | public (rider portal: own authenticated rider) | web | keep |
 | GET | `/api/public/forms/{token}` | Payroll.Api/Program.cs:310 | public (rider portal: own authenticated rider) | rider form | keep |
 | GET | `/api/public/questionnaires/{token}` | Payroll.Api/FormBuilder.cs:117 | public (rider portal: own authenticated rider) | rider form | keep |
 | GET | `/api/responses` | Payroll.Api/ResponsesInbox.cs:97 | forms.view | none | new |
@@ -406,12 +407,12 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/forms/builder` | Payroll.Api/FormBuilder.cs:89 | forms.manage | web | keep |
 | POST | `/api/forms/builder/{id}/close` | Payroll.Api/FormBuilder.cs:98 | forms.manage | web | keep |
 | POST | `/api/forms/builder/{id}/publish` | Payroll.Api/FormBuilder.cs:95 | forms.manage | web | keep |
-| POST | `/api/forms/evaluations/rounds` | Payroll.Api/EvaluationSurvey.Api.cs:247 | forms.evaluations.view + forms.manage; supervisors denied | web | keep |
-| POST | `/api/forms/evaluations/rounds/{id}/sections/{sectionKey}/staff/{staffId}` | Payroll.Api/EvaluationSurvey.Api.cs:250 | forms.evaluations.view + forms.manage; supervisors denied | web | keep |
-| POST | `/api/forms/evaluations/rounds/{id}/{action}` | Payroll.Api/EvaluationSurvey.Api.cs:254 | forms.evaluations.view + forms.manage; supervisors denied | web | keep |
+| POST | `/api/forms/evaluations/rounds` | Payroll.Api/EvaluationSurvey.Api.cs:248 | forms.evaluations.view + forms.manage; supervisors denied | web | keep |
+| POST | `/api/forms/evaluations/rounds/{id}/sections/{sectionKey}/staff/{staffId}` | Payroll.Api/EvaluationSurvey.Api.cs:251 | forms.evaluations.view + forms.manage; supervisors denied | web | keep |
+| POST | `/api/forms/evaluations/rounds/{id}/{action}` | Payroll.Api/EvaluationSurvey.Api.cs:255 | forms.evaluations.view + forms.manage; supervisors denied | web | keep |
 | POST | `/api/forms/evaluations/staff/import` | Payroll.Api/EvaluationSurvey.Api.cs:244 | forms.evaluations.view + forms.manage; supervisors denied | web | keep |
-| POST | `/api/public/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:276 | public (rider portal: own authenticated rider) | web | keep |
-| POST | `/api/public/evaluations/{token}/session` | Payroll.Api/EvaluationSurvey.Api.cs:295 | public (rider portal: own authenticated rider) | web | keep |
+| POST | `/api/public/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:277 | public (rider portal: own authenticated rider) | web | keep |
+| POST | `/api/public/evaluations/{token}/session` | Payroll.Api/EvaluationSurvey.Api.cs:296 | public (rider portal: own authenticated rider) | web | keep |
 | POST | `/api/public/forms/{token}` | Payroll.Api/SubmissionChoices.cs:133 | public (rider portal: own authenticated rider) | rider form | keep |
 | POST | `/api/public/forms/{token}/edit` | Payroll.Api/SubmissionChoices.cs:155 | public (rider portal: own authenticated rider) | rider form | keep |
 | POST | `/api/public/forms/{token}/lookup` | Payroll.Api/SubmissionChoices.cs:128 | public (rider portal: own authenticated rider) | rider form | keep |
@@ -422,8 +423,8 @@ Review actions stay on their existing routes. `/promissory-notes` is the documen
 | POST | `/api/submissions/{id}/review` | Payroll.Api/Program.cs:298 | forms.review | web | keep |
 | PUT | `/api/campaigns/{id}` | Payroll.Api/CampaignOperations.cs:103 | Admin / SuperAdmin | web | keep |
 | PUT | `/api/forms/builder/{id}` | Payroll.Api/FormBuilder.cs:92 | forms.manage | web | keep |
-| PUT | `/api/forms/evaluations/staff/{id}` | Payroll.Api/EvaluationSurvey.Api.cs:245 | forms.evaluations.view + forms.manage; supervisors denied | web | keep |
-| PUT | `/api/public/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:307 | public (rider portal: own authenticated rider) | web | keep |
+| PUT | `/api/forms/evaluations/staff/{id}` | Payroll.Api/EvaluationSurvey.Api.cs:246 | forms.evaluations.view + forms.manage; supervisors denied | web | keep |
+| PUT | `/api/public/evaluations/{token}` | Payroll.Api/EvaluationSurvey.Api.cs:308 | public (rider portal: own authenticated rider) | web | keep |
 
 ## الإدارة
 

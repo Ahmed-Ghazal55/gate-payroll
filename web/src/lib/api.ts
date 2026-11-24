@@ -2425,6 +2425,11 @@ export const api = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
+  deleteEvaluationStaff: (id: string, name: string) =>
+    handleRequest<ApiResp<'/api/forms/evaluations/staff/{id}', 'delete'>>(
+      `/forms/evaluations/staff/${encodeURIComponent(id)}`,
+      { method: 'DELETE', body: JSON.stringify({ name }) }
+    ),
   getEvaluationRounds: () =>
     handleRequest<EvaluationRoundItem[]>('/forms/evaluations/rounds'),
   getEvaluationRound: (id: string) =>
