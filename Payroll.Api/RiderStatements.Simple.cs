@@ -19,7 +19,7 @@ public static partial class RiderStatements
     };
 
     // Only posted documents are projected. No ledger/debt balances are manufactured as journals.
-    public static JsonObject BuildSimple(DbConnection c, string iqama, string from, string to, string? sponsorId, ClaimsPrincipal user)
+    public static JsonObject BuildSimple(DbConnection c, string iqama, string from, string to, string? sponsorId, ClaimsPrincipal user, DbTransaction? tx=null)
     {
         iqama = J.Iqama(iqama); from = J.Period(from); to = J.Period(to);
         J.Need(string.CompareOrdinal(from, to) <= 0, "شهر البداية يجب ألا يتجاوز شهر النهاية.");
@@ -29,11 +29,11 @@ public static partial class RiderStatements
         bool Owner(string owner) => FinancialScopes.Sponsor(user, owner) && (sponsor == null || owner == sponsor);
         bool Platform(string platform) => platform == "" || admin || user.HasClaim("finance.platforms", platform);
         bool AllPlatforms() => StatementPlatforms.All(Platform);
-        var rider = Store.Get(c, iqama, "rider");
-        var debts = Store.List(c, "debt").Where(d => d.S("iqama") == iqama).ToDictionary(d => d.S("id"));
+        var rider = Store.Get(c, iqama, "rider", tx);
+        var debts = Store.List(c, "debt", tx).Where(d => d.S("iqama") == iqama).ToDictionary(d => d.S("id"));
         bool DebtVisible(JsonObject debt) => FinancialScopes.Category(user, debt.S("category")) && Platform(debt.S("platform"));
-        var runs = Store.List(c, "run").Where(r => r.S("iqama") == iqama).ToList();
-        var journals = Store.List(c, "journal").Where(j => j.S("status", "posted") == "posted").ToList();
+        var runs = Store.List(c, "run", tx).Where(r => r.S("iqama") == iqama).ToList();
+        var journals = Store.List(c, "journal", tx).Where(j => j.S("status", "posted") == "posted").ToList();
         var rows = new List<JsonObject>();
         int excludedLineCount = 0;
         foreach (var journal in journals)

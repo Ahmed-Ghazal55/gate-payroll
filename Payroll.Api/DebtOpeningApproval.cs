@@ -24,7 +24,7 @@ public static class DebtOpeningApproval
             var debt = Store.Get(c, id, "debt", tx);
             if (debt == null || !IsPendingOpening(debt)) { skipped++; continue; }
             var principal=UserAccess.Principal(UserAccess.Find(c,actor,tx)??new JsonObject{["username"]=actor,["role"]="Reviewer"});
-            J.Need(AccessPolicy.Independent(principal,debt.S("createdBy"),"debt.opening_decide",c,tx,debt), "لا يعتمد المنشئ رصيده الافتتاحي بنفسه.");
+            J.Need(AccessPolicy.Independent(principal,debt.S("createdBy"),"debt.opening_decide",c,tx,debt,scope:AccessPolicy.ScopePayApprovals), "لا يعتمد المنشئ رصيده الافتتاحي بنفسه.");
             string stamp = DateTimeOffset.UtcNow.ToString("O");
             if (decision == "approved")
             {

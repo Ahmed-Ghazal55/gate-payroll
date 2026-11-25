@@ -57,8 +57,13 @@ import { Skeleton, EmptyState, ErrorState } from '../../components/ui/EmptyState
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { RiderPicker } from '../../components/ui/RiderPicker';
 import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
-import { ConfigListsPanel } from '../../features/admin/ConfigListsPanel';
+import { ConfigListsPanel, MADA_RECHARGE_LIST_GROUPS } from '../../features/admin/ConfigListsPanel';
 import { ApprovalBypassPanel } from '../../features/admin/ApprovalBypassPanel';
+import { AdminSettingsPanel } from '../../features/admin/AdminSettingsPanel';
+import { AdminReadSummaryPanel } from '../../features/admin/AdminReadSummaryPanel';
+import { ArchivePanel } from '../../features/admin/ArchivePanel';
+import { NotifySettingsPanel } from '../../features/admin/NotifySettingsPanel';
+import { StaffChatPanel } from '../../features/admin/StaffChatPanel';
 import { RolePermissionsEditor, UserAccessDialog, type AccessCatalog, type AccessUser } from '../../features/admin/UserAccessDialog';
 import type {
   OrgCatalog,
@@ -1316,7 +1321,7 @@ function AdminPageInner() {
       {/* Tab: القوائم والإعدادات (BR §27)                           */}
       {/* ======================================================== */}
       {activeTab === 'lists' && (
-        <ConfigListsPanel />
+        <ConfigListsPanel excludeGroups={MADA_RECHARGE_LIST_GROUPS} />
       )}
 
       {activeTab === 'bypass' && (
@@ -1486,24 +1491,12 @@ function AdminPageInner() {
       {/* ======================================================== */}
       {/* Tab 4: إعدادات المنظومة                                    */}
       {/* ======================================================== */}
-      {activeTab === 'settings' && (
-        <div className="space-y-6">
-          <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs space-y-3">
-            <h3 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-              إعدادات المنظومة
-            </h3>
-            <p className="text-xs text-[var(--muted)]">
-              إعدادات إشعارات تطبيق المناديب تُدار من شاشة «إعدادات التطبيق» داخل قسم تطبيق المناديب والنماذج — وليست نموذجًا وهميًا هنا.
-            </p>
-            <Link
-              href="/rider-app/?tab=settings"
-              className="inline-flex items-center gap-2 px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold"
-            >
-              فتح إعدادات التطبيق
-            </Link>
-          </div>
-        </div>
-      )}
+      {activeTab === 'settings' && <AdminSettingsPanel />}
+
+      {activeTab === 'read_summary' && <AdminReadSummaryPanel />}
+      {activeTab === 'notify_settings' && <NotifySettingsPanel />}
+      {activeTab === 'archive' && <ArchivePanel />}
+      {activeTab === 'staff_chat' && <StaffChatPanel />}
 
       {/* Add User Dialog */}
       <Dialog

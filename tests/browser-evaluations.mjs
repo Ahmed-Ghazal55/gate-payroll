@@ -99,7 +99,6 @@ try {
   const fallbackExe = [
     process.env.PLAYWRIGHT_EXECUTABLE_PATH,
     process.env.PLAYWRIGHT_CHROMIUM_PATH,
-    '/home/ghazal/.cache/ms-playwright/chromium-1148/chrome-linux/chrome',
     '/usr/bin/google-chrome',
   ].find((p) => p && existsSync(p));
   browser = await chromium.launch({

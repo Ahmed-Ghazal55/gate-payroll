@@ -26,7 +26,7 @@ public static partial class NinjaInvoices
     static bool InCycle(DbConnection c,DbTransaction? tx,string id)=>Store.List(c,PayCycles.Kind,tx).Any(p=>p.S("status") is not ("cancelled" or "reversed")&&(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==id));
     public static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject invoice)
     {
-        Scope(actor,"pay.view",invoice.S("companyId"));var result=invoice.Clone();var actions=new JsonArray();string name=actor.Identity!.Name!;bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+        Scope(actor,"pay.view",invoice.S("companyId"));var result=invoice.Clone();var actions=new JsonArray();string name=actor.Identity!.Name!;bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopeInvoiceApprovals);
         var lines=Lines(c,tx,invoice.S("id"));var parts=lines.SelectMany(l=>(l["deductions"] as JsonArray??[]).OfType<JsonObject>()).ToList();
         var disputes=Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==invoice.S("id")).ToList();
         bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve"),independent=AccessPolicy.IndependentForView(actor,invoice.S("createdBy"),bypass),cycle=InCycle(c,tx,invoice.S("id")),posted=invoice.S("journalEntryId")!="",open=!Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==invoice.S("companyId")&&p.S("period")==invoice.S("period")&&p.S("status")=="closed");

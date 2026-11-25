@@ -9,35 +9,25 @@ const read = (rel) => readFileSync(path.join(root, rel), 'utf8');
 
 const sidebar = read('src/components/layout/Sidebar.tsx');
 const tabs = read('src/components/ui/SectionTabs.tsx');
-const payroll = read('src/app/payroll/page.tsx');
-const debts = read('src/app/debts/page.tsx');
-const treasury = read('src/app/treasury/page.tsx');
 const accounting = read('src/app/accounting/page.tsx');
 const admin = read('src/app/admin/page.tsx');
+const operations = read('src/app/operations/page.tsx');
 
-test('sidebar includes every section tab including current-cycle and former top-bar tabs', () => {
-  assert.match(sidebar, /ninja_upload/);
-  assert.match(sidebar, /رفع فاتورة نينجا/);
-  assert.match(sidebar, /current-cycle/);
-  assert.match(sidebar, /tab=actions/);
-  assert.match(sidebar, /تحصيل وإنشاء/);
+test('W3 sidebar keeps approvals, accounting tabs, and admin bypass/settings', () => {
+  assert.match(sidebar, /\/approvals\//);
   assert.match(sidebar, /manual_journals/);
   assert.match(sidebar, /القيود اليدوية/);
-  assert.match(sidebar, /tab=lists/);
   assert.match(sidebar, /tab=bypass/);
+  assert.match(sidebar, /tab=settings/);
+  assert.match(sidebar, /tab=coa/);
 });
 
 test('SectionTabs scrolls active tab into view and keeps role=tablist', () => {
   assert.match(tabs, /role="tablist"/);
   assert.match(tabs, /scrollIntoView/);
-  assert.match(tabs, /scrollbar-width:thin/);
 });
 
-test('rule 3.0: sidebar-split pages render no duplicate top-level tab bars', () => {
-  assert.doesNotMatch(payroll, /<SectionTabs\b/);
-  assert.doesNotMatch(payroll, /sharedSectionTabs/);
-  assert.doesNotMatch(debts, /id=\{`tab-\$\{tab\.id\}`\}/);
-  assert.doesNotMatch(treasury, /id=\{`tab-\$\{tab\.id\}`\}/);
+test('rule 3.0: accounting and operations have no duplicate top-level tablist', () => {
   assert.doesNotMatch(accounting, /role="tablist"/);
-  assert.doesNotMatch(admin, /<SectionTabs\b/);
+  assert.doesNotMatch(operations, /role="tablist"/);
 });

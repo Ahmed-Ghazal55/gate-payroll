@@ -93,7 +93,7 @@ function SectionTabsInner({
       ref={scrollerRef}
       role="tablist"
       aria-label={ariaLabel}
-      className={`flex items-center gap-1.5 overflow-x-auto scroll-smooth [scrollbar-width:thin] ${
+      className={`flex items-center gap-1.5 overflow-x-auto overflow-y-hidden no-scrollbar scroll-smooth ${
         variant === 'underline'
           ? 'border-b border-[var(--line)] py-1'
           : variant === 'pills'

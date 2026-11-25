@@ -15,7 +15,7 @@ public sealed class EnterpriseTests
     [DataRow("Reviewer","POST","/api/submissions/test/review",true)]
     [DataRow("Accountant","POST","/api/payroll/approve",false)]
     [DataRow("Accountant","POST","/api/adjustments",true)]
-    [DataRow("Accountant","POST","/api/payments",true)]
+    [DataRow("Accountant","POST","/api/payments",false)]
     [DataRow("Accountant","PUT","/api/users/test/status",false)]
     [DataRow("Reviewer","POST","/api/excel/riders/commit",false)]
     [DataRow("Admin","POST","/api/riders/enrich-missing",true)]
@@ -190,7 +190,7 @@ public sealed class EnterpriseTests
                     ["iqama"]="2491234567",
                     ["riderName"]="محمد أحمد",
                     ["debtorType"]="Rider",
-                    ["category"]="WorkPermit",["entryMode"]="Disbursement",
+                    ["category"]="WorkPermit",["entryMode"]="Accrual",
                     ["allocationMode"]="SharedSplit",
                     ["totalCostAmount"]=9600m,
                     ["companyShareAmount"]=4600m,
@@ -199,7 +199,7 @@ public sealed class EnterpriseTests
                     ["monthlyInstallment"]=1000m,
                     ["originSponsorId"]=FinancialCore.Sponsors[0].Id,
                     ["creditorSponsorId"]=FinancialCore.Sponsors[0].Id,
-                    ["paymentVaultCode"]="MAIN.BW.DEBT",
+                    ["recognitionAccountCode"]="2130",
                     ["sourceRef"]="WP-2026-001",
                     ["effectiveFrom"]="2026-10"
                 };
@@ -214,8 +214,8 @@ public sealed class EnterpriseTests
                 Assert.AreEqual("increase",lines[0]!.AsObject().S("effectDirection"));
                 Assert.AreEqual("1210",lines[1]!.AsObject().S("accountCode"));
                 Assert.AreEqual("increase",lines[1]!.AsObject().S("effectDirection"));
-                Assert.AreEqual("MAIN.BW.DEBT",lines[2]!.AsObject().S("accountCode"));
-                Assert.AreEqual("decrease",lines[2]!.AsObject().S("effectDirection"));
+                Assert.AreEqual("2130",lines[2]!.AsObject().S("accountCode"));
+                Assert.AreEqual("increase",lines[2]!.AsObject().S("effectDirection"));
                 return true;
             });
         }

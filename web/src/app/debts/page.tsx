@@ -142,9 +142,7 @@ function DebtsPageContent() {
   const [debtImportStep, setDebtImportStep] = useState<PageImportStep | null>(null);
 
   useEffect(() => {
-    if (resolvedTab && resolvedTab !== activeTab) {
-      setActiveTab(resolvedTab);
-    }
+    setActiveTab(resolvedTab);
   }, [resolvedTab]);
 
   const handleTabChange = (newTab: TabId) => {
@@ -1247,11 +1245,7 @@ function DebtsPageContent() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 sm:gap-4">
         <StatCard
           label="إجمالي المديونيات القائمة"
-          value={
-            debtsSummary
-              ? `${formatSar(totalRemainingDebts)}`
-              : '—'
-          }
+          value={`${formatSar(debtsSummary ? totalRemainingDebts : 0)}`}
           hint="الأرصدة المتبقية على ذمة المناديب"
           icon={Receipt}
           active={activeTab === 'debts' && selectedCategory === 'all' && selectedStatus === 'all'}
@@ -1264,11 +1258,7 @@ function DebtsPageContent() {
         />
         <StatCard
           label="أرصدة السلف المتبقية"
-          value={
-            debtsSummary
-              ? `${formatSar(totalAdvances)}`
-              : '—'
-          }
+          value={`${formatSar(debtsSummary ? totalAdvances : 0)}`}
           hint="السلف النقدية والبنكية الجاري استقطاعها"
           icon={Coins}
           active={activeTab === 'debts' && selectedCategory === 'advance'}
@@ -1280,7 +1270,7 @@ function DebtsPageContent() {
         />
         <StatCard
           label="طلبات السلف بانتظار المراجعة"
-          value={advancesLoaded ? String(pendingAdvancesCount) : '—'}
+          value={String(advancesLoaded ? pendingAdvancesCount : 0)}
           hint="تحتاج دراسة الملخص المالي والاعتماد"
           icon={Clock}
           active={activeTab === 'advance_requests'}
@@ -1289,7 +1279,7 @@ function DebtsPageContent() {
         />
         <StatCard
           label="طلبات الاعتمادات المتبادلة"
-          value={approvalsLoaded ? String(pendingApprovalsCount) : '—'}
+          value={String(approvalsLoaded ? pendingApprovalsCount : 0)}
           hint="طلبات بانتظار قرار الإدارة أو العمليات"
           icon={ShieldCheck}
           active={activeTab === 'approvals'}

@@ -115,10 +115,28 @@ public static partial class ApiContracts
     static OpenApiSchema Explain()=>O(new(){["label"]=S(),["formula"]=S(),["inputs"]=Free(),["amount"]=N(),["category"]=S(),["affectsNet"]=B()},"label","formula","inputs","amount","category");
     static OpenApiSchema ReviewRow()=>O(new(){["rider"]=S(),["name"]=S(),["status"]=S(),["review"]=S(),["reviewedBy"]=new OpenApiSchema{Type=JsonSchemaType.String|JsonSchemaType.Null},["reviewedAt"]=new OpenApiSchema{Type=JsonSchemaType.String|JsonSchemaType.Null},["gross"]=N(),["commission"]=N(),["afterCommission"]=N(),["phase1"]=N(),["preliminaryDue"]=N(),["phase2"]=N(),["phase3"]=N(),["net"]=N(),["allowedActions"]=A(S()),["blockers"]=A(S()),["salaryApprovedAt"]=S(),["debtDeductionStatus"]=S(),["items"]=A(O(new(){["key"]=S(),["phase"]=N(),["order"]=N(),["labelAr"]=S(),["amount"]=N(),["requestedAmount"]=N(),["editable"]=B(),["max"]=new OpenApiSchema{Type=JsonSchemaType.Number|JsonSchemaType.Null},["source"]=S()},"key","phase","amount","editable","source")),["edits"]=A(Free())},"rider","status","review","net","items");
     static OpenApiSchema Statement()=>O(new(){["header"]=O(new(){["rider"]=S(),["name"]=S(),["period"]=S(),["status"]=S(),["ibanMasked"]=S(),["cycles"]=A(Free())},"rider","name","period","cycles"),["source"]=S(),["status"]=S(),["net"]=N(),["carried"]=N(),["closing"]=N(),["balanceBasis"]=S(),["approvedOnly"]=B(),["closingMarkerAr"]=S(),["disclaimerAr"]=S(),["shortLines"]=A(Free()),["cards"]=A(O(new(){["app"]=S(),["platform"]=S(),["gross"]=N(),["earnedGross"]=N(),["companyCommission"]=N(),["vehicleCharge"]=N(),["netBeforePersonal"]=N(),["sources"]=A(O(new(){["sourceLineId"]=S(),["accountId"]=S(),["operationSourceIds"]=A(S()),["baseGross"]=N(),["incentive"]=N(),["deduction"]=N()},"sourceLineId","accountId","baseGross")),["explain"]=A(Explain())},"app","gross","earnedGross","explain")),["deductions"]=A(Free()),["phases"]=new OpenApiSchema{Type=JsonSchemaType.Object|JsonSchemaType.Null,AdditionalProperties=N()}},"header","source","status","net","carried","closing","cards","deductions");
+    static OpenApiSchema PaymentDocument()=>O(new(){["id"]=S(),["docNo"]=S(),["type"]=S(),["companyId"]=S(),["supplierId"]=new OpenApiSchema{Type=JsonSchemaType.String|JsonSchemaType.Null},["platform"]=S(),["reference"]=S(),["occurredOn"]=S(),["dueOn"]=S(),["periodMonth"]=S(),["amount"]=N(),["vatAmount"]=N(),["status"]=N(),["runMode"]=N(),["payoutBlocked"]=B(),["amountPaid"]=N(),["amountReserved"]=N(),["availableBalance"]=N(),["allowedActions"]=A(S()),["lines"]=A(O(new(){["id"]=S(),["accountId"]=S(),["costCentreId"]=S(),["appCode"]=S(),["amount"]=N()},"id","accountId","costCentreId","amount")),["metadata"]=Free()},"id","type","companyId","amount","status","allowedActions");
+    static OpenApiSchema PaymentVoucher()=>O(new(){["id"]=S(),["paymentNo"]=S(),["documentId"]=S(),["companyId"]=S(),["periodMonth"]=S(),["paidOn"]=S(),["amount"]=N(),["status"]=N(),["runMode"]=N(),["payoutBlocked"]=B(),["approvalRequestId"]=S(),["bankAccountId"]=S(),["reference"]=S(),["journalId"]=new OpenApiSchema{Type=JsonSchemaType.String|JsonSchemaType.Null},["allowedActions"]=A(S())},"id","documentId","companyId","amount","status","allowedActions");
+    static OpenApiSchema SalRiderRequestItem()=>O(new(){["id"]=S(),["kind"]=S(),["requestType"]=S(),["typeLabelAr"]=S(),["erpRiderId"]=S(),["companyId"]=S(),["periodMonth"]=S(),["appCode"]=S(),["amount"]=N(),["combinedNet"]=N(),["status"]=S(),["statusCode"]=N(),["statusLabelAr"]=S(),["reasonCode"]=S(),["note"]=S(),["source"]=S(),["requestedBy"]=S(),["requestedAt"]=S(),["approvedBy"]=S(),["approvedAt"]=S(),["releaseMode"]=S(),["releasedBy"]=S(),["releasedAt"]=S(),["payRunRiderId"]=S(),["awaitedApps"]=A(S()),["receivedApps"]=A(S()),["released"]=B(),["allowedActions"]=A(S())},"id","erpRiderId","companyId","periodMonth","status","allowedActions");
+    static OpenApiSchema SalRiderRequestsPage()=>O(new(){["items"]=A(SalRiderRequestItem()),["total"]=N(),["summary"]=Free(),["allowedActions"]=A(S())},"items","total","summary","allowedActions");
+    static OpenApiSchema SalBankFileLine()=>O(new(){["id"]=S(),["payRunRiderId"]=S(),["payableId"]=S(),["companyId"]=S(),["registrationId"]=S(),["paymentId"]=S(),["allocationId"]=S(),["erpRiderId"]=S(),["appCode"]=S(),["iqama"]=S(),["name"]=S(),["iban"]=S(),["bank"]=S(),["bankShortCode"]=S(),["bankNameAr"]=S(),["address"]=S(),["amount"]=N(),["status"]=S()},"id","payRunRiderId","payableId","companyId","registrationId","erpRiderId","iqama","iban","bankShortCode","amount","status");
+    static OpenApiSchema SalBankSheetRow()=>O(new(){["erpRiderId"]=S(),["bank"]=S(),["bankShortCode"]=S(),["bankNameAr"]=S(),["iban"]=S(),["amount"]=N(),["notes"]=S(),["name"]=S(),["iqama"]=S(),["address"]=S(),["apps"]=A(S())},"erpRiderId","bank","bankShortCode","iban","amount","iqama","name");
+    static OpenApiSchema SalBankFile()=>O(new(){["id"]=S(),["periodMonth"]=S(),["issuanceChoice"]=S(),["sheetShape"]=S(),["scopeCompanyId"]=S(),["scopeRegistrationId"]=S(),["payingCompanyId"]=S(),["payingRegistrationId"]=S(),["payingBankId"]=S(),["status"]=S(),["statusCode"]=N(),["fileHash"]=S(),["fileContentHash"]=S(),["runMode"]=N(),["payoutBlocked"]=B(),["doNotSend"]=B(),["payoutLabel"]=S(),["currencyCode"]=S(),["totalAmount"]=N(),["lineCount"]=N(),["riderCount"]=N(),["approvedBy"]=S(),["approvedAt"]=S(),["sentBy"]=S(),["sentAt"]=S(),["createdBy"]=S(),["createdAt"]=S(),["lines"]=A(SalBankFileLine()),["sheetRows"]=A(SalBankSheetRow()),["excludedRows"]=A(Free()),["settlements"]=A(Free()),["allowedActions"]=A(S())},"id","periodMonth","issuanceChoice","sheetShape","payingCompanyId","payingRegistrationId","payingBankId","status","totalAmount","lines","sheetRows","allowedActions");
+    static OpenApiSchema SalBankFilesPage()=>O(new(){["items"]=A(SalBankFile()),["total"]=N(),["allowedActions"]=A(S())},"items","total","allowedActions");
     public static OpenApiSchema? Response(string method,string path)
     {
         bool get=method=="GET";
         if(EvaluationResponse(method,path) is { } evaluation)return evaluation;
+        if(path.StartsWith("/api/payments/",StringComparison.Ordinal))
+        {
+            if(path.Contains("/vouchers/",StringComparison.Ordinal)||path.EndsWith("/payment-requests",StringComparison.Ordinal)||path.EndsWith("/cards/issue",StringComparison.Ordinal)||path=="/api/payments/recurring-one-off")return PaymentVoucher();
+            if(path=="/api/payments/documents"&&get||path=="/api/payments/hr-fees"&&get||path=="/api/payments/traffic-violations"&&get||path=="/api/payments/government"&&get)return O(new(){["items"]=A(PaymentDocument()),["allowedActions"]=A(S())},"items","allowedActions");
+            if(path.Contains("/documents/",StringComparison.Ordinal)||!get&&path is "/api/payments/documents" or "/api/payments/quick" or "/api/payments/hr-fees" or "/api/payments/traffic-violations" or "/api/payments/government" or "/api/payments/advances")return PaymentDocument();
+            if(path.StartsWith("/api/payments/recurring-",StringComparison.Ordinal))
+                return O(new(){["id"]=S(),["items"]=A(Free()),["lines"]=A(Free()),["vouchers"]=A(PaymentVoucher()),["payeeId"]=S(),["allowedActions"]=A(S()),["companyId"]=S(),["periodMonth"]=S(),["status"]=N(),["nameAr"]=S(),["amount"]=N(),["currencyCode"]=S(),["sarAmount"]=N()},"allowedActions");
+            return O(new(){["id"]=S(),["items"]=A(Free()),["amountDue"]=N(),["bookBalance"]=N(),["statementBalance"]=N(),["difference"]=N(),["result"]=S(),["allowedActions"]=A(S())},"allowedActions");
+        }
+
         if(path=="/api/me"||path=="/api/users/{id}"||path=="/api/users/{id}/status"||path=="/api/users/{id}/reset-password"||path=="/api/me/password")return User();
         if(path=="/api/users")return get?A(User()):User();
         if(path=="/api/admin/approval-exceptions")return A(O(new(){["id"]=S(),["action"]=S(),["operation"]=S(),["recordId"]=S(),["maker"]=S(),["actor"]=S(),["at"]=S(),["approvalExceptionUntil"]=S(),["selfApprovedException"]=B()},"id","action","operation","recordId","maker","actor","at","approvalExceptionUntil","selfApprovedException"));
@@ -133,6 +151,11 @@ public static partial class ApiContracts
         if(path=="/api/pay/shared-riders/{rider}/{period}/release")return SharedRider();
         if(path=="/api/pay/review-draft")return O(new(){["app"]=S(),["period"]=S(),["companyId"]=S(),["invoices"]=A(Review()),["blockers"]=A(O(new(){["code"]=S(),["message"]=S(),["fixAction"]=S(),["sourceLineId"]=S()},"code","message","fixAction","sourceLineId")),["warnings"]=A(O(new(){["code"]=S(),["message"]=S(),["sourceLineId"]=S(),["erpOrders"]=N(),["invoiceOrders"]=N()},"code","message","sourceLineId")),["allocationProposals"]=A(Free()),["dataThrough"]=S(),["unassignedOrders"]=A(Free()),["ridersNotFound"]=A(Free()),["evidence"]=A(Free()),["canCreate"]=B(),["totals"]=O(new(){["gross"]=N(),["deductions"]=N(),["vat"]=N()},"gross","deductions","vat")},"app","period","companyId","invoices","blockers","unassignedOrders","ridersNotFound","evidence","canCreate","totals");
         if(path=="/api/finance/treasury/summary")return TreasurySummarySchema();
+        if(path=="/api/treasury/balances/tree"&&get)return O(new(){["periodMonth"]=S(),["items"]=A(Free()),["totals"]=O(new(){["cash"]=N(),["bank"]=N(),["custody"]=N(),["total"]=N()},"cash","bank","custody","total"),["allowedActions"]=A(S()),["noteAr"]=S()},"periodMonth","items","totals","allowedActions");
+        if(path.StartsWith("/api/treasury/bank-statements",StringComparison.Ordinal)||path.StartsWith("/api/treasury/bank-adjustments",StringComparison.Ordinal)||path.StartsWith("/api/treasury/vault-counts",StringComparison.Ordinal))
+            return Free();
+        if(path.StartsWith("/api/sal/erp-settlements",StringComparison.Ordinal))return Free();
+        if(path.StartsWith("/api/finance/jahez-reconciliations/day",StringComparison.Ordinal))return Free();
         if(path=="/api/finance/bank-file/preview")return BankFilePreview();
         if(path=="/api/finance/vault-transfer")return Journal();
         if(path=="/api/finance/sponsors")return A(O(new(){["id"]=S(),["sponsorId"]=S(),["code"]=S(),["nameAr"]=S(),["shortNameAr"]=S(),["vaultBalance"]=N(),["mainVaultBalance"]=N(),["bankBalance"]=N(),["allowedActions"]=A(S())},"id","code"));
@@ -157,6 +180,22 @@ public static partial class ApiContracts
         if(get&&path is "/api/workforce/saudi-payroll-employees" or "/api/workforce/terminated" or "/api/workforce/absence-cases" or "/api/workforce/legal-cases" or "/api/workforce/data-quality")return WorkforceListEnvelope();
         if(path=="/api/workforce/export"&&get)return Free();
         if(path=="/api/hr-catalogs/{kind}"&&get)return WorkforceListEnvelope();
+        if(path is "/api/sal/pay-runs/{id}/capture-ops" or "/api/sal/pay-runs/{id}/freeze-capture")return O(new(){["id"]=S(),["companyId"]=S(),["app"]=S(),["periodMonth"]=S(),["captureState"]=N(),["snapshotCount"]=N(),["requiredKinds"]=N(),["frozenAt"]=S(),["noteAr"]=S(),["allowedActions"]=A(S())},"id","captureState","allowedActions");
+        if(path=="/api/sal/tga/allocate")return O(new(){["invoiceId"]=S(),["itemId"]=S(),["allocatedTotal"]=N(),["bearers"]=A(Free()),["allowedActions"]=A(S())},"invoiceId","itemId","allocatedTotal","bearers","allowedActions");
+        if(path=="/api/sal/settlements/combine")return O(new(){["id"]=S(),["app"]=S(),["periodFrom"]=S(),["periodTo"]=S(),["invoiceCount"]=N(),["gross"]=N(),["deductions"]=N(),["net"]=N(),["allowedActions"]=A(S())},"id","app","invoiceCount","allowedActions");
+        if(path=="/api/sal/distributions/propose")return O(new(){["invoiceId"]=S(),["app"]=S(),["method"]=S(),["distributedTotal"]=N(),["rows"]=A(Free()),["allowedActions"]=A(S())},"invoiceId","app","method","distributedTotal","rows","allowedActions");
+        if(path=="/api/sal/item-bearers/assign-shared")return O(new(){["itemId"]=S(),["status"]=S(),["noteAr"]=S(),["actualRiderId"]=S(),["itemDate"]=S(),["allocations"]=A(Free()),["allowedActions"]=A(S())},"itemId","status","allowedActions");
+        if(path=="/api/sal/keeta/rejection-split")return O(new(){["erpPlatformAccountId"]=S(),["chargeTotal"]=N(),["freeQuotaPerDay"]=N(),["rateSar"]=N(),["bearers"]=A(Free())},"erpPlatformAccountId","chargeTotal","bearers");
+        if(path=="/api/sal/platform-invoices")return O(new(){["id"]=S(),["app"]=S(),["companyId"]=S(),["cityCode"]=S(),["periodFrom"]=S(),["periodTo"]=S(),["periodMonth"]=S(),["gross"]=N(),["deductions"]=N(),["net"]=N(),["status"]=N(),["lines"]=A(Free()),["partnerTotals"]=Free(),["ownerSnapshot"]=A(Free()),["allowedActions"]=A(S())},"id","app","companyId","gross","deductions","net","status","allowedActions");
+        if(path=="/api/sal/platform-invoices/{id}/approve")return O(new(){["id"]=S(),["status"]=N(),["approvedBy"]=S(),["approvedAt"]=S(),["distribution"]=A(Free()),["allowedActions"]=A(S())},"id","status","allowedActions");
+        if(path=="/api/sal/keeta/hwm"&&get)return O(new(){["views"]=A(O(new(){["viewName"]=S(),["lastRevision"]=N(),["lastSnapshotId"]=S(),["lastCreatedAt"]=S(),["advancedAt"]=S()},"viewName","lastRevision")),["allowedActions"]=A(S())},"views","allowedActions");
+        if(path=="/api/sal/keeta/hwm/advance")return O(new(){["viewName"]=S(),["lastRevision"]=N(),["lastSnapshotId"]=S(),["lastCreatedAt"]=S(),["advancedAt"]=S(),["allowedActions"]=A(S())},"viewName","lastRevision","allowedActions");
+        if(path=="/api/sal/rider-requests")return get?SalRiderRequestsPage():SalRiderRequestItem();
+        if(path is "/api/sal/rider-requests/{id}/approve" or "/api/sal/rider-requests/{id}/reject" or "/api/sal/rider-requests/{id}/release")return SalRiderRequestItem();
+        if(path=="/api/sal/rider-requests/{id}/request-release")return Free();
+        if(path=="/api/sal/bank-files")return get?SalBankFilesPage():SalBankFile();
+        if(path is "/api/sal/bank-files/{id}" or "/api/sal/bank-files/{id}/mark-sent")return SalBankFile();
+        if(path is "/api/sal/bank-files/{id}/export" or "/api/sal/bank-files/{id}/request-mark-sent")return Free();
         if(path=="/api/operations/{kind}"&&get)return OperationsPage();
         if(get&&path=="/api/operations/cities-summary")return OpsFleetPage(OpsCityRow());
         if(get&&path=="/api/operations/housing")return OpsFleetPage(OpsHousingRow());
@@ -173,6 +212,8 @@ public static partial class ApiContracts
         if(get&&path.StartsWith("/api/operations/",StringComparison.Ordinal)&&path.EndsWith("/export",StringComparison.Ordinal))return Free();
         if(get&&path is "/api/pay/sources/fuel-consumption" or "/api/pay/sources/vehicle-assignment-periods" or "/api/pay/sources/housing-periods" or "/api/pay/sources/keeta-eligibility" or "/api/pay/sources/hs-stamp-queue")
             return OpsFleetPage(Free());
+        if(get&&path=="/api/pay/apps/{app}/omar-commission-rates")
+            return O(new(){["app"]=S(),["program"]=N(),["asOf"]=S(),["readAt"]=S(),["source"]=S(),["rates"]=A(Free()),["byCity"]=A(Free()),["schemeRows"]=A(Free()),["missing"]=A(Free()),["writable"]=B(),["allowedActions"]=A(S())},"app","source","asOf","schemeRows","writable","allowedActions");
         if(path=="/api/riders/{iqama}/accounts"&&get)return OperationsPage();
         if(path=="/api/riders/lookup"&&get)return A(Rider());
         if(path=="/api/rider-mobile/service-requests"&&get)return new(){OneOf=[A(ServiceRequest()),Page(ServiceRequest())]};
@@ -218,4 +259,6 @@ public static partial class ApiContracts
         var schema=Response(method,path.Split('?')[0]);if(schema==null)return;
         operation.Responses??=new();operation.Responses["200"]=new OpenApiResponse{Description="Successful response (stored wire field names)",Content=new Dictionary<string,OpenApiMediaType>{["application/json"]=new(){Schema=schema}}};
     }
+
+
 }

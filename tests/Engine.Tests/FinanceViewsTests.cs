@@ -14,7 +14,21 @@ public sealed class FinanceViewsTests
     private const string Rider="2000000111";
     private static ClaimsPrincipal Admin=>UserAccess.Principal(new(){["username"]="synthetic-admin",["role"]="Admin"});
     private static ClaimsPrincipal Manager(string company="BW")=>UserAccess.Principal(new(){["username"]="synthetic-manager",["role"]="FinancialManager",["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(company),["accountCodes"]=new JsonArray("MAIN."+company+".DEBT"),["categoryCodes"]=new JsonArray("Advance"),["platforms"]=new JsonArray("Jahez")}});
-    private static void InStore(Action<Store> action){string path=Path.Combine(Path.GetTempPath(),"gate-views-"+Guid.NewGuid().ToString("N"));try{action(new Store(path));}finally{SqliteConnection.ClearAllPools();if(Directory.Exists(path))Directory.Delete(path,true);}}
+    private static void InStore(Action<Store> action)
+    {
+        string path=Path.Combine(Path.GetTempPath(),"gate-views-"+Guid.NewGuid().ToString("N"));
+        try
+        {
+            var store=new Store(path);
+            store.Write((c,tx)=>{
+                Store.Save(c,"user",new(){["id"]="synthetic-admin",["username"]="synthetic-admin",["role"]="Admin",["department"]="FIN",["rankLevel"]=5},tx);
+                Store.Save(c,"user",new(){["id"]="synthetic-manager",["username"]="synthetic-manager",["role"]="FinancialManager",["department"]="FIN",["rankLevel"]=4},tx);
+                return true;
+            });
+            action(store);
+        }
+        finally{SqliteConnection.ClearAllPools();if(Directory.Exists(path))Directory.Delete(path,true);}
+    }
     private static void Journal(Store store,string id,string period,params JsonObject[] lines)=>store.Write((c,tx)=>{Store.Save(c,"journal",new(){["id"]=id,["period"]=period,["status"]="posted",["transactionType"]="synthetic",["lines"]=new JsonArray(lines.Select(l=>(JsonNode?)l).ToArray())},tx);return true;});
     private static JsonObject Line(string code,string sponsor,decimal debit,decimal credit,string iqama="")=>FinancialCore.CreateJournalLine(code,sponsor,debit,credit,"Synthetic",iqama);
     private static JsonObject Company(JsonObject report)=>report["companies"]!.AsArray().OfType<JsonObject>().Single(c=>c.S("sponsorId")==Bw);
@@ -27,7 +41,9 @@ public sealed class FinanceViewsTests
     }
     private static void SalaryFixture(Store store,string iban="",decimal amount=1000)
     {
-        store.Write((c,tx)=>{Store.Save(c,"rider",new(){["id"]=Rider,["iqama"]=Rider,["name"]="Synthetic Rider",["iban"]=iban==""?FakeIban():iban,["address"]="Synthetic City"},tx);return true;});
+        string use=iban==""?FakeIban():iban;
+        // TRIAL8/9: treasury bank preview excludes unverified IBAN unless confirmUnverifiedIbans — fixture stores verified.
+        store.Write((c,tx)=>{Store.Save(c,"rider",new(){["id"]=Rider,["iqama"]=Rider,["name"]="Synthetic Rider",["iban"]=use,["verifiedIban"]=use,["address"]="Synthetic City"},tx);return true;});
         Journal(store,"payroll-approved","2026-10",Line("5301",Bw,amount,0,Rider),Line("2110",Bw,0,amount,Rider));
     }
     private static JsonObject Input()=>new(){["sponsorId"]="BW",["period"]="2026-10"};
@@ -38,12 +54,13 @@ public sealed class FinanceViewsTests
     [TestMethod] public void GeneratedChartHasUniqueCodesValidParentsAndPostingLeaves()
     {
         var resource=FinanceViews.TargetChart();Assert.AreEqual(1m,resource.N("schemaVersion"));
-        var accounts=resource["accounts"]!.AsArray().OfType<JsonObject>().ToArray();Assert.AreEqual(411,accounts.Length);Assert.AreEqual(235,accounts.Count(a=>a.B("posting")&&a.S("status")=="active"));
-        Assert.AreEqual(294,accounts.Count(a=>a.S("source")=="excel"));Assert.AreEqual(28,accounts.Count(a=>a.S("source")=="modified"));Assert.AreEqual(89,accounts.Count(a=>a.S("source")=="new"));
+        // COA1 A1/A2/A3: 512123 + 5268/526801–526806 → 419 / 97 new / 242 active posting.
+        var accounts=resource["accounts"]!.AsArray().OfType<JsonObject>().ToArray();Assert.AreEqual(423,accounts.Length);Assert.AreEqual(245,accounts.Count(a=>a.B("posting")&&a.S("status")=="active"));
+        Assert.AreEqual(294,accounts.Count(a=>a.S("source")=="excel"));Assert.AreEqual(28,accounts.Count(a=>a.S("source")=="modified"));Assert.AreEqual(97,accounts.Count(a=>a.S("source")=="new"));
         foreach(var account in accounts)foreach(string field in new[]{"source","sourceNote","statusNote","subledger"})Assert.IsTrue(account.ContainsKey(field));
         var codes=accounts.Select(a=>a.S("code")).ToHashSet();Assert.AreEqual(accounts.Length,codes.Count);
         foreach(var account in accounts){if(account["parent"]!=null)Assert.IsTrue(codes.Contains(account.S("parent")));if(account.B("posting"))Assert.IsFalse(accounts.Any(a=>a.S("parent")==account.S("code")));}
-        resource["accounts"]=new JsonArray();Assert.AreEqual(411,FinanceViews.TargetChart()["accounts"]!.AsArray().Count);
+        resource["accounts"]=new JsonArray();Assert.AreEqual(423,FinanceViews.TargetChart()["accounts"]!.AsArray().Count);
     }
     [TestMethod] public void TrialBalancesRollUpAndKeepAmbiguousAndUnknownCodesPerCompanyWithoutWrites()
     {
@@ -160,10 +177,20 @@ public sealed class FinanceViewsTests
         InStore(store=>{SalaryFixture(store);var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));var input=ExportInput(preview);input["rows"]![0]!["amount"]=900.25m;input["rows"]![0]!["notes"]="Synthetic, \"note\"\nsecond line";
             string journals=store.Read(c=>new JsonArray(Store.List(c,"journal").Select(j=>(JsonNode?)j).ToArray()).ToJsonString());
             var file=store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,input));CollectionAssert.AreEqual(new byte[]{0xEF,0xBB,0xBF},file.Bytes[..3]);string csv=Encoding.UTF8.GetString(file.Bytes[3..]);Assert.IsTrue(csv.StartsWith(BankPayrollFiles.Header+"\r\n",StringComparison.Ordinal));Assert.IsTrue(csv.EndsWith("\r\n",StringComparison.Ordinal));Assert.IsFalse(csv.Replace("\r\n","").Contains('\n'));Assert.IsFalse(csv.Replace("\r\n","").Contains('\r'));StringAssert.Contains(csv,"900.25,\"Synthetic, \"\"note\"\"\r\nsecond line\"");StringAssert.Matches(file.Filename,new System.Text.RegularExpressions.Regex(@"^[0-9]+_bulkPayroll\.csv$"));
-            var audit=store.Read(c=>Store.List(c,"audit").Single());Assert.AreEqual(1m,audit.N("rowCount"));Assert.AreEqual(1m,audit.N("editedRowCount"));Assert.AreEqual(900.25m,audit.N("total"));Assert.AreEqual("synthetic-admin",audit.S("actor"));Assert.AreEqual(7,audit.Count);Assert.IsFalse(audit.ToJsonString().Contains(Rider));Assert.IsFalse(audit.ToJsonString().Contains(FakeIban()));Assert.IsFalse(audit.ToJsonString().Contains("Synthetic Rider"));Assert.AreEqual(journals,store.Read(c=>new JsonArray(Store.List(c,"journal").Select(j=>(JsonNode?)j).ToArray()).ToJsonString()));
-            // M1: markSent posts payout; parallel comparison never does.
+            var audit=store.Read(c=>Store.List(c,"audit").Single(a=>a.S("action")=="finance.bankfile.export"));Assert.AreEqual(1m,audit.N("rowCount"));Assert.AreEqual(1m,audit.N("editedRowCount"));Assert.AreEqual(900.25m,audit.N("total"));Assert.AreEqual("synthetic-admin",audit.S("actor"));Assert.AreEqual(7,audit.Count);Assert.IsFalse(audit.ToJsonString().Contains(Rider));Assert.IsFalse(audit.ToJsonString().Contains(FakeIban()));Assert.IsFalse(audit.ToJsonString().Contains("Synthetic Rider"));Assert.AreEqual(journals,store.Read(c=>new JsonArray(Store.List(c,"journal").Select(j=>(JsonNode?)j).ToArray()).ToJsonString()));
+            // M1: markSent posts payout after a recorded two-person dual decision; parallel comparison never does.
             int before=store.Read(c=>Store.List(c,"journal").Count);
-            var sent=ExportInput(preview);sent["markSent"]=true;sent["bankAccountCode"]="111101";sent["rows"]![0]!["amount"]=900.25m;
+            // COA1 A14: payout requires a real bank leaf (not cash box 111101).
+            var sent=ExportInput(preview);sent["markSent"]=true;sent["bankAccountCode"]="111201";sent["rows"]![0]!["amount"]=900.25m;
+            string payoutRef="bank-payout:"+Bw+":2026-10:2026-10";
+            var checker=UserAccess.Principal(new(){["username"]="synthetic-bank-checker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5});
+            store.Write((c,tx)=>{
+                Store.Save(c,"user",new(){["id"]="synthetic-bank-checker",["username"]="synthetic-bank-checker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5},tx);
+                string hash=BankPayrollFiles.FileContentHash(sent["rows"]!.AsArray().OfType<JsonObject>(),900.25m);
+                var req=FinancialCore.CreateMutualApproval(c,tx,"bank_sent","اعتماد إرسال ملف بنك","مرجع اختبار", "OPS","FIN",1,payoutRef,new(){["amountSar"]=900.25m,["fileContentHash"]=hash,["total"]=900.25m},"synthetic-admin");
+                ApprovalsArea.Decide(c,tx,checker,req.S("id"),new(){["decision"]="approve",["note"]="independent checker"});
+                return true;
+            });
             store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,sent));
             Assert.IsTrue(store.Read(c=>Store.List(c,"journal").Count)>before);
             Assert.IsTrue(store.Read(c=>Store.List(c,"journal").Any(j=>j.S("transactionType")=="bank_payroll_payout")));
@@ -185,9 +212,15 @@ public sealed class FinanceViewsTests
     }
     [TestMethod] public void MissingOrInvalidVerifiedIbanAndNonpositivePayableBlockExportEvenWhenClientClearsErrors()
     {
+        // TRIAL8/9: invalid/missing IBAN is excluded (never invented); not left in rows with clearable errors.
         InStore(store=>{SalaryFixture(store);store.Write((c,tx)=>{var rider=Store.Get(c,Rider,"rider",tx)!;rider["verifiedIban"]="SA00"+new string('0',20);Store.Save(c,"rider",rider,tx);return true;});
-            var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));Assert.IsFalse(preview.B("canExport"));var input=ExportInput(preview);input["rows"]![0]!["errors"]=new JsonArray();Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,input)));
-            store.Write((c,tx)=>{var rider=Store.Get(c,Rider,"rider",tx)!;rider["verifiedIban"]="";rider["iban"]="";Store.Save(c,"rider",rider,tx);return true;});preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));CollectionAssert.Contains(preview["rows"]![0]!["errors"]!.AsArray().Select(v=>v!.ToString()).ToArray(),"missing_iban");
+            var preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));Assert.IsFalse(preview.B("canExport"));
+            Assert.AreEqual(0,(preview["rows"] as JsonArray??[]).Count);
+            Assert.IsTrue((preview["excludedRows"] as JsonArray??[]).OfType<JsonObject>().Any(e=>e.S("reason") is "iban_unverified" or "iban_invalid"));
+            Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>BankPayrollFiles.Export(c,tx,Admin,ExportInput(preview))));
+            store.Write((c,tx)=>{var rider=Store.Get(c,Rider,"rider",tx)!;rider["verifiedIban"]="";rider["iban"]="";Store.Save(c,"rider",rider,tx);return true;});
+            preview=store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input()));
+            Assert.IsTrue((preview["excludedRows"] as JsonArray??[]).OfType<JsonObject>().Any(e=>e.S("reason")=="iban_missing"));
         });
         InStore(store=>{SalaryFixture(store);Journal(store,"fully-paid","2026-10",Line("2110",Bw,1000,0,Rider),Line("MAIN.BW.DEBT",Bw,0,1000,Rider));Assert.IsFalse(store.Read(c=>BankPayrollFiles.Preview(c,Admin,Input())).B("canExport"));});
     }

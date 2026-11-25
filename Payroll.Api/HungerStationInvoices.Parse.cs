@@ -10,17 +10,55 @@ namespace Payroll;
 public static partial class HungerStationInvoices
 {
     public sealed record RowIssue(int File,string Sheet,int Row,string Code);
-    static readonly string[] Components=["completedOrders","basicPayment","stackingDeduction","declinedPenalty","latePenalty","noShowPenalty","noShowSpecialPenalty","acceptanceRatePenalty","distancePayment","missedDaysPenalty","segmentPayment","courierBasicPayment","riderBalance"];
-    static readonly string[] MoneyFields=["basicPayment","stackingDeduction","declinedPenalty","latePenalty","noShowPenalty","noShowSpecialPenalty","acceptanceRatePenalty","distancePayment","missedDaysPenalty","segmentPayment","courierBasicPayment","riderBalance","driverCardSupport","growthProgram","periodAdjustment","carDeduction","carAdjustment","tgaDeduction","amountExclVat","vat","amountInclVat","totalDeduction","netFtr","riderNet","companyCommission","platformAmountExclVat"];
+    static readonly string[] Components=["completedOrders","basicPayment","stackingDeduction","declinedPenalty","latePenalty","noShowPenalty","noShowSpecialPenalty","acceptanceRatePenalty","distancePayment","missedDaysPenalty","workingDaysPenalty","segmentPayment","courierBasicPayment","riderBalance"];
+    static readonly string[] MoneyFields=["basicPayment","stackingDeduction","declinedPenalty","latePenalty","noShowPenalty","noShowSpecialPenalty","acceptanceRatePenalty","distancePayment","missedDaysPenalty","workingDaysPenalty","segmentPayment","courierBasicPayment","riderBalance","driverCardSupport","growthProgram","periodAdjustment","carDeduction","carAdjustment","tgaDeduction","amountExclVat","vat","amountInclVat","totalDeduction","netFtr","riderNet","companyCommission","platformAmountExclVat","bonusAchieved"];
     static readonly Dictionary<string,string> Aliases=BuildAliases();
     static string Key(string value)=>Regex.Replace(value.ToLowerInvariant(),@"[^a-z0-9]","");
     static Dictionary<string,string> BuildAliases()
     {
-        string[] fields=MoneyFields.Concat(new[]{"completedOrders","platformId","contractName","companyCr","scheme","riderId","currency","cityName","vehicleType","contractStart","contractEnd","totalMonthlyHours","workingHours","fullyWorkingDays","workingDays","cityMonthlyFlatSalary","cityPayment","basicRate","segment","segmentRate","excusedAbsenceDays","missedWeekends","missedEom","totalMissedDays","missedDaysAfterAllowance","totalManhattanDistance","manhattanDistancePayable","invoiceDate","loadingPeriod"}).ToArray();
+        string[] fields=MoneyFields.Concat(new[]{"completedOrders","platformId","contractName","companyCr","scheme","riderId","currency","cityName","vehicleType","contractStart","contractEnd","totalMonthlyHours","workingHours","fullyWorkingDays","workingDays","cityMonthlyFlatSalary","cityPayment","basicRate","segment","segmentRate","riderRating","excusedAbsenceDays","missedWeekends","missedEom","totalMissedDays","missedDaysAfterAllowance","totalManhattanDistance","manhattanDistancePayable","invoiceDate","loadingPeriod"}).ToArray();
         var map=fields.ToDictionary(Key,x=>x);
-        foreach(var (name,field) in new[]{("rider_id","platformId"),("platform_id","platformId"),("commercial_registration","companyCr"),("commercial_registration_number","companyCr"),("cr_number","companyCr"),("cr","companyCr"),("accounting_scheme","scheme"),("work_system","scheme"),("declined_penalties_day_logic","declinedPenalty"),("no_show_penalty_special_cities","noShowSpecialPenalty"),("daily_acceptance_rate_penalty","acceptanceRatePenalty"),("missed_days_penalty","missedDaysPenalty"),("amount_excluding_vat","amountExclVat"),("amount_including_vat","amountInclVat"),("vat_amount","vat"),("net_ftr","netFtr"),("actual_rider_iqama","riderId")})map[Key(name)]=field;
+        foreach(var (name,field) in new[]{
+            ("rider_id","platformId"),("Rider ID","platformId"),("platform_id","platformId"),
+            ("commercial_registration","companyCr"),("commercial_registration_number","companyCr"),("cr_number","companyCr"),("cr","companyCr"),("VAT No.","companyCr"),
+            ("Contract Name","contractName"),("accounting_scheme","scheme"),("work_system","scheme"),
+            ("declined_penalties_day_logic","declinedPenalty"),("no_show_penalty_special_cities","noShowSpecialPenalty"),
+            ("daily_acceptance_rate_penalty","acceptanceRatePenalty"),("missed_days_penalty","missedDaysPenalty"),
+            ("working_days_penalty","workingDaysPenalty"),("stacking_deduction","stackingDeduction"),
+            ("distance_payment","distancePayment"),("segment_payment","segmentPayment"),
+            ("Driver Card Support (month)","driverCardSupport"),("Growth Program (month)","growthProgram"),
+            ("CAR Deduction (month)","carDeduction"),("TGA Deduction (month)","tgaDeduction"),
+            ("Total Deduction","totalDeduction"),("Net FTR","netFtr"),("Rider Balance","riderBalance"),
+            ("Amount Excl. VAT","amountExclVat"),("Amount Incl. VAT","amountInclVat"),
+            ("amount_excluding_vat","amountExclVat"),("amount_including_vat","amountInclVat"),("vat_amount","vat"),
+            ("COURIER_BASIC_PAYMENT","courierBasicPayment"),("Bonus Achieved","bonusAchieved"),
+            ("actual_rider_iqama","riderId"),("city_name","cityName"),("rider_vehicle_type","vehicleType"),
+            ("report_month","reportMonth"),("basic_rate","basicRate"),("city_monthly_flat_salary","cityMonthlyFlatSalary"),
+            // T11b: category = Breakdown.segment; rating when present on the invoice sheet.
+            ("segment","segment"),("rider_category","segment"),("category","segment"),("فئة","segment"),
+            ("rating","riderRating"),("rider_rating","riderRating"),("quality_rating","riderRating"),("evaluation","riderRating"),("تقييم","riderRating")
+        })map[Key(name)]=field;
         return map;
     }
+
+    /// <summary>U-W2-11c / M-0717: Arabic display labels for October invoice columns (screens show Arabic only).</summary>
+    public static readonly IReadOnlyDictionary<string,string> ArabicColumnLabels=new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["Contract Name"]="اسم العقد (السجل)",["VAT No."]="الرقم الضريبي",["completed_orders"]="الطلبات المكتملة",
+        ["basic_payment"]="الدفعة الأساسية",["stacking_deduction"]="خصم الطلبات المتعددة",
+        ["declined_penalties_day_logic"]="غرامة الطلبات المرفوضة",["late_penalty"]="غرامة التأخير",
+        ["no_show_penalty"]="غرامة عدم الحضور",["no_show_penalty_special_cities"]="غرامة عدم الحضور للمدن الخاصة",
+        ["daily_acceptance_rate_penalty"]="غرامة معدل القبول اليومي",["distance_payment"]="بدل المسافة",
+        ["missed_days_penalty"]="غرامة الأيام الناقصة",["working_days_penalty"]="غرامة أيام العمل",
+        ["segment_payment"]="بدل الشرائح (الحافز)",["Driver Card Support (month)"]="دعم بطاقة السائق",
+        ["Growth Program (month)"]="برنامج النمو",["Amount Excl. VAT"]="المبلغ بدون الضريبة",["VAT"]="ضريبة القيمة المضافة",
+        ["Amount Incl. VAT"]="المبلغ شامل الضريبة",["COURIER_BASIC_PAYMENT"]="المرتب المرجعي للمدينة (مجموع)",
+        ["Rider Balance"]="رصيد محافظ المناديب (مجموع)",["CAR Deduction (month)"]="خصم السيارات",
+        ["TGA Deduction (month)"]="خصم مخالفات هيئة النقل",["Total Deduction"]="إجمالي الخصومات",["Net FTR"]="صافي المستحق",
+        ["rider_id"]="معرف المندوب في المنصة",["Bonus Achieved"]="الحافز المحقق",
+        ["Co LVL"]="مستوى الشركة",["Rider LVL"]="مستوى المندوب",["Breakdown"]="تفاصيل المندوب",
+        ["Rider_Bonus_Wallet"]="حافز محفظة المندوب",["Cars - Lease"]="إيجار السيارات",["Cars - Damage"]="تلفيات السيارات"
+    };
     static string Hash(string value)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
     static decimal Amount(string value,bool optional=true)
     {
@@ -108,14 +146,21 @@ public static partial class HungerStationInvoices
             if(!new[]{"amountExclVat","vat","amountInclVat","completedOrders"}.All(co.ContainsKey))errors.Add(new(file,"Co LVL",number,"missing_required_column"));
             if(co.N("amountInclVat")!=co.N("amountExclVat")+co.N("vat"))errors.Add(new(file,"Co LVL",number,"vat_reconciliation_failed"));
             if(co.S("currency","SAR")!="SAR")errors.Add(new(file,"Co LVL",number,"unsupported_currency"));
-            if(co.N("riderBalance")!=co.N("totalDeduction"))flags.Add(new JsonObject{["sourceRow"]=number,["code"]="rider_balance_deduction_mismatch"});
+            // Annex 71g / M-0717: Total Deduction = Rider Balance + CAR + TGA; Net FTR = Incl − Total Deduction.
+            decimal expectedDed=J.Money(co.N("riderBalance")+co.N("carDeduction")+co.N("tgaDeduction"));
+            if(co.ContainsKey("totalDeduction")&&co.N("totalDeduction")!=expectedDed)
+                flags.Add(new JsonObject{["sourceRow"]=number,["code"]="total_deduction_tie_failed"});
             if(co.N("amountInclVat")-co.N("totalDeduction")!=co.N("netFtr"))flags.Add(new JsonObject{["sourceRow"]=number,["code"]="net_ftr_equation_mismatch"});
             var riders=riderRows.Where(r=>r.S("contractName").Equals(contract,StringComparison.OrdinalIgnoreCase)).ToList();
             if(riders.Count==0)errors.Add(new(file,"Rider LVL",0,"contract_has_no_riders"));
             foreach(string component in Components)if(riders.Sum(r=>r.N(component))!=co.N(component))errors.Add(new(file,"Co LVL",number,"rider_sum_mismatch:"+component));
             bool riderTga=riders.Any(r=>r.ContainsKey("tgaDeduction"));
             if(riderTga&&riders.Sum(r=>r.N("tgaDeduction"))!=co.N("tgaDeduction"))errors.Add(new(file,"Co LVL",number,"rider_tga_sum_mismatch"));
-            var companyLine=co.Clone();companyLine["id"]="hs-line:"+Hash(invoiceId+"\ncompany\n"+contract);companyLine["lineType"]="company";companyLine["tgaAmount"]=riderTga?0:co.N("tgaDeduction");lines.Add(companyLine);
+            var companyLine=co.Clone();companyLine["id"]="hs-line:"+Hash(invoiceId+"\ncompany\n"+contract);companyLine["lineType"]="company";companyLine["tgaAmount"]=riderTga?0:co.N("tgaDeduction");
+            // M-0718: any vehicle/growth value on Co LVL → accountant review + custom entry (no auto CAR dispute).
+            if(co.N("carDeduction")!=0||co.N("carAdjustment")!=0||co.N("growthProgram")!=0)
+            {companyLine["accountantReview"]="required";companyLine["reviewReason"]="قيمة مركبات أو نمو في فاتورة الشركة؛ راجع وأنشئ قيدًا مخصصًا";}
+            lines.Add(companyLine);
             foreach(var row in riders)
             {
                 int riderRow=(int)row.N("sourceRow");string platformId=row.S("platformId");
@@ -133,18 +178,50 @@ public static partial class HungerStationInvoices
                 }
                 catch(ApiError){errors.Add(new(file,"Rider LVL",riderRow,"invalid_approved_facts"));continue;}
                 merged["id"]="hs-line:"+Hash(invoiceId+"\nrider\n"+platformId);merged["lineType"]="rider";merged["tgaAmount"]=riderTga?row.N("tgaDeduction"):0;
-                merged["breakdown"]=new JsonArray(breakdown.Select(d=>(JsonNode)d.Clone()).ToArray());lines.Add(merged);
+                merged["breakdown"]=new JsonArray(breakdown.Select(d=>(JsonNode)d.Clone()).ToArray());
+                // T11b: promote invoice category (segment) + rating as facts — never from manual settings.
+                string category=breakdown.Select(d=>d.S("segment")).FirstOrDefault(s=>s!="")??merged.S("segment");
+                string rating=breakdown.Select(d=>d.S("riderRating")).FirstOrDefault(s=>s!="")??merged.S("riderRating");
+                merged["riderCategory"]=category;
+                merged["riderRating"]=rating;
+                merged["invoiceFacts"]=new JsonObject{["category"]=category,["rating"]=rating,["source"]="hs_invoice",["categoryMissing"]=category=="",["ratingMissing"]=rating==""};
+                lines.Add(merged);
             }
         }
         foreach(var row in riderRows.Where(r=>!knownContracts.Contains(r.S("contractName"))))errors.Add(new(file,"Rider LVL",(int)row.N("sourceRow"),"unknown_contract"));
         foreach(var row in details.Where(r=>!knownRiders.Contains(r.S("platformId"))))errors.Add(new(file,"Breakdown",(int)row.N("sourceRow"),"unknown_platform_id"));
-        var damage=Find("Car Damage","تلفيات السيارات");
-        if(damage!=null)foreach(var row in Table(damage,file,period,errors,"Car Damage"))
+        // U-W2-11c / M-0718: vehicle sheets ignored while empty; any value → accountant review + custom entry (replaces CAR→dispute).
+        foreach(var (sheetNames,label,lineType) in new[]{
+            (new[]{"Cars - Lease","Car Lease","إيجار السيارات"},"Cars - Lease","vehicle_lease"),
+            (new[]{"Cars - Damage","Car Damage","تلفيات السيارات"},"Cars - Damage","vehicle_damage")
+        })
         {
-            if(!new[]{"amountExclVat","vat","amountInclVat"}.All(row.ContainsKey)||row.N("amountInclVat")!=row.N("amountExclVat")+row.N("vat"))errors.Add(new(file,"Car Damage",(int)row.N("sourceRow"),"car_damage_vat_mismatch"));
-            row["id"]="hs-line:"+Hash(invoiceId+"\ncar-damage\n"+row.N("sourceRow"));row["lineType"]="car_damage";row["periodReview"]="pending";lines.Add(row);
+            var sheet=Find(sheetNames);
+            if(sheet==null)continue;
+            var vehicleRows=Table(sheet,file,period,errors,label);
+            bool anyValue=vehicleRows.Any(r=>MoneyFields.Any(f=>r.ContainsKey(f)&&r.N(f)!=0)||r.S("platformId")!=""||r.S("contractName")!="");
+            if(!anyValue)continue; // empty → ignore
+            foreach(var row in vehicleRows)
+            {
+                if(new[]{"amountExclVat","vat","amountInclVat"}.All(row.ContainsKey)&&row.N("amountInclVat")!=row.N("amountExclVat")+row.N("vat"))
+                    errors.Add(new(file,label,(int)row.N("sourceRow"),"vehicle_vat_mismatch"));
+                row["id"]="hs-line:"+Hash(invoiceId+"\n"+lineType+"\n"+row.N("sourceRow"));
+                row["lineType"]=lineType;row["accountantReview"]="required";row["reviewReason"]="قيمة في ورقة المركبات؛ راجع الفاتورة وأنشئ قيدًا مخصصًا";
+                lines.Add(row);
+                flags.Add(new JsonObject{["sourceRow"]=row.N("sourceRow"),["code"]="vehicle_value_needs_accountant",["sheet"]=label});
+            }
         }
-        var invoice=new JsonObject{["id"]=invoiceId,["companyId"]=company,["companyCr"]=crs[0],["platform"]="HungerStation",["period"]=period,["sourceHash"]=hash,["lines"]=lines,["flags"]=flags};
+        foreach(var co in companyRows.Where(r=>r.N("carDeduction")!=0||r.N("carAdjustment")!=0||r.N("growthProgram")!=0))
+            flags.Add(new JsonObject{["sourceRow"]=co.N("sourceRow"),["code"]="vehicle_or_growth_value_needs_accountant",["amount"]=co.N("carDeduction")+co.N("carAdjustment")+co.N("growthProgram")});
+        var bonus=Find("Rider_Bonus_Wallet","Rider Bonus Wallet","حافز محفظة المندوب");
+        if(bonus!=null)foreach(var row in Table(bonus,file,period,errors,"Rider_Bonus_Wallet"))
+        {
+            if(row.S("platformId")!=""&&!knownRiders.Contains(row.S("platformId")))errors.Add(new(file,"Rider_Bonus_Wallet",(int)row.N("sourceRow"),"bonus_rider_unknown"));
+            row["id"]="hs-line:"+Hash(invoiceId+"\nbonus\n"+row.N("sourceRow"));row["lineType"]="rider_bonus";lines.Add(row);
+        }
+        var labels=new JsonObject();
+        foreach(var kv in ArabicColumnLabels)labels[kv.Key]=kv.Value;
+        var invoice=new JsonObject{["id"]=invoiceId,["companyId"]=company,["companyCr"]=crs[0],["platform"]="HungerStation",["period"]=period,["sourceHash"]=hash,["lines"]=lines,["flags"]=flags,["columnLabelsAr"]=labels};
         foreach(string key in new[]{"amountExclVat","vat","amountInclVat"})invoice[key]=companyRows.Sum(r=>r.N(key));return invoice;
     }
 }

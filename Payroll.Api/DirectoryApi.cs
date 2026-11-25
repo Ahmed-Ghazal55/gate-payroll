@@ -72,8 +72,12 @@ public static class RiderDirectory
         r["drivingLicense"] = Value("drivingLicense", "driving_license");
         r["platforms"] = Value("platforms");
         r["iban"] = Value("iban");
+        // TRIAL9: bank/treasury paths need address + verifiedIban; never invent — only copy explicit input.
+        if(input.ContainsKey("address"))r["address"]=input.S("address");
+        if(input.ContainsKey("nationalAddress"))r["nationalAddress"]=input.S("nationalAddress");
+        if(input.ContainsKey("verifiedIban"))r["verifiedIban"]=input.S("verifiedIban");
         r["status"] = State(Value("status"));
-        foreach (string k in new[] { "nationality", "sponsor", "city", "drivingLicense", "platforms" })
+        foreach (string k in new[] { "nationality", "sponsor", "city", "drivingLicense", "platforms", "address", "nationalAddress" })
             J.Need(r.S(k).Length <= 200, "قيمة وصفية طويلة جدًا.");
         r["policyId"] = Value("policyId");
         if(input.ContainsKey("financeSponsorId"))r["financeSponsorId"]=input.S("financeSponsorId")==""?"":FinancialCore.ResolveSponsor(input.S("financeSponsorId")).Id;

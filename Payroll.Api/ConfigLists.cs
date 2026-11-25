@@ -18,10 +18,45 @@ public static class ConfigLists
         new("recharge_packages","باقات الشحن",true,[new("network","الشبكة","select",true),new("price","السعر","number",true)]),
         new("deduction_types","أنواع الاستقطاع",true,[new("category","فئة الدين","select",true),new("account","الحساب","account",true),new("phase","المرحلة","number",true,["1","2","3"]),new("order","الترتيب داخل المرحلة","number",false)]),
         new("pay_adjustment_types","بنود تعديل الرواتب",true,[new("account","الحساب","account",true),new("direction","الاتجاه","select",true,["increase","decrease","both"])]),
-        new("operating_systems","أنظمة التشغيل",false,[]),
+        new("operating_systems","أنظمة التشغيل",false,[
+            new("kind","المستوى","select",false,["parent","leaf","alias","vehicle_mode"]),
+            new("parent","نوع المندوب","select",false,["kafala","external"]),
+            new("vehicleMode","وضع المركبة","select",false,["own_vehicle","company_car","company_bike"]),
+            new("operatingCostD","تكلفة التشغيل د","number",false),
+            new("aliasOf","الرمز المعتمد","text",false),
+        ]),
         new("pay_systems","أنظمة الرواتب",false,[]),
         new("salary_classifications","تصنيفات الرواتب",false,[]),
     ];
+    // Old flat operating_systems codes → canonical vehicle-mode / scheme codes (T4).
+    public static readonly Dictionary<string,string> OperatingSystemAliases=new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["own_car"]="own_vehicle",
+        ["bike"]="company_bike",
+    };
+    public static string CanonicalOperatingSystemCode(string code)
+    {
+        if(string.IsNullOrWhiteSpace(code))return code;
+        string trimmed=code.Trim();
+        return OperatingSystemAliases.TryGetValue(trimmed,out var mapped)?mapped:trimmed;
+    }
+    public static JsonObject? ResolveOperatingSystem(DbConnection c,DbTransaction? tx,string code)
+    {
+        if(string.IsNullOrWhiteSpace(code))return null;
+        string trimmed=code.Trim();
+        var exact=Current(c,tx,"operating_systems",trimmed);
+        if(exact!=null)
+        {
+            string aliasOf=exact["values"].S("aliasOf");
+            if(!string.IsNullOrEmpty(aliasOf))
+                return Current(c,tx,"operating_systems",aliasOf)??exact;
+            return exact;
+        }
+        string canonical=CanonicalOperatingSystemCode(trimmed);
+        if(!string.Equals(canonical,trimmed,StringComparison.OrdinalIgnoreCase))
+            return Current(c,tx,"operating_systems",canonical)??Current(c,tx,"operating_systems",trimmed);
+        return null;
+    }
     // BR §29 defaults: the deduction phase of each debt category.
     public static readonly (string Category,string NameAr,string Account,int Phase,int Order)[] DefaultDeductions=
     [
@@ -51,7 +86,7 @@ public static class ConfigLists
     {var item=Store.Get(c,ItemId(group,code),ItemKind,tx);return item?["current"] is JsonObject cur&&item.B("active")?cur:null;}
     static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,GroupDef def,List<FieldDef> fields,List<JsonObject> items)
     {
-        bool bypass=AccessPolicy.BypassForView(c,tx,actor);bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve");
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopePayApprovals);bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve");
         return new()
         {
             ["group"]=def.Group,["labelAr"]=def.LabelAr,["financial"]=def.Financial,
@@ -104,7 +139,7 @@ public static class ConfigLists
     public static JsonObject Upsert(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string group,JsonObject input)
     {
         AccessPolicy.Demand(actor,"pay.manage");var def=Group(group);
-        string code=input.Required("code");J.Need(Regex.IsMatch(code,"^[A-Za-z0-9_-]{1,40}$"),"الكود حروف إنجليزية وأرقام فقط.");
+        string code=input.Required("code");J.Need(Regex.IsMatch(code,"^[A-Za-z0-9_.-]{1,40}$"),"الكود حروف إنجليزية وأرقام ونقطة فقط.");
         string name=input.Required("nameAr");J.Need(name.Length<=120&&!name.Any(char.IsControl),"الاسم طويل جدًا.");
         var values=Values(c,tx,group,Fields(c,tx,group),input["values"] as JsonObject);bool active=input["active"] is null||input.B("active");
         var item=Store.Get(c,ItemId(group,code),ItemKind,tx)?.Clone()??new JsonObject{["id"]=ItemId(group,code),["group"]=group,["code"]=code,["version"]=0,["history"]=new JsonArray(),["active"]=active};
@@ -123,7 +158,7 @@ public static class ConfigLists
         AccessPolicy.Demand(actor,"pay.approve");Group(group);
         var item=Store.Get(c,ItemId(group,code),ItemKind,tx)?.Clone()??throw new ApiError("البند غير موجود.",404);
         var pending=item["pending"] as JsonObject??throw new ApiError("لا يوجد تعديل بانتظار الاعتماد.",409);
-        J.Need(AccessPolicy.Independent(actor,pending.S("by"),"config.item_approved",c,tx,item),"الاعتماد لشخص غير مقدم التعديل.",403);
+        J.Need(AccessPolicy.Independent(actor,pending.S("by"),"config.item_approved",c,tx,item,scope:AccessPolicy.ScopePayApprovals),"الاعتماد لشخص غير مقدم التعديل.",403);
         Apply(item,pending,Me(actor));Store.Save(c,ItemKind,item,tx);Store.Audit(c,tx,"config.item_approved",item.S("id"),Me(actor));return item;
     }
     public static JsonObject AddField(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string group,JsonObject input)
@@ -145,13 +180,28 @@ public static class ConfigLists
         {
             const string v2="migration:config-lists:v2-adjustments";
             if(Store.Get(c,v2,"setting",tx)!=null)return false;
-            foreach(var (code,name,account,direction) in new[]{("bonus","حافز / مكافأة","512122","increase"),("compensation","تعويض","512122","increase"),("correction","تصحيح راتب بالخصم","512101","decrease")})
+            // COA1 A10 / spec 03 §10.3: compensation → 512118 (not 512122 bonuses).
+            foreach(var (code,name,account,direction) in new[]{("bonus","حافز / مكافأة","512122","increase"),("compensation","تعويض","512118","increase"),("correction","تصحيح راتب بالخصم","512101","decrease")})
             {
                 string id=ItemId("pay_adjustment_types",code);if(Store.Get(c,id,ItemKind,tx)!=null)continue;
                 var item=new JsonObject{["id"]=id,["group"]="pay_adjustment_types",["code"]=code,["version"]=0,["history"]=new JsonArray(),["active"]=true};
                 Apply(item,new JsonObject{["nameAr"]=name,["values"]=new JsonObject{["account"]=account,["direction"]=direction},["active"]=true,["by"]="system-seed"},"system-seed (BR §29)");Store.Save(c,ItemKind,item,tx);
             }
             Store.Save(c,"setting",new(){["id"]=v2,["version"]=1},tx);return true;
+        },false);
+        // COA1 A10: upgrade stores that seeded compensation as 512122.
+        store.Write((c,tx)=>
+        {
+            const string v2b="migration:config-lists:v2b-compensation-512118";
+            if(Store.Get(c,v2b,"setting",tx)!=null)return false;
+            string id=ItemId("pay_adjustment_types","compensation");
+            var item=Store.Get(c,id,ItemKind,tx)?.Clone();
+            if(item?["current"] is JsonObject cur&&cur["values"] is JsonObject vals&&vals.S("account")=="512122")
+            {
+                vals["account"]="512118";
+                Store.Save(c,ItemKind,item,tx);
+            }
+            Store.Save(c,"setting",new(){["id"]=v2b,["version"]=1},tx);return true;
         },false);
         const string marker="migration:config-lists:v1";
         store.Write((c,tx)=>
@@ -164,10 +214,37 @@ public static class ConfigLists
                 Apply(item,new JsonObject{["nameAr"]=name,["values"]=values,["active"]=true,["by"]="system-seed"},"system-seed (BR §27/§29)");Store.Save(c,ItemKind,item,tx);
             }
             foreach(var d in DefaultDeductions)Put("deduction_types",d.Category,d.NameAr,new(){["category"]=d.Category,["account"]=d.Account,["phase"]=d.Phase,["order"]=d.Order});
-            foreach(var (code,name) in new[]{("kafala","كفالة"),("company_car","سيارة شركة"),("own_car","سيارة خاصة"),("bike","دباب")})Put("operating_systems",code,name,new());
+            // operating_systems hierarchy is seeded in migration v3 (T4).
             foreach(var (code,name) in new[]{("commission","عمولة"),("salary","راتب"),("percentage","نسبة")})Put("pay_systems",code,name,new());
             foreach(var (code,name) in new[]{("STC","STC"),("MOBILY","موبايلي"),("ZAIN","زين")})Put("recharge_networks",code,name,new());
             Store.Save(c,"setting",new(){["id"]=marker,["version"]=1},tx);return true;
+        },false);
+        // T4: 2 rider-type parents + 6 scheme leaves; keep old flat codes as aliases (M-0544 costs = display only).
+        store.Write((c,tx)=>
+        {
+            const string v3="migration:config-lists:v3-operating-hierarchy";
+            if(Store.Get(c,v3,"setting",tx)!=null)return false;
+            void PutOrUpdate(string code,string name,JsonObject values)
+            {
+                string id=ItemId("operating_systems",code);
+                var item=Store.Get(c,id,ItemKind,tx)?.Clone()??new JsonObject{["id"]=id,["group"]="operating_systems",["code"]=code,["version"]=0,["history"]=new JsonArray(),["active"]=true};
+                Apply(item,new JsonObject{["nameAr"]=name,["values"]=values,["active"]=true,["by"]="system-seed"},"system-seed (operating hierarchy)");
+                Store.Save(c,ItemKind,item,tx);
+            }
+            PutOrUpdate("kafala","كفالة",new(){["kind"]="parent"});
+            PutOrUpdate("external","خارجي",new(){["kind"]="parent"});
+            PutOrUpdate("own_vehicle","مركبة خاصة",new(){["kind"]="vehicle_mode"});
+            PutOrUpdate("company_car","سيارة شركة",new(){["kind"]="vehicle_mode"});
+            PutOrUpdate("company_bike","دباب شركة",new(){["kind"]="vehicle_mode"});
+            PutOrUpdate("kafala.own_vehicle","كفالة — مركبة خاصة",new(){["kind"]="leaf",["parent"]="kafala",["vehicleMode"]="own_vehicle",["operatingCostD"]=2000m});
+            PutOrUpdate("kafala.company_car","كفالة — سيارة شركة",new(){["kind"]="leaf",["parent"]="kafala",["vehicleMode"]="company_car",["operatingCostD"]=3500m});
+            PutOrUpdate("kafala.company_bike","كفالة — دباب شركة",new(){["kind"]="leaf",["parent"]="kafala",["vehicleMode"]="company_bike",["operatingCostD"]=1000m});
+            PutOrUpdate("external.own_vehicle","خارجي — مركبة خاصة",new(){["kind"]="leaf",["parent"]="external",["vehicleMode"]="own_vehicle",["operatingCostD"]=1000m});
+            PutOrUpdate("external.company_car","خارجي — سيارة شركة",new(){["kind"]="leaf",["parent"]="external",["vehicleMode"]="company_car",["operatingCostD"]=3500m});
+            PutOrUpdate("external.company_bike","خارجي — دباب شركة",new(){["kind"]="leaf",["parent"]="external",["vehicleMode"]="company_bike",["operatingCostD"]=1000m});
+            PutOrUpdate("own_car","سيارة خاصة (اسم قديم)",new(){["kind"]="alias",["aliasOf"]="own_vehicle"});
+            PutOrUpdate("bike","دباب (اسم قديم)",new(){["kind"]="alias",["aliasOf"]="company_bike"});
+            Store.Save(c,"setting",new(){["id"]=v3,["version"]=1},tx);return true;
         },false);
     }
     // BR §29: the phase and order of a deduction category; approved list first, then the built-in default.

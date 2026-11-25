@@ -9,9 +9,19 @@ import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../component
 
 type Row = DebtDeductionsView['rows'][number];
 
-const STATUS_AR: Record<string, string> = { pending: 'في انتظار التأكيد', confirmed: 'مؤكد', salary_pending: 'الراتب لم يعتمد بعد' };
+// API statuses from PayCycles.DebtDeductionsView (M-0670): confirm before salary approval.
+const STATUS_AR: Record<string, string> = {
+  pending_confirm: 'في انتظار التأكيد',
+  approved_pending_confirm: 'الراتب اعتمد — بانتظار تأكيد الدين',
+  confirmed: 'مؤكد',
+  // legacy labels kept so older screenshots/tests stay readable
+  pending: 'في انتظار التأكيد',
+  salary_pending: 'الراتب لم يعتمد بعد',
+};
 
-// BR §24.7 (P2): personal debts are chosen and confirmed after salaries; the bank file holds these riders until then.
+const PENDING_STATUSES = new Set(['pending_confirm', 'approved_pending_confirm', 'pending', 'salary_pending']);
+
+// BR §24.7 / M-0670: instalments are confirmed (or deferred at zero) before final salary approval; bank file waits on pending rows.
 export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; onChanged: () => void }) {
   const { toast } = useToast();
   const [view, setView] = useState<DebtDeductionsView | null>(null);
@@ -51,7 +61,9 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
   };
 
   const rows: Row[] = useMemo(() => view?.rows ?? [], [view?.rows]);
-  const pending = rows.filter((r) => r.status === 'pending');
+  const pending = rows.filter((r) => PENDING_STATUSES.has(r.status));
+  // Button follows API allowedActions (Independent of debtSelectedBy/createdBy); never invent a self-approve path.
+  const canConfirmAll = (view?.allowedActions ?? []).includes('confirm_debt_deductions_all') && pending.length > 0;
   const canApproveMore = (cycle.allowedActions ?? []).includes('approve_salaries') && cycle.stage >= 7;
 
   const debtStageCols = useMemo(
@@ -83,9 +95,9 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
     <section id="debt-deduction-stage" className="rounded-2xl border border-[var(--line)] bg-[var(--surface)] p-4 space-y-3">
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
-          <h3 className="text-sm font-bold text-[var(--ink)]">مرحلة 8: تأكيد استقطاع الديون</h3>
+          <h3 className="text-sm font-bold text-[var(--ink)]">تأكيد استقطاع الديون (قبل اعتماد الراتب)</h3>
           <p className="text-xs text-[var(--muted)]">
-            حدد مين يتخصم منه دين الشهر ده. الصفر تأجيل بلا حركة. اللي لسه ما اتأكدش ماينزلش في ملف البنك.
+            حدد مين يتخصم منه دين الشهر ده. الصفر تأجيل بلا حركة. التأكيد من مستخدم مستقل عن من جهّز الدورة أو اختار القسط. اللي لسه ما اتأكدش ماينزلش في ملف البنك.
           </p>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -94,7 +106,7 @@ export function DebtDeductionStage({ cycle, onChanged }: { cycle: PayCycleItem; 
               اعتماد الصفوف الجاهزة المتبقية
             </button>
           )}
-          {pending.length > 0 && (
+          {canConfirmAll && (
             <button type="button" id="debt-confirm-all" disabled={busy} onClick={() => run(() => api.actDebtDeductions(cycle.id, { action: 'confirm-all' }), 'تم تأكيد استقطاع الديون.')} className="px-3 py-1.5 rounded-lg bg-[var(--accent)] text-xs font-bold text-white disabled:opacity-50">
               تأكيد الكل ({pending.length})
             </button>

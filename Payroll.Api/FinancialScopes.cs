@@ -102,6 +102,13 @@ public static class FinancialScopes
         if(request.S("fromDepartment")!=department&&request.S("targetDepartment")!=department)return false;
         string debtId=request["payload"].S("debtId",request.S("referenceId"));
         var debt=Store.Get(c,debtId,"debt",tx);
-        return debt!=null?Debt(user,debt):Sponsor(user,request.S("sponsorId"));
+        if(debt!=null)return Debt(user,debt);
+        string sponsor=request.S("sponsorId",request.S("companyId"));
+        if(sponsor==""&&request["payload"] is JsonObject payload)
+            sponsor=payload.S("sponsorId",payload.S("companyId"));
+        if(!Sponsor(user,sponsor))return false;
+        string platform=request.S("platform");
+        if(platform==""&&request["payload"] is JsonObject p2)platform=p2.S("platform");
+        return platform==""||Platform(user,platform);
     }
 }

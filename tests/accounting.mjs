@@ -35,7 +35,9 @@ try{
  await req(`/api/debts/${move.id}/transfer-sponsor`,{newCreditorSponsorId:'EX',expectedCreditorSponsorId:'BW',expectedRemainingBalance:800,transferRef:'bw-ex'});
  await req(`/api/debts/${move.id}/collect`,{collectedAmount:100,targetVaultCode:'MAIN.EX.DEBT',receiptRef:'after-first-transfer'});
  await req(`/api/debts/${move.id}/transfer-sponsor`,{newCreditorSponsorId:'TR',expectedCreditorSponsorId:'EX',expectedRemainingBalance:700,transferRef:'ex-tr'});
- await req(`/api/debts/${move.id}/collect`,{waivedAmount:50,targetVaultCode:'MAIN.TR.DEBT',waiverReason:'Synthetic approved waiver',receiptRef:'tr-waiver'});
+ // RWD1b New HIGH: legacy collect waive via 5202 is closed; cash collect only, D11 for waive.
+ await req(`/api/debts/${move.id}/collect`,{waivedAmount:50,targetVaultCode:'MAIN.TR.DEBT',waiverReason:'Synthetic approved waiver',receiptRef:'tr-waiver'},409);
+ await req(`/api/debts/${move.id}/collect`,{collectedAmount:50,targetVaultCode:'MAIN.TR.DEBT',receiptRef:'tr-cash'});
  const current=await req('/api/debts');assert.equal(current.find(d=>d.id===move.id).ownershipHistory.length,2);
  for(const owner of ['BW','EX','TR']){const st=await req(`/api/finance/statement/rider/${iq}?sponsorId=${owner}`);const remaining=current.filter(d=>d.creditorSponsorId===({BW:'019c18d5-62e1-7000-8000-000000000041',EX:'019c18d5-62e1-7000-8000-000000000042',TR:'019c18d5-62e1-7000-8000-000000000040'})[owner]&&['active','paused'].includes(d.status)).reduce((n,d)=>n+d.remainingBalance,0);assert.equal(st.totalRemainingDebt,remaining);assert.equal(st.reconciliationDifference,0);}
  const j=await req('/api/debts',{iqama:iq,category:'PlatformTransferredDebt',platform:'Jahez',entryMode:'Accrual',totalAmount:1200,monthlyInstallment:100,creditorSponsorId:'BW',sourceRef:'jahez-referred',agreementReviewed:true});
@@ -52,11 +54,12 @@ try{
  await req('/api/finance/jahez-fee-deposit',{sponsorId:'BW',amount:200,sourceRef:'company-fee-bank',notes:'Synthetic company income deposit'});
  accounts=await req('/api/finance/accounts');assert.equal(amount('2140'),0);assert.equal(amount('BANK.BW.JAHEZ'),0);assert.equal(amount('MAIN.BW.FEE'),0);assert.equal(amount('4101'),200);
  // Financial write permissions and document scope are separate, including requests made directly to the API.
- const scope={sponsorIds:['BW'],accountCodes:['MAIN.BW.DEBT'],categoryCodes:['CashAdvance','WorkPermit'],platforms:['Jahez']};
+ const scope={sponsorIds:['BW'],accountCodes:['MAIN.BW.DEBT'],categoryCodes:['CashAdvance','WorkPermit','IqamaRenewal'],platforms:['Jahez']};
  await req('/api/users',{username:'hr-scoped',password,role:'HRSpecialist',department:'HR',rankLevel:2,financialScope:scope});
  await req('/api/auth/login',{username:'hr-scoped',password});const hrCookie=cookie;
  await req('/api/debts',{iqama:iq,category:'TrafficFine',entryMode:'Accrual',totalAmount:100,monthlyInstallment:100,creditorSponsorId:'BW',sourceRef:'hr-wrong-role',agreementReviewed:true},403);
- const requested=await req('/api/debts',{iqama:iq,category:'CashAdvance',entryMode:'Disbursement',paymentVaultCode:'MAIN.BW.DEBT',totalAmount:100,monthlyInstallment:100,creditorSponsorId:'BW',sourceRef:'hr-request',agreementReviewed:true});assert.equal(requested.status,'pending_approval');
+ await req('/api/debts',{iqama:iq,category:'CashAdvance',entryMode:'Disbursement',paymentVaultCode:'MAIN.BW.DEBT',totalAmount:100,monthlyInstallment:100,creditorSponsorId:'BW',sourceRef:'hr-disburse-blocked',agreementReviewed:true},409);
+ const requested=await req('/api/debts',{iqama:iq,category:'IqamaRenewal',entryMode:'Accrual',totalAmount:100,monthlyInstallment:100,creditorSponsorId:'BW',sourceRef:'hr-request',agreementReviewed:true,requireMutualApproval:true});assert.equal(requested.status,'pending_approval');
  await req(`/api/approvals/${requested.approvalRequestId}/decide`,{decision:'approved'},403);
  cookie=adminCookie;await req(`/api/approvals/${requested.approvalRequestId}/decide`,{decision:'approved',note:'Independent finance reviewer'});
  await req('/api/users',{username:'finance-scoped',password,role:'Accountant',financialScope:scope});await req('/api/auth/login',{username:'finance-scoped',password});
@@ -67,7 +70,7 @@ try{
  // Revocation must affect an existing authenticated session immediately.
  const limitedCookie=cookie;cookie=adminCookie;const users=await req('/api/users');const limited=users.find(u=>u.username==='finance-scoped');await put(`/api/users/${limited.id}/status`,{deniedPermissions:['debts.collect']});cookie=limitedCookie;await req('/api/me',undefined,401);cookie=adminCookie;
  // Burst collections serialize at both SQLite and SQL Server: no overdraft, duplicate money or HTTP 500.
- const concurrent=await req('/api/debts',{iqama:iq,category:'Advance',totalAmount:600,monthlyInstallment:100,creditorSponsorId:'BW',sourceRef:'concurrent',agreementReviewed:true});
+ const concurrent=await req('/api/debts',{iqama:iq,category:'Advance',entryMode:'OpeningBalance',totalAmount:600,monthlyInstallment:100,creditorSponsorId:'BW',sourceRef:'concurrent',agreementReviewed:true,openingReviewed:true});
  const statuses=await Promise.all(Array.from({length:8},(_,i)=>fetch(base+`/api/debts/${concurrent.id}/collect`,{method:'POST',headers:{'Content-Type':'application/json',Cookie:cookie},body:JSON.stringify({collectedAmount:100,targetVaultCode:'MAIN.BW.DEBT',receiptRef:`concurrent:${i}`})}).then(r=>r.status)));
  assert.equal(statuses.filter(s=>s===200).length,6);assert.equal(statuses.filter(s=>s===400).length,2);assert.ok(!statuses.includes(500));
  const journals=await req('/api/finance/journals');for(const journal of journals){const sums=new Map();for(const line of journal.lines)sums.set(line.sponsorId,(sums.get(line.sponsorId)||0)+line.debit-line.credit);for(const value of sums.values())assert.equal(Math.round(value*100),0);}

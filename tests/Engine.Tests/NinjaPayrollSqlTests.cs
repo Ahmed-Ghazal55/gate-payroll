@@ -95,6 +95,7 @@ public sealed class NinjaPayrollSqlTests
             invoice=(await Request(checker,invoicePath)).AsObject();Assert.AreEqual(cycle.S("journalEntryId"),invoice.S("journalEntryId"),"Invoice must link to its payroll posting.");
             var replay=await Upload(preview);Assert.AreEqual(invoiceId,replay.S("id"));await Request(checker,cyclePath+"/advance",new(){["stage"]=7});await Request(maker,"/api/pay/cycles",cycleInput,400);Assert.AreEqual(1,store.Read(c=>Store.List(c,"journal").Count));
             await Request(maker,cyclePath+"/advance",new(){["action"]="reversal_request",["period"]="2026-11",["note"]="Synthetic correction"});
+            // TRIAL10: requester cannot approve own reversal; independent checker can (same rule as PayCycleTests).
             await Request(maker,cyclePath+"/advance",new(){["action"]="reversal_approve"},403);
             var reversed=(await Request(checker,cyclePath+"/advance",new(){["action"]="reversal_approve"})).AsObject();Assert.AreEqual("reversed",reversed.S("status"));Assert.AreEqual(2,store.Read(c=>Store.List(c,"journal").Count));Assert.AreEqual(journalBody,store.Read(c=>Store.Get(c,journals[0].S("id"),"journal")!.ToJsonString()));
             var reversedInvoice=(await Request(checker,invoicePath)).AsObject();Assert.AreEqual("reversed",reversedInvoice.S("accountingStatus"));Assert.AreNotEqual("",reversedInvoice.S("reversalJournalEntryId"));

@@ -26,14 +26,41 @@ import { Dialog } from '../../components/ui/Dialog';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 
-export function ConfigListsPanel() {
+/** Mada charging catalogs — managed under Payments → Mada settings, not Admin general lists. */
+export const MADA_RECHARGE_LIST_GROUPS = ['recharge_networks', 'recharge_packages'] as const;
+
+export type ConfigListsPanelProps = {
+  /** When set, only these list groups are shown (same endpoints/permissions). */
+  includeGroups?: readonly string[];
+  /** When set (and includeGroups is omitted), these list groups are hidden. */
+  excludeGroups?: readonly string[];
+};
+
+function filterConfigGroups(
+  groups: ConfigListGroup[],
+  includeGroups?: readonly string[],
+  excludeGroups?: readonly string[]
+): ConfigListGroup[] {
+  if (includeGroups && includeGroups.length > 0) {
+    const allow = new Set(includeGroups);
+    return groups.filter((g) => allow.has(g.group));
+  }
+  if (excludeGroups && excludeGroups.length > 0) {
+    const deny = new Set(excludeGroups);
+    return groups.filter((g) => !deny.has(g.group));
+  }
+  return groups;
+}
+
+export function ConfigListsPanel({ includeGroups, excludeGroups }: ConfigListsPanelProps = {}) {
   const { toast } = useToast();
   const { can, user } = useAuth();
   const canManage = can('pay.manage');
   const canApprove = can('pay.approve');
 
+  const defaultGroupKey = includeGroups?.[0] || 'deduction_types';
   const [groups, setGroups] = useState<ConfigListGroup[]>([]);
-  const [activeGroupKey, setActiveGroupKey] = useState<string>('recharge_networks');
+  const [activeGroupKey, setActiveGroupKey] = useState<string>(defaultGroupKey);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
   const [postingAccounts, setPostingAccounts] = useState<Array<{ code: string; nameAr?: string }>>([]);
@@ -63,9 +90,10 @@ export function ConfigListsPanel() {
     setError(null);
     try {
       const res = await api.getConfigLists();
-      setGroups(res || []);
-      if (res && res.length > 0 && !res.some((g) => g.group === activeGroupKey)) {
-        setActiveGroupKey(res[0].group);
+      const filtered = filterConfigGroups(res || [], includeGroups, excludeGroups);
+      setGroups(filtered);
+      if (filtered.length > 0 && !filtered.some((g) => g.group === activeGroupKey)) {
+        setActiveGroupKey(filtered[0].group);
       }
     } catch (err: any) {
       setError(err.message || 'تعذر تحميل القوائم والإعدادات.');
@@ -84,7 +112,27 @@ export function ConfigListsPanel() {
 
   const activeGroup = groups.find((g) => g.group === activeGroupKey) || groups[0];
 
-  const activeGroupItems = useMemo(() => activeGroup?.items || [], [activeGroup?.items]);
+  const activeGroupItems = useMemo(() => {
+    const items = activeGroup?.items || [];
+    if (activeGroup?.group !== 'operating_systems') return items;
+    // Tree/grouped table: parent rider type → leaf vehicle schemes (T4).
+    const parents = items
+      .filter((i) => i.values?.kind === 'parent' || i.code === 'kafala' || i.code === 'external')
+      .sort((a, b) => a.code.localeCompare(b.code));
+    const leaves = items.filter((i) => i.values?.kind === 'leaf' || i.code.includes('.'));
+    const rest = items.filter((i) => !parents.some((p) => p.code === i.code) && !leaves.some((l) => l.code === i.code));
+    const ordered: ConfigListItem[] = [];
+    for (const parent of parents) {
+      ordered.push(parent);
+      ordered.push(
+        ...leaves
+          .filter((l) => l.values?.parent === parent.code || l.code.startsWith(`${parent.code}.`))
+          .sort((a, b) => a.code.localeCompare(b.code))
+      );
+    }
+    ordered.push(...rest.sort((a, b) => a.code.localeCompare(b.code)));
+    return ordered;
+  }, [activeGroup?.group, activeGroup?.items]);
   const configCols = useMemo(
     () => [
       { key: 'code', header: 'الكود', type: 'text' as const, getValue: (it: ConfigListItem) => it.code || '' },
@@ -375,10 +423,20 @@ export function ConfigListsPanel() {
                     configFilter.rows.map((item) => (
                       <tr key={item.code} className="hover:bg-[var(--row-hover)] transition">
                         <td className="py-2.5 px-3 font-mono font-bold text-[var(--accent)] num">
-                          {item.code}
+                          {activeGroup.group === 'operating_systems' &&
+                          (item.values?.kind === 'leaf' || item.code.includes('.'))
+                            ? `└ ${item.code}`
+                            : item.code}
                         </td>
 
-                        <td className="py-2.5 px-3 font-semibold text-[var(--ink)]">
+                        <td
+                          className={`py-2.5 px-3 font-semibold text-[var(--ink)] ${
+                            activeGroup.group === 'operating_systems' &&
+                            (item.values?.kind === 'leaf' || item.code.includes('.'))
+                              ? 'ps-6'
+                              : ''
+                          }`}
+                        >
                           {item.nameAr}
                         </td>
 

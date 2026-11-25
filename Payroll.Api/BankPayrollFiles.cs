@@ -51,7 +51,37 @@ public static class BankPayrollFiles
         if(row["amount"] is not JsonValue amount||!amount.TryGetValue<decimal>(out var money)||money<=0||money!=J.Money(money))errors.Add("invalid_amount_positive_2dp_required");
         if(!Regex.IsMatch(row.S("iqama"),@"\A[12][0-9]{9}\z"))errors.Add("invalid_iqama");
         if(row.S("name")=="")errors.Add("missing_name");
+        if(row.S("address")=="")errors.Add("missing_address");
         return errors;
+    }
+    /// <summary>TRIAL8 shared rider bank-meta rule (salary bank file + treasury export). Never invents fields.
+    /// Prefer verifiedIban; raw iban only with <paramref name="confirmUnverifiedIbans"/>.</summary>
+    public static (string? Reason,string Iban,bool Unverified,string Name,string Address,string BankCode,string BankNameAr) ClassifyRiderForBankFile(JsonObject? rider,string iqamaFallback="",bool confirmUnverifiedIbans=false)
+    {
+        string iqama=rider?.S("iqama",iqamaFallback)??iqamaFallback;
+        string name=rider?.S("name",rider?.S("nameAr")??"")??"";
+        string address=rider?.S("address",rider?.S("nationalAddress")??"")??"";
+        string verified=NormalizeIban(rider?.S("verifiedIban")??"");
+        string raw=NormalizeIban(rider?.S("iban")??"");
+        string iban="";bool unverified=false;
+        if(verified!="")
+        {
+            if(ValidIban(verified))iban=verified;
+            else if(raw!=""&&ValidIban(raw)){iban=raw;unverified=true;}
+            else return("iban_invalid",verified,false,name,address,"","");
+        }
+        else if(raw!="")
+        {
+            if(!ValidIban(raw))return("iban_invalid",raw,false,name,address,"","");
+            iban=raw;unverified=true;
+        }
+        if(!Regex.IsMatch(iqama,@"\A[12][0-9]{9}\z"))return("iqama_invalid",iban,unverified,name,address,"","");
+        if(name=="")return("name_missing",iban,unverified,name,address,"","");
+        if(iban=="")return("iban_missing","",false,name,address,"","");
+        if(unverified&&!confirmUnverifiedIbans)return("iban_unverified",iban,true,name,address,"","");
+        if(address=="")return("address_missing",iban,unverified,name,address,"","");
+        var(code,nameAr)=ExportBank(iban);
+        return(null,iban,unverified,name,address,code,nameAr);
     }
     private static (string Sponsor,string From,string To) Request(ClaimsPrincipal user,JsonObject input)
     {
@@ -62,7 +92,7 @@ public static class BankPayrollFiles
     private static string Kind((string Sponsor,string From,string To) request)=>"bank-file:"+request.Sponsor+":"+request.From+":"+request.To;
     // M1: prefer the stage-6 remainder from approved pay cycles (after instalment confirmation).
     // Legacy runs still use the posted 2110/212103 closing payable. Never use unapproved previews or 121x debt.
-    private static (JsonArray Payable,JsonArray Excluded,string Basis) Rows(DbConnection c,DbTransaction? tx,ClaimsPrincipal user,(string Sponsor,string From,string To) request)
+    private static (JsonArray Payable,JsonArray Excluded,string Basis) Rows(DbConnection c,DbTransaction? tx,ClaimsPrincipal user,(string Sponsor,string From,string To) request,bool confirmUnverifiedIbans=false)
     {
         var riders=Store.List(c,"rider",tx).GroupBy(r=>r.S("iqama",r.S("id"))).ToDictionary(g=>g.Key,g=>g.First());
         var amounts=new Dictionary<string,decimal>(StringComparer.Ordinal);
@@ -105,25 +135,90 @@ public static class BankPayrollFiles
             if(rider.B("isEmployee")||rider.S("personRole") is "Employee" or "employee" or "administrative")continue;
             decimal balance=amounts.GetValueOrDefault(iqama);
             if(pendingRiders.Contains(iqama)){excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]="pay_cycle_pending_salary_or_debt_confirmation"});continue;}
+            var consol=Store.Get(c,SharedRiderConsolidation.Id(iqama,request.To),SharedRiderConsolidation.Kind,tx);
+            if((consol!=null&&consol.S("status")=="open"&&!consol.B("released"))||SalRiderRequests.HasActiveBankBlockingHold(c,tx,iqama,request.To+"-01","all"))
+            {
+                excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]="shared_rider_or_salary_hold_open"});
+                continue;
+            }
             if(balance<=0)
             {
                 excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=rider.S("name"),["balance"]=balance,["reason"]=balance==0?"zero_balance":"rider_owes_company"});
                 continue;
             }
-            string iban=NormalizeIban(rider.S("verifiedIban"));if(iban=="")iban=NormalizeIban(rider.S("iban"));
-            string code=iban.Length>=6?iban.Substring(4,2):"";
-            var row=new JsonObject{["bank"]=Banks.GetValueOrDefault(code,""),["iban"]=iban,["amount"]=balance,["notes"]="",["name"]=rider.S("name"),["iqama"]=iqama,["address"]=rider.S("address",rider.S("nationalAddress"))};
+            var(reason,iban,unverified,name,address,code,bankName)=ClassifyRiderForBankFile(rider,iqama,confirmUnverifiedIbans);
+            if(reason!=null)
+            {
+                excluded.Add(new JsonObject{["iqama"]=iqama,["name"]=name,["balance"]=balance,["reason"]=reason,["ibanUnverified"]=unverified});
+                continue;
+            }
+            var row=new JsonObject{["bank"]=code,["iban"]=iban,["amount"]=balance,["notes"]="",["name"]=name,["iqama"]=iqama,["address"]=address,["ibanUnverified"]=unverified};
             row["errors"]=Validate(row);rows.Add(row);
         }
         return(rows,excluded,basis);
     }
     public const string DoNotSendMark="لا يُرسل — تشغيل موازٍ";
     static bool ComparisonOnly(JsonObject input)=>input.B("comparisonOnly")||input.B("doNotSend")||input.S("mode")=="parallel_comparison";
+    /// <summary>WC1H: dual approval for mark-sent binds to rider + account (IBAN) + amount lines and the total.</summary>
+    public static string FileContentHash(IEnumerable<JsonObject> rows,decimal total)
+    {
+        var lines=rows.Select(r=>$"{r.S("iqama")}|{r.S("iban")}|{r.N("amount").ToString("F2",CultureInfo.InvariantCulture)}")
+            .OrderBy(s=>s,StringComparer.Ordinal);
+        string canonical=string.Join("\n",lines)+"\n"+J.Money(total).ToString("F2",CultureInfo.InvariantCulture);
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(Encoding.UTF8.GetBytes(canonical)));
+    }
+    /// <summary>BR §38.5: run_mode / payout_blocked come from stored cycles, pay runs and bank files — never from the request body.</summary>
+    public static (byte RunMode,bool PayoutBlocked) ResolveStoredMoneyFlags(DbConnection c,DbTransaction tx,(string Sponsor,string From,string To) request)
+    {
+        byte runMode=0;bool blocked=false;
+        foreach(var cycle in Store.List(c,PayCycles.Kind,tx).Where(d=>d.S("companyId")==request.Sponsor
+            &&string.CompareOrdinal(d.S("period"),request.From)>=0&&string.CompareOrdinal(d.S("period"),request.To)<=0
+            &&d.S("status") is not ("cancelled" or "reversed")))
+        {
+            if(cycle.N("runMode")==1||cycle.S("runMode")=="1")runMode=1;
+            if(cycle.B("payoutBlocked")||cycle.S("payoutBlocked")=="1")blocked=true;
+        }
+        foreach(var run in Store.List(c,"run",tx).Where(r=>r.S("sponsorId")==request.Sponsor
+            &&string.CompareOrdinal(r.S("period"),request.From)>=0&&string.CompareOrdinal(r.S("period"),request.To)<=0))
+        {
+            if(run.N("runMode")==1||run.S("runMode")=="1")runMode=1;
+            if(run.B("payoutBlocked")||run.S("payoutBlocked")=="1")blocked=true;
+        }
+        if(SchemaSql.TableExists(c,tx,"sal","pay_run"))
+        {
+            object? sim=SchemaSql.Scalar(c,tx,$"""
+                SELECT MAX(run_mode) FROM {SchemaSql.Q(c,"sal","pay_run")}
+                WHERE company_id=@c AND period_month>=@from AND period_month<=@to AND status<>4
+                """,("@c",request.Sponsor),("@from",request.From+"-01"),("@to",request.To+"-01"));
+            if(sim!=null&&sim is not DBNull&&Convert.ToInt32(sim)==1)runMode=1;
+            object? pb=SchemaSql.Scalar(c,tx,$"""
+                SELECT MAX(CAST(payout_blocked AS int)) FROM {SchemaSql.Q(c,"sal","pay_run")}
+                WHERE company_id=@c AND period_month>=@from AND period_month<=@to AND status<>4 AND run_mode=0
+                """,("@c",request.Sponsor),("@from",request.From+"-01"),("@to",request.To+"-01"));
+            if(pb!=null&&pb is not DBNull&&Convert.ToInt32(pb)==1)blocked=true;
+        }
+        if(SchemaSql.TableExists(c,tx,"sal","bank_file"))
+        {
+            object? fileBlocked=SchemaSql.Scalar(c,tx,$"""
+                SELECT MAX(CAST(payout_blocked AS int)) FROM {SchemaSql.Q(c,"sal","bank_file")}
+                WHERE paying_company_id=@c AND period_month>=@from AND period_month<=@to AND status<>4
+                """,("@c",request.Sponsor),("@from",request.From+"-01"),("@to",request.To+"-01"));
+            if(fileBlocked!=null&&fileBlocked is not DBNull&&Convert.ToInt32(fileBlocked)==1)blocked=true;
+            object? fileMode=SchemaSql.Scalar(c,tx,$"""
+                SELECT MAX(run_mode) FROM {SchemaSql.Q(c,"sal","bank_file")}
+                WHERE paying_company_id=@c AND period_month>=@from AND period_month<=@to AND status<>4
+                """,("@c",request.Sponsor),("@from",request.From+"-01"),("@to",request.To+"-01"));
+            if(fileMode!=null&&fileMode is not DBNull&&Convert.ToInt32(fileMode)==1)runMode=1;
+        }
+        return (runMode,blocked);
+    }
     // BR §38.5: mark parallel-run bank files «لا يُرسل» outside the CSV body (filename, preview fields, audit), never inside BOM/CRLF/header/rows.
     public static JsonObject Preview(DbConnection c,ClaimsPrincipal user,JsonObject input)
     {
-        var request=Request(user,input);var(rows,excluded,basis)=Rows(c,null,user,request);bool comparison=ComparisonOnly(input);
-        return new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To,["basis"]=basis,["comparisonOnly"]=comparison,["doNotSend"]=comparison,["doNotSendMark"]=comparison?DoNotSendMark:"",["rows"]=rows,["excludedRows"]=excluded,["previewToken"]=FinancialImports.Issue(c,Kind(request)+(comparison?":parallel":""),rows,user.Identity?.Name??""),["expiresInSeconds"]=1200,["canExport"]=rows.Count>0&&rows.OfType<JsonObject>().All(r=>r["errors"]!.AsArray().Count==0)};
+        var request=Request(user,input);bool confirmUnverified=input.B("confirmUnverifiedIbans");
+        var(rows,excluded,basis)=Rows(c,null,user,request,confirmUnverified);bool comparison=ComparisonOnly(input);
+        decimal excludedTotal=J.Money(excluded.OfType<JsonObject>().Sum(e=>e.N("balance")));
+        return new(){["sponsorId"]=request.Sponsor,["from"]=request.From,["to"]=request.To,["basis"]=basis,["comparisonOnly"]=comparison,["doNotSend"]=comparison,["doNotSendMark"]=comparison?DoNotSendMark:"",["rows"]=rows,["excludedRows"]=excluded,["excludedCount"]=excluded.Count,["excludedTotal"]=excludedTotal,["confirmUnverifiedIbans"]=confirmUnverified,["unverifiedIbanCount"]=rows.OfType<JsonObject>().Count(r=>r.B("ibanUnverified")),["previewToken"]=FinancialImports.Issue(c,Kind(request)+(comparison?":parallel":""),rows,user.Identity?.Name??""),["expiresInSeconds"]=1200,["canExport"]=rows.Count>0&&rows.OfType<JsonObject>().All(r=>r["errors"]!.AsArray().Count==0)};
     }
     /// <summary>M1: when the file is marked sent (not «لا يُرسل»), post Dr 212103 / Cr bank for the exported amounts.</summary>
     static void PostPayout(DbConnection c,DbTransaction tx,ClaimsPrincipal user,(string Sponsor,string From,string To) request,IReadOnlyList<JsonObject> rows,string actor,string bankAccount)
@@ -145,7 +240,7 @@ public static class BankPayrollFiles
     public static Download Export(DbConnection c,DbTransaction tx,ClaimsPrincipal user,JsonObject input)
     {
         var request=Request(user,input);string actor=user.Identity?.Name??"";bool comparison=ComparisonOnly(input);
-        var(baseline,excluded,_)=Rows(c,tx,user,request);
+        var(baseline,excluded,_)=Rows(c,tx,user,request,input.B("confirmUnverifiedIbans"));
         FinancialImports.Verify(c,tx,new JsonObject{["rows"]=baseline.DeepClone(),["fingerprint"]=input.S("previewToken"),["confirm"]=true},Kind(request)+(comparison?":parallel":""),actor);
         var rows=input["rows"] as JsonArray??throw new ApiError("صفوف التصدير مطلوبة.");
         var excludedIds=excluded.OfType<JsonObject>().Select(row=>row.S("iqama")).ToHashSet(StringComparer.Ordinal);
@@ -155,8 +250,10 @@ public static class BankPayrollFiles
         for(int i=0;i<rows.Count;i++)
         {
             var row=rows[i] as JsonObject??throw new ApiError("صف غير صالح.");var original=baseline[i]!.AsObject();
-            J.Need(row.All(p=>new[]{"bank","iban","amount","notes","name","iqama","address","errors"}.Contains(p.Key)),"يسمح بتعديل المبلغ والملاحظات فقط.");
+            // TRIAL8/9: preview may carry ibanUnverified (read-only); still only amount/notes/bank(unknown) are editable.
+            J.Need(row.All(p=>new[]{"bank","iban","amount","notes","name","iqama","address","errors","ibanUnverified"}.Contains(p.Key)),"يسمح بتعديل المبلغ والملاحظات فقط.");
             foreach(string field in new[]{"iban","name","iqama","address"})J.Need(row[field] is JsonValue&&row.S(field)==original.S(field),"يسمح بتعديل المبلغ والملاحظات فقط؛ أعد المعاينة لتحديث البيانات.");
+            J.Need(row.B("ibanUnverified")==original.B("ibanUnverified"),"يسمح بتعديل المبلغ والملاحظات فقط؛ أعد المعاينة لتحديث البيانات.");
             J.Need(row["bank"] is JsonValue&&(row.S("bank")==original.S("bank")||!Banks.ContainsKey(original.S("iban").Length>=6?original.S("iban").Substring(4,2):"")),"البنك يتعدل يدويًا فقط لو كود الآيبان غير معروف.");
             J.Need(row["notes"] is JsonValue notes&&notes.TryGetValue<string>(out var note)&&note.Length<=2000,"الملاحظات نص بحد أقصى 2000 حرف.");
             J.Need(!row.S("notes").Contains(DoNotSendMark,StringComparison.Ordinal),"علامة «لا يُرسل» خارج ملف البنك فقط (اسم التصدير والتدقيق والمعاينة).");
@@ -164,12 +261,29 @@ public static class BankPayrollFiles
             if(row.N("amount")!=original.N("amount")||row.S("notes")!=original.S("notes")||row.S("bank")!=original.S("bank"))edited++;
             total+=row.N("amount");checkedRows.Add(row);
         }
-        // M1: payout journal only when explicitly marked sent — never on plain export or parallel «لا يُرسل».
+        // WC1I: a ready-to-send export opens the dual approval (kind, scope, file hash, amount) automatically.
+        string payoutRef="bank-payout:"+request.Sponsor+":"+request.From+":"+request.To;
+        string fileHash=FileContentHash(checkedRows,total);
+        if(!comparison)
+            ApprovalsArea.OpenMoneyOutDual(c,tx,user,"bank_sent",payoutRef,total,fileHash,
+                "اعتماد إرسال ملف بنك","ملف رواتب جاهز للإرسال — بانتظار اعتماد شخصين.",
+                new(){["sponsorId"]=request.Sponsor,["companyId"]=request.Sponsor,["from"]=request.From,["to"]=request.To});
+        // M1 / U-W2-31: payout journal only when explicitly marked sent — never on plain export or parallel «لا يُرسل».
         if(!comparison&&(input.B("markSent")||input.B("sent")||input.S("action")=="mark_sent"))
         {
-            string bank=input.S("bankAccountCode",PipelineSettings.Current().S("payrollBankAccount","111101"));
+            var flags=ResolveStoredMoneyFlags(c,tx,request);
+            MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.BankSent);
+            // M-0672 / WC1H: recorded two-person dual bound to this file's content hash (edits after approval void it).
+            ApprovalsArea.DemandRecordedMoneyOutDual(c,tx,user,ApprovalsArea.DualBankFile,payoutRef,fileHash);
+            // COA1 A14 / B14: require a real bank leaf (not cash box 111101, not restricted Jahez 111204).
+            string bank=input.S("bankAccountCode");
+            if(bank=="")bank=PipelineSettings.Current().S("payrollBankAccount");
+            J.Need(bank!="","اختر حساب بنك للصرف (لا صندوق نقدي افتراضي).");
+            J.Need(bank!="111204"&&FinanceViews.Accounts.Any(a=>a.S("code")==bank&&a.S("type")=="bank"&&a.B("posting")&&a.S("status")=="active"),"اختر حساب بنك فعلي؛ أموال تصفيات جاهز معزولة.");
+            MoneyWriteGuards.Demand(flags.RunMode,flags.PayoutBlocked,MoneyEffectKind.Payout);
             PostPayout(c,tx,user,request,checkedRows,actor,bank);
         }
+        // comparisonOnly + markSent: export CSV only; never post (parallel «لا يُرسل»).
         byte[] bytes=Csv(checkedRows);string filename=(comparison?"DO-NOT-SEND_":"")+DateTimeOffset.UtcNow.ToUnixTimeMilliseconds().ToString(CultureInfo.InvariantCulture)+"_bulkPayroll.csv";
         // Metadata only. Never persist the exported rows, identifiers, names, IBANs or notes.
         // Keep the normal export audit shape (7 fields). Parallel-run adds doNotSend outside the CSV.

@@ -5907,6 +5907,13 @@
       "nullable": true
     },
     {
+      "schema": "chefz",
+      "table": "WalletSettlements",
+      "column": "FullTimeFeeAmount",
+      "dataType": "decimal",
+      "nullable": true
+    },
+    {
       "schema": "finance_read",
       "table": "vw_hunger_adjustments_v1",
       "column": "DocumentId",

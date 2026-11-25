@@ -81,10 +81,20 @@ public static class AccountingEvents
         decimal offset=J.Money(Math.Min(Math.Max(0,signedPayable),Math.Max(0,priorDeficit)));
         if(offset>0){Line("2110",offset,0,"مقاصة عجز راتب سابق موثق");Line("1211",0,offset,"إقفال العجز من الاستحقاق الجديد");signedPayable-=offset;}
         if(signedPayable<0){Line("1211",-signedPayable,0,"عجز راتب مثبت دون صرف نقد أو تكرار مديونية");Line("2110",0,-signedPayable,"فصل الذمة المدينة عن الرواتب الدائنة");}
-        // A zero-pay period still has an immutable run; no zero or fictitious journal lines.
-        var journal=lines.Count>0?FinancialCore.PostJournal(c,tx,"payroll_accrual","إثبات مسير معتمد ومقاصة العجز",result.Period,"PAYROLL:"+run.S("id"),lines,actor,result.Iqama,"",sponsor,sponsor):new JsonObject();
-        run["accountingVersion"]=Version;run["sponsorId"]=sponsor;run["journalEntryId"]=journal.S("id");
-        return journal;
+        // WMRG: PAYROLL:{id} must resolve this run's run_mode (never default live). Register ambiently —
+        // do not Store.Save yet: approve sets approvedAt before PostPayroll and GuardLegacyRun would fire mid-post.
+        run["accountingVersion"]=Version;run["sponsorId"]=sponsor;
+        if(run.S("id")=="")run["id"]=Guid.NewGuid().ToString("N");
+        byte runMode=run.N("runMode")==1||run.S("runMode")=="1"?(byte)1:(byte)0;
+        MoneyWriteGuards.NoteSourceRunMode(run.S("id"),runMode);
+        try
+        {
+            // A zero-pay period still has an immutable run; no zero or fictitious journal lines.
+            var journal=lines.Count>0?FinancialCore.PostJournal(c,tx,"payroll_accrual","إثبات مسير معتمد ومقاصة العجز",result.Period,"PAYROLL:"+run.S("id"),lines,actor,result.Iqama,"",sponsor,sponsor):new JsonObject();
+            run["journalEntryId"]=journal.S("id");
+            return journal;
+        }
+        finally{MoneyWriteGuards.ClearSourceRunMode(run.S("id"));}
     }
     public static JsonObject PostInstallment(DbConnection c,DbTransaction tx,JsonObject debt,PayrollResult result,string runId,decimal amount,string reference)
     {

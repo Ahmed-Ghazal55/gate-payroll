@@ -53,7 +53,7 @@ public static class R9RealFilesEvidence
         }
         foreach(var cycle in pending)
         {
-            await host.Request(host.Checker,cycle.Path+"/advance",new(){["stage"]=7});await host.Request(host.Checker,cycle.Path+"/debt-deductions",new(){["action"]="confirm-all"});
+            await host.Request(host.Checker,cycle.Path+"/debt-deductions",new(){["action"]="confirm-all"});await host.Request(host.Checker,cycle.Path+"/advance",new(){["stage"]=7});
             var posted=store.Read(c=>Store.List(c,"journal").Where(j=>j.S("payCycleId")==cycle.Id).ToList());if(posted.Any(j=>j.N("totalDebit")!=j.N("totalCredit")||j["lines"]!.AsArray().Any(l=>l!.N("debit")<0||l.N("credit")<0)))throw new InvalidOperationException("Real-file posting balance check failed.");
             journals+=posted.Count;completed++;
         }

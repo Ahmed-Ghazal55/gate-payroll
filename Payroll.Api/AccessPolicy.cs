@@ -49,6 +49,18 @@ public static partial class AccessPolicy
         if(user.Identity?.IsAuthenticated!=true)return false;
         // A temporary password opens nothing but the screen that replaces it, for administrators too.
         if(user.HasClaim("mustChangePassword","true"))return path is "/api/me" or "/api/me/password" or "/api/auth/logout";
+        // Enrollment-only session after the 14-day 2FA window: setup/verify only (no business APIs).
+        if(Auth2faApi.IsEnrollmentOnly(user))
+        {
+            if(path is "/api/me" or "/api/auth/logout")return method=="GET"||path=="/api/auth/logout"&&method=="POST";
+            if(path.StartsWith("/api/auth/2fa",StringComparison.Ordinal))
+            {
+                if(method!="POST")return false;
+                if(path.EndsWith("/reset",StringComparison.Ordinal))return false;
+                return path.EndsWith("/setup",StringComparison.Ordinal)||path.EndsWith("/verify",StringComparison.Ordinal)||path.EndsWith("/backup-codes",StringComparison.Ordinal);
+            }
+            return false;
+        }
         if(Administrator(user))return true;
         bool Get(string prefix)=>method=="GET"&&path.StartsWith(prefix,StringComparison.Ordinal);
         bool Has(string permission)=>AccessPolicy.Has(user,permission);
@@ -56,6 +68,12 @@ public static partial class AccessPolicy
             return EvaluationSurvey.CanView(user) && (method=="GET" ? !path.EndsWith("/export",StringComparison.Ordinal) || Has(EvaluationSurvey.ExportPermission) : method is "POST" or "PUT" or "DELETE" && Has("forms.manage"));
         if(path is "/api/me" or "/api/roles-catalog")return method=="GET";
         if(path=="/api/me/password")return method=="POST";
+        if(path.StartsWith("/api/auth/2fa",StringComparison.Ordinal))
+        {
+            if(method!="POST")return false;
+            if(path.EndsWith("/reset",StringComparison.Ordinal))return Has("users.manage");
+            return true; // self setup/verify/backup for authenticated users
+        }
         if(path.StartsWith("/api/roles/",StringComparison.Ordinal))return false;
         if(path.StartsWith("/api/config/lists",StringComparison.Ordinal))return method=="GET"||method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"pay.approve":"pay.manage");
         if(path.StartsWith("/api/users",StringComparison.Ordinal))return method is "GET" or "POST" or "PUT"&&Has("users.manage"); // Handlers guard escalation and self-edit.
@@ -107,15 +125,23 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/debts",StringComparison.Ordinal))
         {
             if(path.Contains("/reconcile-opening/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
+            if(path=="/api/debts/print"||path=="/api/debts/ageing")return method=="GET"&&Has(path.EndsWith("/print",StringComparison.Ordinal)?"debts.statement.print":"debts.view");
+            if(path=="/api/debts/import/template")return method=="GET"&&(Has("debts.import_opening")||Has("debts.create.administrative")||Has("debts.create.advance"));
             if(method=="GET")return Has("debts.view");
             if(path=="/api/debts")return method=="POST"&&Has(input==null?"invalid.permission":CategoryPermission(input.S("category")));
+            if(path=="/api/debts/disburse")return method=="POST"&&Has("debts.create.advance");
             // Opening balances post against equity: commit needs the treasury opening permission too.
             if(path.StartsWith("/api/debts/import-opening/",StringComparison.Ordinal))return method=="POST"&&Has("debts.import_opening")&&(!path.EndsWith("/commit",StringComparison.Ordinal)||Has("treasury.opening"));
+            if(path.StartsWith("/api/debts/import/reduce/",StringComparison.Ordinal))return method=="POST"&&Has("debts.create.administrative");
             if(path.StartsWith("/api/debts/bulk-collect/",StringComparison.Ordinal))return method=="POST"&&Has("debts.collect");
-            if(path.EndsWith("/collect",StringComparison.Ordinal))return method=="POST"&&Has("debts.collect")&&((input?.N("waivedAmount")??0)==0||Has("debts.waive"));
+            if(path.EndsWith("/collect",StringComparison.Ordinal)||path.EndsWith("/collect-ledger",StringComparison.Ordinal))return method=="POST"&&Has("debts.collect")&&((input?.N("waivedAmount")??0)==0||Has("debts.waive"));
+            if(path.EndsWith("/waive",StringComparison.Ordinal)||path.EndsWith("/absorb",StringComparison.Ordinal))return method=="POST"&&Has("debts.waive");
+            if(path.EndsWith("/reschedule",StringComparison.Ordinal))return method=="POST"&&Has("debts.reschedule");
             if(path.EndsWith("/transfer-sponsor",StringComparison.Ordinal))return method=="POST"&&Has("debts.transfer_sponsor");
             return method=="PUT"&&Has("debts.reschedule");
         }
+        if(path.StartsWith("/api/promissory-notes/",StringComparison.Ordinal)&&path.EndsWith("/link-debt",StringComparison.Ordinal))
+            return method=="POST"&&(Has("debts.create.administrative")||Has("debts.create.advance")||Has("debts.create.hr"));
         if(path=="/api/finance/mada/balance")return method=="GET"&&(Has("advances.payout")||Has("treasury.view"));
         if(path=="/api/finance/accounting-adjustments"||path.StartsWith("/api/finance/accounting-adjustments/",StringComparison.Ordinal))return method=="GET"?Has("finance.journal.create"):method=="POST"&&Has(path.EndsWith("/approve",StringComparison.Ordinal)?"finance.journal.approve":"finance.journal.create");
         if(path=="/api/finance/journals/manual"||path.StartsWith("/api/finance/journals/manual/",StringComparison.Ordinal))
@@ -126,9 +152,29 @@ public static partial class AccessPolicy
         if(path is "/api/finance/bank-file/preview" or "/api/finance/bank-file/export")return method=="POST"&&Has("finance.bankfile.export")&&Has("payroll.view");
         if(path is "/api/finance/trial-balance" or "/api/finance/income-statement")return method=="GET"&&Has("treasury.journals");
         if(path=="/api/finance/catalog")return method=="GET"&&(Has("debts.view")||Has("treasury.view"));
+        if(path=="/api/finance/coa"||path.StartsWith("/api/finance/coa/",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("accounting.chart.view")||Has("treasury.view");
+            if(method=="DELETE")return false;
+            if(method=="PUT")return Has("accounting.chart.edit");
+            if(method!="POST")return false;
+            if(path.EndsWith("/deactivate",StringComparison.Ordinal)||path.EndsWith("/reactivate",StringComparison.Ordinal))return Has("accounting.chart.deactivate");
+            return path=="/api/finance/coa"&&Has("accounting.chart.create");
+        }
         if(path.StartsWith("/api/finance/opening/",StringComparison.Ordinal))return Has("treasury.opening");
         if(path.StartsWith("/api/finance/legacy-cash-allocation/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.opening");
         if(path.StartsWith("/api/finance/jahez-handovers/",StringComparison.Ordinal))return method=="POST"&&Has("treasury.jahez.receive")&&(path.EndsWith("/confirm",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal));
+        if(path.StartsWith("/api/treasury/",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("treasury.view");
+            if(method!="POST")return false;
+            if(path=="/api/treasury/transfers")return Has("treasury.transfer");
+            if(path.StartsWith("/api/treasury/bank-statements",StringComparison.Ordinal)||path.StartsWith("/api/treasury/bank-adjustments",StringComparison.Ordinal))
+                return Has("treasury.bank_reconcile")||Has("treasury.transfer");
+            if(path.StartsWith("/api/treasury/vault-counts",StringComparison.Ordinal))
+                return Has("treasury.vault_reconcile")||Has("treasury.transfer")||(path.EndsWith("/approve",StringComparison.Ordinal)&&Has("approvals.decide"));
+            return false;
+        }
         if(path.StartsWith("/api/finance/",StringComparison.Ordinal))return method=="GET"?Has("treasury.view"):method=="POST"&&(path switch{
             "/api/finance/vault-transfer"=>Has("treasury.transfer"),
             "/api/finance/liability-payment"=>Has("treasury.liability.settle"),
@@ -138,6 +184,7 @@ public static partial class AccessPolicy
             "/api/finance/jahez-fee"=>Has("treasury.jahez.manage"),
             "/api/finance/jahez-handover"=>Has("treasury.jahez.handover"),
             "/api/finance/jahez-reconciliations"=>Has("treasury.transfer")||Has("treasury.jahez.receive"),
+            "/api/finance/jahez-reconciliations/day"=>Has("treasury.transfer")||Has("treasury.jahez.receive"),
             _ when path.StartsWith("/api/finance/jahez-reconciliations/",StringComparison.Ordinal)=>Has("treasury.transfer")||Has("treasury.jahez.receive"),
             _=>false});
         if(path=="/api/org/supervision"&&method=="GET")return Has("advances.request")||Has("org.manage"); // mine=1 for supervisors; the full list is re-checked in the handler.
@@ -149,10 +196,57 @@ public static partial class AccessPolicy
             if(path=="/api/advance-requests"||path.EndsWith("/respond",StringComparison.Ordinal))return Has("advances.request");
             if(path.StartsWith("/api/advance-requests/rider-asks/",StringComparison.Ordinal))return Has("advances.request")&&(path.EndsWith("/convert",StringComparison.Ordinal)||path.EndsWith("/decline",StringComparison.Ordinal));
             if(path.EndsWith("/review",StringComparison.Ordinal))return Has("advances.review");
-            return path.EndsWith("/payout",StringComparison.Ordinal)&&Has("advances.payout");
+            return (path.EndsWith("/payout",StringComparison.Ordinal)||path.EndsWith("/request-payout",StringComparison.Ordinal))&&Has("advances.payout");
         }
         if(path.StartsWith("/api/approvals",StringComparison.Ordinal))return method=="GET"?Has("approvals.view"):method=="POST"&&path.EndsWith("/decide",StringComparison.Ordinal)&&Has("approvals.decide");
-        if(path=="/api/audit")return method=="GET"&&Has("audit.view");
+        if(path=="/api/audit")return method=="GET"&&(Has("audit.view")||Has("admin.audit.view"));
+        if(path.StartsWith("/api/admin/org/approval-limits",StringComparison.Ordinal)||path.StartsWith("/api/admin/org/sla-policies",StringComparison.Ordinal))
+            return (method=="GET"||method=="PUT")&&(Has("admin.org.manage")||Has("org.manage"));
+        if(path=="/api/sal/simulations")
+            return method=="POST"&&Has("salaries.simulation.run");
+        if(path.StartsWith("/api/sal/simulations/",StringComparison.Ordinal))
+            return path.EndsWith("/journal-preview",StringComparison.Ordinal)||path.EndsWith("/discard",StringComparison.Ordinal)
+                ?(method=="GET"||method=="POST")&&Has("salaries.simulation.run")
+                :(method=="GET"||method=="POST")&&Has("pay.manage");
+        // U-W2-04 Mudad upload/match/list + line CRUD.
+        if(path.StartsWith("/api/mudad",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has("people.mudad.manage")||Has("pay.view");
+            if(method=="DELETE"||(method=="PUT"&&path.Contains("/lines/",StringComparison.Ordinal)))
+                return Has("salaries.mudad.edit");
+            if(method=="POST"&&path.Contains("/lines",StringComparison.Ordinal))return Has("salaries.mudad.edit");
+            return method=="POST"&&Has("people.mudad.manage");
+        }
+        // U-W2-12/13/15/16/17/18 money capture + distribution + pay-run + rider requests + bank files + Chefz freeze.
+        if(path.StartsWith("/api/sal/",StringComparison.Ordinal))
+        {
+            if(path.StartsWith("/api/sal/rider-requests",StringComparison.Ordinal))
+            {
+                if(method=="GET")return Has("pay.view")||Has("salaries.hold.request")||Has("salaries.hold.approve")||Has("salaries.hold.release")||Has("salaries.deduction.request")||Has("salaries.deduction.approve")||Has("advances.request")||Has("advances.review");
+                if(method!="POST")return false;
+                if(path.EndsWith("/release",StringComparison.Ordinal)||path.EndsWith("/request-release",StringComparison.Ordinal))
+                    return Has("salaries.hold.release")||Has("pay.approve")||Has(ApprovalsArea.DualSharedRiderRelease);
+                if(path.EndsWith("/approve",StringComparison.Ordinal)||path.EndsWith("/reject",StringComparison.Ordinal))
+                    return Has("salaries.hold.approve")||Has("salaries.deduction.approve")||Has("advances.review")||Has("pay.approve");
+                return Has("salaries.hold.request")||Has("salaries.deduction.request")||Has("salaries.hold.approve")||Has("salaries.deduction.approve")||Has("advances.request")||Has("pay.manage");
+            }
+            if(path.StartsWith("/api/sal/bank-files",StringComparison.Ordinal))
+            {
+                if(method=="GET")return Has("finance.bankfile.export")||Has("salaries.bankfile.mark_sent")||Has("pay.view");
+                if(method!="POST")return false;
+                if(path.EndsWith("/mark-sent",StringComparison.Ordinal))
+                    return (Has("salaries.bankfile.mark_sent")||Has("finance.bankfile.export"))&&Has(ApprovalsArea.DualBankFile);
+                if(path.EndsWith("/request-mark-sent",StringComparison.Ordinal))
+                    return Has("salaries.bankfile.mark_sent")||Has("finance.bankfile.export")||Has(ApprovalsArea.DualBankFile);
+                return Has("finance.bankfile.export");
+            }
+            if(method=="GET")return Has("pay.view");
+            if(method=="POST"&&(path.EndsWith("/approve-salary",StringComparison.Ordinal)||path.EndsWith("/approve",StringComparison.Ordinal)
+                ||path.EndsWith("/freeze",StringComparison.Ordinal)||path.Contains("/debt-confirm",StringComparison.Ordinal)))
+                return Has("pay.approve")||Has("pay.manage");
+            if(method=="POST"&&path.EndsWith("/midnight-capture",StringComparison.Ordinal))return Has("admin.settings.manage");
+            return method=="POST"&&Has("pay.manage");
+        }
         // DELETE / campaign PUT stay admin-only (blanket deny). forms.delete is deprecated and unused.
         if(method=="DELETE"||path.EndsWith("/delete-preview",StringComparison.Ordinal)||path=="/api/submissions/bulk-delete"||method=="PUT"&&path.StartsWith("/api/campaigns/",StringComparison.Ordinal))return false;
         if(method=="POST"&&path.StartsWith("/api/notifications/center/",StringComparison.Ordinal)&&path.EndsWith("/toggle-todo",StringComparison.Ordinal))return true; // Handler checks view permission or ownership and visibility.
@@ -169,10 +263,13 @@ public static partial class AccessPolicy
                 :method=="POST"&&(Has("mobile.broadcast")||Has("forms.review")||Has("mobile.complaints.confidential")||Has("riders.iban_data.approve_first")||Has("riders.iban_data.approve_second"));
         if(path=="/api/rider-mobile/statements/notify-period")return method=="POST"&&Has("mobile.broadcast");
         if(path.StartsWith("/api/rider-mobile/",StringComparison.Ordinal))return method=="GET"?Has("mobile.broadcast"):method=="POST"&&path=="/api/rider-mobile/broadcast"&&Has("mobile.broadcast");
-        if(path.StartsWith("/api/promissory-notes",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
+        if(path.StartsWith("/api/promissory-notes",StringComparison.Ordinal))
+            return (method=="GET"&&Has("debts.view"))||(method=="POST"&&(Has("debts.create.administrative")||Has("debts.create.advance")||Has("debts.create.hr")));
         if(path.StartsWith("/api/payroll",StringComparison.Ordinal))return method=="GET"?Has("payroll.view"):method=="POST"&&path=="/api/payroll/approve"&&Has("payroll.approve");
         if(path.StartsWith("/api/ledger",StringComparison.Ordinal))return method=="GET"&&Has("payroll.view");
-        if(path=="/api/payments")return method=="POST"&&Has("payments.record");
+        if(path.StartsWith("/api/payments/",StringComparison.Ordinal))return PaymentsApi.Allowed(user,method,path);
+        // RWP1: legacy POST /api/payments posted money-out with payments.record and no dual approval (M-0672).
+        if(path=="/api/payments")return false;
         if(path=="/api/adjustments")return method=="POST"&&Has("adjustments.create");
         if(path.StartsWith("/api/policies",StringComparison.Ordinal))return method=="GET"?Has("policies.view"):Has("policies.manage");
         if((method=="GET"&&path=="/api/imports")||path=="/api/template.csv")return Has("imports.view");
@@ -184,14 +281,68 @@ public static partial class AccessPolicy
         // GET builder list is forms.view; create/publish/close stay forms.manage.
         if(path.StartsWith("/api/forms/builder",StringComparison.Ordinal))
             return method=="GET"?Has("forms.view"):Has("forms.manage");
+        if(path=="/api/admin/audit/self-approvals")return method=="GET"&&Has("admin.audit.view");
+        if(path=="/api/admin/read-summary")return method=="GET"&&Has("admin.read_summary.view");
+        if(path=="/api/admin/settings")return (method=="GET"||method=="PUT")&&Has("admin.settings.manage");
+        if(path=="/api/admin/notify-settings")return (method=="GET"||method=="PUT")&&Has("admin.notify.manage");
+        if(path=="/api/admin/archive/policies")return method=="GET"&&Has("admin.archive.manage");
+        if(path=="/api/admin/archive/restore-request"||path=="/api/admin/archive/restore-view")return method=="POST"&&Has("admin.archive.manage");
+        if(path.StartsWith("/api/chat",StringComparison.Ordinal))
+        {
+            if(method=="GET")
+            {
+                if(path.Contains("/media/",StringComparison.Ordinal))return Has("chat.view")||Has("chat.post")||Has("chat.moderate")||Has("chat.admin");
+                return Has("chat.view")||Has("chat.post")||Has("chat.moderate")||Has("chat.admin");
+            }
+            if(method!="POST")return false;
+            if(path=="/api/chat/channels")return Has("chat.admin");
+            if(path.EndsWith("/attachments",StringComparison.Ordinal)||path.EndsWith("/messages",StringComparison.Ordinal))
+                return Has("chat.post")||Has("chat.moderate")||Has("chat.admin");
+            return Has("chat.moderate")||Has("chat.admin");
+        }
+        if(path=="/api/notify/send")return method=="POST"&&(Has("notify.send.general")||Has("notify.send.custom"));
+        if(path=="/api/tasks"||path.StartsWith("/api/tasks/",StringComparison.Ordinal))
+            return method=="GET"?(Has("tasks.assign")||Has("tasks.manage")):(method is "POST" or "PUT")&&(Has("tasks.assign")||Has("tasks.manage"));
+        if(path.StartsWith("/api/users/",StringComparison.Ordinal)&&path.EndsWith("/effective-permissions",StringComparison.Ordinal))return method=="GET"&&Has("users.manage");
+        if(path.StartsWith("/api/users/",StringComparison.Ordinal)&&path.EndsWith("/copy-permissions",StringComparison.Ordinal))return method=="POST"&&Has("users.manage");
         return false;
     }
-    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide",System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null,string operation="approval.decide",JsonObject? record=null)
+    /// <summary>BR §35 / M-0672: permission-only in general; two-person only when the server-derived dual code
+    /// (bank file, payment out, shared-rider release) applies. Client dualPermission is ignored when kind maps.</summary>
+    public static void ValidateApproval(ClaimsPrincipal actor,JsonObject request,JsonObject input,string permission="approvals.decide",System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null,string operation="approval.decide",JsonObject? record=null,string? dualPermission=null)
     {
         Demand(actor,permission);
-        string name=actor.Identity?.Name??"";
-        J.Need(Independent(actor,request.S("requestedBy",request.S("createdBy")),operation,c,tx,record??request),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية تجاوز مؤرخة.",403);
+        string? dual=dualPermission??ApprovalsArea.ResolveDual(request);
+        if(ApprovalsArea.RequiresDual(dual))Demand(actor,dual!);
+        string maker=request.S("requestedBy",request.S("createdBy"));
+        // TRIAL8: every self-approval (dual and non-dual, every role including SystemAdmin) uses one Independent rule
+        // (explicit approvals.approve_own only; never money-out).
+        if(SamePerson(actor,maker))
+            J.Need(Independent(actor,maker,operation,c,tx,record??request,scope:dual),"لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية اعتماد مستنداته بنفسه.",403);
+        // Bypass lifts maker≠checker only — never department, rank, approval limit, or company/platform scope.
         if(!Administrator(actor)&&(actor.FindFirstValue("department")!=request.S("targetDepartment")||!int.TryParse(actor.FindFirstValue("rankLevel"),out int rank)||rank<(int)request.N("requiredRankLevel",1)))
-            J.Need(Independent(actor,name,operation+".department_rank",c,tx,record??request),"القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
+            throw new ApiError("القسم أو الرتبة لا يسمحان بالبت في الطلب.",403);
+        DemandApprovalLimit(actor,request,c,tx);
     }
+
+    public static bool WithinApprovalLimit(ClaimsPrincipal actor,JsonObject request,System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null)
+    {
+        if(Administrator(actor)||c==null)return true;
+        decimal amount=request.N("amountSar",request.N("amount",request.N("total")));
+        if(amount<=0)return true;
+        string rank=actor.FindFirstValue("rank")??RankCode(actor.FindFirstValue("rankLevel"));
+        string department=actor.FindFirstValue("department")??request.S("targetDepartment");
+        ApprovalsArea.EnsureLimitsSeeded(c,tx);
+        var row=SchemaApprovals.FindLimit(c,tx,rank,department)
+            ??Store.List(c,ApprovalsArea.LimitsKind,tx).FirstOrDefault(l=>l.S("rank")==rank&&l.S("department")==department);
+        if(row==null||row.B("unlimited")||row["limitSar"] is null)return true;
+        return amount<=row.N("limitSar");
+    }
+
+    public static void DemandApprovalLimit(ClaimsPrincipal actor,JsonObject request,System.Data.Common.DbConnection? c=null,System.Data.Common.DbTransaction? tx=null)
+    {
+        J.Need(WithinApprovalLimit(actor,request,c,tx),"المبلغ يتجاوز حد الاعتماد للرتبة والقسم.",403);
+    }
+
+    static string RankCode(string? level)=>level switch{"5"=>"GM","4"=>"A+","3"=>"A","2"=>"B",_=>"C"};
 }

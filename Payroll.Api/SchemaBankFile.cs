@@ -20,6 +20,10 @@ public static class SchemaBankFile
             run_mode {SchemaSql.Tiny(c)} NOT NULL DEFAULT 0 CHECK(run_mode=0),
             payout_blocked {SchemaSql.Bit(c)} NOT NULL DEFAULT 0 CHECK(payout_blocked IN (0,1)),
             currency_code {SchemaSql.Varchar(c,3)} NOT NULL DEFAULT 'SAR' CHECK(currency_code='SAR'),
+            confirm_unverified_ibans {SchemaSql.Bit(c)} NOT NULL DEFAULT 0 CHECK(confirm_unverified_ibans IN (0,1)),
+            excluded_json {SchemaSql.Json(c)} NULL,
+            excluded_count {SchemaSql.Int(c)} NOT NULL DEFAULT 0,
+            excluded_total {m} NOT NULL DEFAULT 0,
             approved_by {g} NULL, approved_at {SchemaSql.DateTime(c)} NULL,
             sent_by {g} NULL, sent_at {SchemaSql.DateTime(c)} NULL,
             {SchemaSql.MoneyAuditCols(c)}, CONSTRAINT PK_sal_bank_file {SchemaSql.PrimaryKey(c)}(id),
@@ -38,6 +42,9 @@ public static class SchemaBankFile
             registration_id {g} NOT NULL, payable_period_month {SchemaSql.Date(c)} NOT NULL,
             payment_id {g} NOT NULL, allocation_id {g} NOT NULL,
             amount {m} NOT NULL CHECK(amount>0), bank_short_code {SchemaSql.Varchar(c,8)} NOT NULL,
+            rider_iqama {SchemaSql.Varchar(c,20)} NULL, rider_name {(SchemaSql.IsSql(c)?"nvarchar(200)":"TEXT")} NULL,
+            rider_iban {SchemaSql.Varchar(c,34)} NULL, rider_address {(SchemaSql.IsSql(c)?"nvarchar(500)":"TEXT")} NULL,
+            iban_unverified {SchemaSql.Bit(c)} NOT NULL DEFAULT 0 CHECK(iban_unverified IN (0,1)),
             status {SchemaSql.Tiny(c)} NOT NULL DEFAULT 1 CHECK(status IN (1,4)),
             {SchemaSql.MoneyAuditCols(c)}, CONSTRAINT PK_sal_bank_file_line {SchemaSql.PrimaryKey(c)}(id),
             CONSTRAINT UQ_bank_file_line_month UNIQUE(id,period_month),
@@ -51,9 +58,11 @@ public static class SchemaBankFile
             """);
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"sal","bank_file_line","UQ_bank_line_rider_active","pay_run_rider_id","status=1");
         foreach(string table in new[]{"bank_file","bank_file_line"}){SchemaSql.EnsureMonthIndex(c,tx,"sal",table);SchemaSql.EnsureRowVersion(c,tx,"sal",table);}
+        // Live 0.33.8 already has these tables: add new columns before any trigger/view that names them.
+        EnsureFrozenMeta(c,tx);
         SchemaMoneyGuard.Retain(c,tx,"sal","bank_file");
         SchemaMoneyGuard.Retain(c,tx,"sal","bank_file_line","o.allocation_id=NEW.allocation_id OR (o.pay_run_rider_id=NEW.pay_run_rider_id AND o.status=1 AND NEW.status=1)");
-        SchemaMoneyRegister.ImmutableInsteadOfUpdate(c,tx,"sal","bank_file_line","bank_file_id","period_month","pay_run_rider_id","payable_id","company_id","registration_id","payable_period_month","payment_id","allocation_id","amount","bank_short_code","generation");
+        SchemaMoneyRegister.ImmutableInsteadOfUpdate(c,tx,"sal","bank_file_line","bank_file_id","period_month","pay_run_rider_id","payable_id","company_id","registration_id","payable_period_month","payment_id","allocation_id","amount","bank_short_code","rider_iqama","rider_name","rider_iban","rider_address","iban_unverified","generation");
         EnsureLines(c,tx);
         EnsureSettlement(c,tx);
         // SQL Server AFTER: create TR_bank_file_state before money_flags; SQLite BEFORE: flags first so state wins last.
@@ -68,6 +77,46 @@ public static class SchemaBankFile
         string select=$"SELECT f.*, CASE WHEN payout_blocked=1 THEN N'لا يُرسل' ELSE N'' END AS payout_label FROM {file} f";
         if(SchemaSql.IsSql(c))SchemaSql.Exec(c,tx,$"CREATE OR ALTER VIEW {view} AS {select};");
         else{SchemaSql.Exec(c,tx,$"DROP VIEW IF EXISTS {view}");SchemaSql.Exec(c,tx,$"CREATE VIEW {view} AS {select.Replace("N'","'")};");}
+    }
+
+    /// <summary>TRIAL8: additive frozen rider meta on lines + exclusion snapshot on the file header (existing DBs).</summary>
+    static void EnsureFrozenMeta(DbConnection c,DbTransaction? tx)
+    {
+        string file=SchemaSql.Q(c,"sal","bank_file"),line=SchemaSql.Q(c,"sal","bank_file_line");
+        string m=SchemaSql.Decimal(c);
+        if(SchemaSql.IsSql(c))
+        {
+            foreach(var (col,type) in new[]
+            {
+                ("confirm_unverified_ibans",$"{SchemaSql.Bit(c)} NOT NULL CONSTRAINT DF_bank_file_confirm_uv DEFAULT(0)"),
+                ("excluded_json",SchemaSql.Json(c)+" NULL"),
+                ("excluded_count",$"{SchemaSql.Int(c)} NOT NULL CONSTRAINT DF_bank_file_excl_count DEFAULT(0)"),
+                ("excluded_total",$"{m} NOT NULL CONSTRAINT DF_bank_file_excl_total DEFAULT(0)")
+            })
+                SchemaSql.Exec(c,tx,$"IF COL_LENGTH(N'sal.bank_file',N'{col}') IS NULL ALTER TABLE {file} ADD {col} {type};");
+            foreach(var (col,type) in new[]
+            {
+                ("rider_iqama",$"{SchemaSql.Varchar(c,20)} NULL"),
+                ("rider_name","nvarchar(200) NULL"),
+                ("rider_iban",$"{SchemaSql.Varchar(c,34)} NULL"),
+                ("rider_address","nvarchar(500) NULL"),
+                ("iban_unverified",$"{SchemaSql.Bit(c)} NOT NULL CONSTRAINT DF_bank_line_iban_uv DEFAULT(0)")
+            })
+                SchemaSql.Exec(c,tx,$"IF COL_LENGTH(N'sal.bank_file_line',N'{col}') IS NULL ALTER TABLE {line} ADD {col} {type};");
+        }
+        else
+        {
+            foreach(var (col,type) in new[]{("confirm_unverified_ibans","INTEGER NOT NULL DEFAULT 0"),("excluded_json","TEXT NULL"),("excluded_count","INTEGER NOT NULL DEFAULT 0"),("excluded_total","TEXT NOT NULL DEFAULT '0'")})
+            {
+                object? has=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM pragma_table_info('sal_bank_file') WHERE name='{col}'");
+                if(has is null or DBNull)SchemaSql.Exec(c,tx,$"ALTER TABLE {file} ADD COLUMN {col} {type};");
+            }
+            foreach(var (col,type) in new[]{("rider_iqama","TEXT NULL"),("rider_name","TEXT NULL"),("rider_iban","TEXT NULL"),("rider_address","TEXT NULL"),("iban_unverified","INTEGER NOT NULL DEFAULT 0")})
+            {
+                object? has=SchemaSql.Scalar(c,tx,$"SELECT 1 FROM pragma_table_info('sal_bank_file_line') WHERE name='{col}'");
+                if(has is null or DBNull)SchemaSql.Exec(c,tx,$"ALTER TABLE {line} ADD COLUMN {col} {type};");
+            }
+        }
     }
 
     static void EnsureLines(DbConnection c,DbTransaction? tx)

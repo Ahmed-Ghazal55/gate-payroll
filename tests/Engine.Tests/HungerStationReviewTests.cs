@@ -23,8 +23,17 @@ public sealed class HungerStationReviewTests
     [TestMethod]
     public void DisputeResponseIsIndependentAuditedAndCannotRewriteSourceFactsOrChargeAnyone()
     {
-        using var f=new HungerStationInvoiceTests.Fixture();var input=f.Input(HungerStationInvoiceTests.Workbook(f.Cr(),car:10));f.Commit(input,f.Preview(input));var invoice=f.Store.Read(c=>Store.List(c,"platform_invoice").Single());var dispute=f.Store.Read(c=>Store.List(c,"platform_dispute").Single());var response=new JsonObject{["mode"]="dispute",["disputeId"]=dispute.S("id"),["outcome"]="platform_credit",["platformReference"]="synthetic-reference",["reason"]="Synthetic response"};
-        string raw=f.Store.Read(c=>Store.List(c,"platform_invoice_line").ToArray()[0].ToJsonString());Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,HungerStationInvoiceTests.Actor(),invoice.S("id"),response)));
-        var actor=HungerStationInvoiceTests.Actor("synthetic-checker");var resolved=f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,actor,invoice.S("id"),response));Assert.AreEqual("resolved",resolved.S("status"));int audits=f.Store.Read(c=>Store.List(c,"audit").Count);f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,actor,invoice.S("id"),response));Assert.AreEqual(audits,f.Store.Read(c=>Store.List(c,"audit").Count));Assert.AreEqual(raw,f.Store.Read(c=>Store.List(c,"platform_invoice_line").ToArray()[0].ToJsonString()));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count+Store.List(c,"journal").Count));
+        // U-W2-11c: import no longer auto-creates CAR disputes; raise a formal claim then resolve it.
+        using var f=new HungerStationInvoiceTests.Fixture();var input=f.Input(HungerStationInvoiceTests.Workbook(f.Cr(),car:10));f.Commit(input,f.Preview(input));
+        var invoice=f.Store.Read(c=>Store.List(c,"platform_invoice").Single());Assert.AreEqual("accountant_review",invoice.S("status"));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"platform_dispute").Count));
+        string companyLine=f.Store.Read(c=>Store.List(c,"platform_invoice_line").Single(l=>l.S("lineType")=="company").S("id"));
+        var actor=HungerStationInvoiceTests.Actor();
+        var checker=HungerStationInvoiceTests.Actor("synthetic-checker");
+        var dispute=f.Store.Write((c,tx)=>HungerStationInvoices.Dispute(c,tx,actor,invoice.S("id"),new(){["lineId"]=companyLine,["category"]="CAR",["amount"]=10,["reason"]="Synthetic formal claim"}));
+        var response=new JsonObject{["mode"]="dispute",["disputeId"]=dispute.S("id"),["outcome"]="platform_credit",["platformReference"]="synthetic-reference",["reason"]="Synthetic response"};
+        // TRIAL9: claim creator cannot resolve; independent checker can; source facts stay immutable and no charge/journal here.
+        string raw=f.Store.Read(c=>Store.List(c,"platform_invoice_line").ToArray()[0].ToJsonString());
+        Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,actor,invoice.S("id"),response))).Status);
+        var resolved=f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,checker,invoice.S("id"),response));Assert.AreEqual("resolved",resolved.S("status"));int audits=f.Store.Read(c=>Store.List(c,"audit").Count);f.Store.Write((c,tx)=>HungerStationInvoices.Resolve(c,tx,checker,invoice.S("id"),response));Assert.AreEqual(audits,f.Store.Read(c=>Store.List(c,"audit").Count));Assert.AreEqual(raw,f.Store.Read(c=>Store.List(c,"platform_invoice_line").ToArray()[0].ToJsonString()));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count+Store.List(c,"journal").Count));
     }
 }

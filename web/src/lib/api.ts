@@ -168,45 +168,22 @@ export type RiderAccountsResponse = Omit<ApiResp<'/api/riders/{iqama}/accounts'>
   items: RiderAccountRow[];
 };
 
-// Evaluation survey & management types — strictly derived from web/src/lib/api-contract.ts
-export type EvaluationStaffItem = ApiResp<'/api/forms/evaluations/staff'>[number];
-export type EvaluationStaffImportResponse = ApiResp<'/api/forms/evaluations/staff/import', 'post'>;
-export type EvaluationRoundItem = ApiResp<'/api/forms/evaluations/rounds'>[number];
-export type EvaluationResponsesPage = ApiResp<'/api/forms/evaluations/rounds/{id}/responses'>;
-export type EvaluationReplyItem = EvaluationResponsesPage['items'][number];
-export type EvaluationReplyCard = EvaluationReplyItem['staffAnswers'][number];
-export type EvaluationStatisticsResponse = ApiResp<'/api/forms/evaluations/rounds/{id}/statistics'>;
-export type EvaluationDimensionStatisticsResponse = ApiResp<'/api/forms/evaluations/rounds/{id}/statistics/{dimension}'>;
-export type EvaluationBucketItem = EvaluationStatisticsResponse['byCity'][number];
-export type EvaluationSupervisorScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/supervisors'>;
-export type EvaluationAppScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/apps'>;
-export type EvaluationHeatmapScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/heatmap'>;
-export type EvaluationCityAppScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/city-app'>;
-export type PublicEvaluationSchema = ApiResp<'/api/public/evaluations/{token}'>;
-export type PublicEvaluationSubmitResponse = ApiResp<'/api/public/evaluations/{token}', 'post'>;
-export type RiderMobileEvaluationsList = ApiResp<'/api/rider-mobile/evaluations'>;
-export type RiderMobileEvaluationSchema = ApiResp<'/api/rider-mobile/evaluations/{token}'>;
-export type RiderMobileEvaluationSubmitResponse = ApiResp<'/api/rider-mobile/evaluations/{token}', 'post'>;
-
-export type EvaluationScorecardFilters = {
-  city?: string;
-  app?: string;
-  department?: string;
-  supervisorId?: string;
-  nationalityId?: string;
-  section?: string;
+// S-PAY Payments Engine — types derived strictly from api-contract.ts
+export type PaymentDocumentListResponse = ApiResp<'/api/payments/documents'>;
+export type PaymentDocumentItem = PaymentDocumentListResponse['items'][number];
+export type PaymentDocumentDetail = ApiResp<'/api/payments/documents/{id}'>;
+export type PaymentDocumentLineItem = NonNullable<PaymentDocumentItem['lines']>[number];
+export type PaymentVoucherItem = ApiResp<'/api/payments/vouchers/{id}'>;
+export type PaymentGenericListResponse = ApiResp<'/api/payments/suppliers'>;
+export type PaymentDueCalendarResponse = ApiResp<'/api/payments/due-calendar'>;
+export type PaymentWalletListResponse = ApiResp<'/api/payments/fuel-wallets'>;
+export type PaymentWalletReconcileResponse = ApiResp<'/api/payments/fuel-wallets/{id}/reconcile', 'post'>;
+export type PaymentRecurringListResponse = ApiResp<'/api/payments/recurring-payees'> & {
+  /** org.cost_centre options for payee / one-off forms (when the list payload includes them). */
+  costCentres?: Array<Record<string, unknown>>;
 };
-
-function scorecardQuery(filters?: EvaluationScorecardFilters): string {
-  const qs = new URLSearchParams();
-  if (filters?.city) qs.set('city', filters.city);
-  if (filters?.app) qs.set('app', filters.app);
-  if (filters?.department) qs.set('department', filters.department);
-  if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
-  if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
-  if (filters?.section) qs.set('section', filters.section);
-  return qs.toString() ? `?${qs}` : '';
-}
+export type PaymentRecurringRunResponse = ApiResp<'/api/payments/recurring-runs/{id}'>;
+export type FinanceCoaResponse = ApiResp<'/api/finance/coa'>;
 
 const isMock = typeof process !== 'undefined' && process.env.NEXT_PUBLIC_MOCK_API === '1';
 
@@ -428,8 +405,21 @@ async function handleRequest<T>(endpoint: string, options: RequestInit = {}): Pr
   }
 
   if (!res.ok) {
-    const payload: ApiErrorPayload = await res.json().catch(() => ({ error: 'حدث خطأ في معالجة الطلب' }));
-    throw new ApiError(payload.error || 'فشل الطلب', res.status, payload.code);
+    const payload = (await res.json().catch(() => ({ error: 'حدث خطأ في معالجة الطلب' }))) as ApiErrorPayload & {
+      message?: string;
+    };
+    const raw = payload.error as unknown;
+    const nested =
+      raw && typeof raw === 'object' && typeof (raw as { message?: unknown }).message === 'string'
+        ? String((raw as { message: string }).message)
+        : '';
+    const message =
+      typeof raw === 'string' && raw.trim()
+        ? raw
+        : nested ||
+          (typeof payload.message === 'string' && payload.message.trim() ? payload.message : '') ||
+          'فشل الطلب';
+    throw new ApiError(message, res.status, payload.code);
   }
 
   // If blob response
@@ -821,6 +811,46 @@ function normalizeBankPayrollPreview(raw: Record<string, unknown>, periodFallbac
   };
 }
 
+// Evaluation survey & management types — strictly derived from web/src/lib/api-contract.ts
+export type EvaluationStaffItem = ApiResp<'/api/forms/evaluations/staff'>[number];
+export type EvaluationStaffImportResponse = ApiResp<'/api/forms/evaluations/staff/import', 'post'>;
+export type EvaluationRoundItem = ApiResp<'/api/forms/evaluations/rounds'>[number];
+export type EvaluationResponsesPage = ApiResp<'/api/forms/evaluations/rounds/{id}/responses'>;
+export type EvaluationReplyItem = EvaluationResponsesPage['items'][number];
+export type EvaluationReplyCard = EvaluationReplyItem['staffAnswers'][number];
+export type EvaluationStatisticsResponse = ApiResp<'/api/forms/evaluations/rounds/{id}/statistics'>;
+export type EvaluationDimensionStatisticsResponse = ApiResp<'/api/forms/evaluations/rounds/{id}/statistics/{dimension}'>;
+export type EvaluationBucketItem = EvaluationStatisticsResponse['byCity'][number];
+export type EvaluationSupervisorScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/supervisors'>;
+export type EvaluationAppScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/apps'>;
+export type EvaluationHeatmapScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/heatmap'>;
+export type EvaluationCityAppScorecard = ApiResp<'/api/forms/evaluations/rounds/{id}/scorecards/city-app'>;
+export type PublicEvaluationSchema = ApiResp<'/api/public/evaluations/{token}'>;
+export type PublicEvaluationSubmitResponse = ApiResp<'/api/public/evaluations/{token}', 'post'>;
+export type RiderMobileEvaluationsList = ApiResp<'/api/rider-mobile/evaluations'>;
+export type RiderMobileEvaluationSchema = ApiResp<'/api/rider-mobile/evaluations/{token}'>;
+export type RiderMobileEvaluationSubmitResponse = ApiResp<'/api/rider-mobile/evaluations/{token}', 'post'>;
+
+export type EvaluationScorecardFilters = {
+  city?: string;
+  app?: string;
+  department?: string;
+  supervisorId?: string;
+  nationalityId?: string;
+  section?: string;
+};
+
+function scorecardQuery(filters?: EvaluationScorecardFilters): string {
+  const qs = new URLSearchParams();
+  if (filters?.city) qs.set('city', filters.city);
+  if (filters?.app) qs.set('app', filters.app);
+  if (filters?.department) qs.set('department', filters.department);
+  if (filters?.supervisorId) qs.set('supervisorId', filters.supervisorId);
+  if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+  if (filters?.section) qs.set('section', filters.section);
+  return qs.toString() ? `?${qs}` : '';
+}
+
 export const api = {
   // Auth
   getAuthStatus: () => handleRequest<{ needsSetup: boolean; environment: string }>('/auth/status'),
@@ -914,6 +944,233 @@ export const api = {
   },
 
   // Campaigns
+  getEvaluationStaff: () =>
+    handleRequest<EvaluationStaffItem[]>('/forms/evaluations/staff'),
+  importEvaluationStaff: (staff: Record<string, unknown>[]) =>
+    handleRequest<EvaluationStaffImportResponse>('/forms/evaluations/staff/import', {
+      method: 'POST',
+      body: JSON.stringify({ staff }),
+    }),
+  putEvaluationStaff: (id: string, body: Record<string, unknown>) =>
+    handleRequest<EvaluationStaffItem>(`/forms/evaluations/staff/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deleteEvaluationStaff: (id: string, name: string) =>
+    handleRequest<ApiResp<'/api/forms/evaluations/staff/{id}', 'delete'>>(
+      `/forms/evaluations/staff/${encodeURIComponent(id)}`,
+      { method: 'DELETE', body: JSON.stringify({ name }) }
+    ),
+  getEvaluationRounds: () =>
+    handleRequest<EvaluationRoundItem[]>('/forms/evaluations/rounds'),
+  getEvaluationRound: (id: string) =>
+    handleRequest<EvaluationRoundItem>(`/forms/evaluations/rounds/${encodeURIComponent(id)}`),
+  createEvaluationRound: (title: string) =>
+    handleRequest<EvaluationRoundItem>('/forms/evaluations/rounds', {
+      method: 'POST',
+      body: JSON.stringify({ title }),
+    }),
+  deleteEvaluationRound: (id: string, title: string) =>
+    handleRequest<{ repliesDeleted: number; attachmentsDeleted: number; complaintsDeleted: number }>(
+      `/forms/evaluations/rounds/${encodeURIComponent(id)}`,
+      { method: 'DELETE', body: JSON.stringify({ title }) }
+    ),
+  addEvaluationSectionStaff: (roundId: string, sectionKey: string, staffId: string) =>
+    handleRequest<EvaluationRoundItem>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/sections/${encodeURIComponent(sectionKey)}/staff/${encodeURIComponent(staffId)}`,
+      { method: 'POST', body: JSON.stringify({}) }
+    ),
+  removeEvaluationSectionStaff: (roundId: string, sectionKey: string, staffId: string) =>
+    handleRequest<EvaluationRoundItem>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/sections/${encodeURIComponent(sectionKey)}/staff/${encodeURIComponent(staffId)}`,
+      { method: 'DELETE' }
+    ),
+  transitionEvaluationRound: (id: string, action: 'open' | 'pause' | 'close' | 'refresh-staff') =>
+    handleRequest<EvaluationRoundItem>(
+      `/forms/evaluations/rounds/${encodeURIComponent(id)}/${encodeURIComponent(action)}`,
+      { method: 'POST', body: JSON.stringify({}) }
+    ),
+  getEvaluationResponses: (
+    roundId: string,
+    params?: {
+      page?: number;
+      pageSize?: number;
+      q?: string;
+      filters?: string;
+      sort?: string;
+      supervisorId?: string;
+      department?: string;
+      section?: string;
+    }
+  ) => {
+    const q = new URLSearchParams();
+    q.set('page', String(params?.page ?? 1));
+    q.set('pageSize', String(params?.pageSize ?? 50));
+    if (params?.q) q.set('q', params.q);
+    if (params?.filters) q.set('filters', params.filters);
+    if (params?.sort) q.set('sort', params.sort);
+    if (params?.supervisorId) q.set('supervisorId', params.supervisorId);
+    if (params?.department) q.set('department', params.department);
+    if (params?.section) q.set('section', params.section);
+    return handleRequest<EvaluationResponsesPage>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/responses?${q.toString()}`
+    );
+  },
+  getEvaluationStatistics: (
+    roundId: string,
+    filters?: { city?: string; nationalityId?: string; section?: string }
+  ) => {
+    const qs = new URLSearchParams();
+    if (filters?.city) qs.set('city', filters.city);
+    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    if (filters?.section) qs.set('section', filters.section);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return handleRequest<EvaluationStatisticsResponse>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics${suffix}`
+    );
+  },
+  getEvaluationStatisticsByDimension: (
+    roundId: string,
+    dimension: 'city' | 'app' | 'supervisor' | 'nationality' | 'factors' | 'trend',
+    filters?: { city?: string; nationalityId?: string; section?: string }
+  ) => {
+    const qs = new URLSearchParams();
+    if (filters?.city) qs.set('city', filters.city);
+    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
+    if (filters?.section) qs.set('section', filters.section);
+    const suffix = qs.toString() ? `?${qs}` : '';
+    return handleRequest<EvaluationDimensionStatisticsResponse>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics/${encodeURIComponent(dimension)}${suffix}`
+    );
+  },
+  editPublicEvaluation: (token: string, payload: Record<string, unknown>) =>
+    handleRequest<PublicEvaluationSubmitResponse>(
+      `/public/evaluations/${encodeURIComponent(token)}`,
+      { method: 'PUT', body: JSON.stringify(payload) }
+    ),
+  editRiderMobileEvaluation: (
+    token: string,
+    payload: Record<string, unknown>,
+    accessToken?: string
+  ) =>
+    handleRequest<RiderMobileEvaluationSubmitResponse>(
+      `/rider-mobile/evaluations/${encodeURIComponent(token)}`,
+      {
+        method: 'PUT',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: JSON.stringify(payload),
+      }
+    ),
+  exportEvaluationWorkbook: (roundId: string, section?: string) => {
+    const qs = section ? `?section=${encodeURIComponent(section)}` : '';
+    return handleRequest<Blob>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/export${qs}`);
+  },
+  getEvaluationSupervisorScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<EvaluationSupervisorScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/supervisors${scorecardQuery(filters)}`
+    ),
+  getEvaluationAppScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<EvaluationAppScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/apps${scorecardQuery(filters)}`
+    ),
+  getEvaluationFinanceScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<{
+      roundId: string;
+      totalResponses: number;
+      confidenceNoteAr?: string;
+      items: Array<{
+        app: string;
+        ratedCount: number;
+        skippedCount?: number;
+        average?: number | null;
+        factors?: Array<{ key: string; count: number; average?: number | null }>;
+        lowSample?: boolean;
+      }>;
+      allowedActions?: string[];
+    }>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/finance${scorecardQuery(filters)}`),
+  getEvaluationSystemsScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<{
+      roundId: string;
+      totalResponses: number;
+      confidenceNoteAr?: string;
+      items: Array<{
+        app: string;
+        ratedCount: number;
+        skippedCount?: number;
+        average?: number | null;
+        factors?: Array<{ key: string; count: number; average?: number | null }>;
+        lowSample?: boolean;
+      }>;
+      allowedActions?: string[];
+    }>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/systems${scorecardQuery(filters)}`),
+  getEvaluationHeatmapScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<EvaluationHeatmapScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/heatmap${scorecardQuery(filters)}`
+    ),
+  getEvaluationCityAppScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
+    handleRequest<EvaluationCityAppScorecard>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/city-app${scorecardQuery(filters)}`
+    ),
+  exportEvaluationScorecard: (
+    roundId: string,
+    kind: 'supervisors' | 'apps' | 'heatmap' | 'city-app' | 'finance' | 'systems',
+    filters?: EvaluationScorecardFilters
+  ) =>
+    handleRequest<Blob>(
+      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/${encodeURIComponent(kind)}/export${scorecardQuery(filters)}`
+    ),
+  getPublicEvaluationSchema: (token: string, city?: string) => {
+    const qs = city ? `?city=${encodeURIComponent(city)}` : '';
+    return handleRequest<PublicEvaluationSchema>(
+      `/public/evaluations/${encodeURIComponent(token)}${qs}`
+    );
+  },
+  submitPublicEvaluation: (token: string, payload: Record<string, unknown>) =>
+    handleRequest<PublicEvaluationSubmitResponse>(
+      `/public/evaluations/${encodeURIComponent(token)}`,
+      { method: 'POST', body: JSON.stringify(payload) }
+    ),
+  getRiderMobileEvaluations: (accessToken?: string) =>
+    handleRequest<RiderMobileEvaluationsList>('/rider-mobile/evaluations', {
+      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+    }),
+  launchRiderMobileEvaluation: (token: string, accessToken?: string) =>
+    handleRequest<{ url: string }>(
+      `/rider-mobile/evaluations/${encodeURIComponent(token)}/launch`,
+      {
+        method: 'POST',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: '{}',
+      }
+    ),
+  exchangeEvaluationLaunch: (token: string, code: string) =>
+    handleRequest<{ accessToken: string; iqama: string; expiresAt: string }>(
+      `/public/evaluations/${encodeURIComponent(token)}/session`,
+      { method: 'POST', body: JSON.stringify({ code }) }
+    ),
+  getRiderMobileEvaluationSchema: (token: string, city?: string, accessToken?: string) => {
+    const qs = city ? `?city=${encodeURIComponent(city)}` : '';
+    return handleRequest<RiderMobileEvaluationSchema>(
+      `/rider-mobile/evaluations/${encodeURIComponent(token)}${qs}`,
+      {
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+      }
+    );
+  },
+  submitRiderMobileEvaluation: (
+    token: string,
+    payload: Record<string, unknown>,
+    accessToken?: string
+  ) =>
+    handleRequest<RiderMobileEvaluationSubmitResponse>(
+      `/rider-mobile/evaluations/${encodeURIComponent(token)}`,
+      {
+        method: 'POST',
+        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+        body: JSON.stringify(payload),
+      }
+    ),
+
   getCampaigns: () => handleRequest<Campaign[]>('/campaigns'),
   // Per-form responses table: every campaign and builder form with its own column definitions.
   getResponseForms: () => handleRequest<ResponseForm[]>('/responses/forms'),
@@ -1280,16 +1537,223 @@ export const api = {
     return handleRequest<any>(`/finance/statement/rider/${encodeURIComponent(iqama)}/simple?${q.toString()}`);
   },
 
-  getApprovals: (params?: { department?: string; status?: string }) => {
+  getApprovals: (params?: {
+    module?: string;
+    department?: string;
+    status?: string;
+    mineOnly?: boolean;
+    page?: number;
+    pageSize?: number;
+  }) => {
     const q = new URLSearchParams();
+    if (params?.module) q.set('module', params.module);
     if (params?.department) q.set('department', params.department);
     if (params?.status) q.set('status', params.status);
+    if (params?.mineOnly) q.set('mineOnly', 'true');
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
     const qs = q.toString() ? `?${q.toString()}` : '';
     return handleRequest<ApprovalRequest[]>(`/approvals${qs}`);
   },
 
-  decideApproval: (id: string, input: { decision: 'approved' | 'rejected' | 'suspended'; note?: string }) =>
+  decideApproval: (
+    id: string,
+    input: { decision: 'approve' | 'reject' | 'approved' | 'rejected' | 'suspended'; note?: string; reason?: string }
+  ) =>
     handleRequest<{ ok: boolean }>(`/approvals/${id}/decide`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  getAdminSettings: () => handleRequest<Record<string, unknown>>('/admin/settings'),
+  putAdminSettings: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/admin/settings', { method: 'PUT', body: JSON.stringify(input) }),
+  getAdminSelfApprovals: (params?: { from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<Array<Record<string, unknown>>>(`/admin/audit/self-approvals${qs}`);
+  },
+  getAdminReadSummary: (params?: { from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<Array<Record<string, unknown>>>(`/admin/read-summary${qs}`);
+  },
+  getAdminNotifySettings: () => handleRequest<Record<string, unknown>>('/admin/notify-settings'),
+  putAdminNotifySettings: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/admin/notify-settings', { method: 'PUT', body: JSON.stringify(input) }),
+  listStaffChatChannels: () =>
+    handleRequest<{ items?: Array<Record<string, unknown>>; allowedActions?: string[] }>('/chat/channels'),
+  createStaffChatChannel: (input: { code: string; nameAr: string; companyId?: string }) =>
+    handleRequest<Record<string, unknown>>('/chat/channels', { method: 'POST', body: JSON.stringify(input) }),
+  listStaffChatMessages: (channelId: string, after?: string) => {
+    const q = after ? `?after=${encodeURIComponent(after)}` : '';
+    return handleRequest<{ items?: Array<Record<string, unknown>> }>(
+      `/chat/channels/${encodeURIComponent(channelId)}/messages${q}`
+    );
+  },
+  postStaffChatMessage: (channelId: string, input: { bodyAr: string }) =>
+    handleRequest<Record<string, unknown>>(`/chat/channels/${encodeURIComponent(channelId)}/messages`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listVaultCounts: (companyId?: string) => {
+    const q = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+    return handleRequest<{ items?: Array<Record<string, unknown>>; allowedActions?: string[] }>(
+      `/treasury/vault-counts${q}`
+    );
+  },
+  createVaultCount: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/treasury/vault-counts', { method: 'POST', body: JSON.stringify(input) }),
+  submitVaultCount: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/treasury/vault-counts/${encodeURIComponent(id)}/submit`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  approveVaultCount: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/treasury/vault-counts/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  uploadBankStatement: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/treasury/bank-statements/upload', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getBankStatement: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/treasury/bank-statements/${encodeURIComponent(id)}`),
+  autoMatchBankStatement: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/treasury/bank-statements/${encodeURIComponent(id)}/auto-match`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
+  requestBankAdjust: (id: string, input: { amount: number; reason: string }) =>
+    handleRequest<Record<string, unknown>>(`/treasury/bank-statements/${encodeURIComponent(id)}/adjust`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  bankStatementLineAction: (
+    statementId: string,
+    lineId: string,
+    input: { kind: string; note?: string; reason?: string }
+  ) =>
+    handleRequest<Record<string, unknown>>(
+      `/treasury/bank-statements/${encodeURIComponent(statementId)}/lines/${encodeURIComponent(lineId)}/actions`,
+      {
+        method: 'POST',
+        body: JSON.stringify(input),
+      }
+    ),
+  rejectBankAdjust: (id: string, input: { reason: string }) =>
+    handleRequest<Record<string, unknown>>(`/treasury/bank-adjustments/${encodeURIComponent(id)}/reject`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  waiveDebtLedger: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/debts/${encodeURIComponent(id)}/waive`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  absorbDebtLedger: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/debts/${encodeURIComponent(id)}/absorb`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  collectDebtLedger: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/debts/${encodeURIComponent(id)}/collect-ledger`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  printDebtsRegister: (companyId: string, status?: string) => {
+    const q = new URLSearchParams({ companyId });
+    if (status) q.set('status', status);
+    return handleRequest<Record<string, unknown>>(`/debts/print?${q.toString()}`);
+  },
+  getArchivePolicies: () =>
+    handleRequest<{
+      items?: Array<Record<string, unknown>>;
+      restoreRequests?: Array<Record<string, unknown>>;
+      messageAr?: string;
+      allowedActions?: string[];
+      retentionYears?: number;
+    }>('/admin/archive/policies'),
+  requestArchiveRestore: (input: {
+    entityType: string;
+    periodFrom: string;
+    periodTo: string;
+    reasonAr: string;
+  }) =>
+    handleRequest<Record<string, unknown>>('/admin/archive/restore-request', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getArchiveRestoreView: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/admin/archive/restore-view', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getOrgApprovalLimits: () => handleRequest<Record<string, unknown>>('/admin/org/approval-limits'),
+  putOrgApprovalLimits: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/admin/org/approval-limits', { method: 'PUT', body: JSON.stringify(input) }),
+  getOrgSlaPolicies: () => handleRequest<Record<string, unknown>>('/admin/org/sla-policies'),
+  putOrgSlaPolicies: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/admin/org/sla-policies', { method: 'PUT', body: JSON.stringify(input) }),
+
+  getFinanceCoa: (params?: { inactive?: boolean }) => {
+    const q = new URLSearchParams();
+    if (params?.inactive) q.set('inactive', 'true');
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<Record<string, unknown>>(`/finance/coa${qs}`);
+  },
+  createFinanceCoa: (input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/finance/coa', { method: 'POST', body: JSON.stringify(input) }),
+  updateFinanceCoa: (code: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/finance/coa/${encodeURIComponent(code)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  deactivateFinanceCoa: (code: string) =>
+    handleRequest<Record<string, unknown>>(`/finance/coa/${encodeURIComponent(code)}/deactivate`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  reactivateFinanceCoa: (code: string) =>
+    handleRequest<Record<string, unknown>>(`/finance/coa/${encodeURIComponent(code)}/reactivate`, {
+      method: 'POST',
+      body: '{}',
+    }),
+
+  createSimulation: (input: {
+    companyId: string;
+    app: string;
+    periodMonth: string;
+    payoutBlocked?: boolean;
+  }) =>
+    handleRequest<Record<string, unknown>>('/sal/simulations', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getSimulationJournalPreview: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/sal/simulations/${encodeURIComponent(id)}/journal-preview`),
+  discardSimulation: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/sal/simulations/${encodeURIComponent(id)}/discard`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  getSimulationPromoteDiff: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/sal/simulations/${encodeURIComponent(id)}/promote-diff`),
+  promoteSimulation: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/sal/simulations/${encodeURIComponent(id)}/promote-real`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  getUserEffectivePermissions: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/users/${encodeURIComponent(id)}/effective-permissions`),
+  copyUserPermissions: (id: string, input: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/users/${encodeURIComponent(id)}/copy-permissions`, {
       method: 'POST',
       body: JSON.stringify(input),
     }),
@@ -1637,6 +2101,39 @@ export const api = {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
     return handleRequest<PayConfigListResponse>(`/pay/apps/${encodeURIComponent(app)}/schemes${q}`);
   },
+  /** T12/T13: Omar ERP PlatformDailyCommissionRates (Jahez/Chefz), read-only. */
+  getOmarCommissionRates: (app: string, asOf?: string) => {
+    const q = asOf ? `?asOf=${encodeURIComponent(asOf)}` : '';
+    return handleRequest<{
+      app: string;
+      program: number;
+      asOf: string;
+      readAt?: string;
+      source: string;
+      rates: Array<Record<string, unknown>>;
+      byCity: Array<{
+        cityCode: string;
+        cityNameAr: string;
+        available: boolean;
+        dailyRate?: number;
+        kind?: string;
+        message?: string;
+      }>;
+      schemeRows: Array<{
+        identifierType: string;
+        cityCode?: string;
+        cityNameAr?: string;
+        kind?: string;
+        rate?: number | null;
+        available: boolean;
+        message?: string;
+        sourceNote?: string;
+      }>;
+      missing: Array<{ cityCode: string; cityNameAr: string; message: string; omarFile?: string }>;
+      writable: boolean;
+      allowedActions?: string[];
+    }>(`/pay/apps/${encodeURIComponent(app)}/omar-commission-rates${q}`);
+  },
   createPayScheme: (app: string, input: PaySchemeCreateInput, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
     return handleRequest<PayConfigDoc>(`/pay/apps/${encodeURIComponent(app)}/schemes${q}`, {
@@ -1874,6 +2371,11 @@ export const api = {
       method: 'POST',
       body: JSON.stringify(body),
     }),
+  requestAdvancePayout: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/advance-requests/${encodeURIComponent(id)}/request-payout`, {
+      method: 'POST',
+      body: JSON.stringify({}),
+    }),
   payoutAdvanceRequest: (id: string, body: { reference: string; note?: string }) =>
     handleRequest<AdvanceRequest>(`/advance-requests/${encodeURIComponent(id)}/payout`, {
       method: 'POST',
@@ -1992,6 +2494,20 @@ export const api = {
   }) =>
     handleRequest<ManualJournalItem>('/finance/journals/manual', {
       method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateManualJournal: (
+    id: string,
+    body: {
+      date?: string;
+      reference?: string;
+      description?: string;
+      lines?: Array<{ accountCode: string; debit: number; credit: number; note?: string }>;
+      odooVoucherNo?: string;
+    }
+  ) =>
+    handleRequest<ManualJournalItem>(`/finance/journals/manual/${encodeURIComponent(id)}`, {
+      method: 'PUT',
       body: JSON.stringify(body),
     }),
   approveManualJournal: (id: string) =>
@@ -2372,26 +2888,220 @@ export const api = {
   rejectJahezHandover: (id: string, input: Record<string, unknown> = {}) =>
     handleRequest<Record<string, unknown>>(`/finance/jahez-handovers/${encodeURIComponent(id)}/reject`, { method: 'POST', body: JSON.stringify(input) }),
 
-  getMadaBalance: (companyId: string) =>
-    handleRequest<{ balance: number }>(`/finance/mada/balance?companyId=${encodeURIComponent(companyId)}`),
   postLiabilityPayment: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/finance/liability-payment', { method: 'POST', body: JSON.stringify(input) }),
-  previewLegacyCashAllocation: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/finance/legacy-cash-allocation/preview', { method: 'POST', body: JSON.stringify(input) }),
-  commitLegacyCashAllocation: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/finance/legacy-cash-allocation/commit', { method: 'POST', body: JSON.stringify(input) }),
 
-  listAccountingAdjustments: (params?: { page?: number; pageSize?: number }) => {
+  listPaymentDocuments: (params?: { type?: string; companyId?: string }) => {
     const q = new URLSearchParams();
-    if (params?.page) q.set('page', String(params.page));
-    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    if (params?.type) q.set('type', params.type);
+    if (params?.companyId) q.set('companyId', params.companyId);
     const qs = q.toString() ? `?${q.toString()}` : '';
-    return handleRequest<any>(`/finance/accounting-adjustments${qs}`);
+    return handleRequest<PaymentDocumentListResponse>(`/payments/documents${qs}`);
   },
-  draftAccountingAdjustment: (input: Record<string, unknown>) =>
-    handleRequest<Record<string, unknown>>('/finance/accounting-adjustments', { method: 'POST', body: JSON.stringify(input) }),
-  approveAccountingAdjustment: (id: string) =>
-    handleRequest<Record<string, unknown>>(`/finance/accounting-adjustments/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
+  getPaymentDocument: (id: string) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/documents/${encodeURIComponent(id)}`),
+  createPaymentDocument: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/documents', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  editPaymentDocument: (id: string, input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/documents/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  submitPaymentDocument: (id: string) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/documents/${encodeURIComponent(id)}/submit`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  approvePaymentDocument: (id: string, input: Record<string, unknown> = {}) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/documents/${encodeURIComponent(id)}/approve`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  cancelPaymentDocument: (id: string) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/documents/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  createPaymentRequest: (documentId: string, input: Record<string, unknown>) =>
+    handleRequest<PaymentVoucherItem>(
+      `/payments/documents/${encodeURIComponent(documentId)}/payment-requests`,
+      { method: 'POST', body: JSON.stringify(input) }
+    ),
+  getPaymentVoucher: (id: string) =>
+    handleRequest<PaymentVoucherItem>(`/payments/vouchers/${encodeURIComponent(id)}`),
+  payPaymentVoucher: (id: string) =>
+    handleRequest<PaymentVoucherItem>(`/payments/vouchers/${encodeURIComponent(id)}/pay`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  cancelPaymentVoucher: (id: string) =>
+    handleRequest<PaymentVoucherItem>(`/payments/vouchers/${encodeURIComponent(id)}/cancel`, {
+      method: 'POST',
+      body: '{}',
+    }),
+  createQuickPayment: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/quick', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listPaymentSuppliers: () => handleRequest<PaymentGenericListResponse>('/payments/suppliers'),
+  createPaymentSupplier: (input: Record<string, unknown>) =>
+    handleRequest<PaymentGenericListResponse>('/payments/suppliers', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getPaymentSupplierLedger: (id: string) =>
+    handleRequest<PaymentGenericListResponse & { invoiced?: number; paid?: number; outstanding?: number }>(
+      `/payments/suppliers/${encodeURIComponent(id)}/ledger`
+    ),
+
+  listHrFees: () => handleRequest<PaymentDocumentListResponse>('/payments/hr-fees'),
+  createHrFee: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/hr-fees', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listTrafficViolations: () => handleRequest<PaymentDocumentListResponse>('/payments/traffic-violations'),
+  createTrafficViolation: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/traffic-violations', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listGovernmentPayments: () => handleRequest<PaymentDocumentListResponse>('/payments/government'),
+  createGovernmentPayment: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/government', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listPaymentProperties: () => handleRequest<PaymentGenericListResponse>('/payments/properties'),
+  createPaymentProperty: (input: Record<string, unknown>) =>
+    handleRequest<PaymentGenericListResponse>('/payments/properties', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listPaymentFinanciers: () => handleRequest<PaymentGenericListResponse>('/payments/financiers'),
+  createPaymentFinancier: (input: Record<string, unknown>) =>
+    handleRequest<PaymentGenericListResponse>('/payments/financiers', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  listPaymentLeases: () => handleRequest<PaymentGenericListResponse>('/payments/leases'),
+  createPaymentLease: (input: Record<string, unknown>) =>
+    handleRequest<PaymentGenericListResponse>('/payments/leases', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getPaymentLeaseSchedule: (id: string) =>
+    handleRequest<PaymentGenericListResponse>(`/payments/leases/${encodeURIComponent(id)}/schedule`),
+  recognizeLeaseRent: (id: string, period: string) =>
+    handleRequest<PaymentGenericListResponse & { amount?: number; journalId?: string }>(
+      `/payments/leases/${encodeURIComponent(id)}/recognize`,
+      { method: 'POST', body: JSON.stringify({ period }) }
+    ),
+  listFinanceContracts: () => handleRequest<PaymentGenericListResponse>('/payments/finance-contracts'),
+  createFinanceContract: (input: Record<string, unknown>) =>
+    handleRequest<PaymentGenericListResponse>('/payments/finance-contracts', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  getFinanceContractSchedule: (id: string) =>
+    handleRequest<PaymentGenericListResponse>(`/payments/finance-contracts/${encodeURIComponent(id)}/schedule`),
+  archivePaymentContract: (kind: 'properties' | 'financiers' | 'leases' | 'finance-contracts', id: string) =>
+    handleRequest<PaymentGenericListResponse>(
+      `/payments/contracts/${encodeURIComponent(kind)}/${encodeURIComponent(id)}/archive`,
+      { method: 'POST', body: '{}' }
+    ),
+  getPaymentDueCalendar: (params?: { companyId?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<PaymentDueCalendarResponse & { amountReserved?: number }>(`/payments/due-calendar${qs}`);
+  },
+  createPaymentAdvance: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/advances', {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listFuelWallets: () => handleRequest<PaymentWalletListResponse>('/payments/fuel-wallets'),
+  createFuelWallet: (input: Record<string, unknown>) =>
+    handleRequest<PaymentWalletListResponse>('/payments/fuel-wallets', { method: 'POST', body: JSON.stringify(input) }),
+  fundFuelWallet: (id: string, input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/fuel-wallets/${encodeURIComponent(id)}/fund`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  reconcileFuelWallet: (id: string, input: Record<string, unknown>) =>
+    handleRequest<PaymentWalletReconcileResponse>(`/payments/fuel-wallets/${encodeURIComponent(id)}/reconcile`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listPrepaidWallets: () => handleRequest<PaymentWalletListResponse>('/payments/prepaid-wallets'),
+  createPrepaidWallet: (input: Record<string, unknown>) =>
+    handleRequest<PaymentWalletListResponse>('/payments/prepaid-wallets', { method: 'POST', body: JSON.stringify(input) }),
+  createPrepaidWalletMovement: (id: string, input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>(`/payments/prepaid-wallets/${encodeURIComponent(id)}/movements`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+
+  listMadaWallets: () => handleRequest<PaymentWalletListResponse>('/payments/mada/wallets'),
+  createMadaTopup: (input: Record<string, unknown>) =>
+    handleRequest<PaymentDocumentDetail>('/payments/mada/topups', { method: 'POST', body: JSON.stringify(input) }),
+  reconcileMada: (input: Record<string, unknown>) =>
+    handleRequest<PaymentWalletReconcileResponse>('/payments/mada/reconcile', { method: 'POST', body: JSON.stringify(input) }),
+  issueMadaCard: (input: Record<string, unknown>) =>
+    handleRequest<PaymentVoucherItem>('/payments/mada/cards/issue', { method: 'POST', body: JSON.stringify(input) }),
+
+  listRecurringPayees: (companyId?: string) => {
+    const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+    return handleRequest<PaymentRecurringListResponse>(`/payments/recurring-payees${qs}`);
+  },
+  getRecurringPayee: (id: string) =>
+    handleRequest<PaymentRecurringListResponse>(`/payments/recurring-payees/${encodeURIComponent(id)}`),
+  createRecurringPayee: (input: Record<string, unknown>) =>
+    handleRequest<PaymentRecurringListResponse>('/payments/recurring-payees', { method: 'POST', body: JSON.stringify(input) }),
+  updateRecurringPayee: (id: string, input: Record<string, unknown>) =>
+    handleRequest<PaymentRecurringListResponse>(`/payments/recurring-payees/${encodeURIComponent(id)}`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  getRecurringPayeeHistory: (id: string) =>
+    handleRequest<PaymentRecurringListResponse>(
+      `/payments/recurring-payees/${encodeURIComponent(id)}/history`
+    ),
+  listRecurringRuns: (companyId?: string) => {
+    const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+    return handleRequest<PaymentRecurringListResponse>(`/payments/recurring-runs${qs}`);
+  },
+  getRecurringRun: (id: string) =>
+    handleRequest<PaymentRecurringRunResponse>(`/payments/recurring-runs/${encodeURIComponent(id)}`),
+  proposeRecurringRun: (input: Record<string, unknown>) =>
+    handleRequest<PaymentRecurringRunResponse>('/payments/recurring-runs', { method: 'POST', body: JSON.stringify(input) }),
+  updateRecurringRunLines: (id: string, input: Record<string, unknown>) =>
+    handleRequest<PaymentRecurringRunResponse>(`/payments/recurring-runs/${encodeURIComponent(id)}/lines`, {
+      method: 'PUT',
+      body: JSON.stringify(input),
+    }),
+  submitRecurringRun: (id: string) =>
+    handleRequest<PaymentRecurringRunResponse>(`/payments/recurring-runs/${encodeURIComponent(id)}/submit`, { method: 'POST', body: '{}' }),
+  approveRecurringRun: (id: string) =>
+    handleRequest<PaymentRecurringRunResponse>(`/payments/recurring-runs/${encodeURIComponent(id)}/approve`, { method: 'POST', body: '{}' }),
+  executeRecurringRun: (id: string, input: Record<string, unknown>) =>
+    handleRequest<PaymentRecurringRunResponse>(`/payments/recurring-runs/${encodeURIComponent(id)}/execute`, {
+      method: 'POST',
+      body: JSON.stringify(input),
+    }),
+  createRecurringOneOff: (input: Record<string, unknown>) =>
+    handleRequest<PaymentVoucherItem>('/payments/recurring-one-off', { method: 'POST', body: JSON.stringify(input) }),
 
   getDebtSettlements: (params?: { debtId?: string; iqama?: string }) => {
     const q = new URLSearchParams();
@@ -2415,232 +3125,4 @@ export const api = {
     const clean = endpoint.startsWith('/') ? endpoint : `/${endpoint}`;
     return handleRequest<{ column: string; values: string[]; counts?: Record<string, number>; hasEmpty?: boolean; emptyCount?: number }>(`${clean}?${q.toString()}`);
   },
-
-  // Evaluation survey & results (EV1 — all routes from web/src/lib/api-contract.ts)
-  getEvaluationStaff: () =>
-    handleRequest<EvaluationStaffItem[]>('/forms/evaluations/staff'),
-  importEvaluationStaff: (staff: Record<string, unknown>[]) =>
-    handleRequest<EvaluationStaffImportResponse>('/forms/evaluations/staff/import', {
-      method: 'POST',
-      body: JSON.stringify({ staff }),
-    }),
-  putEvaluationStaff: (id: string, body: Record<string, unknown>) =>
-    handleRequest<EvaluationStaffItem>(`/forms/evaluations/staff/${encodeURIComponent(id)}`, {
-      method: 'PUT',
-      body: JSON.stringify(body),
-    }),
-  deleteEvaluationStaff: (id: string, name: string) =>
-    handleRequest<ApiResp<'/api/forms/evaluations/staff/{id}', 'delete'>>(
-      `/forms/evaluations/staff/${encodeURIComponent(id)}`,
-      { method: 'DELETE', body: JSON.stringify({ name }) }
-    ),
-  getEvaluationRounds: () =>
-    handleRequest<EvaluationRoundItem[]>('/forms/evaluations/rounds'),
-  getEvaluationRound: (id: string) =>
-    handleRequest<EvaluationRoundItem>(`/forms/evaluations/rounds/${encodeURIComponent(id)}`),
-  createEvaluationRound: (title: string) =>
-    handleRequest<EvaluationRoundItem>('/forms/evaluations/rounds', {
-      method: 'POST',
-      body: JSON.stringify({ title }),
-    }),
-  deleteEvaluationRound: (id: string, title: string) =>
-    handleRequest<{ repliesDeleted: number; attachmentsDeleted: number; complaintsDeleted: number }>(
-      `/forms/evaluations/rounds/${encodeURIComponent(id)}`,
-      { method: 'DELETE', body: JSON.stringify({ title }) }
-    ),
-  addEvaluationSectionStaff: (roundId: string, sectionKey: string, staffId: string) =>
-    handleRequest<EvaluationRoundItem>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/sections/${encodeURIComponent(sectionKey)}/staff/${encodeURIComponent(staffId)}`,
-      { method: 'POST', body: JSON.stringify({}) }
-    ),
-  removeEvaluationSectionStaff: (roundId: string, sectionKey: string, staffId: string) =>
-    handleRequest<EvaluationRoundItem>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/sections/${encodeURIComponent(sectionKey)}/staff/${encodeURIComponent(staffId)}`,
-      { method: 'DELETE' }
-    ),
-  transitionEvaluationRound: (id: string, action: 'open' | 'pause' | 'close' | 'refresh-staff') =>
-    handleRequest<EvaluationRoundItem>(
-      `/forms/evaluations/rounds/${encodeURIComponent(id)}/${encodeURIComponent(action)}`,
-      { method: 'POST', body: JSON.stringify({}) }
-    ),
-  getEvaluationResponses: (
-    roundId: string,
-    params?: {
-      page?: number;
-      pageSize?: number;
-      q?: string;
-      filters?: string;
-      sort?: string;
-      supervisorId?: string;
-      department?: string;
-      section?: string;
-    }
-  ) => {
-    const q = new URLSearchParams();
-    q.set('page', String(params?.page ?? 1));
-    q.set('pageSize', String(params?.pageSize ?? 50));
-    if (params?.q) q.set('q', params.q);
-    if (params?.filters) q.set('filters', params.filters);
-    if (params?.sort) q.set('sort', params.sort);
-    if (params?.supervisorId) q.set('supervisorId', params.supervisorId);
-    if (params?.department) q.set('department', params.department);
-    if (params?.section) q.set('section', params.section);
-    return handleRequest<EvaluationResponsesPage>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/responses?${q.toString()}`
-    );
-  },
-  getEvaluationStatistics: (
-    roundId: string,
-    filters?: { city?: string; nationalityId?: string; section?: string }
-  ) => {
-    const qs = new URLSearchParams();
-    if (filters?.city) qs.set('city', filters.city);
-    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
-    if (filters?.section) qs.set('section', filters.section);
-    const suffix = qs.toString() ? `?${qs}` : '';
-    return handleRequest<EvaluationStatisticsResponse>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics${suffix}`
-    );
-  },
-  getEvaluationStatisticsByDimension: (
-    roundId: string,
-    dimension: 'city' | 'app' | 'supervisor' | 'nationality' | 'factors' | 'trend',
-    filters?: { city?: string; nationalityId?: string; section?: string }
-  ) => {
-    const qs = new URLSearchParams();
-    if (filters?.city) qs.set('city', filters.city);
-    if (filters?.nationalityId) qs.set('nationalityId', filters.nationalityId);
-    if (filters?.section) qs.set('section', filters.section);
-    const suffix = qs.toString() ? `?${qs}` : '';
-    return handleRequest<EvaluationDimensionStatisticsResponse>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/statistics/${encodeURIComponent(dimension)}${suffix}`
-    );
-  },
-  editPublicEvaluation: (token: string, payload: Record<string, unknown>) =>
-    handleRequest<PublicEvaluationSubmitResponse>(
-      `/public/evaluations/${encodeURIComponent(token)}`,
-      { method: 'PUT', body: JSON.stringify(payload) }
-    ),
-  editRiderMobileEvaluation: (
-    token: string,
-    payload: Record<string, unknown>,
-    accessToken?: string
-  ) =>
-    handleRequest<RiderMobileEvaluationSubmitResponse>(
-      `/rider-mobile/evaluations/${encodeURIComponent(token)}`,
-      {
-        method: 'PUT',
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-        body: JSON.stringify(payload),
-      }
-    ),
-  exportEvaluationWorkbook: (roundId: string, section?: string) => {
-    const qs = section ? `?section=${encodeURIComponent(section)}` : '';
-    return handleRequest<Blob>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/export${qs}`);
-  },
-  getEvaluationSupervisorScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
-    handleRequest<EvaluationSupervisorScorecard>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/supervisors${scorecardQuery(filters)}`
-    ),
-  getEvaluationAppScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
-    handleRequest<EvaluationAppScorecard>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/apps${scorecardQuery(filters)}`
-    ),
-  getEvaluationFinanceScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
-    handleRequest<{
-      roundId: string;
-      totalResponses: number;
-      confidenceNoteAr?: string;
-      items: Array<{
-        app: string;
-        ratedCount: number;
-        skippedCount?: number;
-        average?: number | null;
-        factors?: Array<{ key: string; count: number; average?: number | null }>;
-        lowSample?: boolean;
-      }>;
-      allowedActions?: string[];
-    }>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/finance${scorecardQuery(filters)}`),
-  getEvaluationSystemsScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
-    handleRequest<{
-      roundId: string;
-      totalResponses: number;
-      confidenceNoteAr?: string;
-      items: Array<{
-        app: string;
-        ratedCount: number;
-        skippedCount?: number;
-        average?: number | null;
-        factors?: Array<{ key: string; count: number; average?: number | null }>;
-        lowSample?: boolean;
-      }>;
-      allowedActions?: string[];
-    }>(`/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/systems${scorecardQuery(filters)}`),
-  getEvaluationHeatmapScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
-    handleRequest<EvaluationHeatmapScorecard>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/heatmap${scorecardQuery(filters)}`
-    ),
-  getEvaluationCityAppScorecard: (roundId: string, filters?: EvaluationScorecardFilters) =>
-    handleRequest<EvaluationCityAppScorecard>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/city-app${scorecardQuery(filters)}`
-    ),
-  exportEvaluationScorecard: (
-    roundId: string,
-    kind: 'supervisors' | 'apps' | 'heatmap' | 'city-app' | 'finance' | 'systems',
-    filters?: EvaluationScorecardFilters
-  ) =>
-    handleRequest<Blob>(
-      `/forms/evaluations/rounds/${encodeURIComponent(roundId)}/scorecards/${encodeURIComponent(kind)}/export${scorecardQuery(filters)}`
-    ),
-  getPublicEvaluationSchema: (token: string, city?: string) => {
-    const qs = city ? `?city=${encodeURIComponent(city)}` : '';
-    return handleRequest<PublicEvaluationSchema>(
-      `/public/evaluations/${encodeURIComponent(token)}${qs}`
-    );
-  },
-  submitPublicEvaluation: (token: string, payload: Record<string, unknown>) =>
-    handleRequest<PublicEvaluationSubmitResponse>(
-      `/public/evaluations/${encodeURIComponent(token)}`,
-      { method: 'POST', body: JSON.stringify(payload) }
-    ),
-  getRiderMobileEvaluations: (accessToken?: string) =>
-    handleRequest<RiderMobileEvaluationsList>('/rider-mobile/evaluations', {
-      headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-    }),
-  launchRiderMobileEvaluation: (token: string, accessToken?: string) =>
-    handleRequest<{ url: string }>(
-      `/rider-mobile/evaluations/${encodeURIComponent(token)}/launch`,
-      {
-        method: 'POST',
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-        body: '{}',
-      }
-    ),
-  exchangeEvaluationLaunch: (token: string, code: string) =>
-    handleRequest<{ accessToken: string; iqama: string; expiresAt: string }>(
-      `/public/evaluations/${encodeURIComponent(token)}/session`,
-      { method: 'POST', body: JSON.stringify({ code }) }
-    ),
-  getRiderMobileEvaluationSchema: (token: string, city?: string, accessToken?: string) => {
-    const qs = city ? `?city=${encodeURIComponent(city)}` : '';
-    return handleRequest<RiderMobileEvaluationSchema>(
-      `/rider-mobile/evaluations/${encodeURIComponent(token)}${qs}`,
-      {
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-      }
-    );
-  },
-  submitRiderMobileEvaluation: (
-    token: string,
-    payload: Record<string, unknown>,
-    accessToken?: string
-  ) =>
-    handleRequest<RiderMobileEvaluationSubmitResponse>(
-      `/rider-mobile/evaluations/${encodeURIComponent(token)}`,
-      {
-        method: 'POST',
-        headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
-        body: JSON.stringify(payload),
-      }
-    ),
 };

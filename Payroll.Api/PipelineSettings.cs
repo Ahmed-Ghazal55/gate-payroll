@@ -13,7 +13,7 @@ public static class PipelineSettings
         ["salaryFuelOverageOnRider"]=true, // decision 5 ✅
         ["salaryFuelCompanyPaysWhenNoCap"]=false, // m1: never silent "company pays all" when fuelCap is 0
         ["fuelSupplierAccount"]="114106", // §22.9 PetroApp clearing (target CoA)
-        ["payrollBankAccount"]="111101", // M1 default payout bank (target CoA)
+        ["payrollBankAccount"]="", // COA1 A14: no cash-box default — require an explicit bank account
         ["hsWalletAccount"]="112506", // decision 6 ✅
         ["keeta95CompanyOnly"]=true, // decision 7 ✅
         ["freezeInvoiceWithInputs"]=true // decision 10 ✅

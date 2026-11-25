@@ -5,11 +5,11 @@ import Link from 'next/link';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LayoutDashboard,
-  Users,
-  Building2,
+  Wallet,
   Truck,
   Calculator,
   Receipt,
+  ClipboardCheck,
   Landmark,
   FileSpreadsheet,
   ShieldCheck,
@@ -21,8 +21,9 @@ import {
   FileUp,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
-import { appendPeriodToHref, readUrlPeriod } from '../../lib/period';
 import { ApprovalExceptionChip } from '../../features/admin/ApprovalExceptionChip';
+import { appendPeriodToHref, readUrlPeriod } from '../../lib/period';
+import { isNavHrefActive } from '../../lib/nav-active';
 
 export interface NavSubItem {
   id: string;
@@ -31,6 +32,8 @@ export interface NavSubItem {
   badge?: number | string;
   isNew?: boolean;
   permission?: string | string[];
+  disabled?: boolean;
+  laterBadge?: boolean;
   /** When true, every listed permission is required (default: any one). */
   requireAll?: boolean;
 }
@@ -55,52 +58,78 @@ export interface SidebarProps {
   pendingResponsesCount?: number;
 }
 
-function SidebarInner({
-  collapsed,
-  onToggleCollapse,
-  mobileOpen,
-  onCloseMobile,
+/** U-W3-01 — Home sidebar tree (H1/H2/O1). No import/sync entries. */
+export function buildNavGroups(
   pendingApprovalsCount = 0,
-  pendingResponsesCount = 0,
-}: SidebarProps) {
-  const pathname = usePathname();
-  const searchParams = useSearchParams();
-  const urlPeriod = readUrlPeriod(searchParams);
-  const withPeriod = (href: string) => appendPeriodToHref(href, urlPeriod);
-  const { can, isAdmin, user } = useAuth();
-
-  // Definition of IA Groups matching Spec 09 lines 37-50
-  const navGroups: NavGroup[] = [
+  pendingResponsesCount = 0
+): NavGroup[] {
+  return [
     {
-      id: 'dashboard',
+      id: 'home',
       label: 'الرئيسية',
       icon: <LayoutDashboard size={18} />,
       defaultHref: '/',
       permission: 'payroll.view',
       items: [
         { id: 'dash-kpi', href: '/', label: 'لوحة المؤشرات والمهام' },
+        {
+          id: 'workforce',
+          href: '/workforce/',
+          label: 'القوى العاملة',
+          permission: ['people.workforce.view', 'riders.view'],
+        },
+        {
+          id: 'companies',
+          href: '/companies/',
+          label: 'الشركات والسجلات',
+          permission: 'companies.view',
+        },
+        {
+          id: 'hr-catalogs',
+          href: '/hr/catalogs/',
+          label: 'كتالوجات الموظفين',
+          permission: 'hr.catalogs.view',
+        },
+        {
+          id: 'rider-statement',
+          href: '/riders/statement/',
+          label: 'كشف حساب المندوب',
+          permission: ['pay.view', 'payroll.view', 'debts.view'],
+        },
       ],
     },
     {
-      id: 'workforce',
-      label: 'القوى العاملة',
-      icon: <Users size={18} />,
-      defaultHref: '/workforce/',
-      permission: 'riders.view',
-      items: [
-        { id: 'wf-directory', href: '/workforce/', label: 'القوى العاملة' },
-        { id: 'wf-statement', href: '/riders/statement/', label: 'كشف حساب المندوب', permission: 'debts.view', isNew: true },
+      id: 'payments',
+      label: 'المدفوعات والمشتريات',
+      icon: <Wallet size={18} />,
+      defaultHref: '/payments/due-calendar',
+      permission: [
+        'payments.view',
+        'payments.fuel.manage',
+        'payments.disburse',
+        'payments.hr_request.create',
+        'advances.request',
+        'advances.review',
+        'advances.payout',
       ],
-    },
-    {
-      id: 'companies',
-      label: 'الشركات والسجلات',
-      icon: <Building2 size={18} />,
-      defaultHref: '/companies/',
-      permission: 'companies.view',
       items: [
-        { id: 'companies-main', href: '/companies/', label: 'الشركات والسجلات', permission: 'companies.view' },
-        { id: 'hr-catalogs', href: '/hr/catalogs/', label: 'كتالوجات الموارد البشرية', permission: 'riders.view', isNew: true },
+        { id: 'pay-rents', href: '/payments/rents', label: 'الإيجارات والسكنات', permission: 'payments.view' },
+        { id: 'pay-installments', href: '/payments/installments', label: 'الأقساط والمدفوعات البنكية', permission: 'payments.view' },
+        { id: 'pay-purchases', href: '/payments/purchases', label: 'فواتير المشتريات والمصروفات', permission: 'payments.view' },
+        { id: 'pay-fuel', href: '/payments/fuel', label: 'الوقود والمحطات', permission: 'payments.fuel.manage' },
+        { id: 'pay-hr-requests', href: '/payments/hr-requests', label: 'طلبات الموارد البشرية والخصومات', permission: ['payments.view', 'payments.hr_request.create'] },
+        { id: 'pay-advances', href: '/payments/advances', label: 'السلف والشحن', permission: ['payments.view', 'advances.request', 'advances.review', 'advances.payout'] },
+        { id: 'pay-advance-payouts', href: '/treasury/?tab=advance_payouts', label: 'صرف السلف المعتمدة', permission: 'advances.payout' },
+        { id: 'pay-mada', href: '/payments/mada', label: 'جهاز مدا والشحن', permission: ['payments.fuel.manage', 'advances.payout'] },
+        { id: 'pay-hs-custody', href: '/payments/hs-custody', label: 'عهد هنقرستيشن', permission: ['payments.view', 'advances.request'] },
+        { id: 'pay-traffic', href: '/payments/traffic-violations', label: 'سداد المخالفات المرورية', permission: ['payments.view', 'payments.disburse'] },
+        { id: 'pay-suppliers', href: '/payments/suppliers', label: 'الموردون والدفعات', permission: 'payments.view' },
+        { id: 'pay-due-calendar', href: '/payments/due-calendar', label: 'لوحة المستحقات', permission: 'payments.view' },
+        { id: 'pay-government', href: '/payments/government', label: 'المدفوعات الحكومية', permission: ['payments.view', 'payments.disburse'] },
+        { id: 'pay-prepaid', href: '/payments/prepaid-wallets', label: 'المحافظ المدفوعة مقدمًا', permission: 'payments.fuel.manage' },
+        { id: 'pay-quick', href: '/payments/quick', label: 'تسجيل مدفوعات سريعة', permission: ['payments.view', 'payments.disburse'] },
+        { id: 'pay-recurring', href: '/payments/recurring', label: 'مدفوعات دورية', permission: ['payments.view', 'payments.disburse'] },
+        { id: 'pay-recurring-runs', href: '/payments/recurring/runs', label: 'تشغيل المدفوعات الدورية', permission: ['payments.view', 'payments.disburse'] },
       ],
     },
     {
@@ -120,48 +149,61 @@ function SidebarInner({
       id: 'payroll',
       label: 'الرواتب',
       icon: <Calculator size={18} />,
-      defaultHref: '/payroll/?tab=platforms',
+      // Shell routes /payroll/{app} stay as redirects only; sidebar points at the working workspace.
+      defaultHref: '/payroll/?tab=platforms&app=keeta',
       permission: ['payroll.view', 'pay.view'],
       items: [
-        { id: 'payroll-apps', href: '/payroll/?tab=platforms', label: 'فواتير وتسويات المنصات' },
-        { id: 'payroll-cycle', href: '/payroll/?tab=cycle', label: 'دورة الرواتب والمسير' },
-        { id: 'payroll-current-cycle', href: '/payroll/?tab=current-cycle', label: 'الدورة الحالية (النظام القائم)' },
-        { id: 'payroll-ninja-upload', href: '/payroll/?tab=ninja_upload', label: 'رفع فاتورة نينجا' },
-        { id: 'payroll-rules', href: '/payroll/?tab=rules', label: 'الأنظمة ومحرر القواعد' },
-        { id: 'payroll-deductions', href: '/payroll/?tab=deductions', label: 'الاستقطاعات الشهرية' },
-        { id: 'payroll-bank', href: '/payroll/?tab=bank', label: 'التحويل والبنوك' },
-        { id: 'payroll-policies', href: '/payroll/?tab=policies', label: 'السياسات السابقة' },
+        { id: 'pr-keeta', href: '/payroll/?tab=platforms&app=keeta', label: 'كيتا' },
+        { id: 'pr-hs', href: '/payroll/?tab=platforms&app=hungerstation', label: 'هنقرستيشن' },
+        { id: 'pr-ninja', href: '/payroll/?tab=platforms&app=ninja', label: 'نينجا' },
+        { id: 'pr-amazon', href: '/payroll/amazon', label: 'أمازون', laterBadge: true, disabled: true },
+        { id: 'pr-chefz', href: '/payroll/?tab=platforms&app=chefz', label: 'شيفز' },
+        { id: 'pr-jahez', href: '/payroll/?tab=platforms&app=jahez', label: 'جاهز' },
+        { id: 'pr-mudad', href: '/payroll/?tab=platforms', label: 'رواتب مدد' },
+        { id: 'pr-bank', href: '/payroll/?tab=bank', label: 'مسيرات الرواتب والبنك' },
+        { id: 'pr-holds', href: '/payroll/?tab=deductions', label: 'طلبات إيقاف والخصم' },
+        { id: 'pr-settings', href: '/payroll/?tab=rules', label: 'إعدادات الرواتب' },
       ],
     },
     {
       id: 'debts',
-      label: 'المديونيات والسلف',
+      label: 'المديونيات والتحصيل',
       icon: <Receipt size={18} />,
       defaultHref: '/debts/?tab=debts',
-      badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
       permission: 'debts.view',
       items: [
         { id: 'debts-list', href: '/debts/?tab=debts', label: 'سجل المديونيات', permission: 'debts.view' },
-        { id: 'debts-advance-requests', href: '/debts/?tab=advance_requests', label: 'طلبات السلف', permission: ['advances.request', 'advances.review'] },
-        { id: 'debts-actions', href: '/debts/?tab=actions', label: 'تحصيل وإنشاء', permission: 'debts.view' },
-        { id: 'debts-statement', href: '/debts/?tab=statement', label: 'كشف حساب المندوب', permission: 'debts.view' },
-        { id: 'debts-approvals', href: '/debts/?tab=approvals', label: 'منظومة الاعتمادات', permission: 'approvals.view' },
-        { id: 'debts-promissory', href: '/debts/?tab=promissory', label: 'أرشيف سندات الأمر', permission: 'debts.view' },
+        {
+          id: 'debts-promissory',
+          href: '/debts/?tab=promissory',
+          label: 'أرشيف سندات الأمر',
+          permission: 'debts.promissory.view',
+        },
       ],
+    },
+    {
+      id: 'approvals',
+      label: 'الاعتمادات',
+      icon: <ClipboardCheck size={18} />,
+      defaultHref: '/approvals/',
+      permission: 'approvals.view',
+      badge: pendingApprovalsCount > 0 ? pendingApprovalsCount : undefined,
+      items: [{ id: 'approvals-main', href: '/approvals/', label: 'صندوق الاعتمادات' }],
     },
     {
       id: 'treasury',
       label: 'البنوك والصناديق والخزن',
       icon: <Landmark size={18} />,
-      defaultHref: '/treasury/?tab=vaults',
+      defaultHref: '/treasury/?tab=balances',
       permission: 'treasury.view',
       items: [
+        { id: 'tr-balances', href: '/treasury/?tab=balances', label: 'الأرصدة', permission: 'treasury.view' },
+        { id: 'tr-transfers', href: '/treasury/?tab=transfers', label: 'التحويلات', permission: 'treasury.view' },
+        { id: 'tr-recon', href: '/treasury/?tab=bank_recon', label: 'مطابقة البنوك', permission: 'treasury.view' },
+        { id: 'tr-vault', href: '/treasury/?tab=vault_counts', label: 'جرد الخزن', permission: 'treasury.view' },
         { id: 'treasury-vaults', href: '/treasury/?tab=vaults', label: 'أرصدة الخزينة (1110-1140)', permission: 'treasury.view' },
-        { id: 'treasury-advance-payouts', href: '/treasury/?tab=advance_payouts', label: 'صرف السلف المعتمدة', permission: 'advances.payout' },
-        { id: 'treasury-bankfile', href: '/treasury/?tab=bank_file', label: 'ملف صرف الرواتب البنكي', permission: ['finance.bankfile.export', 'payroll.view'], requireAll: true },
-        { id: 'treasury-jahez', href: '/treasury/?tab=jahez', label: 'جاهز — مطابقة وخزينة', permission: 'treasury.view' },
-        { id: 'treasury-extras', href: '/treasury/?tab=extras', label: 'مدا والتزامات وتوزيع قديم', permission: 'treasury.view' },
-        { id: 'treasury-movements', href: '/treasury/?tab=movements', label: 'سجل القيود والحركات', permission: 'treasury.view' },
+        { id: 'tr-jahez', href: '/treasury/?tab=jahez', label: 'جاهز (مطابقة وخزينة)', permission: 'treasury.view' },
+        { id: 'tr-movements', href: '/treasury/?tab=movements', label: 'سجل الحركات', permission: 'treasury.view' },
       ],
     },
     {
@@ -169,14 +211,18 @@ function SidebarInner({
       label: 'المحاسبة والتقارير',
       icon: <FileSpreadsheet size={18} />,
       defaultHref: '/accounting/?tab=coa',
-      permission: ['treasury.view', 'finance.journal.create', 'finance.journal.approve', 'treasury.journals'],
+      permission: 'accounting.chart.view',
       items: [
         { id: 'acc-coa', href: '/accounting/?tab=coa', label: 'دليل الحسابات', permission: 'treasury.view' },
-        { id: 'acc-journals', href: '/accounting/?tab=journals', label: 'سجل القيود اليومية', permission: ['finance.journal.create', 'finance.journal.approve'] },
         { id: 'acc-manual', href: '/accounting/?tab=manual_journals', label: 'القيود اليدوية', permission: ['finance.journal.create', 'finance.journal.approve'] },
-        { id: 'acc-adjustments', href: '/accounting/?tab=adjustments', label: 'تسويات مدا والراتب', permission: 'treasury.journals' },
-        { id: 'acc-trial', href: '/accounting/?tab=trial_balance', label: 'ميزان المراجعة', permission: 'treasury.journals' },
-        { id: 'acc-income', href: '/accounting/?tab=income_statement', label: 'قائمة الدخل', permission: 'treasury.journals' },
+        { id: 'acc-journals', href: '/accounting/?tab=journals', label: 'سجل القيود اليومية', permission: ['finance.journal.create', 'finance.journal.approve'] },
+        { id: 'acc-gl', href: '/accounting/?tab=general_ledger', label: 'دفتر الأستاذ / كشف حساب', permission: 'treasury.journals' },
+        { id: 'acc-tb', href: '/accounting/?tab=trial_balance', label: 'ميزان المراجعة', permission: 'treasury.journals' },
+        { id: 'acc-pl', href: '/accounting/?tab=income_statement', label: 'قائمة الدخل', permission: 'treasury.journals' },
+        { id: 'acc-bs', href: '/accounting/?tab=balance_sheet', label: 'الميزانية العمومية', permission: 'treasury.journals' },
+        { id: 'acc-cc', href: '/accounting/?tab=cost_centres', label: 'مراكز التكلفة والمدن', permission: 'treasury.journals' },
+        { id: 'acc-app', href: '/accounting/?tab=app_profitability', label: 'ربحية التطبيقات', permission: 'treasury.journals' },
+        { id: 'acc-reports', href: '/accounting/?tab=reports', label: 'التقارير', permission: 'treasury.journals' },
       ],
     },
     {
@@ -227,39 +273,61 @@ function SidebarInner({
       defaultHref: '/admin/?tab=users',
       permission: 'users.manage',
       items: [
-        { id: 'admin-users', href: '/admin/?tab=users', label: 'المستخدمون والصلاحيات', permission: 'users.manage' },
-        { id: 'admin-org', href: '/admin/?tab=org', label: 'الأقسام والرتب والتفويضات', permission: 'org.manage' },
-        { id: 'admin-lists', href: '/admin/?tab=lists', label: 'القوائم والإعدادات', permission: 'users.manage' },
-        { id: 'admin-bypass', href: '/admin/?tab=bypass', label: 'تجاوز الاعتماد', permission: 'users.manage' },
-        { id: 'admin-audit', href: '/admin/?tab=audit', label: 'سجل التدقيق والعمليات', permission: 'audit.view' },
-        { id: 'admin-settings', href: '/admin/?tab=settings', label: 'إعدادات النظام', permission: 'users.manage' },
+        { id: 'ad-users', href: '/admin/?tab=users', label: 'المستخدمون والصلاحيات', permission: 'users.manage' },
+        { id: 'ad-org', href: '/admin/?tab=org', label: 'الأقسام والرتب والتفويضات', permission: 'org.manage' },
+        { id: 'ad-bypass', href: '/admin/?tab=bypass', label: 'تجاوز الاعتماد', permission: 'approval.bypass_maker_checker' },
+        { id: 'ad-lists', href: '/admin/?tab=lists', label: 'القوائم العامة', permission: 'admin.lists.manage' },
+        { id: 'ad-audit', href: '/admin/?tab=audit', label: 'سجل التدقيق', permission: 'admin.audit.view' },
+        { id: 'ad-read', href: '/admin/?tab=read_summary', label: 'ملخص القراءة اليومي', permission: 'admin.read_summary.view' },
+        { id: 'ad-settings', href: '/admin/?tab=settings', label: 'إعدادات النظام', permission: 'admin.settings.manage' },
+        { id: 'ad-notify', href: '/admin/?tab=notify_settings', label: 'إعدادات الإشعارات', permission: 'users.manage' },
+        { id: 'ad-archive', href: '/admin/?tab=archive', label: 'الأرشفة', permission: 'admin.archive.manage' },
+        { id: 'ad-chat', href: '/admin/?tab=staff_chat', label: 'محادثة الموظفين', permission: 'chat.view' },
       ],
     },
   ];
+}
 
-  // Helper to determine which group matches the current route
+function SidebarInner({
+  collapsed,
+  onToggleCollapse,
+  mobileOpen,
+  onCloseMobile,
+  pendingApprovalsCount = 0,
+  pendingResponsesCount = 0,
+}: SidebarProps) {
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
+  const urlPeriod = readUrlPeriod(searchParams);
+  const withPeriod = (href: string) => appendPeriodToHref(href, urlPeriod);
+  const { can, isAdmin, user } = useAuth();
+
+  const navGroups = buildNavGroups(pendingApprovalsCount, pendingResponsesCount);
+
   const getActiveGroupId = () => {
-    if (pathname === '/') return 'dashboard';
+    if (pathname === '/' || pathname === '') return 'home';
     const clean = pathname.replace(/\/$/, '');
+    if (clean === '/payments' || clean.startsWith('/payments/')) return 'payments';
     if (clean === '/hr' || clean.startsWith('/hr/')) return 'companies';
     if (clean === '/riders' || clean.startsWith('/riders/')) {
       if (clean.startsWith('/riders/statement')) return 'workforce';
       return 'workforce';
     }
+    if (clean.startsWith('/workforce') || clean.startsWith('/companies')) {
+      return clean.startsWith('/workforce') ? 'workforce' : 'companies';
+    }
     const found = navGroups.find((g) => {
+      if (g.id === 'home') return false;
       const gPath = g.defaultHref.split('?')[0].replace(/\/$/, '');
       if (gPath === '') return clean === '';
-      return clean === gPath || clean.startsWith(gPath + '/');
+      return clean === gPath || clean.startsWith(gPath + '/') || clean.startsWith(gPath);
     });
-    return found ? found.id : 'dashboard';
+    return found ? found.id : 'home';
   };
 
   const activeGroupId = getActiveGroupId();
-
-  // State of open group (only one group open at a time: R6ui-2)
   const [openGroupId, setOpenGroupId] = useState<string | null>(activeGroupId);
 
-  // Ensure active group stays open on route change
   useEffect(() => {
     setOpenGroupId(activeGroupId);
   }, [activeGroupId]);
@@ -276,7 +344,6 @@ function SidebarInner({
     return can(permission);
   };
 
-  // An item with no permission inherits the group's permission (INT1).
   const isItemVisible = (item: NavSubItem, group: NavGroup) => {
     if (!user || isAdmin) return true;
     return matchesPermission(item.permission ?? group.permission, item.requireAll);
@@ -290,12 +357,18 @@ function SidebarInner({
     .filter((group) => {
       if (!user) return true;
       if (isAdmin) return true;
-      return group.items.length > 0;
+      const hasGroupPerm =
+        !group.permission ||
+        (Array.isArray(group.permission)
+          ? group.permission.some((p) => can(p))
+          : can(group.permission));
+      return hasGroupPerm || group.items.length > 0;
     });
+
+  const emptyPerms = Boolean(user) && !isAdmin && visibleGroups.length === 0;
 
   const sidebarContent = (
     <div className="flex flex-col h-full bg-[var(--surface)] text-[var(--ink)] border-e border-[var(--line)]">
-      {/* Brand Header */}
       <div className="flex items-center justify-between p-4 border-b border-[var(--line)] min-h-[64px]">
         <Link href={withPeriod('/')} className="flex items-center gap-3 overflow-hidden">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] font-bold text-xl shadow-xs shrink-0">
@@ -303,17 +376,11 @@ function SidebarInner({
           </div>
           {!collapsed && (
             <div className="flex flex-col truncate">
-              <span className="font-black text-base tracking-tight text-[var(--ink)]">
-                البوابة
-              </span>
-              <span className="text-[11px] text-[var(--muted)] leading-tight">
-                الرواتب · الحسابات · النماذج
-              </span>
+              <span className="font-black text-base tracking-tight text-[var(--ink)]">البوابة</span>
+              <span className="text-[11px] text-[var(--muted)] leading-tight">الرواتب · الحسابات · النماذج</span>
             </div>
           )}
         </Link>
-
-        {/* Mobile close button */}
         <button
           type="button"
           onClick={onCloseMobile}
@@ -324,13 +391,18 @@ function SidebarInner({
         </button>
       </div>
 
-      {/* Navigation Groups List */}
       <ApprovalExceptionChip collapsed={collapsed} />
-      <nav className="flex-1 overflow-y-auto p-2.5 space-y-1.5 no-scrollbar">
+      <nav className="flex-1 overflow-y-auto p-2.5 space-y-1.5 no-scrollbar" aria-label="القائمة الرئيسية">
         {!collapsed && (
           <div className="px-2.5 pt-1.5 pb-1 text-[11px] font-bold text-[var(--muted)] uppercase tracking-wider">
-            منظومة البوابة 1.0
+            منظومة البوابة
           </div>
+        )}
+
+        {emptyPerms && !collapsed && (
+          <p className="px-2.5 py-3 text-xs text-[var(--muted)] leading-relaxed">
+            لا توجد أقسام متاحة لصلاحيتك — تواصل مع مسؤول النظام
+          </p>
         )}
 
         {visibleGroups.map((group) => {
@@ -339,7 +411,6 @@ function SidebarInner({
 
           return (
             <div key={group.id} className="space-y-1">
-              {/* Group Header Button */}
               <div
                 className={`flex items-center justify-between rounded-xl transition-all ${
                   isGroupActive
@@ -351,22 +422,12 @@ function SidebarInner({
                   href={withPeriod(group.items[0]?.href ?? group.defaultHref)}
                   onClick={onCloseMobile}
                   title={collapsed ? group.label : undefined}
-                  className={`flex items-center gap-2.5 flex-1 min-w-0 ${
-                    collapsed ? 'justify-center' : ''
-                  }`}
+                  className={`flex items-center gap-2.5 flex-1 min-w-0 ${collapsed ? 'justify-center' : ''}`}
                 >
-                  <span
-                    className={`shrink-0 ${
-                      isGroupActive ? 'text-[var(--accent)]' : 'text-[var(--muted)]'
-                    }`}
-                  >
+                  <span className={`shrink-0 ${isGroupActive ? 'text-[var(--accent)]' : 'text-[var(--muted)]'}`}>
                     {group.icon}
                   </span>
-                  {!collapsed && (
-                    <span className="text-xs sm:text-sm font-semibold truncate">
-                      {group.label}
-                    </span>
-                  )}
+                  {!collapsed && <span className="text-xs sm:text-sm font-semibold truncate">{group.label}</span>}
                 </Link>
 
                 {!collapsed && (
@@ -385,44 +446,36 @@ function SidebarInner({
                     >
                       <ChevronDown
                         size={14}
-                        className={`transition-transform duration-200 ${
-                          isOpen ? 'rotate-180' : ''
-                        }`}
+                        className={`transition-transform duration-200 ${isOpen ? 'rotate-180' : ''}`}
                       />
                     </button>
                   </div>
                 )}
               </div>
 
-              {/* Sub-items list (collapsible) */}
               {!collapsed && isOpen && group.items.length > 0 && (
                 <div className="ms-6 me-1 my-1 space-y-0.5 border-s-2 border-[var(--line)] ps-2.5 animate-in slide-in-from-top-1 duration-150">
                   {group.items.map((subItem) => {
-                    const [subPath, subQuery] = subItem.href.split('?');
-                    const cleanSubPath = subPath.replace(/\/$/, '') || '/';
-                    const cleanCurrentPath = pathname.replace(/\/$/, '') || '/';
-                    const pathMatch = cleanCurrentPath === cleanSubPath;
-
-                    const hasTabbedSibling = group.items.some((sibling) => {
-                      const [sibPath, sibQuery] = sibling.href.split('?');
-                      const cleanSibPath = sibPath.replace(/\/$/, '') || '/';
-                      return (
-                        cleanSibPath === cleanSubPath &&
-                        Boolean(sibQuery && new URLSearchParams(sibQuery).get('tab'))
-                      );
+                    const isSubActive = isNavHrefActive(subItem.href, pathname || '/', searchParams, {
+                      groupId: group.id,
+                      siblingHrefs: group.items.map((s) => s.href),
                     });
 
-                    let isSubActive = false;
-                    if (pathMatch) {
-                      if (subQuery) {
-                        const targetParam = new URLSearchParams(subQuery).get('tab');
-                        // No ?tab= in the URL → the group's default tab is the active entry.
-                        const defaultTab = new URLSearchParams(group.defaultHref.split('?')[1] || '').get('tab');
-                        const currentParam = searchParams?.get('tab') ?? defaultTab;
-                        isSubActive = currentParam === targetParam;
-                      } else {
-                        isSubActive = hasTabbedSibling ? !searchParams?.get('tab') : true;
-                      }
+                    if (subItem.disabled) {
+                      return (
+                        <span
+                          key={subItem.id}
+                          className="flex items-center justify-between py-1.5 px-2 rounded-lg text-xs text-[var(--muted)] opacity-60 cursor-not-allowed"
+                          title="لاحقًا"
+                        >
+                          <span className="truncate">{subItem.label}</span>
+                          {subItem.laterBadge && (
+                            <span className="text-[9px] font-bold px-1 rounded-sm bg-[var(--raised)] text-[var(--muted)]">
+                              لاحقًا
+                            </span>
+                          )}
+                        </span>
+                      );
                     }
 
                     return (
@@ -458,7 +511,6 @@ function SidebarInner({
         })}
       </nav>
 
-      {/* Footer / Collapse Toggle */}
       <div className="p-3 border-t border-[var(--line)] bg-[var(--surface)] shrink-0">
         <button
           type="button"
@@ -475,7 +527,6 @@ function SidebarInner({
 
   return (
     <>
-      {/* Desktop sidebar */}
       <aside
         className={`hidden lg:block shrink-0 transition-all duration-200 sticky top-0 h-screen z-30 ${
           collapsed ? 'w-18' : 'w-64'
@@ -484,7 +535,6 @@ function SidebarInner({
         {sidebarContent}
       </aside>
 
-      {/* Mobile drawer overlay (drawer at 360px) */}
       {mobileOpen && (
         <div className="fixed inset-0 z-50 lg:hidden">
           <div
@@ -492,7 +542,7 @@ function SidebarInner({
             onClick={onCloseMobile}
             aria-hidden="true"
           />
-          <div className="relative w-80 max-w-[85vw] h-full shadow-2xl animate-in slide-in-from-right duration-200">
+          <div className="relative w-80 max-w-[85vw] h-full shadow-2xl animate-in slide-in-from-right duration-200 ms-auto">
             {sidebarContent}
           </div>
         </div>

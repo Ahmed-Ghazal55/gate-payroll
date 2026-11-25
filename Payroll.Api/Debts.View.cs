@@ -10,7 +10,7 @@ public static partial class Debts
     {
         FinancialScopes.DemandDebt(actor,debt);
         var result=debt.Clone();var actions=new JsonArray();var blockers=new JsonArray();
-        bool bypass=AccessPolicy.BypassForView(c,tx,actor);
+        bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopePayApprovals);
         string status=debt.S("status");
         decimal remaining=debt.N("remainingBalance");
         bool open=(status is "active" or "paused")&&remaining>0;
@@ -20,6 +20,10 @@ public static partial class Debts
 
         if(open&&AccessPolicy.Has(actor,"debts.collect"))actions.Add("collect");
         else if(open&&!AccessPolicy.Has(actor,"debts.collect"))blockers.Add("صلاحية تحصيل الدين مطلوبة.");
+
+        if(open&&AccessPolicy.Has(actor,"debts.waive")){actions.Add("waive");actions.Add("absorb");}
+        if(open&&AccessPolicy.Has(actor,"debts.reschedule"))actions.Add("reschedule");
+        if(AccessPolicy.Has(actor,"debts.statement.print"))actions.Add("print");
 
         if(open&&debt.S("category")!="PlatformTransferredDebt"&&AccessPolicy.Has(actor,"debts.transfer_sponsor"))
             actions.Add("transfer_sponsor");

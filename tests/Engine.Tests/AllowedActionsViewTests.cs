@@ -69,12 +69,12 @@ public sealed class AllowedActionsViewTests
         {
             var cycle=PayCycleTests.Through(f,input,6,review:true);
             string id=cycle.S("id");
-            PayCycleTests.Advance(f,id,7,true);
-            var view=f.Store.Read(c=>PayCycles.View(c,null,PayFixture.Checker,Store.Get(c,id,PayCycles.Kind)!));
-            Assert.IsTrue(view["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="confirm_debt_deductions"));
-            Assert.IsTrue(view["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="confirm_debt_deductions_all"));
+            // M-0670: confirm actions appear before salary approval.
             var debtView=f.Store.Read(c=>PayCycles.DebtDeductionsView(c,null,PayFixture.Checker,id));
             Assert.IsTrue(debtView["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="confirm_debt_deductions_all"));
+            PayCycleTests.ConfirmDebts(f,id);PayCycleTests.Advance(f,id,7,true);
+            var view=f.Store.Read(c=>PayCycles.View(c,null,PayFixture.Checker,Store.Get(c,id,PayCycles.Kind)!));
+            Assert.AreEqual("approved",view.S("status"));
         }
     }
 
@@ -91,7 +91,7 @@ public sealed class AllowedActionsViewTests
         var recvView=f.Store.Read(c=>JahezHandovers.View(c,null,receiver,request));
         Assert.IsTrue(recvView["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));
         Assert.IsTrue(recvView["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="reject"));
-        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="u-jh",["username"]="synthetic-handover-maker",["role"]="FinancialAccountant"},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-handover-maker",["from"]=Day(0),["to"]=Day(1),["reason"]="§35 jahez view"});return true;});
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="u-jh",["username"]="synthetic-handover-maker",["role"]="FinancialAccountant"},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-handover-maker",["from"]=Day(0),["to"]=Day(1),["reason"]="§35 jahez view",["scope"]=AccessPolicy.ScopeInvoiceApprovals});return true;});
         var bypassView=f.Store.Read(c=>JahezHandovers.View(c,null,maker,request));
         Assert.IsTrue(bypassView["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));
     }

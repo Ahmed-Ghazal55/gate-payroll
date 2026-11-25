@@ -17,7 +17,8 @@ public sealed class PayEvaluation
 }
 public static class PayExpenseAccounts
 {
-    public const string SalaryFuel="512116",SalaryHousing="512109",SalaryVehicle="512121",SalaryIqama="512202";
+    // BR §22.9 / COA1 A9: company share of salary-rider fuel → 512104 مصروف محروقات (512116 = cash fuel allowance only).
+    public const string SalaryFuel="512104",SalaryHousing="512109",SalaryVehicle="512121",SalaryIqama="512202";
 }
 
 // Formula shapes only. All rates, bands, day counts, cutoff, rent and precision come from versioned data.
@@ -84,21 +85,25 @@ public static class PayEvaluator
         Line("استحقاق المنصة قبل النظام الداخلي","platformGross + incentives",new(){["platformGross"]=facts.PlatformGross,["incentives"]=facts.Incentives},total,"source_gross",false);
         if(!p.B("enabled"))blockers.Add("category_not_enabled");
         bool zero=false,fallback=false;int nextBands=0;
-        if(data.S("eligibilitySetId")!="")
+        // T11: Jahez / Chefz / HS have no eligibility — skip the block and do not demand a null document.
+        if(PayPlatforms.HasEligibility(app))
         {
-            if(eligibility==null)blockers.Add("eligibility_missing");
-            else
+            if(data.S("eligibilitySetId")!="")
             {
-                Approved(eligibility,app,facts.Period);J.Need(eligibility.S("id")==data.S("eligibilitySetId"),"نسخة الأهلية لا تطابق النظام.");PaySettings.Validate("pay_eligibility",app,eligibility["data"]!.AsObject());
-                foreach(var rule in eligibility["data"]!["rules"]!.AsArray().OfType<JsonObject>().Where(r=>!r.ContainsKey("included")||r.B("included")))
+                if(eligibility==null)blockers.Add("eligibility_missing");
+                else
                 {
-                    var observed=Metric(facts,rule.S("metric"),days);if(observed==null){blockers.Add("metric_missing:"+rule.S("metric"));continue;}if(Compare(observed.Value,rule.S("operator"),rule.N("threshold")))continue;
-                    string effect=rule["effect"].S("type");zero|=effect=="zero";fallback|=effect=="per_order";if(effect=="next_band")nextBands++;
-                    Line("شرط أهلية غير متحقق",rule.S("metric")+" "+rule.S("operator")+" threshold",new(){["metric"]=rule.S("metric"),["observed"]=observed.Value,["threshold"]=rule.N("threshold"),["effect"]=effect},0,"eligibility",false);
+                    Approved(eligibility,app,facts.Period);J.Need(eligibility.S("id")==data.S("eligibilitySetId"),"نسخة الأهلية لا تطابق النظام.");PaySettings.Validate("pay_eligibility",app,eligibility["data"]!.AsObject());
+                    foreach(var rule in eligibility["data"]!["rules"]!.AsArray().OfType<JsonObject>().Where(r=>!r.ContainsKey("included")||r.B("included")))
+                    {
+                        var observed=Metric(facts,rule.S("metric"),days);if(observed==null){blockers.Add("metric_missing:"+rule.S("metric"));continue;}if(Compare(observed.Value,rule.S("operator"),rule.N("threshold")))continue;
+                        string effect=rule["effect"].S("type");zero|=effect=="zero";fallback|=effect=="per_order";if(effect=="next_band")nextBands++;
+                        Line("شرط أهلية غير متحقق",rule.S("metric")+" "+rule.S("operator")+" threshold",new(){["metric"]=rule.S("metric"),["observed"]=observed.Value,["threshold"]=rule.N("threshold"),["effect"]=effect},0,"eligibility",false);
+                    }
                 }
             }
+            else J.Need(eligibility==null,"لم يرتبط هذا النظام بنسخة أهلية.");
         }
-        else J.Need(eligibility==null,"لم يرتبط هذا النظام بنسخة أهلية.");
         bool active=p.B("enabled");
         if(active)
         {

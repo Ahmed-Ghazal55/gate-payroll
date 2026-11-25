@@ -1,4 +1,5 @@
 import {seedWorkRows} from './work-seed.mjs';
+import {grantApproveOwn} from './trial9-http-helpers.mjs';
 import {spawn} from 'node:child_process';
 import {createServer} from 'node:net';
 import {mkdtempSync,rmSync} from 'node:fs';
@@ -19,16 +20,22 @@ async function req(route,body,status=200,auth=true){
  const data=await response.json();assert.equal(response.status,status,`${route}: ${JSON.stringify(data)}`);
  if(response.headers.get('set-cookie'))cookie=response.headers.get('set-cookie').split(';')[0];return data;
 }
+async function put(route,body,status=200){
+ const response=await fetch(base+route,{method:'PUT',headers:{'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{})},body:JSON.stringify(body)});
+ const data=await response.json();assert.equal(response.status,status,`${route}: ${JSON.stringify(data)}`);
+ if(response.headers.get('set-cookie'))cookie=response.headers.get('set-cookie').split(';')[0];return data;
+}
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(server.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}assert.ok(ready,logs);
- assert.equal((await req('/health',undefined,200,false)).version,'0.33.8');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.34.0');
  await req('/api/finance/coa/target',undefined,401,false);
- const password=randomBytes(24).toString('hex');await req('/api/auth/setup',{username:'synthetic-admin',password});const admin=cookie;
- const coa=await req('/api/finance/coa/target');assert.equal(coa.accounts.length,411);assert.equal(coa.accounts.filter(a=>a.posting&&a.status==='active').length,235);assert.deepEqual(Object.fromEntries(['excel','modified','new'].map(source=>[source,coa.accounts.filter(a=>a.source===source).length])),{excel:294,modified:28,new:89});assert.ok(coa.accounts.every(a=>['source','sourceNote','statusNote','subledger'].every(key=>Object.hasOwn(a,key))));
+ const password=randomBytes(24).toString('hex');await req('/api/auth/setup',{username:'synthetic-admin',password});
+ await grantApproveOwn(req,put,'synthetic-admin',password,()=>{cookie='';});const admin=cookie;
+ const coa=await req('/api/finance/coa/target');assert.equal(coa.accounts.length,423);assert.equal(coa.accounts.filter(a=>a.posting&&a.status==='active').length,245);assert.deepEqual(Object.fromEntries(['excel','modified','new','trial6'].map(source=>[source,coa.accounts.filter(a=>a.source===source).length])),{excel:294,modified:28,new:97,trial6:4});assert.ok(coa.accounts.every(a=>['source','sourceNote','statusNote','subledger'].every(key=>Object.hasOwn(a,key))));
  const body='80'+'0'.repeat(15)+'123';let remainder=0;for(const d of body+'281000')remainder=(remainder*10+Number(d))%97;const iban='SA'+String(98-remainder).padStart(2,'0')+body;
  const iqama='2000000888',period='2026-10';
  const policy=await req('/api/policies',{name:'Synthetic commission',kind:'commission',platform:'all',effectiveFrom:period,config:{companyFee:500}});await req(`/api/policies/${policy.id}/approve`,{});
- await req('/api/riders',{iqama,name:'Synthetic Rider',financeSponsorId:'BW',policyId:policy.id,iban});
+ await req('/api/riders',{iqama,name:'Synthetic Rider',financeSponsorId:'BW',policyId:policy.id,iban,verifiedIban:iban,address:'جدة'});
  await seedWorkRows(req,[{sourceRef:'synthetic-work',iqama,name:'Synthetic Rider',accountId:'0000000000000001',from:'2026-10-01',to:'2026-10-31',orders:600,platformRevenue:1500,isValid:true,platform:'Keeta',period}]);
  const pay=(await req('/api/payroll/preview?period='+period))[0];assert.equal(pay.payable,1000);await req('/api/payroll/approve',{sponsorId:'BW',iqama,period,fingerprint:pay.fingerprint});
  const before=(await req('/api/system/release-check')).snapshot;
