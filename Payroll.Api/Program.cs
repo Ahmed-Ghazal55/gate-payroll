@@ -284,7 +284,8 @@ api.MapPost("/adjustments", (JsonObject input, HttpContext ctx) => store.Write((
     J.Need(!new[]{"already_paid","debt_installment","platform_settlement","company_fee","base_salary","approved_pay","extra_orders","fuel_allowance","internet_allowance"}.Contains(input.S("category")),"هذه الفئة محجوزة لمحرك المسير ولا تُدخل كتعديل يدوي.");
     var adjustmentRider=Store.Get(c,iqama,"rider",tx)!;FinancialScopes.DemandRider(ctx.User,adjustmentRider);
     decimal amount = input.N("amount"); J.Need(amount != 0 && Math.Abs(amount) < 100000000 && amount == J.Money(amount), "قيمة التحمل/الإضافة غير صحيحة. السالب خصم والموجب إضافة.");
-    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = amount, ["category"] = input.Required("category"), ["description"] = input.Required("description"), ["sourceRef"] = input.Required("sourceRef"), ["createdAt"] = Now() };
+    // TRIAL11 / grok-TRIAL10: stamp createdBy so payroll Independent includes the adjuster (body never invents makers).
+    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = amount, ["category"] = input.Required("category"), ["description"] = input.Required("description"), ["sourceRef"] = input.Required("sourceRef"), ["createdAt"] = Now(), ["createdBy"] = Actor(ctx) };
     J.Need(!Store.List(c, "adjustment", tx).Any(a => a.S("sourceRef") == doc.S("sourceRef") && a.S("iqama") == iqama && a.S("period") == period), "مرجع هذا البند مسجل من قبل.");
     Store.Save(c, "adjustment", doc, tx); Store.Audit(c, tx, "adjustment.add", doc.S("id"), Actor(ctx)); return doc;
 })).WithTags("Payroll").WithSummary("Submit adjustments");
