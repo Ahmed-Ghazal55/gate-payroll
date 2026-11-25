@@ -58,8 +58,8 @@ public static partial class PaymentsEngine
         var doc=Rows(c,tx,$"""
             SELECT id,doc_no AS docNo,type,company_id AS companyId,supplier_id AS supplierId,reference,platform,
             occurred_on AS occurredOn,due_on AS dueOn,period_month AS periodMonth,amount,vat_amount AS vatAmount,
-            status,run_mode AS runMode,payout_blocked AS payoutBlocked,created_by AS createdBy,approved_by AS approvedBy,metadata,
-            content_hash AS contentHash
+            status,run_mode AS runMode,payout_blocked AS payoutBlocked,created_by AS createdBy,updated_by AS updatedBy,
+            approved_by AS approvedBy,metadata,content_hash AS contentHash
             FROM {Q(c,"document")} WHERE id=@id
             """,("@id",Id(id))).SingleOrDefault()??throw new ApiError("المستند غير موجود.",404);
         doc["metadata"]=JsonNode.Parse(doc.S("metadata"));
@@ -154,10 +154,10 @@ public static partial class PaymentsEngine
             MoneyWriteGuards.Demand((int)doc.N("runMode"),doc.B("payoutBlocked"),MoneyEffectKind.Accounting);
             // FLOW1 Critical: types that post or bind money on document-approve need an independent checker.
             // Expense/recurring stay permission-based here — dual money-out is on the voucher (BR §35 / RecurringPayees).
+            // TRIAL10 / grok-TRIAL9: refuse creator AND everyone who edited (updatedBy); type list unchanged (on hold).
             string type=doc.S("type");
             if(type is "purchase" or "government" or "rent" or "installment" or "hr_fee" or "traffic_violation" or "quick")
-                J.Need(AccessPolicy.Independent(actor,doc.S("createdBy"),"payment.document.approve",c,tx,doc,scope:AccessPolicy.ScopePayApprovals),
-                    "لا يجوز اعتماد مستند أنشأته؛ يلزم مراجع مستقل أو تجاوز مؤرخ.",403);
+                AccessPolicy.DemandIndependentOfMakers(actor,"payment.document.approve",c,tx,doc,AccessPolicy.ScopePayApprovals,"createdBy","updatedBy");
             PaymentAdvances.DemandApproval(c,tx,actor,doc,input);
             AccessPolicy.DemandApprovalLimit(actor,doc,c,tx);approved=SchemaApprovals.EnsureAuthUserId(c,tx,Me(actor));
         }
