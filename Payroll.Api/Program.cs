@@ -301,9 +301,27 @@ api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Wri
     var rider = Store.Get(c, iqama, "rider", tx)!; var work = Store.List(c, "work", tx).Where(x => x.S("iqama") == iqama && x.S("period") == period).Select(x => x.Clone()).ToList();
     string fingerprint = Fingerprint(c, iqama, period, tx); J.Need(input.S("fingerprint") == fingerprint, "تغيرت البيانات منذ المعاينة؛ أعد المعاينة قبل الاعتماد.");
     string me = Actor(ctx);
-    string calculatedBy = string.IsNullOrWhiteSpace(input.S("calculatedBy")) ? me : input.S("calculatedBy");
+    // TRIAL10 / grok-TRIAL9: makers come only from server-side stored records (work/adjustments who prepared).
+    // A forged calculatedBy in the request body is ignored and never skips Independent.
+    _ = input.S("calculatedBy");
+    var makers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var row in work)
+    {
+        string by = row.S("createdBy", row.S("uploadedBy", row.S("importedBy")));
+        if (!string.IsNullOrWhiteSpace(by)) makers.Add(by);
+    }
+    foreach (var adj in Store.List(c, "adjustment", tx).Where(a => a.S("iqama") == iqama && a.S("period") == period))
+    {
+        string by = adj.S("createdBy");
+        if (!string.IsNullOrWhiteSpace(by)) makers.Add(by);
+    }
+    if (makers.Count == 0) makers.Add(me); // no stored preparer → caller is the preparer
+    string calculatedBy = makers.First();
     var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["name"] = rider.S("name"), ["period"] = period, ["calculatedBy"] = calculatedBy, ["approvedAt"] = Now(), ["approvedBy"] = me, ["fingerprint"] = fingerprint, ["result"] = JsonSerializer.SerializeToNode(result, JsonSerializerOptions.Web), ["sourceRows"] = JsonSerializer.SerializeToNode(work), ["policySnapshot"] = Store.Get(c, rider.S("policyId"), "policy", tx)?.DeepClone() };
-    AccessPolicy.DemandIndependentOfMakers(ctx.User, "payroll.approve", c, tx, doc, AccessPolicy.ScopePayApprovals, "calculatedBy");
+    doc["calculatedByAll"] = new JsonArray(makers.Select(m => (JsonNode?)m).ToArray());
+    foreach (string maker in makers)
+        J.Need(AccessPolicy.Independent(ctx.User, maker, "payroll.approve", c, tx, doc, scope: AccessPolicy.ScopePayApprovals),
+            "لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية اعتماد مستنداته بنفسه.", 403);
     var payrollSponsor = AccountingEvents.PayrollSponsor(rider, input);
     FinancialScopes.DemandSponsor(ctx.User, payrollSponsor.Id);
     foreach (var deduction in result.Lines.Where(l => l.Category == "debt_installment")) FinancialScopes.DemandDebt(ctx.User, Store.Get(c, deduction.Source, "debt", tx)!);
