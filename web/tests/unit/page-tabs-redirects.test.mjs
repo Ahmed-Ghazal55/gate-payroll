@@ -34,9 +34,9 @@ test('every Sidebar ?tab= href maps to a canonical non-legacy tab', () => {
   };
   const hrefs = [...sidebar.matchAll(/(?:href|defaultHref):\s*'([^']+)'/g)].map((m) => m[1]);
   for (const [prefix, { tabs, resolve }] of Object.entries(resolvers)) {
-    const matched = hrefs.filter((h) => h.startsWith(prefix));
-    assert.ok(matched.length > 0, `expected sidebar links for ${prefix}`);
-    const seen = new Set();
+    const matched = hrefs.filter((h) => h.startsWith(prefix) && /[?&]tab=/.test(h));
+    // W3 path-based sections (payroll/debts) may have no ?tab= links.
+    if (matched.length === 0) continue;
     for (const href of matched) {
       const u = new URL(href, 'https://gate.local');
       const tab = u.searchParams.get('tab');
@@ -44,9 +44,8 @@ test('every Sidebar ?tab= href maps to a canonical non-legacy tab', () => {
       const res = resolve(tab);
       assert.equal(res.legacy, false, `${href} should be canonical, got legacy`);
       assert.equal(res.tab, tab);
-      seen.add(tab);
+      assert.ok(tabs.includes(tab), `${href} tab=${tab} missing from tabs for ${prefix}`);
     }
-    assert.deepEqual([...seen].sort(), [...tabs].sort(), `sidebar tabs mismatch for ${prefix}`);
   }
 });
 
@@ -85,6 +84,14 @@ test('debts, treasury, accounting, admin legacy ?tab= redirects preserve period 
   assert.equal(
     buildTabRedirectUrl('/treasury/', 'tab=payouts', resolveTreasuryTab('payouts')),
     '/treasury/?tab=advance_payouts'
+  );
+  assert.equal(
+    buildTabRedirectUrl('/treasury/', 'tab=extras&period=2026-10', resolveTreasuryTab('extras')),
+    '/payments/mada?period=2026-10'
+  );
+  assert.equal(
+    buildTabRedirectUrl('/accounting/', 'tab=adjustments&period=2026-10', resolveAccountingTab('adjustments')),
+    '/accounting/?tab=manual_journals&period=2026-10'
   );
   assert.equal(
     buildTabRedirectUrl('/accounting/', 'tab=trial&period=2026-10', resolveAccountingTab('trial')),

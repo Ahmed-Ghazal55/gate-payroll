@@ -19,13 +19,23 @@ public static class UserAccess
     [
         new("erp.sync.run","Admin","إدارة النظام","تشغيل مزامنة ERP (مهجور)","مهجور: أُزيلت نقاط المزامنة؛ الصلاحية تبقى كاسم مستعار فقط.",Deprecated:true),
         new("approval.bypass_maker_checker","Admin","إدارة النظام","تجاوز شرط الشخصين","منح مؤرخ بسحب؛ يرفع شرط المجهّز ≠ المعتمد فقط مع سجل وشارة."),
+        new("approvals.approve_own","Admin","إدارة النظام","اعتماد مستنداته بنفسه","صلاحية صريحة OFF افتراضيًا؛ تسمح باعتماد مستندات أنشأها المستخدم مع ختم وتدقيق. لا تسري على الصرف وملف البنك وسلف/مديونيات الصرف."),
         new("approvals.dual.bank_file","Admin","إدارة النظام","اعتماد ملف البنك بشخصين","صلاحية مستقلة لإصدار وإرسال ملف البنك باعتماد شخصين مختلفين؛ قابلة للمنح لأي دور."),
         new("approvals.dual.payment_out","Admin","إدارة النظام","اعتماد الصرف بشخصين","صلاحية مستقلة لصرف الأموال للخارج باعتماد شخصين مختلفين؛ قابلة للمنح لأي دور."),
         new("approvals.dual.shared_rider_release","Admin","إدارة النظام","فك حجز المندوب المشترك بشخصين","صلاحية مستقلة لفك حجز المندوب المشترك باعتماد شخصين مختلفين؛ قابلة للمنح لأي دور."),
+        new("salaries.simulation.run","Payroll","الرواتب","تشغيل محاكاة الرواتب","معاينة وإلغاء دورات المحاكاة دون أي أثر حقيقي."),
         new("operations.view","Operations","العمليات","عرض العمليات","عرض العمليات وحسابات المناديب ضمن الشركة والمنصة."),
         new("pay.view","Payroll","الرواتب","عرض إطار الرواتب","عرض إعدادات التطبيقات والدورات والكشوف ضمن النطاق."),
         new("pay.manage","Payroll","الرواتب","تحضير الرواتب","إنشاء مسودات الإعدادات وتحضير الدورات دون اعتماد ذاتي."),
         new("pay.approve","Payroll","الرواتب","اعتماد الرواتب","اعتماد مستقل لإعدادات ودورات المسار الجديد."),
+        new("people.mudad.manage","Riders","دليل المناديب والملفات","رفع ومطابقة مدد","رفع دفعات مدد ومطابقة الصفوف بالهوية دون اعتماد مالي."),
+        new("salaries.mudad.edit","Payroll","الرواتب","تعديل صفوف مدد","إضافة وتعديل وحذف صفوف مدد داخل دفعة مرفوعة."),
+        new("salaries.hold.request","Payroll","الرواتب","طلب إيقاف راتب","رفع طلب إيقاف راتب مندوب للمحاسب."),
+        new("salaries.hold.approve","Payroll","الرواتب","اعتماد إيقاف راتب","تأكيد واعتماد أو رفض طلبات إيقاف الرواتب."),
+        new("salaries.hold.release","Payroll","الرواتب","إفراج عن راتب موقوف","طلب وتنفيذ الإفراج عن راتب موقوف أو حجز مشترك بعد الاعتماد الثنائي."),
+        new("salaries.deduction.request","Payroll","الرواتب","طلب خصم راتب","رفع طلب خصم تشغيلي أو إداري على راتب المندوب للمحاسب."),
+        new("salaries.deduction.approve","Payroll","الرواتب","اعتماد خصم راتب","تأكيد واعتماد أو رفض طلبات الخصم لإدراجها في المستوى الأول."),
+        new("salaries.bankfile.mark_sent","Payroll","الرواتب","تأكيد إرسال ملف البنك وترحيل الصرف","تأكيد إرسال ملف الرواتب للبنك وترحيل قيود الصرف والتسويات بعد اعتماد شخصين."),
         new("platforms.hs.view","Platforms","المنصات","مراجعة وقائع هنقر","عرض الفواتير والاعتراضات والوقائع والمعاينات ضمن النطاق."),
         new("platforms.hs.manage","Platforms","المنصات","تحضير وقائع هنقر","استيراد الوقائع واقتراح التوزيع والاعتراض والتصحيح دون اعتماد ذاتي."),
         new("platforms.hs.approve","Platforms","المنصات","اعتماد وقائع هنقر","اعتماد مستقل للوقائع والتوزيع والعكس ضمن النطاق المالي."),
@@ -57,13 +67,21 @@ public static class UserAccess
         new("debts.create.platform", "Debts", "نظام المديونيات والاستقطاعات", "إثبات مديونيات كاش المنصات المرحلة (جاهز)", "تسجيل مديونيات كاش تطبيق جاهز والمنصات المرحلة على المناديب."),
         new("debts.reschedule", "Debts", "نظام المديونيات والاستقطاعات", "إعادة جدولة الأقساط وتعديل حالة المديونية", "تعديل قيمة القسط الشهري أو إيقاف/تفعيل الاستقطاع بعد مراجعة الاتفاق."),
         new("debts.collect", "Debts", "نظام المديونيات والاستقطاعات", "تحصيل وسداد المديونيات (مفرد ومجمع)", "قبض المديونيات نقداً أو بنكياً وإصدار سندات التحصيل ورفع شيت التحصيل المجمع."),
-        new("debts.waive", "Debts", "نظام المديونيات والاستقطاعات", "منح إعفاء وتسوية إدارية للمديونية", "اعتماد خصم أو إعفاء إداري كلي/جزئي وترحيله لحساب مصروف الإعفاءات (5202)."),
+        new("debts.waive", "Debts", "نظام المديونيات والاستقطاعات", "منح إعفاء وتسوية إدارية للمديونية", "اعتماد خصم أو إعفاء إداري كلي/جزئي وترحيله لحساب مصروف الإعفاءات (526601–526806 / 526602–526603)."),
+        new("debts.statement.print", "Debts", "نظام المديونيات والاستقطاعات", "طباعة سجل وكشف المديونيات", "طباعة قائمة المديونيات وسجل المندوب للطباعة."),
         new("debts.transfer_sponsor", "Debts", "نظام المديونيات والاستقطاعات", "شراء ونقل المديونية بين السجلات التجارية", "ترحيل ملكية المديونية مالياً بين البوابا وإكسبرس والتجارية عبر حساب جاري السجلات الشقيقة (1310)."),
         new("debts.import_opening", "Debts", "نظام المديونيات والاستقطاعات", "رفع واعتماد أرصدة أول المدة للمديونيات", "معاينة وترحيل شيت أرصدة أول المدة للمديونيات مقابل حساب (3101)."),
 
         // الصناديق والخزائن وشجرة الحسابات وصندوق جاهز
         new("treasury.view", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "استعراض أرصدة السجلات وشجرة الحسابات والقيود", "الاطلاع على أرصدة الصندوق الداخلي الرئيسي وفروعه والبنوك ودفتر القيود المحاسبية."),
+        new("accounting.chart.view", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "عرض دليل الحسابات", "استعراض شجرة الحسابات النشطة والموقوفة دون تعديل."),
+        new("accounting.chart.create", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "إنشاء حساب في الدليل", "إضافة حساب جديد تحت أب؛ الطبيعة مقفولة على الأب."),
+        new("accounting.chart.edit", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "تعديل حساب في الدليل", "تعديل الاسم وأعلام الترحيل؛ لا حذف ولا تغيير رمز عليه ترحيل."),
+        new("accounting.chart.deactivate", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "إيقاف أو تفعيل حساب", "إيقاف حساب مستخدم يحتاج شخصاً ثانياً؛ لا حذف نهائي."),
         new("treasury.transfer", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "التحويل المالي بين الصناديق والبنوك", "إنشاء قيود التحويل والتمويل بين الصندوق الداخلي الرئيسي وحسابات البنوك."),
+        new("treasury.bank_reconcile", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "رفع ومطابقة كشوف البنوك", "رفع ملف الكشف والمطابقة الآلية وطلب تسوية بنكية معتمدة قبل الترحيل."),
+        new("treasury.vault_reconcile", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "جرد الخزن واعتماد الزيادة والعجز", "إنشاء جرد خزنة وتقديمه واعتماد قيود الزيادة 422202 أو العجز 542102 بمراجع مستقل."),
+        new("treasury.balances.by_registration", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "أرصدة الخزينة حسب السجل التجاري", "عرض شجرة الأرصدة مجمّعة أو مفصّلة حسب السجل التجاري."),
         new("treasury.jahez.manage", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "إدارة صندوق كاش جاهز ورسوم فتح الحسابات", "تحصيل كاش تطبيق جاهز وقبض رسوم فتح حسابات جاهز (200 ر.س) في عهدة المشرف."),
         new("treasury.jahez.handover", "Treasury", "الخزينة والصناديق وشجرة الحسابات", "تسليم وتصفير عهدة صندوق جاهز للصندوق الداخلي", "ترحيل وتصفير رصيد خزنة جاهز الميدانية (SUP.*) في نهاية اليوم إلى الصندوق الداخلي الرئيسي (MAIN.*)."),
 
@@ -82,6 +100,10 @@ public static class UserAccess
 
         new("forms.view", "Controls", "ضوابط العمليات", "عرض النماذج والردود", "عرض النماذج والحملات وردود المناديب."),
         new("forms.delete", "Controls", "ضوابط العمليات", "حذف النماذج والردود (مهجور)", "مهجور: الحذف يبقى لمسؤول النظام فقط؛ الصلاحية لا تفتح أي مسار.",Deprecated:true),
+        new("payments.view","Controls","ضوابط العمليات","عرض المدفوعات والمستحقات","عرض مستندات الدفع ضمن نطاق الشركة والمنصة."),
+        new("payments.disburse","Controls","ضوابط العمليات","إعداد وصرف المدفوعات","الصرف يتطلب اعتمادًا ثنائيًا مسجلًا."),
+        new("payments.fuel.manage","Controls","ضوابط العمليات","إدارة محافظ الوقود والشحن","إعداد التمويل ومراجعة كشوف المحافظ."),
+        new("payments.hr_request.create","Controls","ضوابط العمليات","إنشاء طلب رسوم موارد بشرية","تحديد المتحمل وحصص المندوب والشركة."),
         new("payments.record", "Controls", "ضوابط العمليات", "تسجيل دفعات الرواتب", "تسجيل دفعات الرواتب اليدوية في المسار القديم."),
         new("adjustments.create", "Controls", "ضوابط العمليات", "تسجيل تعديلات الرواتب", "إضافة تعديلات رواتب في المسار القديم."),
         new("imports.view", "Controls", "ضوابط العمليات", "معاينة مصادر التشغيل", "فتح مركز الاستيراد ومعاينة ملفات التشغيل وتحميل النماذج."),
@@ -98,11 +120,25 @@ public static class UserAccess
         new("payroll.approve", "Payroll", "مسيرات الرواتب ودفتر الأستاذ", "اعتماد مسيرات الرواتب النهائية", "قفل واعتماد مسير الرواتب الشهري وترحيل الأقساط تلقائياً."),
         new("forms.review", "Forms", "النماذج والحملات واستبيانات المناديب", "مراجعة واعتماد ردود نماذج المناديب", "فحص الهوية واعتماد أو رفض ردود المناديب على الحملات والاستبيانات."),
         new("forms.manage", "Forms", "النماذج والحملات واستبيانات المناديب", "إنشاء ونشر النماذج والحملات", "تصميم الاستبيانات وإصدار روابط المشاركة ورموز QR."),
-        new(EvaluationSurvey.ViewPermission, "Forms", "النماذج والحملات واستبيانات المناديب", "عرض التقييمات", "عرض التقييمات السرية وإحصاءاتها للإدارة فقط؛ لا تمنح للمشرفين."),
-        new(EvaluationSurvey.ExportPermission, "Forms", "النماذج والحملات واستبيانات المناديب", "تصدير التقييمات", "تصدير الردود السرية للإدارة ضمن نطاق الشركات والمنصات المسموح."),
         new("forms.responses.allCompanies", "Forms", "النماذج والحملات واستبيانات المناديب", "عرض ردود كل الشركات", "رؤية ومراجعة ردود النماذج لكل الشركات عند غياب نطاق شركة؛ بدونها لا تظهر أي ردود خارج النطاق."),
-        new("users.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة المستخدمين والأدوار والصلاحيات", "إنشاء الحسابات وتعيين الأدوار والأقسام والرتب والصلاحيات المخصصة."),
-        new("audit.view", "Admin", "إدارة المستخدمين والأدوار والنظام", "عرض سجل التدقيق", "قراءة سجل تدقيق العمليات مع التصفية بالفترة والتصفح صفحة بصفحة.")
+        new("forms.evaluations.view", "Forms", "النماذج والحملات واستبيانات المناديب", "عرض جولات التقييم", "عرض جولات تقييم الموظفين والردود والإحصاءات ضمن النطاق."),
+        new("forms.evaluations.export", "Forms", "النماذج والحملات واستبيانات المناديب", "تصدير جولات التقييم", "تصدير ردود التقييم وكشوف الدرجات إلى ملف."),
+        new("users.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة المستخدمين والأدوار والصلاحيات (RBAC)", "إنشاء الحسابات وتعيين الأدوار والأقسام والرتب والصلاحيات المخصصة."),
+        new("audit.view", "Admin", "إدارة المستخدمين والأدوار والنظام", "عرض سجل التدقيق", "قراءة سجل تدقيق العمليات مع التصفية بالفترة والتصفح صفحة بصفحة."),
+        new("admin.audit.view", "Admin", "إدارة المستخدمين والأدوار والنظام", "عرض سجل التدقيق الإداري", "استعراض أحداث تغيير البيانات والاعتمادات الذاتية دون أحداث القراءة."),
+        new("admin.read_summary.view", "Admin", "إدارة المستخدمين والأدوار والنظام", "عرض ملخص القراءة اليومي", "ملخص يومي لقراءات المناطق الحساسة والتصدير دون صف لكل قراءة."),
+        new("admin.settings.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة إعدادات النظام", "قراءة وحفظ إعدادات النظام في المرجع."),
+        new("admin.notify.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة إعدادات الإشعارات", "مصفوفة التنبيهات وقنوات الإشعار."),
+        new("admin.org.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة حدود الاعتماد وسياسات المهلة", "حدود الرتب وسياسات التصعيد."),
+        new("admin.archive.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة الأرشفة وطلبات الاستعادة", "سياسات الأرشفة وطلب عرض تدقيق مؤقت للقراءة فقط دون حذف."),
+        new("chat.view", "Admin", "إدارة المستخدمين والأدوار والنظام", "عرض محادثة الموظفين", "قراءة قنوات ورسائل محادثة الموظفين ضمن النطاق."),
+        new("chat.post", "Admin", "إدارة المستخدمين والأدوار والنظام", "إرسال في محادثة الموظفين", "نشر رسائل ومرفقات ضمن حدود الوسائط."),
+        new("chat.moderate", "Admin", "إدارة المستخدمين والأدوار والنظام", "إشراف محادثة الموظفين", "إخفاء وتثبيت ومنع مستخدمين داخل المحادثة."),
+        new("chat.admin", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة قنوات المحادثة", "إنشاء القنوات والعضوية ونطاق الشركة."),
+        new("notify.send.general", "Admin", "إدارة المستخدمين والأدوار والنظام", "إرسال إشعار عام", "بث إشعار عام للأدوار أو الأقسام."),
+        new("notify.send.custom", "Admin", "إدارة المستخدمين والأدوار والنظام", "إرسال إشعار مخصص", "إشعار لمستخدمين محددين."),
+        new("tasks.assign", "Admin", "إدارة المستخدمين والأدوار والنظام", "تعيين المهام", "إنشاء وتعيين مهام تشغيلية."),
+        new("tasks.manage", "Admin", "إدارة المستخدمين والأدوار والنظام", "إدارة المهام", "تعديل وإغلاق المهام التشغيلية.")
     ];
 
     // 2. مصفوفة الأدوار المعتمدة (تشمل الأدوار الأساسية المتوافقة مع الاختبارات + الأدوار التشغيلية الثمانية لمنظومة البوابة)
@@ -123,7 +159,7 @@ public static class UserAccess
 
         new("FinancialManager", "المدير المالي", "FIN", 4,
             "قراءة التقارير المالية ومعاينة وتصدير ملف البنك ضمن النطاق.",
-            ["treasury.view","treasury.journals","payroll.view","riders.view","debts.view","finance.bankfile.export","platforms.hs.view","pay.view","operations.view"]),
+            ["treasury.view","treasury.journals","payroll.view","riders.view","debts.view","finance.bankfile.export","platforms.hs.view","pay.view","operations.view","accounting.chart.view","accounting.chart.create","accounting.chart.edit","accounting.chart.deactivate"]),
 
         new("Accountant", "محاسب مالي ومسؤول خزينة", "FIN", 3,
             "إدارة الصندوق الداخلي والبنوك، تسجيل وتحصيل المديونيات والسلف وطلبات HR، التحويل بين الصناديق، واستيراد أرصدة أول المدة.",
@@ -131,8 +167,9 @@ public static class UserAccess
                 "pay.view", "pay.manage", "platforms.hs.view", "platforms.hs.manage",
                 "operations.view", "riders.view", "riders.view_360", "riders.iban.view",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
-                "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
-                "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
+                "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening", "debts.statement.print",
+                "treasury.view", "treasury.transfer", "treasury.bank_reconcile", "treasury.vault_reconcile", "treasury.balances.by_registration", "treasury.jahez.manage", "treasury.jahez.handover",
+                "accounting.chart.view", "accounting.chart.create", "accounting.chart.edit",
                 "approvals.view", "mobile.broadcast", "payroll.view"
             ]),
 
@@ -142,8 +179,9 @@ public static class UserAccess
                 "pay.view", "pay.manage", "platforms.hs.view", "platforms.hs.manage", "platforms.hs.approve", "pay.approve",
                 "operations.view", "riders.view", "riders.view_360", "riders.iban.view",
                 "debts.view", "debts.create.hr", "debts.create.advance", "debts.create.fleet", "debts.create.platform",
-                "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening",
-                "treasury.view", "treasury.transfer", "treasury.jahez.manage", "treasury.jahez.handover",
+                "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening", "debts.statement.print",
+                "treasury.view", "treasury.transfer", "treasury.bank_reconcile", "treasury.vault_reconcile", "treasury.balances.by_registration", "treasury.jahez.manage", "treasury.jahez.handover",
+                "accounting.chart.view", "accounting.chart.create", "accounting.chart.edit", "accounting.chart.deactivate",
                 "approvals.view", "approvals.decide", "mobile.broadcast", "payroll.view"
             ]),
 
@@ -228,25 +266,120 @@ public static class UserAccess
         int rank = (int)u.N("rankLevel", def.DefaultRankLevel);
         return rank is >= 1 and <= 5 ? rank : def.DefaultRankLevel;
     }
+    // OP-8 / U-W2-26: old draft codes → canonical section.resource.action codes.
+    public static readonly Dictionary<string,string> PermissionAliases=new(StringComparer.OrdinalIgnoreCase)
+    {
+        ["finance.coa.view"]="accounting.chart.view",
+        ["finance.coa.create"]="accounting.chart.create",
+        ["finance.coa.edit"]="accounting.chart.edit",
+        ["finance.coa.deactivate"]="accounting.chart.deactivate",
+        ["mudad.view"]="people.mudad.manage",
+        ["mudad.upload"]="people.mudad.manage",
+        ["iban.view"]="people.iban.view",
+        ["saudi.salary.view"]="people.saudi_salary.view",
+        ["notify.settings.manage"]="admin.notify.manage"
+    };
+    public static string CanonicalPermission(string code)=>
+        PermissionAliases.TryGetValue(code,out var mapped)?mapped:code;
     public static string[] EffectivePermissions(JsonObject u)
     {
         string role = Role(u);
-        if (role is "Admin" or "SuperAdmin" or "SystemAdmin") return PermissionsCatalog.Select(p => p.Code).ToArray();
+        // TRIAL6: approvals.approve_own stays OFF unless granted explicitly in customPermissions (even for Admin).
+        if (role is "Admin" or "SuperAdmin" or "SystemAdmin")
+            return PermissionsCatalog.Select(p => p.Code)
+                .Where(code=>code!=AccessPolicy.ApproveOwnPermission
+                    ||(u["customPermissions"] as JsonArray??[]).Any(x=>string.Equals(x?.ToString(),AccessPolicy.ApproveOwnPermission,StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
         var def = ResolveRoleDef(role);
         // An edited role template is attached by WithRole for the current read only; never stored on the user.
         var baseline = u[RoleBaseline] is JsonArray edited ? edited.Select(p => p?.ToString() ?? "") : def.DefaultPermissions;
-        var set = new HashSet<string>(baseline, StringComparer.OrdinalIgnoreCase);
+        var set = new HashSet<string>(baseline.Select(CanonicalPermission), StringComparer.OrdinalIgnoreCase);
         if (u["customPermissions"] is JsonArray custom)
         {
             foreach (var item in custom)
             {
-                string code = item?.GetValue<string>() ?? "";
+                string code = CanonicalPermission(item?.GetValue<string>() ?? "");
                 if (PermissionsCatalog.FirstOrDefault(p => p.Code.Equals(code, StringComparison.OrdinalIgnoreCase)) is {} permission)
                     set.Add(permission.Code);
             }
         }
-        if(u["deniedPermissions"] is JsonArray denied)foreach(var permission in denied)set.Remove(permission?.GetValue<string>()??"");
-        return set.ToArray();
+        if(u["deniedPermissions"] is JsonArray denied)
+            foreach(var permission in denied)set.Remove(CanonicalPermission(permission?.GetValue<string>()??""));
+        return set.Where(code=>PermissionsCatalog.Any(p=>p.Code.Equals(code,StringComparison.OrdinalIgnoreCase))).ToArray();
+    }
+
+    public static JsonObject EffectivePermissionsView(DbConnection c,DbTransaction? tx,JsonObject u)
+    {
+        var withRole=WithRole(c,tx,u);
+        var rolePerms=withRole[RoleBaseline] is JsonArray edited
+            ?edited.Select(p=>CanonicalPermission(p?.ToString()??"")).Where(p=>p!="").Distinct(StringComparer.OrdinalIgnoreCase).ToArray()
+            :ResolveRoleDef(Role(u)).DefaultPermissions;
+        var grants=(u["customPermissions"] as JsonArray??[]).Select(p=>CanonicalPermission(p?.ToString()??"")).Where(p=>p!="").ToArray();
+        var denies=(u["deniedPermissions"] as JsonArray??[]).Select(p=>CanonicalPermission(p?.ToString()??"")).Where(p=>p!="").ToArray();
+        var effective=EffectivePermissions(withRole);
+        return new()
+        {
+            ["userId"]=u.S("id"),
+            ["username"]=u.S("username"),
+            ["role"]=Role(u),
+            ["rolePermissions"]=new JsonArray(rolePerms.Select(p=>(JsonNode?)p).ToArray()),
+            ["grants"]=new JsonArray(grants.Select(p=>(JsonNode?)p).ToArray()),
+            ["denies"]=new JsonArray(denies.Select(p=>(JsonNode?)p).ToArray()),
+            ["effective"]=new JsonArray(effective.Select(p=>(JsonNode?)p).ToArray()),
+            ["aliases"]=new JsonObject(PermissionAliases.ToDictionary(kv=>kv.Key,kv=>(JsonNode?)kv.Value)),
+            ["allowedActions"]=new JsonArray("copy_permissions")
+        };
+    }
+
+    public static JsonObject CopyPermissions(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string targetId,JsonObject input)
+    {
+        AccessPolicy.Demand(actor,"users.manage");
+        var target=Store.Get(c,targetId,"user",tx)??throw new ApiError("المستخدم المستهدف غير موجود.",404);
+        string sourceUserId=input.S("sourceUserId"),sourceRole=input.S("sourceRole");
+        string[] source;
+        string sourceLabel;
+        if(!string.IsNullOrWhiteSpace(sourceUserId))
+        {
+            var src=Store.Get(c,sourceUserId,"user",tx)??throw new ApiError("المستخدم المصدر غير موجود.",404);
+            source=EffectivePermissions(WithRole(c,tx,src));
+            sourceLabel="user:"+src.S("username");
+        }
+        else if(!string.IsNullOrWhiteSpace(sourceRole))
+        {
+            var def=ResolveRoleDef(sourceRole);
+            var edited=Store.Get(c,def.Code,RolePermissionsKind,tx);
+            source=edited?["permissions"] is JsonArray list
+                ?list.Select(p=>CanonicalPermission(p?.ToString()??"")).Where(p=>p!="").ToArray()
+                :def.DefaultPermissions;
+            sourceLabel="role:"+def.Code;
+        }
+        else throw new ApiError("حدد مستخدماً أو دوراً مصدراً.",400);
+        var before=EffectivePermissions(WithRole(c,tx,target));
+        // Match source exactly: grants/denies vs the target role baseline (no leftover baseline privileges).
+        var baseline=WithRole(c,tx,target)[RoleBaseline] is JsonArray editedBaseline
+            ?editedBaseline.Select(p=>CanonicalPermission(p?.ToString()??"")).Where(p=>p!="").ToHashSet(StringComparer.OrdinalIgnoreCase)
+            :ResolveRoleDef(Role(target)).DefaultPermissions.Select(CanonicalPermission).ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var wanted=source.Select(CanonicalPermission).Where(p=>p!="").ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var grants=wanted.Where(p=>!baseline.Contains(p)).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        var denies=baseline.Where(p=>!wanted.Contains(p)).OrderBy(p=>p,StringComparer.Ordinal).ToArray();
+        var afterDoc=target.Clone();
+        afterDoc["customPermissions"]=new JsonArray(grants.Select(p=>(JsonNode?)p).ToArray());
+        afterDoc["deniedPermissions"]=new JsonArray(denies.Select(p=>(JsonNode?)p).ToArray());
+        GuardManager(c,tx,actor,target,afterDoc);
+        target["customPermissions"]=afterDoc["customPermissions"]!.DeepClone();
+        target["deniedPermissions"]=afterDoc["deniedPermissions"]!.DeepClone();
+        target["securityVersion"]=Guid.NewGuid().ToString("N");
+        Store.Save(c,"user",target,tx);
+        var after=EffectivePermissions(WithRole(c,tx,target));
+        AuditAccessChange(c,tx,actor,"admin.copy_permissions",targetId,before,after,sourceLabel);
+        return new()
+        {
+            ["targetUserId"]=targetId,
+            ["source"]=sourceLabel,
+            ["before"]=new JsonArray(before.Select(p=>(JsonNode?)p).ToArray()),
+            ["after"]=new JsonArray(after.Select(p=>(JsonNode?)p).ToArray()),
+            ["allowedActions"]=new JsonArray()
+        };
     }
 
     public const string RolePermissionsKind = "role_permissions", RoleBaseline = "__roleBaseline";
@@ -314,6 +447,22 @@ public static class UserAccess
     static void ValidateUsername(string username)=>J.Need(username.Length is >= 3 and <= 60 && Regex.IsMatch(username, @"^[\p{L}\p{N}_.@-]+$"), "اسم المستخدم من3إلى60حرفًا دون مسافات أو محارف خاصة.");
     public static JsonObject? Find(DbConnection c, string username, DbTransaction? tx = null) =>
         Store.List(c, "user", tx).SingleOrDefault(u => Normalize(u.S("username")) == Normalize(username));
+
+    /// <summary>Bridge an authenticated principal into a document user before auth.user EnsureAuthUserId.
+    /// Uses the claim role (falls back to Reviewer) — never invents Admin for strangers.</summary>
+    public static void EnsureDocumentUser(DbConnection c,DbTransaction tx,ClaimsPrincipal actor)
+    {
+        string name=actor.Identity?.Name??"";
+        if(name==""||Find(c,name,tx)!=null)return;
+        string role=actor.FindFirst(ClaimTypes.Role)?.Value??"Reviewer";
+        if(!Roles.Contains(role))role="Reviewer";
+        var def=ResolveRoleDef(role);
+        string dept=actor.FindFirst("department")?.Value??"";
+        if(string.IsNullOrWhiteSpace(dept))dept=def.DefaultDepartment;
+        int rank=def.DefaultRankLevel;
+        if(int.TryParse(actor.FindFirst("rankLevel")?.Value,out var rl))rank=rl;
+        Store.Save(c,"user",new(){["id"]=SchemaSql.GuidText(SchemaSql.NewId()),["username"]=name,["role"]=role,["status"]="active",["department"]=dept,["rankLevel"]=rank},tx);
+    }
 
     public static JsonObject Public(JsonObject u)
     {
@@ -389,7 +538,10 @@ public static class UserAccess
         var former = new JsonArray(FormerUsernames(u).Append(old).Distinct(StringComparer.OrdinalIgnoreCase).Select(n => (JsonNode?)n).ToArray());
         u["username"] = next; u["formerUsernames"] = former; u["securityVersion"] = Guid.NewGuid().ToString("N");
         Store.Save(c, "user", u, tx);
-        // Dated bypass grants follow the person, not the old name.
+        // Dated bypass grants follow the person; auth.user.username drives SQL bypass list joins.
+        if(SchemaSql.TableExists(c,tx,"auth","user"))
+            SchemaSql.Exec(c,tx,$"UPDATE {SchemaSql.Q(c,"auth","user")} SET username=@n WHERE username=@old OR username=@oldNorm",
+                ("@n",next),("@old",old),("@oldNorm",Normalize(old)));
         foreach (var grant in Store.List(c, AccessPolicy.BypassGrantKind, tx).Where(g => g.S("userId") == id || Normalize(g.S("username")) == Normalize(old)))
         { grant["username"] = next; Store.Save(c, AccessPolicy.BypassGrantKind, grant, tx); }
         Store.Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = "admin.username_changed", ["entityId"] = id, ["actor"] = actor.Identity!.Name, ["at"] = DateTimeOffset.UtcNow.ToString("O"), ["from"] = old, ["to"] = next, ["reason"] = reason }, tx);
@@ -456,6 +608,14 @@ public static class UserAccess
         if (u == null || !Roles.Contains(Role(u)) || Status(u) != "active" || (context.Principal!.FindFirst("securityVersion") is { } version && version.Value != u.S("securityVersion")))
         { context.RejectPrincipal(); await context.HttpContext.SignOutAsync(); return; }
         // Upgrade legacy administrator cookies without invalidating a working production session.
+        // Keep enrollment-only sessions until 2FA is verified (past the 14-day window).
+        if(context.Principal!.HasClaim(Auth2faApi.EnrollmentClaim,"true")
+           &&store.Read(c=>Auth2faApi.LoginBlocked(c,store.DirectoryPath,u)))
+        {
+            context.ReplacePrincipal(Auth2faApi.EnrollmentPrincipal(u));
+            context.ShouldRenew=false;
+            return;
+        }
         context.ReplacePrincipal(store.Read(c=>Principal(WithRole(c,null,u))));
         context.ShouldRenew = false;
     }
@@ -472,10 +632,19 @@ public static class UserAccess
         {
             roles = RolesCatalog,
             permissions = EditorPermissionsCatalog,
+            permissionAliases = PermissionAliases,
             departments = FinancialCore.DepartmentsCatalog,
             rolePermissions=store.Read(c=>Store.List(c,RolePermissionsKind).ToDictionary(r=>r.S("id"),r=>r["permissions"]?.DeepClone())),
             financialScopeCatalog=new{sponsors=FinancialCore.Sponsors,accounts=FinancialCore.ChartOfAccounts.Where(a=>a.IsVault),categories=FinancialCore.CategoriesCatalog,platforms=new[]{"Jahez","Keeta","HungerStation","Ninja","Chefz","Amazon","Other"}}
         }).WithTags("Administration").WithSummary("Read roles catalog");
+        api.MapGet("/users/{id}/effective-permissions",(string id,HttpContext ctx)=>
+        {
+            AccessPolicy.Demand(ctx.User,"users.manage");
+            return store.Read(c=>EffectivePermissionsView(c,null,Store.Get(c,id,"user")??throw new ApiError("الحساب غير موجود.",404)));
+        }).WithTags("Administration").WithSummary("Read effective permissions breakdown for a user");
+        api.MapPost("/users/{id}/copy-permissions",(string id,JsonObject input,HttpContext ctx)=>
+            store.Write((c,tx)=>CopyPermissions(c,tx,ctx.User,id,input)))
+            .WithTags("Administration").WithSummary("Copy permissions from a user or role onto a target user");
 
         api.MapGet("/admin/approval-exceptions",(HttpContext ctx)=>{J.Need(AccessPolicy.Administrator(ctx.User)||ctx.User.IsInRole("SystemAdmin"),"للمسؤول فقط.",403);return store.Read(c=>Store.List(c,"audit").Where(a=>a.B("selfApprovedException")||a.S("action") is "approval.self_exception" or "approval.bypass_maker_checker").OrderByDescending(a=>a.S("at")));}).WithTags("Administration").WithSummary("Self-approval audit report (dated exceptions and bypass uses)");
         api.MapGet("/users", () => store.Read(c => Store.List(c, "user").Select(u => Public(WithRole(c, null, u))).ToList())).WithTags("Administration").WithSummary("Read users");

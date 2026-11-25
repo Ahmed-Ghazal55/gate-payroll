@@ -56,6 +56,7 @@ public static class LiveOperationsSource
         "ninja_evaluation_snapshot"=>[Opt("ninja","EvaluationSnapshots")],
         "jahez_commission_policy"=>[Req("jahez_v2","CommissionPolicies"),Opt("jahez_v2","AccountSessions"),..PlatformAccounts()],
         "jahez_daily_order"=>[Req("jahez_v2","DailyOrders"),Opt("jahez_v2","AccountSessions"),..PlatformAccounts()],
+        "erp_jahez_operation"=>[Req("jahez_v2","Operations"),Opt("jahez_v2","AccountSessions"),..PlatformAccounts()],
         _=>throw new ImportFailure("live_ops_kind_unsupported:"+kind)
     };
 

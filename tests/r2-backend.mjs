@@ -9,6 +9,7 @@ import {fileURLToPath} from 'node:url';
 import {randomBytes} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {syntheticWorkbook} from './financial-fixtures.mjs';
+import {grantApproveOwn} from './trial9-http-helpers.mjs';
 
 const root=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 const data=mkdtempSync(path.join(tmpdir(),'gate-r2-'));
@@ -18,8 +19,9 @@ writeFileSync(path.join(webroot,'favicon.svg'),readFileSync(path.join(root,'Payr
 writeFileSync(path.join(webroot,'app/index.html'),'<html>synthetic app entry</html>');
 writeFileSync(path.join(webroot,'app/login/index.html'),'<html>synthetic login</html>');
 let child,cookie='',checks=0;
+const adminPassword=randomBytes(24).toString('hex');
 async function start(){
- child=spawn('dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll'),'--webroot',webroot],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ConnectionStrings__DefaultConnection:'',ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data},stdio:'ignore'});
+ child=spawn('dotnet',[path.join(root,'Payroll.Api/bin/Debug/net10.0/Payroll.Api.dll'),'--webroot',webroot],{cwd:path.join(root,'Payroll.Api'),env:{...process.env,ConnectionStrings__DefaultConnection:'',ASPNETCORE_ENVIRONMENT:'Development',ASPNETCORE_URLS:base,PAYROLL_DATA_DIR:data,Vouchers__Secret:process.env.Vouchers__Secret||'GateSynthetic_CI_Only_Voucher_Key_000001'},stdio:'ignore'});
  for(let n=0;n<150;n++){if(child.exitCode!==null)throw Error('Synthetic API exited');try{if((await fetch(base+'/health')).ok)return;}catch{}await new Promise(r=>setTimeout(r,100));}throw Error('Synthetic API not ready');
 }
 async function stop(){if(child&&child.exitCode===null){const ended=once(child,'exit');child.kill();await ended;}}
@@ -29,6 +31,12 @@ async function request(route,{body,method=body===undefined?'GET':'POST',auth=tru
  if(r.headers.get('set-cookie'))cookie=r.headers.get('set-cookie').split(';')[0];return r;
 }
 async function json(route,body,status=200){return (await request(route,{body,status})).json();}
+async function put(route,body,status=200){
+ const r=await fetch(base+route,{method:'PUT',headers:{'Content-Type':'application/json',...(cookie?{Cookie:cookie}:{})},body:JSON.stringify(body)});
+ const text=await r.text();assert.equal(r.status,status,route+' '+text);checks++;
+ if(r.headers.get('set-cookie'))cookie=r.headers.get('set-cookie').split(';')[0];
+ try{return JSON.parse(text)}catch{return text}
+}
 try{
  await start();
  assert.equal((await request('/',{status:302})).headers.get('location'),'/app/');
@@ -36,7 +44,8 @@ try{
  assert.equal((await request('/index.html',{status:302})).headers.get('location'),'/app/');
  for(const value of ['https://outside.invalid/app/','//outside.invalid/app/','/inquiry','/app/../inquiry','/app/%252e%252e/inquiry','/app/\\outside.invalid','/legacy/'])await request('/app/login/?returnUrl='+encodeURIComponent(value),{status:400});
  for(const value of ['/app/riders/?page=2','/app/forms/'])await request('/app/login/?returnUrl='+encodeURIComponent(value));
- await json('/api/auth/setup',{username:'synthetic-r2-admin',password:randomBytes(24).toString('hex')});
+ await json('/api/auth/setup',{username:'synthetic-r2-admin',password:adminPassword});
+ await grantApproveOwn(json,put,'synthetic-r2-admin',adminPassword,()=>{cookie='';});
  assert.equal((await request('/legacy/',{status:302})).headers.get('location'),'/app/');
  assert.equal((await request('/legacy',{status:302})).headers.get('location'),'/app/');
  assert.equal((await request('/',{status:302})).headers.get('location'),'/app/');
@@ -64,8 +73,9 @@ try{
  await json('/api/companies/import/commit',confirmation);
  const repeated=await json('/api/companies/import/preview',{companies:companyRows});assert.equal(repeated.counts.company.unchanged,3);assert.equal(repeated.counts.commercial_registration.unchanged,3);
  const expiring=await json('/api/companies/expiring?days=3650');assert.equal(expiring.length,3);assert.ok(expiring.every(row=>row.annualConfirmation==='2028-01-01'));
+ // Annex 71g: Total Deduction = Rider Balance + CAR + TGA (5+20=25); Net FTR = Incl − Total Deduction.
  const hsFile=syntheticWorkbook([
-  {name:'Co LVL',rows:[['Company CR','Contract Name','completed_orders','basic_payment','COURIER_BASIC_PAYMENT','Amount Excl VAT','VAT','Amount Incl VAT','Net FTR','CAR Deduction October 2026','TGA Deduction October 2026'],[companyRows[0].crNumber,'Synthetic HS contract',10,100,100,100,15,115,115,5,20]]},
+  {name:'Co LVL',rows:[['Company CR','Contract Name','completed_orders','basic_payment','COURIER_BASIC_PAYMENT','Amount Excl VAT','VAT','Amount Incl VAT','Rider Balance','Total Deduction','Net FTR','CAR Deduction October 2026','TGA Deduction October 2026'],[companyRows[0].crNumber,'Synthetic HS contract',10,100,100,100,15,115,0,25,90,5,20]]},
   {name:'Rider LVL',rows:[['rider_id','Contract Name','completed_orders','basic_payment','COURIER_BASIC_PAYMENT','scheme'],['SYN-HS-API','Synthetic HS contract',10,100,100,'salary']]},
   {name:'Breakdown',rows:[['rider_id','completed_orders'],['SYN-HS-API',10]]}
  ]);
@@ -74,7 +84,9 @@ try{
  const hsConfirmed={...hsInput,rows:hsPreview.rows,fingerprint:hsPreview.fingerprint,confirm:true};await json('/api/platforms/hs/invoices/import/commit',hsConfirmed);
  const hsRepeated=await json('/api/platforms/hs/invoices/import/preview',hsInput);assert.equal(hsRepeated.counts.unchangedInvoices,1);
  const db=new DatabaseSync(path.join(data,'payroll.db'));
- assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind='platform_dispute'").get().n,1);
+ // U-W2-11c / M-0718: vehicle/CAR value → accountant review; no auto CAR dispute.
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind='platform_dispute'").get().n,0);
+ assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind='platform_invoice' AND json_extract(body,'$.status')='accountant_review'").get().n,1);
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind='platform_invoice_line' AND json_extract(body,'$.status')='pending_allocation'").get().n,1);
  assert.equal(db.prepare("SELECT COUNT(*) AS n FROM records WHERE kind IN ('journal','debt')").get().n,0);
  db.close();
@@ -82,26 +94,30 @@ try{
  await json('/api/users',{username:'synthetic-r2-checker',password:checkerPassword,role:'FinancialAccountant'});
  const invoices=await json('/api/platforms/hs/invoices?page=1&pageSize=500');assert.equal(invoices.total,1);assert.equal(invoices.pageSize,200);
  const hsId=invoices.items[0].id,encodedHs=encodeURIComponent(hsId),lineId=hsPreview.rows[0].lines.find(l=>l.tgaAmount!==0).id;
+ const companyLineId=hsPreview.rows[0].lines.find(l=>l.lineType==='company').id;
  const proposalUrl='/api/platforms/hs/proposed-journals?invoiceId='+encodedHs;
- assert.equal((await json('/api/platforms/hs/disputes')).total,1);
+ assert.equal((await json('/api/platforms/hs/disputes')).total,0);
  assert.equal((await json('/api/platforms/hs/allocations')).total,0);
  for(const kind of ['hs_wallet_event','hs_remittance','hs_remittance_allocation','hs_handover_review','hs_month_close'])assert.equal((await json('/api/platforms/hs/facts?kind='+kind+'&page=1')).total,0);
  await json('/api/platforms/hs/facts?kind=user',undefined,400);await json('/api/platforms/hs/facts?kind=hs_wallet_event&page=0',undefined,400);
+ await json('/api/platforms/hs/invoices/'+encodedHs+'/resolve',{mode:'accountant_review',reason:'Synthetic custom vehicle entry',customEntryRef:'JE-SYN-R2-VEHICLE'});
  const split=await json('/api/platforms/hs/allocations/'+encodeURIComponent(lineId),{riderAmount:0,companyAmount:20});
- await json('/api/platforms/hs/allocations/'+encodeURIComponent(split.id)+'/approve',{},403);
- await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{...(await json(proposalUrl)),confirm:true},403);
+ // BR §35 / M-0672: HS approve is permission-only (dual is bank/payment/shared-rider only).
+ await json('/api/platforms/hs/allocations/'+encodeURIComponent(split.id)+'/approve',{});
  await json('/api/auth/login',{username:'synthetic-r2-checker',password:checkerPassword});const checkerCookie=cookie;
  await json('/api/platforms/hs/posting',undefined,403);
- await json('/api/platforms/hs/allocations/'+encodeURIComponent(split.id)+'/approve',{});
  const proposed=await json(proposalUrl);assert.equal(proposed.rows[0].readyForApproval,true);
  const modified=structuredClone(proposed);modified.rows[0].lines[0].debit+=1;
  await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{...modified,confirm:true},409);
  assert.equal((await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{...proposed,confirm:true})).accountingStatus,'blocked_by_gate');
  cookie=makerCookie;await json('/api/platforms/hs/posting',{enabled:true});cookie=checkerCookie;
+ // Formal CAR dispute is raised by hand (never auto on import).
+ cookie=makerCookie;
+ const carClaim=await json('/api/platforms/hs/invoices/'+encodedHs+'/dispute',{lineId:companyLineId,category:'CAR',amount:5,reason:'Synthetic formal CAR claim'});
+ cookie=checkerCookie;
  const held=await json(proposalUrl);assert.equal(held.rows[0].postingBlockedByDispute,true);assert.equal(held.rows[0].postingAllowed,false);
  await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{...held,confirm:true},409);
- assert.equal((await json('/api/finance/journals')).length,0,'No partial journal while CAR is unresolved');
- const carClaim=(await json('/api/platforms/hs/disputes')).items[0];
+ assert.equal((await json('/api/finance/journals')).length,0,'No partial journal while CAR dispute is open');
  await json('/api/platforms/hs/invoices/'+encodedHs+'/resolve',{mode:'dispute',disputeId:carClaim.id,outcome:'platform_credit',platformReference:'synthetic-credit',reason:'Synthetic platform response'});
  await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{...held,confirm:true},409,'Resolution invalidates an old signed preview');
  const released=await json(proposalUrl);assert.equal(released.rows[0].postingAllowed,true);
@@ -111,7 +127,7 @@ try{
  assert.equal((await json('/api/platforms/hs/disputes')).items[0].accountingReconciliation,'pending_reversal_or_credit_note');
  cookie=makerCookie;
  const reversal=await json('/api/platforms/hs/invoices/'+encodedHs+'/resolve',{mode:'request_reversal',period:'2026-11',reason:'Synthetic correction'});
- await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{reversalRequestId:reversal.id},403);cookie=checkerCookie;
+ // BR §35: HS reversal approve is permission-only (not dual money-out).
  await json('/api/platforms/hs/invoices/'+encodedHs+'/approve',{reversalRequestId:reversal.id});
  const checkedDb=new DatabaseSync(path.join(data,'payroll.db'));assert.equal(checkedDb.prepare("SELECT body FROM records WHERE id=? AND kind='journal'").get(posted.journalEntryId).body,originalJournal);assert.equal(checkedDb.prepare("SELECT COUNT(*) n FROM records WHERE kind='journal'").get().n,2);checkedDb.close();
  cookie=makerCookie;const scopePassword=randomBytes(24).toString('hex');

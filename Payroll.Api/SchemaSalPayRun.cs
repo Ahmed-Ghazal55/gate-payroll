@@ -45,6 +45,7 @@ public static class SchemaSalPayRun
             old_debt_instalment {m} NOT NULL DEFAULT 0, salary_approved_at {SchemaSql.DateTime(c)} NULL,
             debt_confirm_status {SchemaSql.Varchar(c,12)} NOT NULL DEFAULT 'pending',
             bank_eligible {SchemaSql.Bit(c)} NOT NULL DEFAULT 0, keeta_ineligible {SchemaSql.Bit(c)} NOT NULL DEFAULT 0,
+            protected_salary {SchemaSql.Bit(c)} NOT NULL DEFAULT 0,
             payable_id {g} NULL,
             {SchemaSql.MoneyAuditCols(c)},
             CONSTRAINT PK_sal_pay_run_rider {SchemaSql.PrimaryKey(c)} (id),
@@ -53,8 +54,8 @@ public static class SchemaSalPayRun
             CONSTRAINT CK_sal_rider_instalment CHECK (old_debt_instalment>=0),
             CONSTRAINT CK_sal_rider_debt CHECK (debt_confirm_status IN ('pending','confirmed','deferred') AND (debt_confirm_status<>'deferred' OR old_debt_instalment=0)),
             CONSTRAINT CK_sal_rider_approval CHECK (salary_approved_at IS NULL OR debt_confirm_status IN ('confirmed','deferred')),
-            CONSTRAINT CK_sal_rider_flags CHECK (bank_eligible IN (0,1) AND keeta_ineligible IN (0,1) AND run_mode IN (0,1)),
-            CONSTRAINT CK_sal_rider_bank CHECK (bank_eligible=0 OR (run_mode=0 AND salary_approved_at IS NOT NULL AND debt_confirm_status IN ('confirmed','deferred') AND payable_id IS NOT NULL AND salary_net>0)),
+            CONSTRAINT CK_sal_rider_flags CHECK (bank_eligible IN (0,1) AND keeta_ineligible IN (0,1) AND protected_salary IN (0,1) AND run_mode IN (0,1)),
+            CONSTRAINT CK_sal_rider_bank CHECK (bank_eligible=0 OR (run_mode=0 AND salary_approved_at IS NOT NULL AND debt_confirm_status IN ('confirmed','deferred') AND payable_id IS NOT NULL)),
             CONSTRAINT FK_sal_rider_run FOREIGN KEY (pay_run_id,company_id,period_month,run_mode) REFERENCES {run}(id,company_id,period_month,run_mode) ON DELETE NO ACTION,
             CONSTRAINT FK_sal_rider_payable FOREIGN KEY (payable_id,company_id,period_month) REFERENCES {SchemaSql.Q(c,"pay","payable")}(id,company_id,period_month) ON DELETE NO ACTION
             """);
@@ -76,11 +77,14 @@ public static class SchemaSalPayRun
         SchemaSql.EnsureTable(c,tx,"sal","shared_rider_hold",$"""
             id {g} NOT NULL, erp_rider_id {g} NOT NULL, period_month {SchemaSql.Date(c)} NOT NULL,
             status {SchemaSql.Varchar(c,10)} NOT NULL DEFAULT 'open',
+            combined_net {m} NOT NULL DEFAULT 0,
             {SchemaSql.MoneyAuditCols(c)},
             CONSTRAINT PK_sal_shared_hold {SchemaSql.PrimaryKey(c)} (id),
             CONSTRAINT CK_sal_shared_hold_status CHECK (status IN ('open','cleared')),
             CONSTRAINT CK_sal_shared_hold_month CHECK ({SchemaSql.MonthCheck(c)})
             """);
+        EnsureSharedHoldCombinedNet(c,tx);
+        EnsureProtectedSalary(c,tx);
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"sal","shared_rider_hold","UQ_sal_shared_hold_open","erp_rider_id,period_month","status='open'");
         SchemaSql.EnsureTable(c,tx,"sal","shared_rider_hold_app",$"""
             id {g} NOT NULL, hold_id {g} NOT NULL, app_code {SchemaSql.Varchar(c,20)} NOT NULL,
@@ -233,5 +237,45 @@ public static class SchemaSalPayRun
                         WHERE p.id=NEW.payable_id AND (pr.run_mode=1 OR (NEW.claim_status=2 AND pr.payout_blocked=1)));
                     END;
                     """);
+    }
+
+    /// <summary>RWC4a3: §22.9.2 protected salary flag (Keeta ineligible + salary scheme only).</summary>
+    static void EnsureProtectedSalary(DbConnection c,DbTransaction? tx)
+    {
+        string t=SchemaSql.Q(c,"sal","pay_run_rider");
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"IF COL_LENGTH(N'sal.pay_run_rider',N'protected_salary') IS NULL ALTER TABLE {t} ADD protected_salary {SchemaSql.Bit(c)} NOT NULL CONSTRAINT DF_sal_rider_protected DEFAULT(0);");
+        else
+        {
+            object? has=SchemaSql.Scalar(c,tx,"SELECT 1 FROM pragma_table_info('sal_pay_run_rider') WHERE name='protected_salary'");
+            if(has is null or DBNull)SchemaSql.Exec(c,tx,$"ALTER TABLE {t} ADD COLUMN protected_salary INTEGER NOT NULL DEFAULT 0;");
+        }
+        EnsureCalculatedBy(c,tx);
+    }
+
+    /// <summary>TRIAL6: append-only list of calculators; debt confirm must not overwrite (grok-TRIAL5).</summary>
+    static void EnsureCalculatedBy(DbConnection c,DbTransaction? tx)
+    {
+        string t=SchemaSql.Q(c,"sal","pay_run_rider");
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"IF COL_LENGTH(N'sal.pay_run_rider',N'calculated_by_json') IS NULL ALTER TABLE {t} ADD calculated_by_json nvarchar(max) NULL;");
+        else
+        {
+            object? has=SchemaSql.Scalar(c,tx,"SELECT 1 FROM pragma_table_info('sal_pay_run_rider') WHERE name='calculated_by_json'");
+            if(has is null or DBNull)SchemaSql.Exec(c,tx,$"ALTER TABLE {t} ADD COLUMN calculated_by_json TEXT NULL;");
+        }
+    }
+
+    /// <summary>RWC4a1 H11: combined_net on an existing shared_rider_hold table (additive).</summary>
+    static void EnsureSharedHoldCombinedNet(DbConnection c,DbTransaction? tx)
+    {
+        string t=SchemaSql.Q(c,"sal","shared_rider_hold");
+        if(SchemaSql.IsSql(c))
+            SchemaSql.Exec(c,tx,$"IF COL_LENGTH(N'sal.shared_rider_hold',N'combined_net') IS NULL ALTER TABLE {t} ADD combined_net {SchemaSql.Decimal(c)} NOT NULL CONSTRAINT DF_sal_shared_hold_combined DEFAULT(0);");
+        else
+        {
+            object? has=SchemaSql.Scalar(c,tx,"SELECT 1 FROM pragma_table_info('sal_shared_rider_hold') WHERE name='combined_net'");
+            if(has is null or DBNull)SchemaSql.Exec(c,tx,$"ALTER TABLE {t} ADD COLUMN combined_net REAL NOT NULL DEFAULT 0;");
+        }
     }
 }

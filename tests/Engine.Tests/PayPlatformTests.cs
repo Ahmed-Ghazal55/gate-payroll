@@ -13,6 +13,16 @@ public sealed class PayPlatformTests
         Assert.AreEqual("411106",PayPlatforms.For("Jahez").Principal);Assert.ThrowsExactly<ApiError>(()=>PayPlatforms.Revenue("jahez","principal"));
     }
     [TestMethod]
+    public void T11_JahezChefzHsHaveNoEligibility_KeetaNinjaKeepIt()
+    {
+        Assert.IsFalse(PayPlatforms.HasEligibility("jahez"));
+        Assert.IsFalse(PayPlatforms.HasEligibility("chefz"));
+        Assert.IsFalse(PayPlatforms.HasEligibility("hs"));
+        Assert.IsFalse(PayPlatforms.HasEligibility("HungerStation"));
+        Assert.IsTrue(PayPlatforms.HasEligibility("keeta"));
+        Assert.IsTrue(PayPlatforms.HasEligibility("ninja"));
+    }
+    [TestMethod]
     public void NewHsInvoicesUseTheNewReceivableButOldTargetDocumentsStayByteIdentical()
     {
         using var f=new HungerStationInvoiceTests.Fixture();string company=FinancialCore.Sponsors[0].Id;

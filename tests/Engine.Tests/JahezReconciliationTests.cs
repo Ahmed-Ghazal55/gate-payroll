@@ -8,7 +8,7 @@ public sealed class JahezReconciliationTests
 {
     static JsonObject Input(string company,string period="2026-10",decimal net=0,decimal vat=0)=>new(){["companyId"]=company,["period"]=period,["invoiceNet"]=net,["invoiceVat"]=vat,["lastTransactionDate"]=period+"-15",["invoiceReference"]="synthetic-jahez-invoice"};
     static ClaimsPrincipal Viewer()=>UserAccess.Principal(new JsonObject{["username"]="synthetic-jahez-viewer",["role"]="FinancialManager",["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(FinancialCore.Sponsors[0].Id)}});
-    static ClaimsPrincipal Writer(string name)=>UserAccess.Principal(new JsonObject{["username"]=name,["role"]="Accountant",["department"]="FIN",["rankLevel"]=3,["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(FinancialCore.Sponsors[0].Id)}});
+    static ClaimsPrincipal Writer(string name)=>UserAccess.Principal(new JsonObject{["username"]=name,["role"]="Accountant",["department"]="FIN",["rankLevel"]=3,["financialScope"]=new JsonObject{["sponsorIds"]=new JsonArray(FinancialCore.Sponsors[0].Id),["platforms"]=new JsonArray("Jahez","Chefz","Ninja","HungerStation","Keeta","Amazon","Other"),["accountCodes"]=new JsonArray(),["categoryCodes"]=new JsonArray()}});
     [TestMethod]
     public void BuildComparesCollectionsAndPaymentsThroughLastTransactionDateWithVatLine()
     {
@@ -89,7 +89,7 @@ public sealed class JahezReconciliationTests
         f.Store.Write((c,tx)=>JahezReconciliation.Submit(c,tx,creator,same.S("id")));
         Assert.AreEqual(403,Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,creator,same.S("id")))).Status);
         string day=DateTimeOffset.UtcNow.ToOffset(TimeSpan.FromHours(3)).ToString("yyyy-MM-dd");
-        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="synthetic-jahez-creator-user",["username"]="synthetic-jahez-creator",["role"]="Accountant"},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-jahez-creator",["from"]=day,["to"]=day,["reason"]="§35 grant for Jahez self-approve test"});return true;});
+        f.Store.Write((c,tx)=>{Store.Save(c,"user",new(){["id"]="synthetic-jahez-creator-user",["username"]="synthetic-jahez-creator",["role"]="Accountant"},tx);AccessPolicy.GrantBypass(c,tx,PayFixture.Maker,new(){["username"]="synthetic-jahez-creator",["from"]=day,["to"]=day,["reason"]="§35 grant for Jahez self-approve test",["scope"]=AccessPolicy.ScopeTreasuryJahez});return true;});
         Assert.AreEqual("approved",f.Store.Write((c,tx)=>JahezReconciliation.Approve(c,tx,creator,same.S("id"))).S("status"));
     }
     [TestMethod]

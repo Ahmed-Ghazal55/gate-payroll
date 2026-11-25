@@ -160,16 +160,16 @@ public sealed class AccountingReviewTests
 
     [TestMethod] public void SharedCostFundingFromThirdCompanyHasExplicitBalancedClearing()
     {
-        WithStore(store=>{AccountingPostingTests.SeedCash(store,"BANK.EX",1000m);store.Write((c,tx)=>
-        {
-            var debt=new JsonObject{["id"]="split",["iqama"]="2000000001",["category"]="WorkPermit",["entryMode"]="Disbursement",["allocationMode"]="SharedSplit",
-                ["totalCostAmount"]=900m,["companyShareAmount"]=300m,["totalAmount"]=600m,["originSponsorId"]=Bw,["creditorSponsorId"]=Bw,
-                ["paymentVaultCode"]="BANK.EX",["sourceRef"]="split",["effectiveFrom"]="2026-10"};
-            Debts.PostCreationJournalIfNeeded(c,tx,debt,"review");
-            var journal=Store.Get(c,debt.S("journalEntryId"),"journal",tx)!;
-            Assert.IsTrue(journal["lines"]!.AsArray().OfType<JsonObject>().GroupBy(l=>l.S("sponsorId")).All(g=>g.Sum(l=>l.N("debit")-l.N("credit"))==0));
-            Assert.AreEqual(7,journal["lines"]!.AsArray().Count);return true;
-        });});
+        WithStore(store=>{AccountingPostingTests.SeedCash(store,"BANK.EX",1000m);
+            var err=Assert.ThrowsExactly<ApiError>(()=>store.Write((c,tx)=>
+            {
+                var debt=new JsonObject{["id"]="split",["iqama"]="2000000001",["category"]="WorkPermit",["entryMode"]="Disbursement",["allocationMode"]="SharedSplit",
+                    ["totalCostAmount"]=900m,["companyShareAmount"]=300m,["totalAmount"]=600m,["originSponsorId"]=Bw,["creditorSponsorId"]=Bw,
+                    ["paymentVaultCode"]="BANK.EX",["sourceRef"]="split",["effectiveFrom"]="2026-10"};
+                Debts.PostCreationJournalIfNeeded(c,tx,debt,"review");return true;
+            }));
+            Assert.AreEqual(409,err.Status);Assert.IsTrue(err.Message.Contains("غير متاح",StringComparison.Ordinal));
+        });
     }
 
     [TestMethod] public void ReviewerAndOperationalRolesCannotUseUnrelatedFinanceRoutes()
@@ -196,13 +196,16 @@ public sealed class AccountingReviewTests
 
     [TestMethod] public void ApprovalNeedsIndependentActorCorrectDepartmentAndRank()
     {
+        // TRIAL8/9: every self-approval (dual and non-dual) needs Independent (approve_own or bypass). Never money-out alone.
         var request=new JsonObject{["createdBy"]="requester",["targetDepartment"]="FIN",["requiredRankLevel"]=4};
         AccessPolicy.ValidateApproval(User("FinancialAccountant"),request,new());
-        Reject(()=>AccessPolicy.ValidateApproval(User("FinancialAccountant","requester"),request,new()),403);
+        Reject(()=>AccessPolicy.ValidateApproval(User("FinancialAccountant","requester"),request,new()),403); // same actor blocked without grant
         Reject(()=>AccessPolicy.ValidateApproval(User("HRSpecialist"),request,new()),403);
         Reject(()=>AccessPolicy.ValidateApproval(User("Accountant","reviewer","approvals.decide"),request,new()),403);
-        Reject(()=>AccessPolicy.ValidateApproval(User("Admin","requester"),request,new()),403);
-        Reject(()=>AccessPolicy.ValidateApproval(User("Admin","requester"),request,new JsonObject{["overrideSelf"]=true,["note"]="Legacy override cannot bypass dated exception"}),403);
+        var dual=new JsonObject{["createdBy"]="requester",["requestedBy"]="requester",["targetDepartment"]="FIN",["requiredRankLevel"]=4,["dualPermission"]="approvals.dual.payment_out"};
+        var dualActor=User("FinancialAccountant","requester","approvals.dual.payment_out");
+        Reject(()=>AccessPolicy.ValidateApproval(dualActor,dual,new(),"approvals.decide",dualPermission:"approvals.dual.payment_out"),403);
+        Reject(()=>AccessPolicy.ValidateApproval(User("Admin","requester","approvals.dual.payment_out"),dual,new(),"approvals.decide",dualPermission:"approvals.dual.payment_out"),403);
     }
     [TestMethod] public void CollectionAndOpeningTemplatesKeepTheirOwnExactCanonicalHeaderWidths()
     {

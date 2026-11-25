@@ -50,6 +50,9 @@ int formsLimit = builder.Environment.IsDevelopment() ? 200 : 30;
 builder.Services.AddRateLimiter(options => { options.RejectionStatusCode = 429; options.OnRejected = async (context, cancellation) => await context.HttpContext.Response.WriteAsJsonAsync(ApiErrors.Body(429), cancellation); options.AddPolicy("vouchers",ctx=>RateLimitPartition.GetFixedWindowLimiter(ctx.Connection.RemoteIpAddress?.ToString()??"unknown",_=>new FixedWindowRateLimiterOptions{Window=TimeSpan.FromMinutes(1),PermitLimit=30,QueueLimit=0})); options.AddPolicy("sensitive", ctx => RateLimitPartition.GetFixedWindowLimiter((ctx.Connection.RemoteIpAddress?.ToString() ?? "unknown") + (ctx.Request.Path.StartsWithSegments("/api/auth") ? ":auth" : ":forms"), _ => new FixedWindowRateLimiterOptions { Window = TimeSpan.FromMinutes(1), PermitLimit = formsLimit, QueueLimit = 0 })); });
 builder.Services.AddSingleton(new Store(dataDir, builder.Configuration.GetConnectionString("DefaultConnection")));
 builder.Services.AddHostedService<EvaluationAttachmentRetentionService>();
+builder.Services.AddHostedService<NotifyTasksHostedService>();
+builder.Services.AddHostedService<ErpSettlementSnapshotHostedService>();
+builder.Services.AddSingleton<IOpsLiveFactsReader>(sp=>new LiveOpsLiveFactsReader(sp.GetRequiredService<IConfiguration>(),sp.GetRequiredService<Store>()));
 var riderIpLimitWarnings = PushNotifications.ConfigureIpLimits(builder.Configuration);
 var app = builder.Build(); var store = app.Services.GetRequiredService<Store>();
 PayStatements.Logger = app.Services.GetRequiredService<ILoggerFactory>().CreateLogger("PayStatements");
@@ -126,13 +129,31 @@ app.MapPost("/api/auth/login", async (JsonObject input, HttpContext ctx) =>
             Store.Save(c,"user",current,tx); return true; });
         return Results.Json(ApiErrors.Body(401, "اسم المستخدم أو كلمة المرور غير صحيحة."), statusCode: 401);
     }
-    var loggedIn = store.Write((c,tx) => {
+    string? secondFactor = input.S("code");
+    if (string.IsNullOrWhiteSpace(secondFactor)) secondFactor = input.S("totpCode");
+    JsonObject login = store.Write((c,tx) => {
         var current = Store.Get(c, user!.S("id"), "user", tx)!;
         J.Need(UserAccess.Status(current)=="active", "الحساب غير متاح.");
-        current["failedLogins"]=0; current["lockedUntil"]="";
-        current["lastLoginAt"]=Now(); Store.Save(c,"user",current,tx); Store.Audit(c,tx,"admin.login",current.S("id"),current.S("username"));return current;
+        var gate = Auth2faApi.CompletePasswordLogin(c, tx, store.DirectoryPath, current, string.IsNullOrWhiteSpace(secondFactor) ? null : secondFactor);
+        if (gate.S("mode") != "challenge")
+        {
+            current["failedLogins"]=0; current["lockedUntil"]="";
+            current["lastLoginAt"]=Now(); Store.Save(c,"user",current,tx);
+            Store.Audit(c,tx,gate.B("enrollmentOnly")?"admin.login_enrollment":"admin.login",current.S("id"),current.S("username"));
+            gate["user"] = current;
+        }
+        return gate;
     });
-    await SignIn(ctx, loggedIn); return Results.Ok(UserAccess.Public(loggedIn));
+    if (login.S("mode") == "challenge")
+        return Results.Json(new { requiresTwoFactor = true, messageAr = login.S("messageAr", "أدخل رمز التحقق الثنائي أو رمزاً احتياطياً.") }, statusCode: 401);
+    var loggedIn = login["user"] as JsonObject ?? throw new ApiError("تعذّر إكمال الدخول.",500);
+    if (login.B("enrollmentOnly"))
+        await ctx.SignInAsync(CookieAuthenticationDefaults.AuthenticationScheme, Auth2faApi.EnrollmentPrincipal(loggedIn));
+    else
+        await SignIn(ctx, loggedIn);
+    var body = UserAccess.Public(loggedIn);
+    if (login.B("enrollmentOnly")) { body["enrollmentOnly"] = true; body["messageAr"] = "أكمل إعداد التحقق الثنائي قبل استخدام النظام."; }
+    return Results.Ok(body);
 }).WithTags("Administration").WithSummary("Submit auth login").RequireRateLimiting("sensitive");
 app.MapPost("/api/auth/logout", async (HttpContext ctx) => { await ctx.SignOutAsync(); return Results.Ok(); }).WithTags("Administration").WithSummary("Submit auth logout");
 var api = app.MapGroup("/api").RequireAuthorization();
@@ -175,9 +196,16 @@ ResponsesInbox.Map(api,store);
 TableExcelApi.Map(api, store);
 TestSeed.Map(api, store, app.Environment);
 UserAccess.Map(api, store);
+Auth2faApi.Map(api, store);
+AuditApi.Map(api, store);
+AdminSettings.Map(api, store);
+ArchiveApi.Map(api, store);
+NotifyTasksApi.Map(api, store);
+StaffChatApi.Map(api, store);
 AccessPolicy.MapBypass(api, store);
 RiderDirectory.Map(api, store);
 Debts.Map(api, store);
+PaymentsApi.Map(api,store);
 DebtOpeningApproval.Map(api, store);
 RiderLookup.Map(api, store);
 MobileSessions.Map(app, api, store);
@@ -185,13 +213,30 @@ RiderAsks.Map(app, api, store);
 PushNotifications.Map(app, api, store);
 FinancialCore.Map(app, api, store); ReleaseSafety.Map(api,store);
 RiderIndexMaintenance.Map(api, store, app.Configuration, app.Services.GetRequiredService<ILoggerFactory>());
-FinanceViews.Map(api,store); BankPayrollFiles.Map(api,store);TreasurySummary.Map(api,store);
+ApprovalsArea.Map(api,store);
+SalSimulations.Map(api,store);
+OpsSnapshotCapture.Map(api,store);
+SalDistribution.Map(api,store);
+SalPlatformInvoice.Map(api,store);
+KeetaViewsCapture.Map(api,store);
+MudadApi.Map(api,store);
+SalPayCalc.Map(api,store);
+SalDebtConfirm.Map(api,store);
+SalSalaryApprove.Map(api,store);
+SalRiderRequests.Map(api,store);
+SalBankFiles.Map(api,store);
+FinanceViews.Map(api,store); ChartOfAccountsApi.Map(api,store); BankPayrollFiles.Map(api,store);TreasurySummary.Map(api,store);
 TreasuryEntries.Map(api,store);
+TreasuryBalancesApi.Map(api,store);
+TreasuryBankStatementsApi.Map(api,store);
+TreasuryVaultCountsApi.Map(api,store);
+ErpSettlementsApi.Map(api,store);
 ManualJournals.Map(api,store);
 MadaAccounting.Map(api,store);
 JahezTreasury.Map(api,store);
 JahezReconciliation.Map(api,store);
-LegacyCashAllocation.Map(api,store);
+api.MapPost("/finance/legacy-cash-allocation/preview",(JsonObject input)=>{_=input;return Results.Json(ApiErrors.Body(410,FinancialCore.LegacyCashAllocationGone),statusCode:410);}).WithTags("Banks and treasury").WithSummary("Gone: legacy cash allocation retired");
+api.MapPost("/finance/legacy-cash-allocation/commit",(JsonObject input)=>{_=input;return Results.Json(ApiErrors.Body(410,FinancialCore.LegacyCashAllocationGone),statusCode:410);}).WithTags("Banks and treasury").WithSummary("Gone: legacy cash allocation retired");
 JahezHandovers.Map(api,store);
 FormBuilderApi.Map(app, api, store);
 EvaluationSurvey.Map(app, api, store);
@@ -207,7 +252,7 @@ api.MapGet("/riders", (HttpContext ctx) => store.Read(c => Store.List(c, "rider"
 api.MapPost("/riders", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     var iqama = J.Iqama(input.Required("iqama")); var existing = Store.Get(c, iqama, "rider", tx);
-    foreach (var key in new[] { "iban", "policyId", "financeSponsorId" })
+    foreach (var key in new[] { "iban", "verifiedIban", "policyId", "financeSponsorId" })
         if (input.ContainsKey(key) && input.S(key) != (existing?.S(key) ?? "")) AccessPolicy.Demand(ctx.User, "riders.financial_edit");
     if(existing!=null)FinancialScopes.DemandRider(ctx.User,existing);
     var rider = RiderDirectory.Normalize(input, existing);
@@ -221,10 +266,17 @@ api.MapPost("/policies", (JsonObject input, HttpContext ctx) => store.Write((c, 
 {
     var kind = input.Required("kind"); J.Need(new[] { "commission", "tiers", "approved_pay" }.Contains(kind), "نوع سياسة غير صالح.");
     var config = input["config"] as JsonObject ?? new(); ValidatePolicy(kind, config);
-    var doc = new JsonObject { ["id"] = Id(), ["name"] = input.Required("name"), ["kind"] = kind, ["platform"] = input.Required("platform"), ["effectiveFrom"] = J.Period(input.Required("effectiveFrom")), ["status"] = "draft", ["config"] = config.DeepClone(), ["createdAt"] = Now() };
+    var doc = new JsonObject { ["id"] = Id(), ["name"] = input.Required("name"), ["kind"] = kind, ["platform"] = input.Required("platform"), ["effectiveFrom"] = J.Period(input.Required("effectiveFrom")), ["status"] = "draft", ["config"] = config.DeepClone(), ["createdAt"] = Now(), ["createdBy"] = Actor(ctx) };
     Store.Save(c, "policy", doc, tx); Store.Audit(c, tx, "policy.create", doc.S("id"), Actor(ctx)); return doc;
 })).WithTags("Payroll").WithSummary("Submit policies");
-api.MapPost("/policies/{id}/approve", (string id, HttpContext ctx) => store.Write((c, tx) => { var p = Store.Get(c, id, "policy", tx) ?? throw new ApiError("السياسة غير موجودة.", 404); J.Need(p.S("status") == "draft", "هذه النسخة معتمدة بالفعل."); ValidatePolicy(p.S("kind"), p["config"]!.AsObject()); p["status"] = "approved"; p["approvedAt"] = Now(); Store.Save(c, "policy", p, tx); Store.Audit(c, tx, "policy.approve", id, Actor(ctx)); return p; })).WithTags("Payroll").WithSummary("Submit policies {id} approve");
+api.MapPost("/policies/{id}/approve", (string id, HttpContext ctx) => store.Write((c, tx) =>
+{
+    var p = Store.Get(c, id, "policy", tx) ?? throw new ApiError("السياسة غير موجودة.", 404);
+    J.Need(p.S("status") == "draft", "هذه النسخة معتمدة بالفعل.");
+    ValidatePolicy(p.S("kind"), p["config"]!.AsObject());
+    // TRIAL9: shared self-approval (createdBy) — never Admin alone.
+    return PolicyLifecycle.Approve(c, tx, ctx.User, id);
+})).WithTags("Payroll").WithSummary("Submit policies {id} approve");
 api.MapGet("/imports", () => store.Read(c => Store.List(c, "batch"))).WithTags("Payroll").WithSummary("Read imports");
 api.MapGet("/template.csv", () => Results.File(Encoding.UTF8.GetPreamble().Concat(Encoding.UTF8.GetBytes("sourceRef,iqama,name,accountId,from,to,orders,platformRevenue,riderPay,isValid,company,city\r\n")).ToArray(), "text/csv; charset=utf-8", "payroll-template.csv")).WithTags("Payroll").WithSummary("Read template.csv");
 api.MapPost("/adjustments", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
@@ -234,12 +286,15 @@ api.MapPost("/adjustments", (JsonObject input, HttpContext ctx) => store.Write((
     J.Need(!new[]{"already_paid","debt_installment","platform_settlement","company_fee","base_salary","approved_pay","extra_orders","fuel_allowance","internet_allowance"}.Contains(input.S("category")),"هذه الفئة محجوزة لمحرك المسير ولا تُدخل كتعديل يدوي.");
     var adjustmentRider=Store.Get(c,iqama,"rider",tx)!;FinancialScopes.DemandRider(ctx.User,adjustmentRider);
     decimal amount = input.N("amount"); J.Need(amount != 0 && Math.Abs(amount) < 100000000 && amount == J.Money(amount), "قيمة التحمل/الإضافة غير صحيحة. السالب خصم والموجب إضافة.");
-    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = amount, ["category"] = input.Required("category"), ["description"] = input.Required("description"), ["sourceRef"] = input.Required("sourceRef"), ["createdAt"] = Now() };
+    // TRIAL11 / grok-TRIAL10: stamp createdBy so payroll Independent includes the adjuster (body never invents makers).
+    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = amount, ["category"] = input.Required("category"), ["description"] = input.Required("description"), ["sourceRef"] = input.Required("sourceRef"), ["createdAt"] = Now(), ["createdBy"] = Actor(ctx) };
     J.Need(!Store.List(c, "adjustment", tx).Any(a => a.S("sourceRef") == doc.S("sourceRef") && a.S("iqama") == iqama && a.S("period") == period), "مرجع هذا البند مسجل من قبل.");
     Store.Save(c, "adjustment", doc, tx); Store.Audit(c, tx, "adjustment.add", doc.S("id"), Actor(ctx)); return doc;
 })).WithTags("Payroll").WithSummary("Submit adjustments");
 api.MapGet("/payroll/preview", (string period,HttpContext ctx) => { J.Period(period); return store.Read(c => Store.List(c, "work").Where(w => w.S("period") == period).Select(w => w.S("iqama")).Distinct().Where(iq=>Store.Get(c,iq,"rider") is {} rider&&ErpRiderClassification.ListedAsRider(rider)&&(FinancialScopes.Rider(ctx.User,rider)||FinancialScopes.AllCompanies(ctx.User))).Select(iq => { var doc = JsonSerializer.SerializeToNode(Preview(c, iq, period), JsonSerializerOptions.Web)!.AsObject(); doc["fingerprint"] = Fingerprint(c, iq, period); return doc; }).ToList()); }).WithTags("Payroll").WithSummary("Read payroll preview");
 api.MapGet("/payroll/runs", (HttpContext ctx) => store.Read(c => Store.List(c, "run").Where(r=>FinancialScopes.Ledger(ctx.User,r)))).WithTags("Payroll").WithSummary("Read payroll runs");
+// TRIAL9 / grok-TRIAL8: one-step POST /payroll/approve must run the shared self-approval rule
+// (second person or approvals.approve_own on calculatedBy; never money-out alone).
 api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
 {
     string iqama = J.Iqama(input.Required("iqama")); string period = J.Period(input.Required("period"));
@@ -248,30 +303,39 @@ api.MapPost("/payroll/approve", (JsonObject input, HttpContext ctx) => store.Wri
     var result = Preview(c, iqama, period, tx); J.Need(result.Blockers.Count == 0, string.Join(" | ", result.Blockers));
     var rider = Store.Get(c, iqama, "rider", tx)!; var work = Store.List(c, "work", tx).Where(x => x.S("iqama") == iqama && x.S("period") == period).Select(x => x.Clone()).ToList();
     string fingerprint = Fingerprint(c, iqama, period, tx); J.Need(input.S("fingerprint") == fingerprint, "تغيرت البيانات منذ المعاينة؛ أعد المعاينة قبل الاعتماد.");
-    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["name"] = rider.S("name"), ["period"] = period, ["approvedAt"] = Now(), ["approvedBy"] = Actor(ctx), ["fingerprint"] = fingerprint, ["result"] = JsonSerializer.SerializeToNode(result, JsonSerializerOptions.Web), ["sourceRows"] = JsonSerializer.SerializeToNode(work), ["policySnapshot"] = Store.Get(c, rider.S("policyId"), "policy", tx)?.DeepClone() };
-    var payrollSponsor=AccountingEvents.PayrollSponsor(rider,input);
-    FinancialScopes.DemandSponsor(ctx.User,payrollSponsor.Id);
-    foreach(var deduction in result.Lines.Where(l=>l.Category=="debt_installment"))FinancialScopes.DemandDebt(ctx.User,Store.Get(c,deduction.Source,"debt",tx)!);
-    AccountingEvents.PostPayroll(c,tx,result,doc,payrollSponsor.Id,Actor(ctx));
-    Store.Save(c, "run", doc, tx); Store.Save(c, "ledger", new() { ["id"] = "run:" + doc.S("id"), ["iqama"] = iqama, ["period"] = period, ["sponsorId"]=payrollSponsor.Id,["accountingVersion"]=AccountingEvents.Version,["journalEntryId"]=doc.S("journalEntryId"),["amount"] = result.PeriodMovement - result.Lines.Where(x => x.Category is "debt_installment" or "already_paid").Sum(x => x.Amount), ["kind"] = "approved_payroll", ["sourceRef"] = doc.S("id"), ["createdAt"] = Now() }, tx); Debts.Post(c, tx, result, doc.S("id")); AccountingEvents.VerifyPayrollClosing(c,tx,result,payrollSponsor.Id); Store.Audit(c, tx, "payroll.approve", doc.S("id"), Actor(ctx)); return doc;
-})).WithTags("Payroll").WithSummary("Submit payroll approve");
+    string me = Actor(ctx);
+    // TRIAL10 / grok-TRIAL9: makers come only from server-side stored records (work/adjustments who prepared).
+    // A forged calculatedBy in the request body is ignored and never skips Independent.
+    _ = input.S("calculatedBy");
+    var makers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    foreach (var row in work)
+    {
+        string by = row.S("createdBy", row.S("uploadedBy", row.S("importedBy")));
+        if (!string.IsNullOrWhiteSpace(by)) makers.Add(by);
+    }
+    foreach (var adj in Store.List(c, "adjustment", tx).Where(a => a.S("iqama") == iqama && a.S("period") == period))
+    {
+        string by = adj.S("createdBy");
+        if (!string.IsNullOrWhiteSpace(by)) makers.Add(by);
+    }
+    if (makers.Count == 0) makers.Add(me); // no stored preparer → caller is the preparer
+    string calculatedBy = makers.First();
+    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["name"] = rider.S("name"), ["period"] = period, ["calculatedBy"] = calculatedBy, ["approvedAt"] = Now(), ["approvedBy"] = me, ["fingerprint"] = fingerprint, ["result"] = JsonSerializer.SerializeToNode(result, JsonSerializerOptions.Web), ["sourceRows"] = JsonSerializer.SerializeToNode(work), ["policySnapshot"] = Store.Get(c, rider.S("policyId"), "policy", tx)?.DeepClone() };
+    doc["calculatedByAll"] = new JsonArray(makers.Select(m => (JsonNode?)m).ToArray());
+    foreach (string maker in makers)
+        J.Need(AccessPolicy.Independent(ctx.User, maker, "payroll.approve", c, tx, doc, scope: AccessPolicy.ScopePayApprovals),
+            "لا يجوز اعتماد طلبك بنفسك؛ يلزم مراجع مستقل أو صلاحية اعتماد مستنداته بنفسه.", 403);
+    var payrollSponsor = AccountingEvents.PayrollSponsor(rider, input);
+    FinancialScopes.DemandSponsor(ctx.User, payrollSponsor.Id);
+    foreach (var deduction in result.Lines.Where(l => l.Category == "debt_installment")) FinancialScopes.DemandDebt(ctx.User, Store.Get(c, deduction.Source, "debt", tx)!);
+    AccountingEvents.PostPayroll(c, tx, result, doc, payrollSponsor.Id, me);
+    Store.Save(c, "run", doc, tx); Store.Save(c, "ledger", new() { ["id"] = "run:" + doc.S("id"), ["iqama"] = iqama, ["period"] = period, ["sponsorId"] = payrollSponsor.Id, ["accountingVersion"] = AccountingEvents.Version, ["journalEntryId"] = doc.S("journalEntryId"), ["amount"] = result.PeriodMovement - result.Lines.Where(x => x.Category is "debt_installment" or "already_paid").Sum(x => x.Amount), ["kind"] = "approved_payroll", ["sourceRef"] = doc.S("id"), ["createdAt"] = Now() }, tx); Debts.Post(c, tx, result, doc.S("id")); AccountingEvents.VerifyPayrollClosing(c, tx, result, payrollSponsor.Id); Store.Audit(c, tx, "payroll.approve", doc.S("id"), me); return doc;
+})).WithTags("Payroll").WithSummary("Submit payroll approve (independent reviewer or approvals.approve_own)");
 api.MapGet("/payroll/fingerprint", (string iqama, string period,HttpContext ctx) => store.Read(c => {var rider=Store.Get(c,J.Iqama(iqama),"rider")??throw new ApiError("المندوب غير موجود.",404);FinancialScopes.DemandRider(ctx.User,rider);return new { fingerprint = Fingerprint(c,iqama,J.Period(period)) };})).WithTags("Payroll").WithSummary("Read payroll fingerprint");
 api.MapGet("/ledger", (HttpContext ctx) => store.Read(c => Store.List(c,"ledger").Where(l=>FinancialScopes.Ledger(ctx.User,l)))).WithTags("Payroll").WithSummary("Read ledger");
 api.MapGet("/ledger/{iqama}", (string iqama,HttpContext ctx) => store.Read(c => { J.Iqama(iqama); var rows = Store.List(c, "ledger").Where(x => x.S("iqama") == iqama&&FinancialScopes.Ledger(ctx.User,x)).OrderBy(x => x.S("period")).ThenBy(x => x.S("createdAt")).ToList(); return new { rows, balance = rows.Sum(x => x.N("amount")) }; })).WithTags("Payroll").WithSummary("Read ledger {iqama}");
-api.MapPost("/payments", (JsonObject input, HttpContext ctx) => store.Write((c, tx) =>
-{
-    string iqama = J.Iqama(input.Required("iqama")); string period = J.Period(input.Required("period")); var ledger = Store.List(c, "ledger", tx).Where(x => x.S("iqama") == iqama).ToList(); decimal amount = input.N("amount");
-    J.Need(!ledger.Any(x => string.CompareOrdinal(x.S("period"), period) > 0), "لا يمكن تسجيل دفعة بأثر رجعي قبل حركات لاحقة.");
-    J.Need(amount > 0 && amount == J.Money(amount) && amount <= ledger.Sum(x => x.N("amount")), "الدفعة يجب أن تكون موجبة ولا تتجاوز الرصيد المستحق.");
-    string reference = input.Required("sourceRef"); J.Need(!Store.List(c, "ledger", tx).Any(x => x.S("kind") == "payment" && x.S("sourceRef") == reference), "مرجع التحويل مسجل بالفعل.");
-    var rider=Store.Get(c,iqama,"rider",tx)??throw new ApiError("المندوب غير موجود.",404);
-    var sponsor=AccountingEvents.PayrollSponsor(rider,input);
-    string vault=input.S("paymentVaultCode",FinancialCore.DefaultVaultForSponsor(sponsor.Id,"BANK"));
-    FinancialScopes.DemandSponsor(ctx.User,sponsor.Id);FinancialScopes.DemandAccount(ctx.User,vault);FinancialScopes.DemandSponsor(ctx.User,FinancialCore.ResolveVault(vault).DefaultSponsorId!);
-    var doc = new JsonObject { ["id"] = Id(), ["iqama"] = iqama, ["period"] = period, ["amount"] = -amount, ["kind"] = "payment", ["odooVoucherNo"]=input.S("odooVoucherNo"), ["sourceRef"] = reference, ["createdAt"] = Now(),["sponsorId"]=sponsor.Id,["paymentVaultCode"]=vault,["accountingVersion"]=AccountingEvents.Version,["onBehalf"]=input.B("onBehalf"),["onBehalfNote"]=input.S("onBehalfNote") };
-    var journal=AccountingEvents.PostPayment(c,tx,doc,sponsor.Id,vault,Actor(ctx));doc["journalEntryId"]=journal.S("id");
-    Store.Save(c, "ledger", doc, tx); Store.Audit(c, tx, "payment.record", doc.S("id"), Actor(ctx)); return doc;
-})).WithTags("Payroll").WithSummary("Submit payments");
+// RWP1 / M-0672: money-out needs two-person approval through the payment engine vouchers.
+api.MapPost("/payments", (JsonObject input, HttpContext ctx) => { _=input;_=ctx; throw new ApiError("صرف الرواتب والمدفوعات يتم عبر محرك المدفوعات باعتماد شخصين؛ المسار القديم موقوف.",409); }).WithTags("Payroll").WithSummary("Legacy payments route disabled");
 api.MapGet("/payroll/export.csv", (string period,HttpContext ctx) => store.Read(c =>
 {
     J.Period(period); var rows = Store.List(c, "run").Where(x => x.S("period") == period&&FinancialScopes.Ledger(ctx.User,x)).ToList();
@@ -301,12 +365,6 @@ api.MapPost("/submissions/{id}/review", (string id, JsonObject input, HttpContex
     SubmissionChoices.DemandInScope(c, ctx.User, d, tx);
     CampaignOperations.Review(c,tx,d,input,Actor(ctx));return SubmissionChoices.PublicAdmin(d, ctx.User);
 })).WithTags("Forms and responses").WithSummary("Submit submissions {id} review");
-api.MapGet("/audit", (HttpContext ctx) => store.Read(c =>
-{
-    AccessPolicy.Demand(ctx.User, "audit.view");
-    // Always page in SQL (M-0607 / FU1-d); legacy-free {items,total,page,pageSize}.
-    return AuditQuery.ListPaged(c, ctx.Request.Query);
-})).WithTags("Administration").WithSummary("Read audit");
 app.MapGet("/api/public/forms/{token}", (string token) => { var d = Campaign(token); return Results.Ok(new { title = d.S("title"), expiresAt = d.S("expiresAt"), schema = IbanChoices.Is(d) ? IbanChoices.Schema : "work-choice-v1", fields=CampaignOperations.Fields(d), cities=IbanChoices.Is(d) ? IbanChoices.Cities(d) : null }); }).WithTags("Forms and responses").WithSummary("Read public forms {token}").RequireRateLimiting("sensitive");
 SubmissionChoices.Map(app, store, Campaign);
 CampaignOperations.Map(api,store);

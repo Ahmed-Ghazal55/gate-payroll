@@ -92,6 +92,8 @@ public static class LiveOperationsQuery
             P("jahez_v2","AccountSessions",r=>r.S("HandoverId")),P("app","PlatformRiderAccounts",r=>"")]));
         Add(new("jahez_daily_order","jahez_v2","DailyOrders",Cols("jahez_v2","DailyOrders"),[],null,null,null,false,false,false,false,[
             P("jahez_v2","AccountSessions",r=>r.S("HandoverId")),P("app","PlatformRiderAccounts",r=>"")],PeriodDateColumn:"Date"));
+        Add(new("erp_jahez_operation","jahez_v2","Operations",Cols("jahez_v2","Operations"),[],null,null,null,false,false,false,false,[
+            P("jahez_v2","AccountSessions",r=>r.S("HandoverId")),P("app","PlatformRiderAccounts",r=>"")],PeriodDateColumn:"ExecutedAtUtc",PeriodOnRiyadhDay:true));
         return map;
     }
 
@@ -195,7 +197,7 @@ public static class LiveOperationsQuery
         return new(snapshot,total,request,snapshot.FinishedAt);
     }
 
-    static bool UsesAlias(KindSpec spec)=>spec.ViaVehicleSponsor||spec.ViaPlatformAccountSponsor||spec.HousingByResidence||(spec.PlatformCodeJoin&&spec.Kind=="platform_account")||spec.Kind is "jahez_commission_policy" or "jahez_daily_order" or "custody_handover" or "vehicle_assignment";
+    static bool UsesAlias(KindSpec spec)=>spec.ViaVehicleSponsor||spec.ViaPlatformAccountSponsor||spec.HousingByResidence||(spec.PlatformCodeJoin&&spec.Kind=="platform_account")||spec.Kind is "jahez_commission_policy" or "jahez_daily_order" or "erp_jahez_operation" or "custody_handover" or "vehicle_assignment";
     static string FromSql(KindSpec spec)
     {
         string main=$"[{spec.Schema}].[{spec.Table}] t";
@@ -203,7 +205,7 @@ public static class LiveOperationsQuery
         if(spec.ViaPlatformAccountSponsor)return main+" INNER JOIN [app].[PlatformRiderAccounts] pa ON pa.[Id]=t.[PlatformRiderAccountId]";
         if(spec.HousingByResidence)return main;
         if(spec.PlatformCodeJoin&&spec.Kind=="platform_account")return main+" INNER JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=t.[ClientPlatformId]";
-        if(spec.Kind is "jahez_commission_policy" or "jahez_daily_order")
+        if(spec.Kind is "jahez_commission_policy" or "jahez_daily_order" or "erp_jahez_operation")
             return main+" LEFT JOIN [jahez_v2].[AccountSessions] sess ON sess.[Id]=t.[HandoverId] LEFT JOIN [app].[PlatformRiderAccounts] pa ON pa.[Id]=sess.[PlatformRiderAccountId]";
         if(spec.Kind is "custody_handover" or "vehicle_assignment")return main;
         return $"[{spec.Schema}].[{spec.Table}]";
@@ -258,7 +260,7 @@ public static class LiveOperationsQuery
                 var regs=InList(cmd,"@cr",scope.SponsorUnifiedNumbers);
                 parts.Add($"v.[SponsorId] IN (SELECT s.[Id] FROM [app].[Sponsors] s WHERE s.[UnifiedNationalNumber] IN ({regs}))");
             }
-            else if(spec.ViaPlatformAccountSponsor||spec.Kind is "jahez_commission_policy" or "jahez_daily_order")
+            else if(spec.ViaPlatformAccountSponsor||spec.Kind is "jahez_commission_policy" or "jahez_daily_order" or "erp_jahez_operation")
             {
                 needsSponsors=true;
                 var regs=InList(cmd,"@cr",scope.SponsorUnifiedNumbers);
@@ -533,7 +535,7 @@ public static class LiveOperationsQuery
                     ids=accounts.Select(a=>a.S("ClientPlatformId")).Where(id=>id!="").ToHashSet(StringComparer.OrdinalIgnoreCase);
                 LoadByIds(source,parent.Schema,parent.Table,ids,tables,ct);continue;
             }
-            if(parent.Table=="PlatformRiderAccounts"&&spec.Kind is "jahez_commission_policy" or "jahez_daily_order")
+            if(parent.Table=="PlatformRiderAccounts"&&spec.Kind is "jahez_commission_policy" or "jahez_daily_order" or "erp_jahez_operation")
             {
                 var sessionIds=pageRows.Select(r=>r.S("HandoverId")).Where(id=>id!="").ToHashSet(StringComparer.OrdinalIgnoreCase);
                 LoadByIds(source,"jahez_v2","AccountSessions",sessionIds,tables,ct);

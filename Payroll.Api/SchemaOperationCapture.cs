@@ -67,11 +67,16 @@ public static class SchemaOperationCapture
 
     static void SeedRequiredKinds(DbConnection c,DbTransaction? tx)
     {
-        string common="platform_account,assignment,housing,fuel,vehicle,scheme,eligibility";
+        // T11: Jahez / Chefz / HungerStation have no eligibility — keep eligibility only for Keeta/Ninja (and amazon).
+        string masters="platform_account,assignment,housing,fuel,vehicle,scheme";
+        string withElig=masters+",eligibility";
         (string Operation,string App,string Kinds)[] groups=
         [
-            ("pay_run","ninja","ninja_daily,"+common),("pay_run","keeta","keeta_invoice_row,"+common),
-            ("pay_run","hs","hs_ops,"+common+",hs_wallet"),("pay_run","amazon","platform_ops,"+common),
+            // M-0692: Ninja Oct freezes daily performance + daily deductions from Omar (no our upload).
+            ("pay_run","ninja","ninja_daily,ninja_daily_deduction,"+withElig),("pay_run","keeta","keeta_invoice_row,"+withElig),
+            ("pay_run","hs","hs_ops,"+masters+",hs_wallet"),("pay_run","amazon","platform_ops,"+withElig),
+            // Chefz/Jahez pay-run capture (Codex RWC4): settlement/day sources + shared masters — not test-only inserts.
+            ("pay_run","chefz","chefz_settlement,"+masters),("pay_run","jahez","jahez_day,"+masters),
             ("chefz_settlement","","chefz_settlement,platform_account"),("platform_invoice","","invoice_file,platform_account"),
             ("jahez_recon","","jahez_day,jahez_handover"),("payment","","payment_source")
         ];
@@ -79,6 +84,9 @@ public static class SchemaOperationCapture
         foreach(var group in groups)
         foreach(string kind in group.Kinds.Split(','))
             SchemaSql.Exec(c,tx,$"INSERT INTO {t}(id,operation_type,app_code,required_kind) SELECT @id,@op,@app,@kind WHERE NOT EXISTS(SELECT 1 FROM {t} WHERE operation_type=@op AND app_code=@app AND required_kind=@kind)",("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@op",group.Operation),("@app",group.App),("@kind",kind));
+        // Drop leftover eligibility requirements for T11 apps (earlier seeds / upgrades).
+        foreach(string app in new[]{"jahez","chefz","hs"})
+            SchemaSql.Exec(c,tx,$"DELETE FROM {t} WHERE operation_type='pay_run' AND app_code=@app AND required_kind='eligibility'",("@app",app));
     }
 
     static string Frozen(DbConnection c,string type,string id)=>$"""

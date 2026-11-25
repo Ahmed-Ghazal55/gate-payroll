@@ -1,9 +1,17 @@
 using System.Data.Common;
 namespace Payroll;
 
-/// <summary>U-W1-18a: auth.permission / role / role_permission / user* catalogues. No bypass/approvals (U-W1-18c).</summary>
+/// <summary>U-W1-18a: auth.permission / role / role_permission / user* catalogues. No bypass/approvals (U-W1-18c).
+/// U-W1-18d: dedicated dual-control permissions (bank file, payment out, shared-rider release) stay seeded and grantable (M-0672).</summary>
 public static class SchemaAuthCatalog
 {
+    public static readonly string[] DualControlPermissionCodes =
+    [
+        "approvals.dual.bank_file",
+        "approvals.dual.payment_out",
+        "approvals.dual.shared_rider_release"
+    ];
+
     public static void Ensure(DbConnection c,DbTransaction? tx=null)
     {
         SchemaSql.EnsureSchema(c,tx,"auth");
@@ -12,7 +20,9 @@ public static class SchemaAuthCatalog
         EnsureRolePermission(c,tx);
         EnsureUser(c,tx);
         EnsureUserPermission(c,tx);
+        SchemaAuthTotp.Ensure(c,tx);
         SeedCatalog(c,tx);
+        EnsureDualControlPermissions(c,tx);
     }
 
     static void EnsurePermission(DbConnection c,DbTransaction? tx)
@@ -276,5 +286,29 @@ public static class SchemaAuthCatalog
             }
         }
         // Intentionally no auth.bypass_grant and no default admin self-approve row (BR §35 / §9.1).
+    }
+
+    /// <summary>U-W1-18d / M-0672: three dual-control permissions insert-if-missing and never deprecated; grantable via role_permission.</summary>
+    public static void EnsureDualControlPermissions(DbConnection c,DbTransaction? tx=null)
+    {
+        string permTable=SchemaSql.Q(c,"auth","permission");
+        string now=SchemaSql.NowLiteral(c);
+        foreach(string code in DualControlPermissionCodes)
+        {
+            var def=UserAccess.PermissionsCatalog.First(p=>p.Code==code);
+            object? existing=SchemaSql.Scalar(c,tx,$"SELECT id FROM {permTable} WHERE code=@code",("@code",code));
+            if(existing is null)
+            {
+                SchemaSql.Exec(c,tx,$"""
+                    INSERT INTO {permTable}(id,code,section,name_ar,description_ar,deprecated,created_at)
+                    VALUES(@id,@code,@section,@name,@desc,0,{now})
+                    """,
+                    ("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@code",code),("@section",def.ModuleCode),
+                    ("@name",def.NameAr),("@desc",def.DescriptionAr));
+            }
+            else
+                SchemaSql.Exec(c,tx,$"UPDATE {permTable} SET deprecated=0, name_ar=@name, description_ar=@desc WHERE code=@code",
+                    ("@name",def.NameAr),("@desc",def.DescriptionAr),("@code",code));
+        }
     }
 }

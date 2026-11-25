@@ -26,7 +26,7 @@ public static partial class PayCycles
         foreach(var d in Rows(cycle["deductions"]).OfType<JsonObject>().Where(d=>d.S("rider")==rider))
         {
             bool debt=d.S("type")=="debt";
-            var item=Item(DeductionKey(d),(int)d.N("phase",3),(int)d.N("order",99),d.S("labelAr",d.S("category")),d.N("amount"),debt||d.S("type") is "review_adjustment" or "adjustment",debt?DebtSelectionLimit(summary,Store.Get(c,d.S("source"),"debt",tx)!):null,d.S("source"));
+            var item=Item(DeductionKey(d),(int)d.N("phase",3),(int)d.N("order",99),d.S("labelAr",d.S("category")),d.N("amount"),debt||d.S("type") is "review_adjustment" or "adjustment",debt?DebtSelectionLimit(c,tx,summary,Store.Get(c,d.S("source"),"debt",tx)!):null,d.S("source"));
             if(debt)item["requestedAmount"]=d.N("requestedAmount");items.Add(item);
         }
         var ordered=new JsonArray(items.OfType<JsonObject>().OrderBy(i=>i.N("phase")).ThenBy(i=>i.N("order")).Select(i=>(JsonNode)i.DeepClone()).ToArray());
@@ -76,7 +76,7 @@ public static partial class PayCycles
             var d=deductions.OfType<JsonObject>().FirstOrDefault(x=>x.S("rider")==iqama&&DeductionKey(x)==key);
             if(d?.S("type")=="debt")
             {
-                decimal max=DebtSelectionLimit(summary,Store.Get(c,d.S("source"),"debt",tx)!);J.Need(amount>=0&&amount<=max,"الخصم من صفر إلى الأقل من الرصيد والصافي المتاح.");
+                decimal max=DebtSelectionLimit(c,tx,summary,Store.Get(c,d.S("source"),"debt",tx)!);J.Need(amount>=0&&amount<=max,"الخصم من صفر إلى الأقل من الرصيد والصافي المتاح.",409);
                 edit=new(){["key"]=key,["from"]=d.N("requestedAmount"),["to"]=amount};d["requestedAmount"]=amount;d["selectionReason"]=reason;summary["debtSelectedBy"]=actor.Identity!.Name;
             }
             else if(d?.S("type") is "review_adjustment" or "adjustment")

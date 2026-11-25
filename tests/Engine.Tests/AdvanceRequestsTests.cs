@@ -15,8 +15,9 @@ public sealed class AdvanceRequestsTests
     // Internet advances are company-scoped (BR §25.9): FinancialAccountant has the default full financial scope.
     static ClaimsPrincipal Fin(string name,params string[] perms)=>UserAccess.Principal(new(){["id"]=name,["username"]=name,["role"]="FinancialAccountant",["customPermissions"]=new JsonArray(perms.Select(p=>(JsonNode?)JsonValue.Create(p)).ToArray())});
     static ClaimsPrincipal Acc=>U("syn-accountant","advances.review");
-    static ClaimsPrincipal Cus=>U("syn-custodian","advances.payout");
+    static ClaimsPrincipal Cus=>U("syn-custodian","advances.payout",ApprovalsArea.DualPaymentOut,"approvals.decide");
     static ClaimsPrincipal Outsider=>U("syn-outsider","advances.review","advances.payout");
+    static ClaimsPrincipal DualChecker=>UserAccess.Principal(new(){["id"]="syn-dual-checker",["username"]="syn-dual-checker",["role"]="Admin",["department"]="FIN",["rankLevel"]=5});
     static void Run(Action<Store> body)
     {
         string dir=Path.Combine(Path.GetTempPath(),"gate-adv-"+Guid.NewGuid().ToString("N"));
@@ -27,7 +28,7 @@ public sealed class AdvanceRequestsTests
         string bw=FinancialCore.ResolveSponsor("BW").Id;
         store.Write((c,tx)=>
         {
-            foreach(var u in new[]{"syn-admin","syn-supervisor","syn-accountant","syn-custodian","syn-outsider","syn-deputy"})Store.Save(c,"user",new(){["id"]=u,["username"]=u,["role"]="Reviewer"},tx);
+            foreach(var u in new[]{"syn-admin","syn-supervisor","syn-accountant","syn-custodian","syn-outsider","syn-deputy","syn-dual-checker"})Store.Save(c,"user",new(){["id"]=u,["username"]=u,["role"]="Reviewer",["customPermissions"]=u=="syn-custodian"?new JsonArray(ApprovalsArea.DualPaymentOut,"approvals.decide","advances.payout"):new JsonArray()},tx);
             Store.Save(c,"rider",new(){["id"]=Rider,["iqama"]=Rider,["name"]="Synthetic Rider",["sponsorId"]=bw},tx);
             OrgDirectory.AddMembership(c,tx,Admin,new(){["userId"]="syn-accountant",["department"]="FIN",["rank"]="A",["validFrom"]="2026-01-01"});
             OrgDirectory.AddMembership(c,tx,Admin,new(){["userId"]="syn-custodian",["department"]="FIN",["rank"]="C",["validFrom"]="2026-01-01"});
@@ -39,6 +40,11 @@ public sealed class AdvanceRequestsTests
     }
     static JsonObject Create(Store s,string type="cash",decimal amount=500)=>s.Write((c,tx)=>AdvanceRequests.Create(c,tx,Sup,new(){["riderIqama"]=Rider,["type"]=type,["amount"]=amount,["reason"]="Synthetic need"}));
     static JsonObject Review(Store s,ClaimsPrincipal who,string id,JsonObject input)=>s.Write((c,tx)=>AdvanceRequests.ReviewRequest(c,tx,who,id,input));
+    static void ApprovePayoutDual(Store s,string id,ClaimsPrincipal? custodian=null)=>s.Write((c,tx)=>{
+        var opened=AdvanceRequests.RequestPayout(c,tx,custodian??Cus,id);
+        ApprovalsArea.Decide(c,tx,DualChecker,opened.S("id"),new(){["decision"]="approve",["note"]="independent dual"});
+        return true;
+    });
 
     [TestMethod]
     public void FullCycleWithProposalCreatesDebtAndJournalFromTheChosenVault()
@@ -55,11 +61,12 @@ public sealed class AdvanceRequestsTests
             var approved=Review(s,Acc,r.S("id"),new(){["action"]="approve",["monthlyInstallment"]=250,["coverageReason"]="Synthetic: no statement yet, supervisor confirmed workload"});
             Assert.AreEqual("approved",approved.S("status"));
             Assert.AreEqual("decided",s.Read(c=>Store.List(c,"sys_notification").Where(n=>n.S("entityId")==r.S("id")&&n.S("assignedTo")=="syn-accountant").Select(n=>n.S("actionStatus")).Last()));
-            var paid=s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,r.S("id"),new(){["reference"]="SYN-TRF-1"}));
-            Assert.AreEqual("paid",paid.S("status"));
-            var debt=s.Read(c=>Store.Get(c,paid.S("debtId"),"debt"))!;Assert.AreEqual("BankAdvance",debt.S("category"));Assert.AreEqual(500m,debt.N("remainingBalance"));Assert.AreEqual(250m,debt.N("monthlyInstallment"));Assert.AreEqual("active",debt.S("status"));
-            Assert.AreEqual(9500m,s.Read(c=>AccountingPolicy.Balance(c,null,"BANK.BW")));
-            CollectionAssert.AreEqual(new[]{"submitted","proposed","accepted_proposal","approved","paid"},paid["decisions"]!.AsArray().OfType<JsonObject>().Select(d=>d.S("action")).ToArray());
+            ApprovePayoutDual(s,r.S("id"));
+            // RWD1b H2: PayOut posts Disbursement via shared poster — blocked until payment engine.
+            var err=Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,r.S("id"),new(){["reference"]="SYN-TRF-1"})));
+            Assert.AreEqual(409,err.Status);Assert.IsTrue(err.Message.Contains("غير متاح",StringComparison.Ordinal));
+            Assert.AreEqual("approved",s.Read(c=>Store.Get(c,r.S("id"),AdvanceRequests.Kind)!.S("status")));
+            Assert.AreEqual(10000m,s.Read(c=>AccountingPolicy.Balance(c,null,"BANK.BW")));
         });
     }
     [TestMethod]
@@ -80,6 +87,7 @@ public sealed class AdvanceRequestsTests
             var other=U("syn-outsider","advances.request");
             Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.Create(c,tx,other,new(){["riderIqama"]=Rider,["type"]="cash",["amount"]=100,["reason"]="Synthetic"})));
             var r=Create(s,"cash",300);Review(s,Acc,r.S("id"),new(){["action"]="approve",["coverageReason"]="Synthetic reason accepted"});
+            ApprovePayoutDual(s,r.S("id"));
             var e=Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,r.S("id"),new(){["reference"]="SYN-CASH-1"})));Assert.AreEqual(409,e.Status);
             Assert.AreEqual("approved",s.Read(c=>Store.Get(c,r.S("id"),AdvanceRequests.Kind)!.S("status")));Assert.AreEqual(0,s.Read(c=>Store.List(c,"debt").Count));
             Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Outsider,r.S("id"),new(){["reference"]="SYN-CASH-2"})),"payout only by the vault custodian");
@@ -144,18 +152,17 @@ public sealed class AdvanceRequestsTests
         Run(s=>{
             AccountingPostingTests.SeedCash(s,"MAIN.BW.DEBT",700);
             var first=Create(s,"cash",500);Review(s,Acc,first.S("id"),new(){["action"]="approve",["coverageReason"]="Synthetic reason"});
+            ApprovePayoutDual(s,first.S("id"));
             // Independent Store objects model separate API processes, bypassing the in-process write gate.
             var peer=new Store(s.DirectoryPath);int paid=0,blocked=0;
             Parallel.Invoke(()=>Attempt(s),()=>Attempt(peer));
             void Attempt(Store store){try{store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,first.S("id"),new(){["reference"]="SYN-PARALLEL"}));Interlocked.Increment(ref paid);}catch(ApiError e)when(e.Status==409){Interlocked.Increment(ref blocked);}}
-            Assert.AreEqual(1,paid);Assert.AreEqual(1,blocked);
-            Assert.AreEqual(1,s.Read(c=>Store.List(c,"debt").Count(d=>d.S("sourceRef")=="ADV-REQ:"+first.S("id"))));
-            string debtId=s.Read(c=>Store.Get(c,first.S("id"),AdvanceRequests.Kind)!.S("debtId"));
-            Assert.AreEqual(1,s.Read(c=>Store.List(c,"journal").Count(j=>j.S("debtId")==debtId)));
-            Assert.AreEqual(200m,s.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.BW.DEBT")));
-            var second=Create(s,"cash",300);Review(s,Acc,second.S("id"),new(){["action"]="approve",["coverageReason"]="Synthetic reason"});
-            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,second.S("id"),new(){["reference"]="SYN-NO-CASH"}))).Status);
-            Assert.AreEqual("approved",s.Read(c=>Store.Get(c,second.S("id"),AdvanceRequests.Kind)!.S("status")));
+            Assert.AreEqual(0,paid);Assert.AreEqual(2,blocked);
+            Assert.AreEqual(0,s.Read(c=>Store.List(c,"debt").Count(d=>d.S("sourceRef")=="ADV-REQ:"+first.S("id"))));
+            Assert.AreEqual(700m,s.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.BW.DEBT")));
+            Assert.AreEqual("approved",s.Read(c=>Store.Get(c,first.S("id"),AdvanceRequests.Kind)!.S("status")));
+            // Replay after concurrent 409 still refuses (H2 DemandDisburseAvailable).
+            Assert.AreEqual(409,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,first.S("id"),new(){["reference"]="SYN-REPLAY"}))).Status);
         });
     }
 
@@ -183,14 +190,14 @@ public sealed class AdvanceRequestsTests
             });
             var first=Create(s,"cash",500);
             var second=s.Write((c,tx)=>AdvanceRequests.Create(c,tx,Sup,new(){["riderIqama"]=other,["type"]="cash",["amount"]=500,["reason"]="Synthetic competing request"}));
-            foreach(var r in new[]{first,second})Review(s,Acc,r.S("id"),new(){["action"]="approve",["coverageReason"]="Synthetic reason"});
+            foreach(var r in new[]{first,second}){Review(s,Acc,r.S("id"),new(){["action"]="approve",["coverageReason"]="Synthetic reason"});ApprovePayoutDual(s,r.S("id"));}
             var peer=new Store(s.DirectoryPath);int paid=0,blocked=0;
             Parallel.Invoke(()=>Attempt(s,first),()=>Attempt(peer,second));
             void Attempt(Store store,JsonObject request){try{store.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,Cus,request.S("id"),new(){["reference"]="SYN-COMPETING"}));Interlocked.Increment(ref paid);}catch(ApiError e)when(e.Status==409){Interlocked.Increment(ref blocked);}}
-            Assert.AreEqual(1,paid);Assert.AreEqual(1,blocked);
-            Assert.AreEqual(1,s.Read(c=>Store.List(c,AdvanceRequests.Kind).Count(r=>r.S("status")=="approved")));
-            Assert.AreEqual(1,s.Read(c=>Store.List(c,"debt").Count));
-            Assert.AreEqual(200m,s.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.BW.DEBT")));
+            Assert.AreEqual(0,paid);Assert.AreEqual(2,blocked);
+            Assert.AreEqual(2,s.Read(c=>Store.List(c,AdvanceRequests.Kind).Count(r=>r.S("status")=="approved")));
+            Assert.AreEqual(0,s.Read(c=>Store.List(c,"debt").Count));
+            Assert.AreEqual(700m,s.Read(c=>AccountingPolicy.Balance(c,null,"MAIN.BW.DEBT")));
         });
     }
 
@@ -222,7 +229,7 @@ public sealed class AdvanceRequestsTests
     [TestMethod]
     public void InternetAdvanceUsesApprovedListsAndRechargeCardNeedsMadaBalance()
     {
-        var maker=U("syn-maker","pay.manage");var acc=Fin("syn-accountant","advances.review");var cus=Fin("syn-custodian","advances.payout");var checker=U("syn-checker","pay.approve");
+        var maker=U("syn-maker","pay.manage");var acc=Fin("syn-accountant","advances.review");var cus=Fin("syn-custodian","advances.payout",ApprovalsArea.DualPaymentOut,"approvals.decide");var checker=U("syn-checker","pay.approve");
         static JsonObject Pkg(string code,string network,decimal price)=>new(){["code"]=code,["nameAr"]="باقة "+code,["values"]=new JsonObject{["network"]=network,["price"]=price}};
         Run(s=>{
             ConfigLists.Seed(s);
@@ -239,7 +246,9 @@ public sealed class AdvanceRequestsTests
             var card=s.Write((c,tx)=>AdvanceRequests.Create(c,tx,Sup,new(){["riderIqama"]=Rider,["type"]="internet",["fulfilment"]="recharge_card",["networkCode"]="STC",["packageCode"]="STC30",["reason"]="Synthetic internet"}));
             Assert.AreEqual(30m,card.N("amount"));Assert.AreEqual(AdvanceRequests.Mada,card.S("vaultCode"));Assert.AreEqual("recharge_card",card.S("fulfilment"));
             Review(s,acc,card.S("id"),new(){["action"]="approve",["monthlyInstallment"]=30,["coverageReason"]="Synthetic: small package"});
-            Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,cus,card.S("id"),new(){["reference"]="SYN-CARD"})),"no Mada machine balance yet");
+            ApprovePayoutDual(s,card.S("id"),cus);
+            // RWP7a3: legacy card payout returns 410 (use payments mada card issue).
+            Assert.AreEqual(410,Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,cus,card.S("id"),new(){["reference"]="SYN-CARD"}))).Status);
         });
         Run(s=>{
             var r=s.Write((c,tx)=>AdvanceRequests.Create(c,tx,Sup,new(){["riderIqama"]=Rider,["type"]="internet",["fulfilment"]="cash",["amount"]=60,["reason"]="Synthetic internet cash"}));
@@ -247,8 +256,11 @@ public sealed class AdvanceRequestsTests
             Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.Create(c,tx,Sup,new(){["riderIqama"]="2000000599",["type"]="internet",["fulfilment"]="wallet",["amount"]=60,["reason"]="bad"})));
             AccountingPostingTests.SeedCash(s,"MAIN.BW.DEBT",1000);
             Review(s,acc,r.S("id"),new(){["action"]="approve",["monthlyInstallment"]=60,["coverageReason"]="Synthetic: small amount"});
-            var paid=s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,cus,r.S("id"),new(){["reference"]="SYN-NET-1"}));
-            Assert.AreEqual("InternetAdvance",s.Read(c=>Store.Get(c,paid.S("debtId"),"debt"))!.S("category"));
+            ApprovePayoutDual(s,r.S("id"),cus);
+            // RWD1b H2: Disbursement posting closed until payment engine.
+            var err=Assert.ThrowsExactly<ApiError>(()=>s.Write((c,tx)=>AdvanceRequests.PayOut(c,tx,cus,r.S("id"),new(){["reference"]="SYN-NET-1"})));
+            Assert.AreEqual(409,err.Status);Assert.IsTrue(err.Message.Contains("غير متاح",StringComparison.Ordinal));
+            Assert.AreEqual("approved",s.Read(c=>Store.Get(c,r.S("id"),AdvanceRequests.Kind)!.S("status")));
         });
     }
 }

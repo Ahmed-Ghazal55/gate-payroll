@@ -540,21 +540,31 @@ export interface DebtRecord {
 
 export interface ApprovalRequest {
   id: string;
+  requestNo?: string;
   fromDepartment: string;
   targetDepartment: string;
   requestType: string;
   requestTypeAr?: string;
   kind?: string;
-  status: 'pending' | 'approved' | 'rejected' | 'suspended';
+  module?: string;
+  status: 'pending' | 'approved' | 'rejected' | 'suspended' | 'escalated' | 'cancelled';
   amount?: number;
   iqama?: string;
   riderName?: string;
   reason: string;
+  descriptionAr?: string;
+  referenceLabel?: string;
+  sourceHref?: string;
+  requiredRankLevel?: number;
   requestedBy: string;
   requestedAt: string;
   decisionBy?: string;
   decisionAt?: string;
   decisionNote?: string;
+  allowedActions?: string[];
+  approvalBlockers?: string[];
+  slaDueAt?: string;
+  escalated?: boolean;
 }
 
 export interface PromissoryNote {
@@ -1276,6 +1286,9 @@ export interface AdvanceRequest {
   coverageReason?: string;
   debtId?: string;
   journalEntryId?: string;
+  payoutRequestId?: string;
+  allowedActions?: string[];
+  approvalBlockers?: string[];
   proposal?: {
     type: 'cash' | 'bank' | 'internet';
     amount: number;

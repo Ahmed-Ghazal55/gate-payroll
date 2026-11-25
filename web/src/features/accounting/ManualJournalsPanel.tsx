@@ -46,6 +46,8 @@ interface ManualJournalsPanelProps {
   companies: CompanySponsor[];
   coaAccounts: CoaAccountItem[];
   defaultOpenNew?: boolean;
+  /** TRIAL7: open an existing draft (from bank recon formRoute ?draftId=). */
+  focusDraftId?: string;
 }
 
 interface NewLineState {
@@ -59,6 +61,7 @@ export function ManualJournalsPanel({
   companies,
   coaAccounts,
   defaultOpenNew = false,
+  focusDraftId = '',
 }: ManualJournalsPanelProps) {
   const { user, can, isAdmin } = useAuth();
   const { toast } = useToast();
@@ -77,8 +80,9 @@ export function ManualJournalsPanel({
   const [selectedJournal, setSelectedJournal] = useState<ManualJournal | null>(null);
   const [drawerOpen, setDrawerOpen] = useState<boolean>(false);
 
-  // New Journal Dialog
+  // New Journal Dialog (also reused for TRIAL7 draft edit via editingDraftId)
   const [newModalOpen, setNewModalOpen] = useState<boolean>(defaultOpenNew);
+  const [editingDraftId, setEditingDraftId] = useState<string>('');
   const [newCompanyId, setNewCompanyId] = useState<string>('');
   const [newDate, setNewDate] = useState<string>(() => new Date().toISOString().split('T')[0]);
   const [newReference, setNewReference] = useState<string>('');
@@ -203,6 +207,30 @@ export function ManualJournalsPanel({
     }
   }, [defaultOpenNew]);
 
+  useEffect(() => {
+    if (!focusDraftId || journals.length === 0) return;
+    const hit = journals.find((j) => j.id === focusDraftId);
+    if (!hit) return;
+    setSelectedJournal(hit);
+    setDrawerOpen(true);
+    if (hit.allowedActions?.includes('edit_draft') || hit.status === 'draft') {
+      setNewCompanyId(hit.companyId || '');
+      setNewDate(hit.date || '');
+      setNewReference(hit.reference || '');
+      setNewDescription(hit.description || '');
+      setLines(
+        (hit.lines || []).map((l) => ({
+          accountCode: l.accountCode || '',
+          debit: l.debit != null ? String(l.debit) : '',
+          credit: l.credit != null ? String(l.credit) : '',
+          note: l.note || '',
+        }))
+      );
+      setEditingDraftId(hit.id);
+      setNewModalOpen(true);
+    }
+  }, [focusDraftId, journals]);
+
   // Calculate live debit/credit totals
   const { totalDebit, totalCredit, diff, isBalanced } = useMemo(() => {
     let dSum = 0;
@@ -306,23 +334,36 @@ export function ManualJournalsPanel({
 
     setSubmitting(true);
     try {
-      await api.createManualJournal({
-        companyId: newCompanyId,
-        date: newDate,
-        reference: newReference.trim(),
-        description: newDescription.trim(),
-        odooVoucherNo: newOdooVoucher.trim() || undefined,
-        attachment: newAttachment || undefined,
-        lines: lines.map((l) => ({
-          accountCode: l.accountCode,
-          debit: parseFloat(l.debit) || 0,
-          credit: parseFloat(l.credit) || 0,
-          note: l.note.trim() || undefined,
-        })),
-      });
+      const payloadLines = lines.map((l) => ({
+        accountCode: l.accountCode,
+        debit: parseFloat(l.debit) || 0,
+        credit: parseFloat(l.credit) || 0,
+        note: l.note.trim() || undefined,
+      }));
+      if (editingDraftId) {
+        await api.updateManualJournal(editingDraftId, {
+          date: newDate,
+          reference: newReference.trim(),
+          description: newDescription.trim(),
+          odooVoucherNo: newOdooVoucher.trim() || undefined,
+          lines: payloadLines,
+        });
+        toast('تم حفظ تعديلات المسودة', 'success');
+      } else {
+        await api.createManualJournal({
+          companyId: newCompanyId,
+          date: newDate,
+          reference: newReference.trim(),
+          description: newDescription.trim(),
+          odooVoucherNo: newOdooVoucher.trim() || undefined,
+          attachment: newAttachment || undefined,
+          lines: payloadLines,
+        });
+        toast('تم إنشاء مسودة القيد وإرسالها للاعتماد بنجاح', 'success');
+      }
 
-      toast('تم إنشاء مسودة القيد وإرسالها للاعتماد بنجاح', 'success');
       setNewModalOpen(false);
+      setEditingDraftId('');
       // Reset form
       setNewReference('');
       setNewDescription('');
@@ -381,16 +422,16 @@ export function ManualJournalsPanel({
   };
 
   const handleDeleteJournal = async (journal: ManualJournal) => {
-    if (!window.confirm('هل أنت متأكد من رغبتك في حذف مسودة هذا القيد؟ لن يمكن التراجع.')) {
+    if (!window.confirm('هل أنت متأكد من إلغاء مسودة هذا القيد؟ تبقى في السجل بحالة ملغاة (بدون حذف).')) {
       return;
     }
     try {
       await api.deleteManualJournal(journal.id);
-      toast('تم حذف مسودة القيد بنجاح', 'success');
+      toast('تم إلغاء مسودة القيد (محفوظة كملغاة)', 'success');
       if (drawerOpen) setDrawerOpen(false);
       loadJournals();
     } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : 'فشل حذف مسودة القيد';
+      const msg = err instanceof Error ? err.message : 'فشل إلغاء مسودة القيد';
       toast(msg, 'danger');
     }
   };
@@ -877,14 +918,14 @@ export function ManualJournalsPanel({
                   </button>
                 )}
 
-                {selectedJournal.allowedActions?.includes('delete') && (
+                {(selectedJournal.allowedActions?.includes('cancel') || selectedJournal.allowedActions?.includes('delete')) && (
                   <button
                     type="button"
                     onClick={() => handleDeleteJournal(selectedJournal)}
                     className="px-4 py-2 rounded-xl border border-[var(--line)] text-[var(--danger)] text-xs font-bold hover:bg-[var(--raised)] transition inline-flex items-center gap-1.5 cursor-pointer"
                   >
                     <Trash2 size={15} />
-                    <span>حذف المسودة</span>
+                    <span>إلغاء المسودة</span>
                   </button>
                 )}
 

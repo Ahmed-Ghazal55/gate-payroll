@@ -15,7 +15,7 @@ public sealed class SchemaFinAccountTests
         return c;
     }
 
-    // Schema-only release keeps 0.31.0 CoA. Design §7.1 / D11 rows (5268xx + 112513 rename) stay on feat/hs-wallet-account-move.
+    // COA1 A1/A2: seed includes 512123 and 5268/526801–526806 (parent 526), not runtime-only.
     [TestMethod]
     public void EnsureTwiceSeedsTargetChartIdempotently()
     {
@@ -32,7 +32,9 @@ public sealed class SchemaFinAccountTests
         Assert.AreEqual(7,Guid.Parse(id1).Version);
         Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_postable=1")!)>0);
         Assert.IsTrue(Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE is_postable=0")!)>0);
-        Assert.AreEqual(0L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code='5268' OR code LIKE '52680%'")!));
+        Assert.AreEqual(7L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code='5268' OR code LIKE '52680%'")!));
+        Assert.AreEqual("526",SchemaSql.Scalar(c,null,"SELECT p.code FROM fin_account a JOIN fin_account p ON p.id=a.parent_id WHERE a.code='5268'")!.ToString());
+        Assert.AreEqual(1L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code='512123'")!));
         Assert.AreEqual(1L,Convert.ToInt64(SchemaSql.Scalar(c,null,"SELECT COUNT(1) FROM fin_account WHERE code='112513'")!));
     }
 

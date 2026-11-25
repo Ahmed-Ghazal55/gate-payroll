@@ -6,6 +6,7 @@ import {
   ACCOUNTING_TAB_LABELS,
   buildTabRedirectUrl,
   resolveAccountingTab,
+  REMOVED_TAB_TOASTS,
   type AccountingTab,
 } from '../../lib/page-tabs';
 import { usePeriod } from '../../lib/use-period';
@@ -35,6 +36,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
+import { ScreenShell } from '../../components/ui/ScreenShell';
 import { StatCard } from '../../components/ui/StatCard';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
@@ -45,7 +47,7 @@ import { useAuth } from '../../lib/auth-context';
 import { api } from '../../lib/api';
 import { formatSar } from '../../lib/money';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
-import { AccountingAdjustmentsPanel } from '../../features/accounting/AccountingAdjustmentsPanel';
+import { CoaManagePanel } from '../../features/accounting/CoaManagePanel';
 import { paginateFilteredRows } from '../../features/accounting/trial-balance-paging';
 import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
 import { canShowImportStep, TREASURY_OPENING_IMPORT } from '../../features/imports/import-steps';
@@ -88,8 +90,15 @@ function AccountingPageContent() {
 
   useEffect(() => {
     if (!resolvedTab.legacy) return;
+    if (searchParams?.get('tab') === 'adjustments') {
+      const key = 'toast:accounting-adjustments-gone';
+      if (typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        toast(REMOVED_TAB_TOASTS.adjustments, 'info');
+      }
+    }
     router.replace(buildTabRedirectUrl(pathname || '/accounting/', searchParams, resolvedTab), { scroll: false });
-  }, [resolvedTab.legacy, resolvedTab.tab, pathname, router, searchParams]);
+  }, [resolvedTab.legacy, resolvedTab.tab, pathname, router, searchParams, toast]);
 
   useEffect(() => {
     api.getFinanceSponsors().then((res) => setCompanies(res || [])).catch(() => {});
@@ -610,6 +619,22 @@ function AccountingPageContent() {
     },
   ];
 
+  const w3ShellTabs = new Set([
+    'general_ledger',
+    'balance_sheet',
+    'cost_centres',
+    'app_profitability',
+    'reports',
+  ]);
+  if (w3ShellTabs.has(activeTab)) {
+    return (
+      <ScreenShell
+        title={ACCOUNTING_TAB_LABELS[activeTab]}
+        description="شاشة محاسبية قيد التجهيز لهذا التبويب."
+      />
+    );
+  }
+
   return (
     <div className="space-y-6">
       <PageHeader
@@ -690,97 +715,19 @@ function AccountingPageContent() {
       {/* ======================================================== */}
       {activeTab === 'coa' && (
         <div className="space-y-4">
-          {/* Toolbar */}
-          <div className="flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between bg-[var(--surface)] p-3 rounded-2xl border border-[var(--line)] shadow-xs">
-            <div className="flex-1 relative">
-              <Search size={16} className="absolute start-3 top-1/2 -translate-y-1/2 text-[var(--muted)] pointer-events-none" />
-              <input
-                type="text"
-                placeholder="ابحث برقم الحساب أو الاسم العربي..."
-                value={coaSearch}
-                onChange={(e) => setCoaSearch(e.target.value)}
-                className="w-full ps-9 pe-3 py-1.5 text-xs rounded-xl bg-[var(--raised)] border border-[var(--line)] text-[var(--ink)] focus:outline-hidden focus:ring-1 focus:ring-[var(--accent)]"
-              />
-            </div>
-
-            <div className="flex flex-wrap items-center gap-2">
-              <SearchableSelect
-                id="coa-type-filter"
-                value={coaTypeFilter}
-                onChange={setCoaTypeFilter}
-                ariaLabel="تصنيف الحساب"
-                placeholder="كل التصنيفات (1-5)"
-                size="sm"
-                className="w-44"
-                options={[
-                  { value: 'all', label: 'كل التصنيفات (1-5)' },
-                  { value: '1', label: '1 - الأصول' },
-                  { value: '2', label: '2 - الخصوم' },
-                  { value: '3', label: '3 - حقوق الملكية' },
-                  { value: '4', label: '4 - الإيرادات' },
-                  { value: '5', label: '5 - المصروفات' },
-                ]}
-              />
-
-              <SearchableSelect
-                id="coa-source-filter"
-                value={coaSourceFilter}
-                onChange={setCoaSourceFilter}
-                ariaLabel="مصدر الحساب"
-                placeholder="كل المصادر"
-                size="sm"
-                className="w-48"
-                options={[
-                  { value: 'all', label: 'كل المصادر' },
-                  { value: 'excel', label: `دليل 2024 (${coaSummary.sourceBreakdown.excel2024})` },
-                  { value: 'modified', label: `تعديل مالي (${coaSummary.sourceBreakdown.modified})` },
-                  { value: 'new', label: `حسابات جديدة (${coaSummary.sourceBreakdown.newAccounts})` },
-                ]}
-              />
-
-              <label className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-[var(--raised)] border border-[var(--line)] text-xs text-[var(--ink)] cursor-pointer select-none">
-                <input
-                  type="checkbox"
-                  checked={coaPostingOnly}
-                  onChange={(e) => setCoaPostingOnly(e.target.checked)}
-                  className="rounded text-[var(--accent)]"
-                />
-                <span>حسابات الترحيل فقط</span>
-              </label>
-            </div>
-          </div>
-
-          {/* Table */}
-          {loadingCoa ? (
-            <div className="space-y-2">
-              <Skeleton className="h-12 rounded-xl" rows={8} />
-            </div>
-          ) : coaError ? (
-            <ErrorState title="تعذر تحميل الدليل المستهدف" message={coaError} onRetry={loadCoa} />
-          ) : (
-            <DataTable
-              columns={coaColumns}
-              data={filteredAccounts}
-              exportFilename="دليل_الحسابات_المستهدف"
-              emptyTitle="لا توجد حسابات مطابقة للبحث"
-              emptyDescription="جرّب تعديل الفلاتر أو إدخال رقم كود مختلف."
-            />
-          )}
+          <CoaManagePanel />
         </div>
       )}
 
       {/* ======================================================== */}
       {/* TAB: Manual Journals */}
       {/* ======================================================== */}
-      {activeTab === 'adjustments' && (
-        <AccountingAdjustmentsPanel companies={companies} />
-      )}
-
       {activeTab === 'manual_journals' && (
         <ManualJournalsPanel
           companies={companies}
           coaAccounts={coaAccounts}
           defaultOpenNew={openNewManualJournal}
+          focusDraftId={searchParams?.get('draftId') || ''}
         />
       )}
 

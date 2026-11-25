@@ -57,9 +57,6 @@ public sealed partial class Store
               CREATE TABLE dbo.records(id nvarchar(128) NOT NULL PRIMARY KEY, kind nvarchar(40) NOT NULL, body nvarchar(max) NOT NULL CHECK(ISJSON(body)=1));
             IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('dbo.records') AND name='ix_records_kind')
               CREATE INDEX ix_records_kind ON dbo.records(kind);
-            IF COL_LENGTH('dbo.records','rec_round_id') IS NULL ALTER TABLE dbo.records ADD rec_round_id AS CONVERT(nvarchar(128),JSON_VALUE(body,'$.roundId'));
-            IF NOT EXISTS(SELECT 1 FROM sys.indexes WHERE object_id=OBJECT_ID('dbo.records') AND name='ix_evaluation_response_round')
-              CREATE INDEX ix_evaluation_response_round ON dbo.records(rec_round_id) WHERE kind='evaluation_response';
             """;
         SchemaSql.WithMigrationLock(c,(conn,tx)=>
         {
@@ -72,6 +69,10 @@ public sealed partial class Store
             SchemaRef.EnsureLegacyAccountMapAfterCompany(conn,tx);
             SchemaOrgCostCentre.Ensure(conn,tx);
             SchemaAuthCatalog.Ensure(conn,tx);
+            SchemaOrgStructure.Ensure(conn,tx);
+            SchemaApprovals.Ensure(conn,tx);
+            SchemaAuditNotify.Ensure(conn,tx);
+            SchemaArchive.Ensure(conn,tx);
             SchemaFormApp.Ensure(conn,tx);
             SchemaFinAccount.Ensure(conn,tx);
             SchemaFinPeriod.Ensure(conn,tx);
@@ -79,8 +80,16 @@ public sealed partial class Store
             SchemaFinPeriodBalance.Ensure(conn,tx);
             SchemaPayPayable.Ensure(conn,tx);
             SchemaPayAllocation.Ensure(conn,tx);
+            SchemaPaymentDocuments.Ensure(conn,tx);
+            SchemaPaymentSources.Ensure(conn,tx);
+            SchemaRecurringPayees.Ensure(conn,tx);
             SchemaSalInvoice.Ensure(conn,tx);
+            SchemaSalDistribution.Ensure(conn,tx);
+            SchemaOpsPlatformAccount.Ensure(conn,tx);
+            SchemaKeetaHwm.Ensure(conn,tx);
             SchemaSalPayRun.Ensure(conn,tx);
+            SchemaHrMudad.Ensure(conn,tx);
+            SchemaSalMudad.Ensure(conn,tx);
             SchemaOperationCapture.Ensure(conn,tx);
             SchemaDebt.Ensure(conn,tx);
             SchemaTreasury.Ensure(conn,tx);
@@ -134,6 +143,16 @@ public sealed partial class Store
     }
     public static List<JsonObject> List(DbConnection c, string kind, DbTransaction? tx = null)
     {
+        // WMRG: W2 temporary kinds read from real W1 tables.
+        if(kind=="approval_limit")return SchemaApprovals.ListLimits(c,tx);
+        if(kind=="sla_policy")return SchemaApprovals.ListSla(c,tx);
+        if(kind=="approval_decision")return SchemaApprovals.ListDecisions(c,tx);
+        if(kind=="approval_bypass_grant")return SchemaApprovals.ListBypassGrants(c,tx);
+        if(kind=="approval_request")return SchemaApprovals.ListRequests(c,tx);
+        if(kind=="audit")return SchemaAuditNotify.ListChanges(c,tx);
+        if(kind=="audit_read_summary_daily")return SchemaAuditNotify.ListReadSummaries(c,tx);
+        if(kind=="notify_settings")return [SchemaAuditNotify.GetNotifySettings(c,tx)];
+        if(kind=="task_item")return SchemaAuditNotify.ListTasks(c,tx);
         // Stable order is portable and keeps every legacy JSON body intact.
         using var cmd = Command(c, tx, c is SqliteConnection ? "SELECT body FROM records WHERE kind=@kind ORDER BY rowid DESC" : "SELECT body FROM records WHERE kind=@kind ORDER BY COALESCE(JSON_VALUE(body,'$.createdAt'),JSON_VALUE(body,'$.at'),JSON_VALUE(body,'$.approvedAt'),'') DESC,id DESC", ("@kind",kind));
         using var r = cmd.ExecuteReader(); var rows = new List<JsonObject>();
@@ -259,11 +278,29 @@ public sealed partial class Store
     }
     public static JsonObject? Get(DbConnection c, string id, string kind, DbTransaction? tx = null)
     {
+        if(kind=="approval_request")return SchemaApprovals.GetRequest(c,tx,id);
+        if(kind=="approval_bypass_grant")return SchemaApprovals.GetBypassGrant(c,tx,id);
+        if(kind=="approval_limit")return SchemaApprovals.ListLimits(c,tx).FirstOrDefault(r=>r.S("id")==id);
+        if(kind=="sla_policy")return SchemaApprovals.ListSla(c,tx).FirstOrDefault(r=>r.S("id")==id);
+        if(kind=="approval_decision")return SchemaApprovals.ListDecisions(c,tx).FirstOrDefault(r=>r.S("id")==id);
+        if(kind=="audit")return SchemaAuditNotify.GetChange(c,tx,id);
+        if(kind=="audit_read_summary_daily")return SchemaAuditNotify.GetReadSummary(c,tx,id);
+        if(kind=="notify_settings")return id=="notify-settings:global"?SchemaAuditNotify.GetNotifySettings(c,tx):null;
+        if(kind=="task_item")return SchemaAuditNotify.GetTask(c,tx,id);
         using var cmd = Command(c, tx, "SELECT body FROM records WHERE id=@id AND kind=@kind", ("@id",id),("@kind",kind));
         return cmd.ExecuteScalar() is string body ? JsonNode.Parse(body)!.AsObject() : null;
     }
     public static void Save(DbConnection c, string kind, JsonObject doc, DbTransaction tx,bool preserveSnapshot=false)
     {
+        if(kind=="approval_limit"){SchemaApprovals.UpsertLimit(c,tx,doc);return;}
+        if(kind=="sla_policy"){SchemaApprovals.UpsertSla(c,tx,doc);return;}
+        if(kind=="approval_decision"){SchemaApprovals.SaveDecision(c,tx,doc);return;}
+        if(kind=="approval_bypass_grant"){SchemaApprovals.SaveBypassGrant(c,tx,doc);return;}
+        if(kind=="approval_request"){SchemaApprovals.SaveRequest(c,tx,doc);return;}
+        if(kind=="audit"){SchemaAuditNotify.SaveChange(c,tx,doc);return;}
+        if(kind=="audit_read_summary_daily"){SchemaAuditNotify.SaveReadSummary(c,tx,doc);return;}
+        if(kind=="notify_settings"){SchemaAuditNotify.SaveNotifySettings(c,tx,doc);return;}
+        if(kind=="task_item"){SchemaAuditNotify.SaveTask(c,tx,doc);return;}
         if(kind=="run")PayCycles.GuardLegacyRun(c,tx,doc);
         if(!preserveSnapshot)Vouchers.OnSaving(c,tx,kind,doc);
         if(kind is not ("voucher_sequence" or "voucher_index" or "odoo_voucher_index")&&TryBuffer(tx,kind,doc))return;
@@ -276,9 +313,28 @@ public sealed partial class Store
         }
         Reporting.Refresh(c,tx,kind,doc);
     }
-    public static void Audit(DbConnection c, DbTransaction tx, string action, string entity, string actor)
+    public static void Audit(DbConnection c, DbTransaction tx, string action, string entity, string actor, JsonObject? extra=null)
     {
-        Save(c, "audit", new() { ["id"] = Guid.NewGuid().ToString("N"), ["action"] = action, ["entityId"] = entity, ["actor"] = actor, ["at"] = DateTimeOffset.UtcNow.ToString("O") }, tx);
+        // M-0606: short data-change row only (never call for reads).
+        // Legacy keys entity/recordId stay beside entityId/entityRef (TRIAL4/5 bank upload readers).
+        var row=new JsonObject
+        {
+            ["id"] = Guid.NewGuid().ToString("N"),
+            ["action"] = action,
+            ["actionAr"] = AuditApi.LabelAr(action),
+            ["entityId"] = entity,
+            ["entityRef"] = entity,
+            ["entity"] = entity,
+            ["recordId"] = entity,
+            ["actor"] = actor,
+            ["at"] = DateTimeOffset.UtcNow.ToString("O"),
+            ["occurredAt"] = DateTimeOffset.UtcNow.ToString("O"),
+            ["source"] = "نظام"
+        };
+        if(extra!=null)
+            foreach(var kv in extra)
+                if(kv.Value!=null)row[kv.Key]=kv.Value.DeepClone();
+        Save(c, "audit", row, tx);
         Notifications.OnAudit(c,tx,action,entity,actor);
     }
 }

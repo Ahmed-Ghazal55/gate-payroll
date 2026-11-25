@@ -14,6 +14,7 @@ import {
   TREASURY_TAB_LABELS,
   buildTabRedirectUrl,
   resolveTreasuryTab,
+  REMOVED_TAB_TOASTS,
   type TreasuryTab,
 } from '../../lib/page-tabs';
 import { usePeriod } from '../../lib/use-period';
@@ -61,7 +62,9 @@ import type {
   CompanySponsor,
 } from '../../lib/types';
 import { JahezWorkspace } from '../../features/treasury/JahezWorkspace';
-import { TreasuryExtrasPanel } from '../../features/treasury/TreasuryExtrasPanel';
+import { VaultCountsPanel } from '../../features/treasury/VaultCountsPanel';
+import { BankReconPanel } from '../../features/treasury/BankReconPanel';
+import { TreasuryTransfersPanel } from '../../features/treasury/TreasuryTransfersPanel';
 
 type TabId = TreasuryTab;
 
@@ -77,8 +80,15 @@ function TreasuryPageContent() {
 
   useEffect(() => {
     if (!resolvedUrlTab.legacy) return;
+    if (searchParams?.get('tab') === 'extras') {
+      const key = 'toast:treasury-extras-gone';
+      if (typeof sessionStorage !== 'undefined' && !sessionStorage.getItem(key)) {
+        sessionStorage.setItem(key, '1');
+        toast(REMOVED_TAB_TOASTS.extras, 'info');
+      }
+    }
     router.replace(buildTabRedirectUrl(pathname || '/treasury/', searchParams, resolvedUrlTab), { scroll: false });
-  }, [resolvedUrlTab.legacy, resolvedUrlTab.tab, pathname, router, searchParams]);
+  }, [resolvedUrlTab.legacy, resolvedUrlTab.tab, pathname, router, searchParams, toast]);
 
   const [activeTab, setActiveTab] = useState<TabId>(resolvedTab);
 
@@ -253,6 +263,19 @@ function TreasuryPageContent() {
     setPayoutNote('');
     setPayoutServerError(null);
     setPayoutModalOpen(true);
+  };
+
+  const handleRequestPayout = async (req: AdvanceRequest) => {
+    setSubmittingPayout(true);
+    try {
+      await api.requestAdvancePayout(req.id);
+      toast('فُتح طلب اعتماد ثنائي للصرف — أكمل الاعتماد ثم نفّذ الصرف', 'success');
+      loadAdvancePayouts();
+    } catch (err: any) {
+      toast(err.message || 'تعذر فتح طلب الصرف الثنائي', 'danger');
+    } finally {
+      setSubmittingPayout(false);
+    }
   };
 
   const handleExecutePayout = async (e: React.FormEvent) => {
@@ -448,7 +471,7 @@ function TreasuryPageContent() {
       {/* ======================================================== */}
       {/* Sub-tab 1: الحسابات البنكية والصناديق                      */}
       {/* ======================================================== */}
-      {activeTab === 'vaults' && (
+      {(activeTab === 'vaults' || activeTab === 'balances') && (
         <div className="space-y-4">
           <div className="flex flex-col sm:flex-row sm:flex-wrap sm:items-center justify-between gap-3 p-3.5 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
             <div className="flex items-center gap-2 flex-1 min-w-0 w-full sm:max-w-sm">
@@ -636,15 +659,39 @@ function TreasuryPageContent() {
                         </td>
                         <td className="p-3">
                           <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              id={`btn-payout-advance-${req.id}`}
-                              onClick={() => handleOpenPayoutDialog(req)}
-                              className="px-3 py-1.5 rounded-lg bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1"
-                            >
-                              <Check size={13} />
-                              <span>صرف السلفة</span>
-                            </button>
+                            {req.allowedActions?.includes('request_payout') && (
+                              <button
+                                type="button"
+                                id={`btn-request-payout-advance-${req.id}`}
+                                disabled={submittingPayout}
+                                onClick={() => void handleRequestPayout(req)}
+                                className="px-3 py-1.5 rounded-lg border border-[var(--accent)] text-[var(--accent)] text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1 disabled:opacity-50"
+                              >
+                                <span>طلب اعتماد الصرف</span>
+                              </button>
+                            )}
+                            {req.allowedActions?.includes('payout') && (
+                              <button
+                                type="button"
+                                id={`btn-payout-advance-${req.id}`}
+                                onClick={() => handleOpenPayoutDialog(req)}
+                                className="px-3 py-1.5 rounded-lg bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1"
+                              >
+                                <Check size={13} />
+                                <span>صرف السلفة</span>
+                              </button>
+                            )}
+                            {!req.allowedActions?.length && (
+                              <button
+                                type="button"
+                                id={`btn-request-payout-advance-${req.id}`}
+                                disabled={submittingPayout}
+                                onClick={() => void handleRequestPayout(req)}
+                                className="px-3 py-1.5 rounded-lg border border-[var(--accent)] text-[var(--accent)] text-xs font-bold hover:opacity-90 transition cursor-pointer inline-flex items-center gap-1 disabled:opacity-50"
+                              >
+                                <span>طلب اعتماد الصرف</span>
+                              </button>
+                            )}
                             <button
                               type="button"
                               onClick={() => setPayoutDetailsReq(req)}
@@ -829,8 +876,10 @@ function TreasuryPageContent() {
       {/* Sub-tab 4: سجل حركات الخزينة والقيود                      */}
       {/* ======================================================== */}
 
+      {activeTab === 'transfers' && <TreasuryTransfersPanel />}
+      {activeTab === 'bank_recon' && <BankReconPanel />}
+      {activeTab === 'vault_counts' && <VaultCountsPanel />}
       {activeTab === 'jahez' && <JahezWorkspace />}
-      {activeTab === 'extras' && <TreasuryExtrasPanel />}
 
       {activeTab === 'movements' && (
         <div className="space-y-4">
