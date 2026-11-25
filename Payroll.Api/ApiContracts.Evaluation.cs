@@ -3,7 +3,7 @@ namespace Payroll;
 
 public static partial class ApiContracts
 {
-    static OpenApiSchema EvaluationStaff() => O(new() { ["id"] = S(), ["name"] = S(), ["cities"] = A(S()), ["departments"] = A(S()), ["roles"] = A(S()), ["apps"] = A(S()), ["active"] = B(), ["excluded"] = B(), ["pendingRoleApproval"] = B(), ["allCities"] = B(), ["allApps"] = B(), ["appCities"] = new OpenApiSchema { Type = JsonSchemaType.Object, AdditionalProperties = A(S()) } }, "id", "name", "cities", "departments", "roles", "apps");
+    static OpenApiSchema EvaluationStaff() => O(new() { ["id"] = S(), ["name"] = S(), ["cities"] = A(S()), ["departments"] = A(S()), ["roles"] = A(S()), ["apps"] = A(S()), ["active"] = B(), ["excluded"] = B(), ["pendingRoleApproval"] = B(), ["allCities"] = B(), ["allApps"] = B(), ["appCities"] = new OpenApiSchema { Type = JsonSchemaType.Object, AdditionalProperties = A(S()) }, ["allowedActions"] = A(S()) }, "id", "name", "cities", "departments", "roles", "apps");
     static OpenApiSchema EvaluationSection() => O(new() { ["key"] = S(), ["title"] = S(), ["titleEn"] = S(), ["titleUr"] = S(), ["kind"] = S(), ["sharingToken"] = S(), ["added"] = A(S()), ["removed"] = A(S()), ["staff"] = A(EvaluationStaff()) }, "key", "title", "kind", "sharingToken");
     // sharingToken is omitted for sectioned rounds (section tokens only); still present on legacy rounds without sections.
     static OpenApiSchema EvaluationRound() => O(new() { ["id"] = S(), ["title"] = S(), ["status"] = S(), ["kind"] = S(), ["schema"] = S(), ["sharingToken"] = S(), ["staff"] = A(EvaluationStaff()), ["cities"] = A(S()), ["apps"] = A(S()), ["sections"] = A(EvaluationSection()), ["createdAt"] = S(), ["updatedAt"] = S(), ["schemaVersion"] = N(), ["allowedActions"] = A(S()) }, "id", "title", "status", "staff", "cities", "apps", "allowedActions");
@@ -103,7 +103,9 @@ public static partial class ApiContracts
         bool get = method == "GET";
         if (path.StartsWith("/api/forms/evaluations/", StringComparison.Ordinal))
         {
-            if (path.EndsWith("/staff/import", StringComparison.Ordinal)) return O(new() { ["imported"] = N(), ["excluded"] = N() }, "imported", "excluded");
+            if (path.EndsWith("/staff/import", StringComparison.Ordinal)) return O(new() { ["imported"] = N(), ["excluded"] = N(), ["kept"] = A(O(new() { ["id"] = S(), ["name"] = S(), ["fields"] = A(S()) }, "id", "name", "fields")) }, "imported", "excluded", "kept");
+            if (method == "DELETE" && System.Text.RegularExpressions.Regex.IsMatch(path, @"/evaluations/staff/\{[^}]+\}$"))
+                return O(new() { ["id"] = S(), ["deleted"] = B() }, "id", "deleted");
             if (System.Text.RegularExpressions.Regex.IsMatch(path, @"/staff/\{[^}]+\}$")) return EvaluationStaff();
             if (path.EndsWith("/staff", StringComparison.Ordinal)) return A(EvaluationStaff());
             if (path.EndsWith("/responses", StringComparison.Ordinal)) return Page(EvaluationReply());

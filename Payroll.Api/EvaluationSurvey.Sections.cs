@@ -219,6 +219,26 @@ public static partial class EvaluationSurvey
         return doc;
     }
 
+    /// <summary>Staff cards for the admin screen, with the actions this user may take on them.</summary>
+    public static List<JsonObject> StaffList(DbConnection c, ClaimsPrincipal user)
+    {
+        Demand(user);
+        string[] actions = AccessPolicy.Has(user, "forms.manage") ? ["edit", "delete"] : [];
+        return Store.List(c, StaffKind).Select(s => { s["allowedActions"] = Array(actions); return s; }).ToList();
+    }
+
+    /// <summary>Deletes one staff card after its name is typed. Existing rounds keep their own copy until their staff is refreshed.</summary>
+    public static JsonObject DeleteStaff(DbConnection c, DbTransaction tx, ClaimsPrincipal user, string id, JsonObject input)
+    {
+        Demand(user, true);
+        var staff = Store.Get(c, id, StaffKind, tx) ?? throw new ApiError("بطاقة الموظف غير موجودة.", 404);
+        J.Need(Text(input, "name", 200, true) == staff.S("name"), "أكد الحذف بكتابة اسم الموظف كما هو.", "name_mismatch");
+        using var del = Store.Command(c, tx, "DELETE FROM records WHERE id=@id AND kind=@kind", ("@id", id), ("@kind", StaffKind));
+        del.ExecuteNonQuery();
+        Store.Audit(c, tx, "evaluation.staff_deleted", id, user.Identity!.Name!);
+        return new() { ["id"] = id, ["deleted"] = true };
+    }
+
     static JsonObject NormalizeAppCities(JsonObject? raw, string[] apps, string[] cities, bool allCities)
     {
         var result = new JsonObject();

@@ -612,6 +612,33 @@ try {
     fullPage: true,
   });
 
+  // An empty list in the import file keeps the stored one and says so on screen.
+  await adminPage.evaluate(() => window.scrollTo(0, 0));
+  await adminPage.locator('button', { hasText: 'استيراد بطاقات الموظفين' }).first().click();
+  await adminPage.fill(
+    '[data-testid="eval-import-json-textarea"]',
+    JSON.stringify({ staff: [{ name: 'Synthetic Excluded Executive', cities: ['Synthetic City One'], roles: ['Executive'], apps: [], excluded: true }] })
+  );
+  await adminPage.click('[data-testid="eval-confirm-import-staff-btn"]');
+  const keptText = await adminPage.locator('[data-testid="eval-import-kept"]').textContent();
+  assert.match(keptText, /Synthetic Excluded Executive: المنصات/);
+
+  // Delete one staff card from the directory: locked until the exact name is typed.
+  const directory = adminPage.locator('[data-testid="eval-staff-directory-section"]');
+  const leaverRow = directory.locator('tr', { hasText: 'Synthetic Excluded Executive' });
+  const rowMenu = leaverRow.locator('button[aria-label="خيارات السجل"]');
+  await rowMenu.scrollIntoViewIfNeeded();
+  await adminPage.waitForTimeout(500); // the menu closes on scroll
+  await rowMenu.click();
+  await adminPage.getByText('تعديل البطاقة', { exact: true }).last().click();
+  await adminPage.click('[data-testid="eval-staff-delete-open"]');
+  const confirmDelete = adminPage.locator('[data-testid="eval-staff-delete-confirm"]');
+  assert.equal(await confirmDelete.isDisabled(), true);
+  await adminPage.fill('[data-testid="eval-staff-delete-name"]', 'Synthetic Excluded Executive');
+  await adminPage.screenshot({ path: path.join(outDir, 'evaluations-staff-delete.png') });
+  await confirmDelete.click();
+  await leaverRow.waitFor({ state: 'detached' });
+
   assert.deepEqual(errors, [], `Unexpected page errors: ${errors.join('; ')}`);
   assert.deepEqual(cspErrors, [], `Unexpected CSP errors: ${cspErrors.join('; ')}`);
   console.log(

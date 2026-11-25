@@ -332,3 +332,11 @@ export function servesFilterCity(
   if (limit && limit.length > 0) return limit.includes(city);
   return Boolean(staff.allCities) || (staff.cities || []).includes(city);
 }
+
+export const IMPORT_FIELD_LABELS_AR: Record<string, string> = {
+  cities: 'المدن',
+  departments: 'الأقسام',
+  roles: 'الأدوار',
+  apps: 'المنصات',
+  appCities: 'مدن التطبيقات',
+};

@@ -74,3 +74,7 @@ Each notes / complaint box shows tap-to-add chips that DESCRIBE the answer (ride
 - Close and delete the current round (Ghazal 2026-11-23: «لا هنقفلها و نحذفها من دلوقتي»; complaints too: «امسح»).
 - Re-import the private staff file (HR: one person excluded; two operations staff gain apps; operations manager `allApps`).
 - Create the new sectioned round, open it, share each link with its target riders.
+
+## Staff import and delete (Ghazal, 2026-11-24)
+- Import: a NON-EMPTY list in the file REPLACES the stored one (cities, departments, roles, apps, appCities); it is not merged. A missing, null or EMPTY list keeps the stored one, and the result lists those cards as kept. Clearing a whole list is done in the staff editor only. An app written with no cities keeps its stored cities, even when a sibling app has cities; an app omitted from a non-empty appCities map is removed. Blank text is rejected. allCities / allApps stay as stored when absent. People not in the file are untouched. Several rows of one person in the same file still combine.
+- Delete card: management + forms.manage, confirm by typing the name. Existing rounds keep their copy until «تحديث الموظفين». If the name stays in the import file, the next import creates the card again.

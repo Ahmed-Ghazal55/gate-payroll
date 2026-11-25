@@ -240,8 +240,9 @@ public static partial class EvaluationSurvey
     public static void Map(WebApplication app, RouteGroupBuilder api, Store store)
     {
         // Flat api.Map* paths (not MapGroup) so tools/api_inventory.py can index them.
-        api.MapGet("/forms/evaluations/staff", (HttpContext ctx) => { Demand(ctx.User); return store.Read(c => Store.List(c, StaffKind)); }).WithTags("Forms and responses").WithSummary("List evaluation staff cards");
+        api.MapGet("/forms/evaluations/staff", (HttpContext ctx) => store.Read(c => StaffList(c, ctx.User))).WithTags("Forms and responses").WithSummary("List evaluation staff cards");
         api.MapPost("/forms/evaluations/staff/import", (JsonObject input, HttpContext ctx) => store.Write((c, tx) => ImportStaff(c, tx, ctx.User, input))).WithTags("Forms and responses").WithSummary("Import evaluation staff cards");
+        api.MapDelete("/forms/evaluations/staff/{id}", (string id, [Microsoft.AspNetCore.Mvc.FromBody] JsonObject input, HttpContext ctx) => store.Write((c, tx) => DeleteStaff(c, tx, ctx.User, id, input ?? new JsonObject()))).WithTags("Forms and responses").WithSummary("Delete one evaluation staff card after typing its name");
         api.MapPut("/forms/evaluations/staff/{id}", (string id, JsonObject input, HttpContext ctx) => store.Write((c, tx) => PutStaff(c, tx, ctx.User, id, input))).WithTags("Forms and responses").WithSummary("Update one evaluation staff card");
         api.MapGet("/forms/evaluations/rounds", (HttpContext ctx) => { Demand(ctx.User); return store.Read(c => Store.List(c, RoundKind).Select(r => RoundView(r, ctx)).ToList()); }).WithTags("Forms and responses").WithSummary("List evaluation rounds");
         api.MapPost("/forms/evaluations/rounds", (JsonObject input, HttpContext ctx) => store.Write((c, tx) => RoundView(CreateRound(c, tx, ctx.User, input), ctx))).WithTags("Forms and responses").WithSummary("Create evaluation round");

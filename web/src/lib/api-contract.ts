@@ -1230,6 +1230,7 @@ export interface paths {
                                 appCities?: {
                                     [key: string]: string[];
                                 };
+                                allowedActions?: string[];
                             }[];
                             identityFields?: {
                                 id: string;
@@ -1574,6 +1575,7 @@ export interface paths {
                                 appCities?: {
                                     [key: string]: string[];
                                 };
+                                allowedActions?: string[];
                             }[];
                             identityFields?: {
                                 id: string;
@@ -9754,12 +9756,12 @@ export interface paths {
                                 totalInclVat?: number;
                                 transactionCount?: number;
                                 fuelType?: string;
-                                cap?: number;
-                                capSource?: string;
-                                status?: string;
                                 usageSource?: string;
                                 coveredFrom?: string;
                                 coveredTo?: string;
+                                cap?: number;
+                                capSource?: string;
+                                status?: string;
                             }[];
                             total: number;
                             page?: number;
@@ -17754,6 +17756,7 @@ export interface paths {
                             appCities?: {
                                 [key: string]: string[];
                             };
+                            allowedActions?: string[];
                         }[];
                     };
                 };
@@ -17799,6 +17802,11 @@ export interface paths {
                         "application/json": {
                             imported: number;
                             excluded: number;
+                            kept: {
+                                id: string;
+                                name: string;
+                                fields: string[];
+                            }[];
                         };
                     };
                 };
@@ -17855,13 +17863,43 @@ export interface paths {
                             appCities?: {
                                 [key: string]: string[];
                             };
+                            allowedActions?: string[];
                         };
                     };
                 };
             };
         };
         post?: never;
-        delete?: never;
+        /** Delete one evaluation staff card after typing its name */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            deleted: boolean;
+                        };
+                    };
+                };
+            };
+        };
         options?: never;
         head?: never;
         patch?: never;
@@ -17912,6 +17950,7 @@ export interface paths {
                                 appCities?: {
                                     [key: string]: string[];
                                 };
+                                allowedActions?: string[];
                             }[];
                             cities: string[];
                             apps: string[];
@@ -17939,6 +17978,7 @@ export interface paths {
                                     appCities?: {
                                         [key: string]: string[];
                                     };
+                                    allowedActions?: string[];
                                 }[];
                             }[];
                             createdAt?: string;
@@ -17993,6 +18033,7 @@ export interface paths {
                                 appCities?: {
                                     [key: string]: string[];
                                 };
+                                allowedActions?: string[];
                             }[];
                             cities: string[];
                             apps: string[];
@@ -18020,6 +18061,7 @@ export interface paths {
                                     appCities?: {
                                         [key: string]: string[];
                                     };
+                                    allowedActions?: string[];
                                 }[];
                             }[];
                             createdAt?: string;
@@ -18084,6 +18126,7 @@ export interface paths {
                                 appCities?: {
                                     [key: string]: string[];
                                 };
+                                allowedActions?: string[];
                             }[];
                             cities: string[];
                             apps: string[];
@@ -18111,6 +18154,7 @@ export interface paths {
                                     appCities?: {
                                         [key: string]: string[];
                                     };
+                                    allowedActions?: string[];
                                 }[];
                             }[];
                             createdAt?: string;
@@ -18204,6 +18248,7 @@ export interface paths {
                             appCities?: {
                                 [key: string]: string[];
                             };
+                            allowedActions?: string[];
                         };
                     };
                 };
@@ -18244,6 +18289,7 @@ export interface paths {
                             appCities?: {
                                 [key: string]: string[];
                             };
+                            allowedActions?: string[];
                         };
                     };
                 };
@@ -18304,6 +18350,7 @@ export interface paths {
                                 appCities?: {
                                     [key: string]: string[];
                                 };
+                                allowedActions?: string[];
                             }[];
                             cities: string[];
                             apps: string[];
@@ -18331,6 +18378,7 @@ export interface paths {
                                     appCities?: {
                                         [key: string]: string[];
                                     };
+                                    allowedActions?: string[];
                                 }[];
                             }[];
                             createdAt?: string;
@@ -19337,6 +19385,7 @@ export interface paths {
                                 appCities?: {
                                     [key: string]: string[];
                                 };
+                                allowedActions?: string[];
                             }[];
                             cities: string[];
                             apps: string[];
@@ -19364,6 +19413,7 @@ export interface paths {
                                     appCities?: {
                                         [key: string]: string[];
                                     };
+                                    allowedActions?: string[];
                                 }[];
                             }[];
                             createdAt?: string;
