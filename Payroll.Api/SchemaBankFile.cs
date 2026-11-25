@@ -58,10 +58,11 @@ public static class SchemaBankFile
             """);
         SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"sal","bank_file_line","UQ_bank_line_rider_active","pay_run_rider_id","status=1");
         foreach(string table in new[]{"bank_file","bank_file_line"}){SchemaSql.EnsureMonthIndex(c,tx,"sal",table);SchemaSql.EnsureRowVersion(c,tx,"sal",table);}
+        // Live 0.33.8 already has these tables: add new columns before any trigger/view that names them.
+        EnsureFrozenMeta(c,tx);
         SchemaMoneyGuard.Retain(c,tx,"sal","bank_file");
         SchemaMoneyGuard.Retain(c,tx,"sal","bank_file_line","o.allocation_id=NEW.allocation_id OR (o.pay_run_rider_id=NEW.pay_run_rider_id AND o.status=1 AND NEW.status=1)");
         SchemaMoneyRegister.ImmutableInsteadOfUpdate(c,tx,"sal","bank_file_line","bank_file_id","period_month","pay_run_rider_id","payable_id","company_id","registration_id","payable_period_month","payment_id","allocation_id","amount","bank_short_code","rider_iqama","rider_name","rider_iban","rider_address","iban_unverified","generation");
-        EnsureFrozenMeta(c,tx);
         EnsureLines(c,tx);
         EnsureSettlement(c,tx);
         // SQL Server AFTER: create TR_bank_file_state before money_flags; SQLite BEFORE: flags first so state wins last.

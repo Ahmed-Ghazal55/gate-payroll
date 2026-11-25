@@ -27,8 +27,8 @@ public static class SchemaTreasury
             SchemaMoneyGuard.Retain(c,tx,"treasury",table,"o.code=NEW.code");
             SchemaSql.EnsureRowVersion(c,tx,"treasury",table);
             foreach(string column in new[]{"company_id","registration_id","account_id"})SchemaSql.CreateIndexIfMissing(c,tx,"treasury",table,$"IX_{table}_{column}",column);
-            // One active master per chart account per company — prevents duplicate period_balance display.
-            SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"treasury",table,$"UQ_treasury_{table}_account","company_id,account_id","status=1");
+            // One active master per chart account per company — skip when live rows already duplicate (upgrade must stay additive).
+            EnsureUniqueActiveAccount(c,tx,table);
         }
         string bank=SchemaSql.Q(c,"treasury","bank_account"),statement=SchemaSql.Q(c,"treasury","bank_statement"),line=SchemaSql.Q(c,"treasury","bank_statement_line");
         SchemaSql.EnsureTable(c,tx,"treasury","bank_statement",$"""
@@ -67,6 +67,17 @@ public static class SchemaTreasury
         foreach(string table in new[]{"bank_statement","bank_statement_line","bank_match","vault_count","jahez_recon_run","jahez_recon_line"})SchemaSql.EnsureMonthIndex(c,tx,"treasury",table);
         foreach(var (table,columns) in new[]{("bank_statement","bank_account_id,company_id,registration_id"),("bank_statement_line","statement_id,company_id,period_month"),("bank_match","statement_line_id,company_id,period_month"),("bank_match","journal_line_id"),("vault_count","cash_box_id,company_id,registration_id"),("vault_count","journal_id"),("jahez_recon_run","company_id"),("jahez_recon_line","recon_run_id,company_id,period_month"),("jahez_recon_line","journal_id")})
             SchemaSql.CreateIndexIfMissing(c,tx,"treasury",table,$"IX_{table}_{columns.Split(',')[0]}",columns);
+    }
+
+    /// <summary>Filtered unique on active company+account. Existing live duplicates must not abort the upgrade.</summary>
+    static void EnsureUniqueActiveAccount(DbConnection c,DbTransaction? tx,string table)
+    {
+        string t=SchemaSql.Q(c,"treasury",table);
+        object? dup=SchemaSql.IsSql(c)
+            ?SchemaSql.Scalar(c,tx,$"SELECT TOP 1 1 FROM {t} WHERE status=1 GROUP BY company_id,account_id HAVING COUNT(*)>1")
+            :SchemaSql.Scalar(c,tx,$"SELECT 1 FROM {t} WHERE status=1 GROUP BY company_id,account_id HAVING COUNT(*)>1 LIMIT 1");
+        if(dup is not null and not DBNull)return;
+        SchemaSql.CreateFilteredUniqueIndexIfMissing(c,tx,"treasury",table,$"UQ_treasury_{table}_account","company_id,account_id","status=1");
     }
 
     static void EnsureMatches(DbConnection c,DbTransaction? tx)
