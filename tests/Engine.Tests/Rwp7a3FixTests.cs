@@ -101,6 +101,9 @@ public sealed class Rwp7a3FixTests
         Assert.AreEqual(500m,ok.N("amount"));
     }
 
+    // Allow-listed sample (scripts/release_source.py); enough when one IBAN is enough.
+    const string AllowedSampleIban="SA0380000000608010167519";
+
     // —— Row 3 MED: one-off same-key different paying bank → 409; beneficiary bound ——
     [TestMethod][DataRow(false)][DataRow(true)]
     public void Row3_OneOffSameKeyDifferentBankRejects409_AndStoresBeneficiary(bool sql)
@@ -111,7 +114,7 @@ public sealed class Rwp7a3FixTests
         var first=f.Store.Write((c,tx)=>RecurringPayees.CreateOneOff(c,tx,f.Maker,new()
         {
             ["companyId"]=f.Company,["nameAr"]="مستفيد",["amount"]=1000m,["currencyCode"]="SAR",["exchangeRate"]=1m,
-            ["transferFee"]=0m,["fxDifference"]=0m,["paymentMethod"]="bank_transfer",["bankDetails"]="SA0000000000000000000001",
+            ["transferFee"]=0m,["fxDifference"]=0m,["paymentMethod"]="bank_transfer",["bankDetails"]=AllowedSampleIban,
             ["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),["paidOn"]="2026-11-21",["bankAccountCode"]="111101",
             ["period"]="2026-11",["idempotencyKey"]=key
         }));
@@ -122,12 +125,12 @@ public sealed class Rwp7a3FixTests
         Assert.AreEqual(1000m,body.N("originalAmount"));
         Assert.AreEqual(1m,body.N("exchangeRate"));
         Assert.AreEqual("111101",body.S("bankAccountCode"));
-        Assert.AreEqual("SA0000000000000000000001",body.S("bankDetails"));
+        Assert.AreEqual(AllowedSampleIban,body.S("bankDetails"));
 
         var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>RecurringPayees.CreateOneOff(c,tx,f.Maker,new()
         {
             ["companyId"]=f.Company,["nameAr"]="مستفيد",["amount"]=1000m,["currencyCode"]="SAR",["exchangeRate"]=1m,
-            ["transferFee"]=0m,["fxDifference"]=0m,["paymentMethod"]="bank_transfer",["bankDetails"]="SA0000000000000000000001",
+            ["transferFee"]=0m,["fxDifference"]=0m,["paymentMethod"]="bank_transfer",["bankDetails"]=AllowedSampleIban,
             ["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),["paidOn"]="2026-11-21",["bankAccountCode"]="111201",
             ["period"]="2026-11",["idempotencyKey"]=key
         })));
@@ -140,10 +143,12 @@ public sealed class Rwp7a3FixTests
     {
         using var f=new PaymentsEngineTests.Fixture(sql);
         SetAccount(f,RecurringPayees.ExpenseAccountKey,"526101");
+        // Distinct from the allow-listed sample; last four digits stay 0000 for the mask assertion.
+        string payeeIban=SyntheticIban.FromAccount("80","000000000000110000");
         f.Store.Write((c,tx)=>RecurringPayees.CreatePayee(c,tx,f.Maker,new()
         {
             ["companyId"]=f.Company,["nameAr"]="مكتب مصر",["payeeType"]="egypt_office",["amount"]=500m,["currencyCode"]="SAR",
-            ["paymentMethod"]="bank_transfer",["bankDetails"]="SA9988776655443322110000",["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),
+            ["paymentMethod"]="bank_transfer",["bankDetails"]=payeeIban,["costCentreId"]=SchemaOrgCostCentre.NoneId.ToString("D"),
             ["activeFrom"]="2026-11-01"
         }));
         var run=f.Store.Write((c,tx)=>RecurringPayees.ProposeRun(c,tx,f.Maker,new(){["companyId"]=f.Company,["period"]="2026-11"}));
@@ -156,7 +161,7 @@ public sealed class Rwp7a3FixTests
         var executed=f.Store.Write((c,tx)=>RecurringPayees.ExecuteRun(c,tx,f.Maker,run.S("id"),new(){["paidOn"]="2026-11-20",["bankAccountCode"]="111101"}));
         var voucher=executed["vouchers"]!.AsArray().OfType<JsonObject>().Single();
         string meta=f.Store.Read(c=>MoneySchemaFixture.Scalar(c,null,"SELECT metadata FROM pay_document WHERE id=@id",("@id",voucher.S("documentId")))!.ToString()!);
-        Assert.AreEqual("SA9988776655443322110000",JsonNode.Parse(meta)!.AsObject().S("bankDetails"));
+        Assert.AreEqual(payeeIban,JsonNode.Parse(meta)!.AsObject().S("bankDetails"));
         Assert.AreEqual(500m,voucher.N("amount"));
     }
 

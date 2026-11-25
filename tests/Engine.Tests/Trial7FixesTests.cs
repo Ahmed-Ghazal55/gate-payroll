@@ -138,7 +138,7 @@ public sealed class Trial7FixesTests
         string unverifiedIban=MakeIban("10","000000000000002222");
         SeedRiderDoc(c,tx,good,"2000000701","مندوب صالح",goodIban,goodIban,"جدة",reg);
         SeedRiderDoc(c,tx,noIban,"2000000702","بلا آيبان",null,null,"جدة",reg);
-        SeedRiderDoc(c,tx,badIban,"2000000703","آيبان خاطئ",null,"SA0000000000000000000000","جدة",reg);
+        SeedRiderDoc(c,tx,badIban,"2000000703","آيبان خاطئ",null,"SA0080000000608010167519","جدة",reg); // allow-listed invalid sample
         SeedRiderDoc(c,tx,badIqama,"3000000704","إقامة خاطئة",goodIban,goodIban,"جدة",reg); // iqama must start 1/2
         SeedRiderDoc(c,tx,noAddr,"2000000705","بلا عنوان",goodIban,goodIban,null,reg);
         SeedRiderDoc(c,tx,unverified,"2000000706","آيبان غير موثق",null,unverifiedIban,"جدة",reg);
