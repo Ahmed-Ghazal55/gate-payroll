@@ -190,6 +190,7 @@ public sealed class Trial9FixesTests
     }
 
     // --- grok-TRIAL8 HIGH: POST /payroll/approve one-step posting ---
+    // TRIAL10: live HTTP forged-calculatedBy → Trial10FixesTests.PayrollApprove_Http_ForgedCalculatedBy_Ignored_SelfBlocked.
     [TestMethod]
     public void H2_LegacyPayrollApprove_DisabledOrNeedsSecondPerson()
     {
@@ -418,6 +419,8 @@ public sealed class Trial9FixesTests
                         break;
                     }
                     case "payroll.approve_legacy":
+                        // Live POST /api/payroll/approve (forged calculatedBy) is covered by Trial10FixesTests HTTP.
+                        // Closed-route helper stays as the money-out/disabled sentinel for this catalog row.
                         LegacyPayrollApprove.RefuseOneStepPost(actor);
                         break;
                     case "sal.salary_approve":
@@ -429,8 +432,23 @@ public sealed class Trial9FixesTests
                     }
                     case "payment.document.approve":
                     {
-                        var doc=new JsonObject{["id"]=MoneySchemaFixture.Id(),["createdBy"]=actor.Identity!.Name,["status"]="submitted",["type"]="expense"};
-                        AccessPolicy.DemandIndependentOfMakers(actor,"payment.document.approve",c,tx,doc,AccessPolicy.ScopePayApprovals,"createdBy");
+                        // TRIAL10 / grok-TRIAL9: call live PaymentsEngine.Transition (not DemandIndependentOfMakers helper).
+                        string company=FinancialCore.Sponsors[0].Id;
+                        EnsureCompany(c,tx,company);EnsurePeriodStore(c,tx,company,"2026-11-01");
+                        string supplierId=MoneySchemaFixture.Id();
+                        SchemaSql.Exec(c,tx,$"""
+                            INSERT INTO {SchemaSql.Q(c,"pay","supplier")}(id,company_id,name_ar,status,created_by,created_at)
+                            VALUES(@id,@c,'مورد مسح',1,@by,{SchemaSql.NowLiteral(c)})
+                            """,("@id",supplierId),("@c",company),("@by",actor.Identity!.Name!));
+                        var created=PaymentsEngine.Create(c,tx,actor,new()
+                        {
+                            ["idempotencyKey"]=Guid.NewGuid().ToString("N"),["companyId"]=company,["type"]="purchase",
+                            ["period"]="2026-11",["occurredOn"]="2026-11-05",["dueOn"]="2026-11-15",
+                            ["reference"]="T9-SW-"+MoneySchemaFixture.Id()[^8..],["supplierId"]=supplierId,
+                            ["lines"]=new JsonArray(new JsonObject{["accountCode"]="526101",["amount"]=50})
+                        });
+                        PaymentsEngine.Transition(c,tx,actor,created.S("id"),"submit",new());
+                        PaymentsEngine.Transition(c,tx,actor,created.S("id"),"approve",new());
                         break;
                     }
                     case "treasury.vault_count_approve":
