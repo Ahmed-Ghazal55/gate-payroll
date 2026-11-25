@@ -1970,8 +1970,10 @@ export const api = {
     if (params.sort) p.set('sort', params.sort);
     return handleRequest<OperationsPurchasesResponse>(`/operations/vehicles/purchase-invoices?${p.toString()}`);
   },
-  getOperationsFuelCards: (params?: { month?: string; provider?: string; page?: number; pageSize?: number; q?: string; filters?: string; sort?: string }) => {
+  getOperationsFuelCards: (params?: { from?: string; to?: string; month?: string; provider?: string; page?: number; pageSize?: number; q?: string; filters?: string; sort?: string }) => {
     const p = new URLSearchParams();
+    if (params?.from) p.set('from', params.from);
+    if (params?.to) p.set('to', params.to);
     if (params?.month) p.set('month', params.month);
     if (params?.provider) p.set('provider', params.provider);
     if (params?.page) p.set('page', String(params.page));
@@ -2038,8 +2040,10 @@ export const api = {
     if (params.sort) p.set('sort', params.sort);
     return fetch(`/api/operations/vehicles/purchase-invoices/export?${p.toString()}`, { credentials: 'include' });
   },
-  exportOperationsFuel: (params?: { month?: string; provider?: string; q?: string; filters?: string; sort?: string }) => {
+  exportOperationsFuel: (params?: { from?: string; to?: string; month?: string; provider?: string; q?: string; filters?: string; sort?: string }) => {
     const p = new URLSearchParams();
+    if (params?.from) p.set('from', params.from);
+    if (params?.to) p.set('to', params.to);
     if (params?.month) p.set('month', params.month);
     if (params?.provider) p.set('provider', params.provider);
     if (params?.q) p.set('q', params.q);
