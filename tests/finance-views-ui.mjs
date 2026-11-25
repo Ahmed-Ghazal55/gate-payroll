@@ -9,8 +9,7 @@ import {randomBytes} from 'node:crypto';
 import {DatabaseSync} from 'node:sqlite';
 
 const playwrightPath = process.env.PLAYWRIGHT_MODULE ||
-  ['/tmp/gate-browser/node_modules/playwright/index.mjs',
-   '/home/ghazal/Projects/active/local-pdf-studio/node_modules/playwright/index.mjs'
+  ['/tmp/gate-browser/node_modules/playwright/index.mjs'
   ].find(p => p && existsSync(p));
 
 const {chromium} = await import(pathToFileURL(playwrightPath));
