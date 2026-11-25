@@ -278,7 +278,15 @@ public static partial class PayCycles
             RiderStatements.SaveApprovalSnapshot(c,tx,row.S("rider"),period,period,null,actor,facing);
         }
         bool complete=Rows(cycle["riders"]).OfType<JsonObject>().All(r=>r.S("salaryApprovedAt")!="");
-        cycle["status"]=complete?"approved":"partially_approved";cycle["debtDeductionStatus"]="pending";
+        cycle["status"]=complete?"approved":"partially_approved";
+        // M-0670: debts confirmed/deferred before (or auto-deferred at) salary approval. Every rider done → stage 8.
+        bool debtsDone=Rows(cycle["riders"]).OfType<JsonObject>().All(r=>
+        {
+            bool hasDebt=Rows(cycle["deductions"]).OfType<JsonObject>().Any(d=>d.S("rider")==r.S("rider")&&d.S("type")=="debt");
+            return !hasDebt||r.S("debtDeductionStatus") is "confirmed" or "deferred";
+        });
+        cycle["debtDeductionStatus"]=debtsDone?"confirmed":"pending";
+        if(complete&&debtsDone)cycle["stage"]=8;
         foreach(var review in Rows(cycle["invoices"]).OfType<JsonObject>())
         {
             var invoice=Store.Get(c,review.S("invoiceId"),"platform_invoice",tx)!;

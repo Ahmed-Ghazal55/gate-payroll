@@ -120,8 +120,9 @@ public static partial class PayCycles
         if(next==5)BuildDeductions(c,tx,cycle,actor);
         if(next==6)Merge(c,tx,cycle);
         if(next==7&&!Approve(c,tx,cycle,actor)){Store.Save(c,Kind,cycle,tx);return cycle;}
-        cycle["stage"]=next;cycle["advancedBy"]=actor.Identity!.Name;if(next!=7)cycle["status"]=cycle.S("status")=="needs_decision"?"needs_decision":"review";
-        cycle["history"]!.AsArray().Add(new JsonObject{["stage"]=next,["advancedBy"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O")});Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_advanced",id,actor.Identity!.Name!);return cycle;
+        // Approve may already set stage 8 when every debt is confirmed/deferred (M-0670); do not overwrite it with 7.
+        cycle["stage"]=Math.Max(next,(int)cycle.N("stage"));cycle["advancedBy"]=actor.Identity!.Name;if(next!=7)cycle["status"]=cycle.S("status")=="needs_decision"?"needs_decision":"review";
+        cycle["history"]!.AsArray().Add(new JsonObject{["stage"]=(int)cycle.N("stage"),["advancedBy"]=actor.Identity!.Name,["at"]=DateTimeOffset.UtcNow.ToString("O")});Store.Save(c,Kind,cycle,tx);Store.Audit(c,tx,"pay.cycle_advanced",id,actor.Identity!.Name!);return cycle;
     }
     static IEnumerable<(string App,JsonObject Account)> Accounts(JsonObject cycle)=>Rows(cycle["invoices"]).OfType<JsonObject>().SelectMany(i=>Rows(i["accounts"]).OfType<JsonObject>().Select(a=>(i.S("app"),a)));
     // Captured cycles read freeze only (M6). Pre-capture import/synthetic validation still uses Store.

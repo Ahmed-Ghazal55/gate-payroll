@@ -685,7 +685,8 @@ try {
     await context.close();
   }
 
-  // R10: the rest of the path in the browser: decide the negative row, final approval, debt stage, bank.
+  // R10: two people — User B prepared the cycle; User A (independent) confirms debts then approves salaries.
+  // M-0670 / preparer-never-approves: never grant approvals.approve_own; never self-confirm as createdBy.
   {
     const post = async (cookie, route, body, method = 'POST') => {
       const res = await fetch(`${baseUrl}/api${route}`, { method, headers: { Cookie: cookie, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
@@ -697,8 +698,19 @@ try {
     for (const row of reviewRows) {
       await post(cookieB, `/pay/cycles/${encodeURIComponent(cycleId)}/review/${row.rider}`, row.net < 0 ? { action: 'approve', reason: 'Synthetic negative row decided by the reviewer' } : { action: 'approve' });
     }
-    await post(cookieA, '/platforms/ninja/posting', { enabled: true, reason: 'Synthetic posting gate for the flow' });
-    await post(cookieA, `/pay/cycles/${encodeURIComponent(cycleId)}/advance`, { stage: 7 });
+
+    // Preparer (cycle createdBy = User B) must not receive confirm_debt_deductions_all.
+    const debtViewAsPreparer = await (await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`, { headers: { Cookie: cookieB } })).json();
+    assert.ok(!(debtViewAsPreparer.allowedActions || []).includes('confirm_debt_deductions_all'), 'Preparer must not get confirm_debt_deductions_all');
+    const preparerConfirm = await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`, {
+      method: 'POST', headers: { Cookie: cookieB, 'Content-Type': 'application/json' }, body: JSON.stringify({ action: 'confirm-all' }),
+    });
+    assert.equal(preparerConfirm.status, 403, 'Preparer confirm-all must be 403 without approve_own');
+
+    // Independent User A sees the action and confirms in the browser at stage 6 (before salary approval).
+    const debtViewAsChecker = await (await fetch(`${baseUrl}/api/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`, { headers: { Cookie: cookieA } })).json();
+    assert.ok((debtViewAsChecker.allowedActions || []).includes('confirm_debt_deductions_all'), 'Independent checker must get confirm_debt_deductions_all from the API');
+
     const contextA = await browser.newContext({ viewport: { width: 1440, height: 900 } });
     await contextA.addCookies([{ name: cookieA.split('=')[0], value: cookieA.split('=').slice(1).join('='), domain: '127.0.0.1', path: '/' }]);
     const pageA = await contextA.newPage();
@@ -706,11 +718,16 @@ try {
     const cycleTab = pageA.locator('button:has-text("دورة الرواتب ومراحل المسير")');
     if (await cycleTab.count() > 0) { await cycleTab.click(); await pageA.waitForLoadState('networkidle'); }
     await pageA.locator('#debt-deduction-stage').waitFor({ state: 'visible', timeout: 8000 });
-    await pageA.locator('#debt-confirm-all').click();
+    const confirmAll = pageA.locator('#debt-confirm-all');
+    await confirmAll.waitFor({ state: 'visible', timeout: 8000 });
+    await confirmAll.click();
     await pageA.waitForLoadState('networkidle');
     await pageA.waitForFunction(() => !document.querySelector('#debt-confirm-all'), null, { timeout: 8000 });
+
+    await post(cookieA, '/platforms/ninja/posting', { enabled: true, reason: 'Synthetic posting gate for the flow' });
+    await post(cookieA, `/pay/cycles/${encodeURIComponent(cycleId)}/advance`, { stage: 7 });
     const final = (await (await fetch(`${baseUrl}/api/pay/cycles?period=2026-10`, { headers: { Cookie: cookieA } })).json()).items[0];
-    assert.equal(final.stage, 8, 'The debt stage in the browser must finish the cycle');
+    assert.equal(final.stage, 8, 'Debt confirm then salary approval must finish the cycle at stage 8');
     assert.equal(final.status, 'approved');
     await pageA.screenshot({ path: path.join(resultsDir, 'ninja-r10-debt-stage.png'), fullPage: false });
     // R10: edit a user's permissions through the screen against the real API.
@@ -723,7 +740,7 @@ try {
     assert.ok(usersAfter.some((u) => u.username === userB && u.status === 'active'), 'Saving the dialog keeps the user active');
     await pageA.screenshot({ path: path.join(resultsDir, 'r10-users.png'), fullPage: false });
     await contextA.close();
-    console.log('✓ Negative row decided, salaries approved, debt stage confirmed in the browser (stage 8)');
+    console.log('✓ Negative row decided, independent debt confirm, salaries approved (stage 8)');
   }
 
   console.log('🎉 ALL R8 NINJA FLOW E2E TESTS PASSED (WF-4 COMPLETE WITH ALL 16 SCREENSHOTS)!');
