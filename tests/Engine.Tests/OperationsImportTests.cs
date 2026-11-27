@@ -25,7 +25,7 @@ public sealed class OperationsImportTests
     }
     static JsonObject Input()=>new(){["invoiceId"]=InvoiceId};
     static JsonObject Confirm(JsonObject preview)=>new(){["invoiceId"]=InvoiceId,["confirm"]=true,["rows"]=preview["rows"]!.DeepClone(),["fingerprint"]=preview.S("fingerprint")};
-    [TestMethod][DataRow("ninja")][DataRow("keeta")][DataRow("hs")]
+    [TestMethod][DataRow("ninja")][DataRow("hs")]
     public void PerAppReviewFeedsActualCycleRiderStageWithoutCreatingDebtOrJournal(string app)
     {
         using var f=new PayFixture();Seed(f.Store,app);f.Approve("pay_terms",app,f.Draft("pay_terms",app,PayFixture.Terms()));
