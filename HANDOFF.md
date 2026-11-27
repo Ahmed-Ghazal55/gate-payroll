@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Cursor 2026-11-27 04:56 |
+| Current writer | (free) |
 | Branch | `fix/keeta-invoice-big-sheet` |
 | Updated | 2026-11-27 by Cursor (KUP1d) |
 | Live | unchanged (local commits only; never pushed) |
