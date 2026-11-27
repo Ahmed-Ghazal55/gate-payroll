@@ -4,19 +4,19 @@
 |---|---|
 | Current writer | (free) |
 | Branch | `fix/keeta-invoice-big-sheet` |
-| Updated | 2026-11-27 by Cursor (KUP1) |
-| Live | unchanged (local commit only; never pushed) |
-| Next | Planner: review KUP1, then release/PR when Ghazal asks. Note: real Keeta October headers use `معرف الشريك` / no bare `الإجمالي` — size fix unblocks upload; column match may still fail until a follow-up. |
+| Updated | 2026-11-27 by Cursor (KUP1b) |
+| Live | unchanged (local commits only; never pushed) |
+| Next | Planner/Grok re-check; two real October files still abort Parse on credit-note / positive company-adjustment rows (see report). |
 
 ## Goal now
-KUP1 done: stream XLSX sheets (XmlReader + shared strings), raise per-sheet uncompressed cap to 250 MB, batch Keeta invoice line writes, synthetic large-sheet tests, timed the 4 real `#2026-10#` invoices (read-only).
+KUP1b done: Grok formula-cache + counting-stream fixes; October Keeta header aliases + header-row find; dash blanks; currency money; company-row net-only.
 
-## Done (KUP1)
-- `Payroll.Api/Imports.cs`: stream sheets/shared strings; caps 250 MB sheet / 400 MB workbook / 120k rows / 12 MB zip; Arabic oversize message.
-- `TableExcelApi.cs`: formula scan streams (no XDocument); same sheet cap.
-- `KeetaInvoices.cs`: `BufferedWrites` for lines; formula-cache via `Imports.MissingFormulaCacheRows`; upload limit 12 MB.
-- Tests: `ImportsStreamingTests` + existing `KeetaInvoiceTests` (9 passed).
-- Report: `~/.cache/agents-runs/cursor-KUP1-report.md`.
+## Done (KUP1b)
+- `Imports.cs`: no `Skip` on `<f>`; `LimitSheetBytes` / counting stream on all four sheet reads.
+- `KeetaInvoices.cs`: aliases (`معرف سائق التوصيل`, due-only net=due), header-row scan, currency/`-` money, company adjustment ignores component cols.
+- Tests: 12 passed (`ImportsStreamingTests` + `KeetaInvoiceTests`).
+- Report: `~/.cache/agents-runs/cursor-KUP1b-report.md`.
+- Commits local: `38bfee7a` (KUP1), `a1fddd60` (KUP1b). Never pushed.
 
 ## How to verify
 ```bash
