@@ -185,7 +185,7 @@ public static class KeetaInvoices
             {
                 foreach(var field in DeductionColumns)
                 {
-                    int col=Col(field.Header);if(col<0)continue;decimal value=N(col),amount=field.Signed?Math.Max(0,-value):Math.Abs(value);if(amount==0)continue;
+                    int col=Col(field.Header);if(col<0)continue;decimal value=N(col),amount=field.Signed||dueIsNetExVat?Math.Max(0,-value):Math.Abs(value);if(amount==0)continue;
                     deductions.Add(new JsonObject{["category"]=field.Category,["amount"]=amount,["level"]="unclassified",["sourceHeader"]=field.Header,["sourceSignedAmount"]=value});
                 }
             }
