@@ -3,13 +3,13 @@
 | Field | Value |
 |---|---|
 | Current writer | (free) |
-| Branch | `trial/local-2026-11-23` |
-| Updated | 2026-11-23 by Cursor (TRIAL2 feedback fixes) |
-| Live | unchanged (no push/deploy; local trial only) |
-| Next | Planner: restart local trial for Ghazal; sqltest later; never push until backup + «دمج» |
+| Branch | `feat/keeta-ops-import` |
+| Updated | 2026-11-27 by Cursor (KOPS1b fix round) |
+| Live | unchanged (local commit only; never pushed) |
+| Next | Planner: Grok re-check KOPS1b; never push until Ghazal says |
 
 ## Goal now
-TRIAL2 done on trial branch: every `trial-feedback.md` row T1–T13 (T10 pending Ghazal). Report: `~/.cache/agents-runs/cursor-TRIAL2-report.md`.
+KOPS1 done: Keeta operations import redone to Arabic register sheets A..AH. Report: `~/.cache/agents-runs/cursor-KOPS1-report.md`.
 
 ## Done (TRIAL1)
 - Merges through `feat/w3-screens-pay`; contracts regenerated (`4bcdfe3`); integration fix (`d9d40ca`).

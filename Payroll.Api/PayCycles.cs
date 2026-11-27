@@ -67,10 +67,12 @@ public static partial class PayCycles
                 if(d.S("level")=="account_level"&&InvoiceDeductionClassification.AllocationsOf(d).Count==0)J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");
             }
             J.Need(source.ContainsKey("deductionsTotal"),"إجمالي خصومات المصدر غير مثبت؛ ارفع نسخة معيارية مراجعة قبل الاحتساب.");
-            decimal gross=accounts.Sum(a=>a.N("baseGross")+a.N("incentives"));
-            J.Need(gross==source.N("amountExclVat")&&source.N("vat")>=0,"مجموع استحقاقات اليوزرات لا يطابق الفاتورة قبل الضريبة والخصومات.");
             // Each classified amount is tied to a source line, never inferred from the registered owner.
             var sourceLines=app=="hs"?HungerStationInvoices.EffectiveLines(c,tx,source.S("id")):Store.List(c,"platform_invoice_line",tx).Where(l=>l.S("invoiceId")==source.S("id")).ToList();
+            // Company lines (blank platform account) stay inside amountExclVat with no rider and no account required.
+            decimal companyGross=sourceLines.Where(l=>l.S("lineType")=="company").Sum(l=>l.N("baseGross")+l.N("incentives"));
+            decimal gross=accounts.Sum(a=>a.N("baseGross")+a.N("incentives"))+companyGross;
+            J.Need(gross==source.N("amountExclVat")&&source.N("vat")>=0,"مجموع استحقاقات اليوزرات لا يطابق الفاتورة قبل الضريبة والخصومات.");
             foreach(var a in accounts)
             {
                 var line=sourceLines.SingleOrDefault(l=>l.S("id")==a.S("sourceLineId"));
@@ -162,7 +164,14 @@ public static partial class PayCycles
                     }
                 }
                 string id=J.Iqama(r.Required("rider"));var person=Store.Get(c,id,"rider",tx)??throw new ApiError("المندوب غير موجود.");FinancialScopes.DemandRider(actor,person);J.Need(ErpRiderClassification.ListedAsRider(person),"الموظفون خارج إطار المناديب.");
-                J.Need((source["assignments"] as JsonArray??[]).OfType<JsonObject>().Any(x=>x.S("riderId")==id&&Overlaps(x,cycle.S("period"))),"المندوب ليس مشغلًا فعليًا لليوزر بالفترة؛ المالك المسجل ليس دليلًا.");
+                bool dismissed=r["metrics"] is JsonObject m&&(m.B("dismissed")||m.S("dismissed")=="true");
+                if(!dismissed)J.Need((source["assignments"] as JsonArray??[]).OfType<JsonObject>().Any(x=>x.S("riderId")==id&&Overlaps(x,cycle.S("period"))),"المندوب ليس مشغلًا فعليًا لليوزر بالفترة؛ المالك المسجل ليس دليلًا.");
+                else
+                {
+                    // Keeta register sheets treat distance/work days as performance; Ninja/HS metrics usually omit them (same rule).
+                    bool metricPerf=r["metrics"] is JsonObject mx&&(mx.N("workDays")>0||mx.N("distancePaid")>0||mx.N("distanceTotal")>0||mx.N("validOnlineDays")>0);
+                    J.Need(r.N("orders")>0||r.N("days")>0||metricPerf,"يوزر مفصول بلا أداء في الشهر لا يُقبل في التشغيل.");
+                }
                 J.Need(PaySettings.Categories.Contains(r.Required("category")),"فئة الكفالة والمركبة مطلوبة للمراجعة.");SignedMoney(r,"baseGross");Money(r,"deduction");decimal orders=PayValues.Number(r,"orders",0,int.MaxValue),days=PayValues.Number(r,"days",0,31);J.Need(orders==decimal.Truncate(orders)&&days==decimal.Truncate(days),"طلبات وأيام صحيحة مطلوبة.");
             }
             J.Need(shares.Sum(r=>r.N("orders"))==a.N("orders")&&shares.Sum(r=>r.N("baseGross"))==a.N("baseGross"),"طلبات واستحقاقات المشغلين لا تطابق اليوزر.");

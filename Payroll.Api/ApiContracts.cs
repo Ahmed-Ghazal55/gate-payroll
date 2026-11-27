@@ -123,6 +123,25 @@ public static partial class ApiContracts
     static OpenApiSchema SalBankSheetRow()=>O(new(){["erpRiderId"]=S(),["bank"]=S(),["bankShortCode"]=S(),["bankNameAr"]=S(),["iban"]=S(),["amount"]=N(),["notes"]=S(),["name"]=S(),["iqama"]=S(),["address"]=S(),["apps"]=A(S())},"erpRiderId","bank","bankShortCode","iban","amount","iqama","name");
     static OpenApiSchema SalBankFile()=>O(new(){["id"]=S(),["periodMonth"]=S(),["issuanceChoice"]=S(),["sheetShape"]=S(),["scopeCompanyId"]=S(),["scopeRegistrationId"]=S(),["payingCompanyId"]=S(),["payingRegistrationId"]=S(),["payingBankId"]=S(),["status"]=S(),["statusCode"]=N(),["fileHash"]=S(),["fileContentHash"]=S(),["runMode"]=N(),["payoutBlocked"]=B(),["doNotSend"]=B(),["payoutLabel"]=S(),["currencyCode"]=S(),["totalAmount"]=N(),["lineCount"]=N(),["riderCount"]=N(),["approvedBy"]=S(),["approvedAt"]=S(),["sentBy"]=S(),["sentAt"]=S(),["createdBy"]=S(),["createdAt"]=S(),["lines"]=A(SalBankFileLine()),["sheetRows"]=A(SalBankSheetRow()),["excludedRows"]=A(Free()),["settlements"]=A(Free()),["allowedActions"]=A(S())},"id","periodMonth","issuanceChoice","sheetShape","payingCompanyId","payingRegistrationId","payingBankId","status","totalAmount","lines","sheetRows","allowedActions");
     static OpenApiSchema SalBankFilesPage()=>O(new(){["items"]=A(SalBankFile()),["total"]=N(),["allowedActions"]=A(S())},"items","total","allowedActions");
+    static OpenApiSchema OperationsImportRiderShare()=>O(new(){["rider"]=S(),["orders"]=N(),["baseGross"]=N(),["deduction"]=N(),["category"]=S(),["days"]=N(),["metrics"]=Free(),["sourceLineId"]=S(),["operationSourceIds"]=A(S()),["chefzFullTimeCommission"]=N()},"rider","orders","baseGross","deduction","category","days","metrics");
+    static OpenApiSchema OperationsImportAccount()=>O(new(){["accountId"]=S(),["sourceLineId"]=S(),["baseGross"]=N(),["incentives"]=N(),["orders"]=N(),["riders"]=A(OperationsImportRiderShare())},"accountId","sourceLineId","baseGross","incentives","orders","riders");
+    static OpenApiSchema OperationsImportReview()=>O(new(){["invoiceId"]=S(),["app"]=S(),["accounts"]=A(OperationsImportAccount()),["deductions"]=A(Free())},"invoiceId","app","accounts","deductions");
+    static OpenApiSchema OperationsImportCounts()=>O(new(){["rows"]=N(),["dismissed"]=N(),["duplicateIdRows"]=N(),["uniqueIds"]=N()},"rows","dismissed","duplicateIdRows","uniqueIds");
+    static OpenApiSchema OperationsImportDisplayRow()
+    {
+        var props=new Dictionary<string,IOpenApiSchema>
+        {
+            ["row"]=N(),
+            ["dismissed"]=B(),
+            ["active"]=B(),
+            ["expectedApproval"]=S()
+        };
+        foreach(var col in KeetaOperationsImport.Columns)
+            props[col.Header]=col.Numeric?N():S();
+        return O(props,"row","dismissed");
+    }
+    static OpenApiSchema OperationsImportPreview()=>O(new(){["rows"]=A(OperationsImportReview()),["fingerprint"]=S(),["register"]=S(),["registerSheet"]=S(),["columns"]=A(S()),["displayRows"]=A(OperationsImportDisplayRow()),["counts"]=OperationsImportCounts()},"rows","fingerprint");
+    static OpenApiSchema OperationsImportDoc()=>O(new(){["id"]=S(),["app"]=S(),["invoiceId"]=S(),["companyId"]=S(),["period"]=S(),["sourceSha256"]=S(),["review"]=OperationsImportReview(),["createdBy"]=S(),["createdAt"]=S(),["register"]=S(),["registerSheet"]=S(),["columns"]=A(S()),["displayRows"]=A(OperationsImportDisplayRow()),["counts"]=OperationsImportCounts()},"id","app","invoiceId","companyId","period","review");
     public static OpenApiSchema? Response(string method,string path)
     {
         bool get=method=="GET";
@@ -247,6 +266,9 @@ public static partial class ApiContracts
         if(get&&path=="/api/pay/apps/ninja/live/daily-deductions")return NinjaLivePage(NinjaLiveDailyDeductionRow());
         if(get&&path=="/api/pay/apps/ninja/live/payment-methods")return NinjaLivePaymentMethodsPage();
         if(get&&path=="/api/pay/apps/ninja/live/account-bearers")return NinjaLiveAccountBearersPage();
+        if(path=="/api/pay/apps/{app}/operations/import/preview"&&!get)return OperationsImportPreview();
+        if(path=="/api/pay/apps/{app}/operations/import/commit"&&!get)return OperationsImportDoc();
+        if(path=="/api/pay/apps/{app}/operations/imports/{id}"&&get)return OperationsImportDoc();
         if(path=="/api/pay/settings"||path.StartsWith("/api/pay/settings/{id}")||path.StartsWith("/api/pay/apps/{app}/")&&new[]{"terms","schemes","eligibility"}.Any(s=>path.Contains("/"+s)))return method=="DELETE"?O(new(){["deleted"]=B(),["id"]=S()},"deleted","id"):get?Page(Setting()):Setting();
         if(path=="/api/payroll/preview")return A(PayrollPreview());
         if(path=="/api/payroll/runs")return A(PayrollRun());

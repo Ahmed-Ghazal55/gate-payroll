@@ -81,6 +81,7 @@ import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
 import { ChefzReviewPanel } from '../../features/payroll/ChefzReviewPanel';
 import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
+import { KeetaOperationsImportDialog } from '../../features/imports/KeetaOperationsImportDialog';
 import {
   canShowImportStep,
   HS_OPS_IMPORT,
@@ -2260,7 +2261,15 @@ function PayrollPageInner() {
           </p>
         </div>
       ) : null}
-      {opsImportStep && (
+      {opsImportStep && opsImportStep.key === 'keeta_operations' && (
+        <KeetaOperationsImportDialog
+          open
+          onClose={() => setOpsImportStep(null)}
+          period={selectedPeriod}
+          allowedActions={importAllowedActions}
+        />
+      )}
+      {opsImportStep && opsImportStep.key !== 'keeta_operations' && (
         <ImportUploadDialog
           open={Boolean(opsImportStep)}
           onClose={() => setOpsImportStep(null)}

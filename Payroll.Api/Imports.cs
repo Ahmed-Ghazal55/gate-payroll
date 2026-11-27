@@ -2,49 +2,231 @@ using System.Globalization;
 using System.IO.Compression;
 using System.Text;
 using System.Text.Json.Nodes;
+using System.Xml;
 using System.Xml.Linq;
 
 namespace Payroll;
 public static class Imports
 {
+    public const long MaxSheetUncompressedBytes = 250L * 1024 * 1024;
+    public const long MaxWorkbookUncompressedBytes = 400L * 1024 * 1024;
+    public const int MaxSheetRows = 120_000;
+    public const int MaxSheetColumns = 500;
+    static readonly XmlReaderSettings SafeXml = new()
+    {
+        DtdProcessing = DtdProcessing.Prohibit,
+        IgnoreComments = true,
+        IgnoreProcessingInstructions = true,
+        IgnoreWhitespace = true,
+        XmlResolver = null
+    };
     public sealed record Sheet(string Name, List<List<string>> Rows);
     public static List<Sheet> Read(byte[] data, string filename)
     {
-        J.Need(data.Length <= 8 * 1024 * 1024, "حد الملف8ميجابايت.");
+        J.Need(data.Length <= 12 * 1024 * 1024, "حد الملف12ميجابايت.");
         if (Path.GetExtension(filename).Equals(".csv", StringComparison.OrdinalIgnoreCase)) return [new("CSV", Csv(Encoding.UTF8.GetString(data).TrimStart('\uFEFF')))];
         J.Need(Path.GetExtension(filename).Equals(".xlsx", StringComparison.OrdinalIgnoreCase), "استخدم ملفxlsxأوCSVبترميزUTF-8.");
         using var stream = new MemoryStream(data); using var zip = new ZipArchive(stream);
-        J.Need(zip.Entries.Count <= 3000 && zip.Entries.Sum(x => x.Length) <= 160L * 1024 * 1024, "المصنف أكبر من حد المعالجة الآمن.");
-        XDocument Xml(string path) { var e = zip.GetEntry(path) ?? throw new ApiError("المصنف غير صالح: " + path); J.Need(e.Length < 40 * 1024 * 1024, "ورقة كبيرة جدًا؛ استوردهاCSV."); using var s = e.Open(); return XDocument.Load(s); }
+        J.Need(zip.Entries.Count <= 3000 && zip.Entries.Sum(x => x.Length) <= MaxWorkbookUncompressedBytes, "المصنف أكبر من حد المعالجة الآمن.");
         XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
         XNamespace rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-        var strings = zip.GetEntry("xl/sharedStrings.xml") == null ? [] : Xml("xl/sharedStrings.xml").Descendants(ns + "si").Select(si => string.Concat(si.Descendants(ns + "t").Select(t => t.Value))).ToList();
-        var rels = Xml("xl/_rels/workbook.xml.rels").Root!.Elements().ToDictionary(x => x.Attribute("Id")!.Value, x => x.Attribute("Target")!.Value);
+        var strings = ReadSharedStrings(zip);
+        XDocument XmlSmall(string path)
+        {
+            var e = zip.GetEntry(path) ?? throw new ApiError("المصنف غير صالح: " + path);
+            J.Need(e.Length < 8 * 1024 * 1024, "ملف وصف المصنف أكبر من الحد الآمن.");
+            using var s = e.Open(); return XDocument.Load(s);
+        }
+        var rels = XmlSmall("xl/_rels/workbook.xml.rels").Root!.Elements().ToDictionary(x => x.Attribute("Id")!.Value, x => x.Attribute("Target")!.Value);
         var sheets = new List<Sheet>();
-        foreach (var sheet in Xml("xl/workbook.xml").Descendants(ns + "sheet"))
+        foreach (var sheet in XmlSmall("xl/workbook.xml").Descendants(ns + "sheet"))
         {
             string target = rels[sheet.Attribute(rel + "id")!.Value]; string path = target.StartsWith('/') ? target[1..] : "xl/" + target;
-            var rows = new List<List<string>>();
-            foreach (var row in Xml(path).Descendants(ns + "sheetData").Elements(ns + "row"))
-            {
-                int rowIndex = int.Parse(row.Attribute("r")?.Value ?? (rows.Count + 1).ToString(CultureInfo.InvariantCulture));
-                J.Need(rowIndex <= 25000, "حد المعاينة25000صف للورقة؛ قسّم المصدر.");
-                while (rows.Count < rowIndex - 1) rows.Add([]);
-                var cells = new List<string>();
-                foreach (var cell in row.Elements(ns + "c"))
-                {
-                    string cellRef = cell.Attribute("r")?.Value ?? "A1"; int col = 0; foreach (char ch in cellRef.TakeWhile(char.IsAsciiLetter)) col = col * 26 + char.ToUpperInvariant(ch) - 'A' + 1;
-                    J.Need(col <= 500, "حد الأعمدة500."); while (cells.Count < col) cells.Add("");
-                    string value = cell.Element(ns + "v")?.Value ?? "";
-                    if (cell.Attribute("t")?.Value == "s" && int.TryParse(value, out int index) && index < strings.Count) value = strings[index];
-                    else if (cell.Attribute("t")?.Value == "inlineStr") value = string.Concat(cell.Descendants(ns + "t").Select(x => x.Value));
-                    if (col > 0) cells[col - 1] = value;
-                }
-                rows.Add(cells);
-            }
-            sheets.Add(new(sheet.Attribute("name")!.Value, rows));
+            sheets.Add(new(sheet.Attribute("name")!.Value, ReadSheetRows(zip, path, strings)));
         }
         return sheets;
+    }
+    const string SheetOversizeMessage = "ورقة غير مضغوطة أكبر من الحد الآمن (250 ميجابايت). صغّر الورقة أو اقسم الملف.";
+    static void NeedSheetSize(ZipArchiveEntry entry)
+    {
+        J.Need(entry.Length <= MaxSheetUncompressedBytes, SheetOversizeMessage);
+    }
+    /// <summary>Enforces the uncompressed sheet byte cap while reading (Zip entry Length can understate).</summary>
+    public static Stream LimitSheetBytes(Stream stream, long? maxBytes = null)
+        => new CountingLimitStream(stream, maxBytes ?? MaxSheetUncompressedBytes);
+    static Stream OpenCapped(ZipArchiveEntry entry)
+    {
+        NeedSheetSize(entry);
+        return LimitSheetBytes(entry.Open());
+    }
+    sealed class CountingLimitStream : Stream
+    {
+        readonly Stream _inner;
+        readonly long _limit;
+        long _read;
+        public CountingLimitStream(Stream inner, long limit) { _inner = inner; _limit = limit; }
+        void Count(int n)
+        {
+            if (n <= 0) return;
+            _read += n;
+            if (_read > _limit) throw new ApiError(SheetOversizeMessage);
+        }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            int n = _inner.Read(buffer, offset, count); Count(n); return n;
+        }
+        public override int Read(Span<byte> buffer)
+        {
+            int n = _inner.Read(buffer); Count(n); return n;
+        }
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            int n = await _inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false); Count(n); return n;
+        }
+        public override bool CanRead => _inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => _inner.Length;
+        public override long Position { get => _inner.Position; set => throw new NotSupportedException(); }
+        public override void Flush() => _inner.Flush();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        protected override void Dispose(bool disposing) { if (disposing) _inner.Dispose(); base.Dispose(disposing); }
+    }
+    static List<string> ReadSharedStrings(ZipArchive zip)
+    {
+        var entry = zip.GetEntry("xl/sharedStrings.xml");
+        if (entry == null) return [];
+        var strings = new List<string>();
+        using var stream = OpenCapped(entry);
+        using var reader = XmlReader.Create(stream, SafeXml);
+        while (reader.Read())
+        {
+            if (reader.NodeType != XmlNodeType.Element || reader.LocalName != "si") continue;
+            using var subtree = reader.ReadSubtree();
+            var text = new StringBuilder();
+            while (subtree.Read())
+            {
+                if (subtree.NodeType == XmlNodeType.Element && subtree.LocalName == "t")
+                    text.Append(subtree.ReadElementContentAsString());
+            }
+            strings.Add(text.ToString());
+        }
+        return strings;
+    }
+    static List<List<string>> ReadSheetRows(ZipArchive zip, string path, List<string> strings)
+    {
+        var entry = zip.GetEntry(path) ?? throw new ApiError("المصنف غير صالح: " + path);
+        var rows = new List<List<string>>();
+        using var stream = OpenCapped(entry);
+        using var reader = XmlReader.Create(stream, SafeXml);
+        while (reader.Read())
+        {
+            if (reader.NodeType != XmlNodeType.Element || reader.LocalName != "row") continue;
+            int rowIndex = int.TryParse(reader.GetAttribute("r"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedRow)
+                ? parsedRow
+                : rows.Count + 1;
+            J.Need(rowIndex <= MaxSheetRows, $"حد الصفوف{MaxSheetRows}للورقة؛ قسّم المصدر.");
+            while (rows.Count < rowIndex - 1) rows.Add([]);
+            var cells = new List<string>();
+            using var row = reader.ReadSubtree();
+            row.Read();
+            while (row.Read())
+            {
+                if (row.NodeType != XmlNodeType.Element || row.LocalName != "c") continue;
+                string cellRef = row.GetAttribute("r") ?? "A1";
+                string cellType = row.GetAttribute("t") ?? "";
+                int col = 0; foreach (char ch in cellRef.TakeWhile(char.IsAsciiLetter)) col = col * 26 + char.ToUpperInvariant(ch) - 'A' + 1;
+                J.Need(col <= MaxSheetColumns, $"حد الأعمدة{MaxSheetColumns}.");
+                while (cells.Count < col) cells.Add("");
+                string value = "";
+                if (cellType == "inlineStr")
+                {
+                    using var cell = row.ReadSubtree();
+                    var text = new StringBuilder();
+                    while (cell.Read())
+                    {
+                        if (cell.NodeType == XmlNodeType.Element && cell.LocalName == "t")
+                            text.Append(cell.ReadElementContentAsString());
+                    }
+                    value = text.ToString();
+                }
+                else
+                {
+                    using var cell = row.ReadSubtree();
+                    while (cell.Read())
+                    {
+                        if (cell.NodeType == XmlNodeType.Element && cell.LocalName == "v")
+                        { value = cell.ReadElementContentAsString(); break; }
+                    }
+                    if (cellType == "s" && int.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out int index) && index < strings.Count)
+                        value = strings[index];
+                }
+                if (col > 0) cells[col - 1] = value;
+            }
+            rows.Add(cells);
+        }
+        return rows;
+    }
+    /// <summary>True when any formula cell in the selected columns has no cached value.</summary>
+    public static HashSet<int> MissingFormulaCacheRows(byte[] bytes, string sheetName, HashSet<int> selectedColumns)
+    {
+        using var zip = new ZipArchive(new MemoryStream(bytes));
+        XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main", rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+        XElement XmlSmall(string path)
+        {
+            var e = zip.GetEntry(path) ?? throw new ApiError("مصنف غير صالح.");
+            J.Need(e.Length < 8 * 1024 * 1024, "ملف وصف المصنف أكبر من الحد الآمن.");
+            using var stream = e.Open(); return XElement.Load(stream);
+        }
+        var sheet = XmlSmall("xl/workbook.xml").Descendants(ns + "sheet").Single(s => (string?)s.Attribute("name") == sheetName);
+        string id = (string)sheet.Attribute(rel + "id")!;
+        string target = (string)XmlSmall("xl/_rels/workbook.xml.rels").Elements().Single(x => (string?)x.Attribute("Id") == id).Attribute("Target")!;
+        string path = target.StartsWith('/') ? target[1..] : "xl/" + target;
+        var entry = zip.GetEntry(path) ?? throw new ApiError("مصنف غير صالح.");
+        var missing = new HashSet<int>();
+        using var stream = OpenCapped(entry);
+        using var reader = XmlReader.Create(stream, SafeXml);
+        while (reader.Read())
+        {
+            if (reader.NodeType != XmlNodeType.Element || reader.LocalName != "row") continue;
+            int rowIndex = int.Parse(reader.GetAttribute("r") ?? "0", CultureInfo.InvariantCulture);
+            using var row = reader.ReadSubtree();
+            row.Read();
+            while (row.Read())
+            {
+                if (row.NodeType != XmlNodeType.Element || row.LocalName != "c") continue;
+                string cellRef = row.GetAttribute("r") ?? "A1";
+                int col = 0; foreach (char ch in cellRef.TakeWhile(char.IsAsciiLetter)) col = col * 26 + char.ToUpperInvariant(ch) - 'A' + 1;
+                int zeroBased = col - 1;
+                bool hasFormula = false; bool hasValue = false;
+                using var cell = row.ReadSubtree();
+                while (cell.Read())
+                {
+                    if (cell.NodeType != XmlNodeType.Element) continue;
+                    // Do not Skip <f>: Skip advances past a following sibling <v> and loses the cached value.
+                    if (cell.LocalName == "f") hasFormula = true;
+                    else if (cell.LocalName == "v")
+                    {
+                        string text = cell.ReadElementContentAsString();
+                        hasValue = !string.IsNullOrEmpty(text);
+                    }
+                }
+                if (selectedColumns.Contains(zeroBased) && hasFormula && !hasValue) missing.Add(rowIndex);
+            }
+        }
+        return missing;
+    }
+    public static bool SheetContainsFormulas(ZipArchiveEntry entry)
+    {
+        using var stream = OpenCapped(entry);
+        using var reader = XmlReader.Create(stream, SafeXml);
+        while (reader.Read())
+        {
+            if (reader.NodeType == XmlNodeType.Element && reader.LocalName == "f") return true;
+        }
+        return false;
     }
     private static List<List<string>> Csv(string text)
     {
@@ -57,7 +239,10 @@ public static class Imports
             else if ((c == '\n' || c == '\r') && !quoted) { if (c == '\r' && i + 1 < text.Length && text[i + 1] == '\n') i++; row.Add(cell.ToString()); cell.Clear(); rows.Add(row); row = []; }
             else cell.Append(c);
         }
-        J.Need(!quoted, "CSVبهعلامةاقتباسغيرمغلقة."); if (cell.Length > 0 || row.Count > 0) { row.Add(cell.ToString()); rows.Add(row); } J.Need(rows.All(r => r.Count <= 500), "حد الأعمدة500."); J.Need(rows.Count <= 25000, "حد الصفوف25000."); return rows;
+        J.Need(!quoted, "CSVبهعلامةاقتباسغيرمغلقة."); if (cell.Length > 0 || row.Count > 0) { row.Add(cell.ToString()); rows.Add(row); }
+        J.Need(rows.All(r => r.Count <= MaxSheetColumns), $"حد الأعمدة{MaxSheetColumns}.");
+        J.Need(rows.Count <= MaxSheetRows, $"حد الصفوف{MaxSheetRows}.");
+        return rows;
     }
     public sealed record Preview(List<WorkLine> Rows, List<string> Errors);
     public static Preview Normalize(Sheet sheet, JsonObject spec)
