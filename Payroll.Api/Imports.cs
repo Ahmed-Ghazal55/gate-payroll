@@ -127,8 +127,6 @@ public static class Imports
             int rowIndex = int.TryParse(reader.GetAttribute("r"), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsedRow)
                 ? parsedRow
                 : rows.Count + 1;
-            J.Need(rowIndex <= MaxSheetRows, $"حد الصفوف{MaxSheetRows}للورقة؛ قسّم المصدر.");
-            while (rows.Count < rowIndex - 1) rows.Add([]);
             var cells = new List<string>();
             using var row = reader.ReadSubtree();
             row.Read();
@@ -165,6 +163,10 @@ public static class Imports
                 }
                 if (col > 0) cells[col - 1] = value;
             }
+            // Excel often marks formatted empty rows down to row 1,048,576; they hold no data and do not count.
+            if (cells.All(string.IsNullOrWhiteSpace)) continue;
+            J.Need(rowIndex <= MaxSheetRows, $"حد الصفوف{MaxSheetRows}للورقة؛ قسّم المصدر.");
+            while (rows.Count < rowIndex - 1) rows.Add([]);
             rows.Add(cells);
         }
         return rows;

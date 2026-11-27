@@ -88,6 +88,18 @@ public sealed class ImportsStreamingTests
     }
 
     [TestMethod]
+    public void EmptyFormattedRowsPastTheRowCapAreIgnored()
+    {
+        // Real Keeta invoices mark empty formatted rows down to row 1,048,576 on a sheet with ~80 data rows.
+        var data = new string[130_000][];
+        for (int i = 0; i < data.Length; i++) data[i] = [];
+        data[0] = ["COL"]; data[1] = ["R1"]; data[2] = ["R2"];
+        var sheets = Imports.Read(Book([("Sparse", data)]), "sparse.xlsx");
+        Assert.AreEqual(3, sheets[0].Rows.Count);
+        Assert.AreEqual("R2", sheets[0].Rows[2][0]);
+    }
+
+    [TestMethod]
     public void StreamingReadsSheetLargerThanOldFortyMegabyteDomCap()
     {
         var bytes = PaddedSheetWorkbook(45L * 1024 * 1024);
