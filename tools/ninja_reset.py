@@ -145,7 +145,10 @@ def parse_conn(cs: str) -> dict[str, str]:
         if not chunk or "=" not in chunk:
             continue
         k, v = chunk.split("=", 1)
-        parts[k.strip().lower()] = v.strip()
+        v = v.strip()
+        if len(v) >= 2 and v[0] == v[-1] and v[0] in "'\"":
+            v = v[1:-1].replace(v[0] * 2, v[0])
+        parts[k.strip().lower()] = v
     server = parts.get("server") or parts.get("data source") or ""
     host, port = server, "1433"
     if "," in server:
