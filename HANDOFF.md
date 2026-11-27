@@ -2,24 +2,24 @@
 
 | Field | Value |
 |---|---|
-| Current writer | (free) |
+| Current writer | Cursor 2026-11-27 04:56 |
 | Branch | `fix/keeta-invoice-big-sheet` |
-| Updated | 2026-11-27 by Cursor (KUP1c) |
+| Updated | 2026-11-27 by Cursor (KUP1d) |
 | Live | unchanged (local commits only; never pushed) |
-| Next | Planner/Grok re-check of KUP1c (partner VAT + company/credit rows). |
+| Next | Planner/Grok re-check of KUP1d (company line in cycle base-gross). |
 
 ## Goal now
-KUP1c done: partner-sheet VAT + rider-due reconcile; positive blank company row; rider credit line; October fixture uses partner tax.
+KUP1d done: cycle base-gross includes company lines with no platform account and no rider; ops import keeps those lines out of accounts; synthetic cycle test + 4 real-file Parse + draft Create.
 
-## Done (KUP1c)
-- `KeetaInvoices.cs`: due-only layout → line VAT 0, header VAT = partner `مبلغ الضريبة`; rider due sum + tax = partner due (±0.01); positive `companyRows` invoiced/baseGross = due; negative account due allowed.
-- Tests: October partner tax; positive company + rider credit; mismatch abort. Old net+inclusive layout unchanged.
-- Full Parse on 4 real `#2026-10#` files: all OK, delta 0 (totals only in report).
-- Report: `~/.cache/agents-runs/cursor-KUP1c-report.md`.
+## Done (KUP1d)
+- `PayCycles.cs`: `amountExclVat` check = review accounts + `lineType=company` base gross.
+- `OperationsImports.cs`: blank-account company lines with positive baseGross skipped from accounts (no platform account / rider required).
+- Test: `KeetaPositiveCompanyLineCountsInCycleBaseGrossWithoutPlatformAccountOrRider`.
+- Report: `~/.cache/agents-runs/cursor-KUP1d-report.md`.
 - Never pushed.
 
 ## How to verify
 ```bash
 dotnet build Payroll.Api/Payroll.Api.csproj -p:SkipFrontendBuild=true
-dotnet test tests/Engine.Tests/Engine.Tests.csproj -p:SkipFrontendBuild=true --filter "FullyQualifiedName~ImportsStreamingTests|FullyQualifiedName~KeetaInvoiceTests"
+dotnet test tests/Engine.Tests/Engine.Tests.csproj -p:SkipFrontendBuild=true --filter "FullyQualifiedName~ImportsStreamingTests|FullyQualifiedName~KeetaInvoiceTests|FullyQualifiedName~OperationsImportTests"
 ```

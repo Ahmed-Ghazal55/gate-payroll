@@ -85,7 +85,11 @@ public static class OperationsImports
         foreach(var line in lines)
         {
             if(line.S("platformAccountId",line.S("accountId"))=="")
-            {J.Need(line.ContainsKey("baseGross")&&line.ContainsKey("incentives")&&line.ContainsKey("orders")&&line.N("baseGross")==0&&line.N("incentives")==0&&line.N("orders")==0,"سطر شركة باستحقاق غير موزع يحتاج مراجعة.");continue;}
+            {
+                // Keeta positive company lines keep baseGross inside the invoice total; cycle counts them without an account or rider.
+                J.Need(line.ContainsKey("baseGross")&&line.ContainsKey("incentives")&&line.ContainsKey("orders")&&line.N("incentives")==0&&line.N("orders")==0&&(line.S("lineType")=="company"||line.N("baseGross")==0),"سطر شركة باستحقاق غير موزع يحتاج مراجعة.");
+                continue;
+            }
             accounts.Add(Account(line));
         }
         J.Need(accounts.Count>0&&accounts.OfType<JsonObject>().Select(a=>a.S("accountId")).Distinct().Count()==accounts.Count,"يلزم سطر فاتورة واحد لكل يوزر.");

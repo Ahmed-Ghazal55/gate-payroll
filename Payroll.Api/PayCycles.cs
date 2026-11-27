@@ -67,10 +67,12 @@ public static partial class PayCycles
                 if(d.S("level")=="account_level"&&InvoiceDeductionClassification.AllocationsOf(d).Count==0)J.Need(accounts.Any(a=>a.S("accountId")==d.Required("accountId")),"يوزر الخصم غير موجود.");
             }
             J.Need(source.ContainsKey("deductionsTotal"),"إجمالي خصومات المصدر غير مثبت؛ ارفع نسخة معيارية مراجعة قبل الاحتساب.");
-            decimal gross=accounts.Sum(a=>a.N("baseGross")+a.N("incentives"));
-            J.Need(gross==source.N("amountExclVat")&&source.N("vat")>=0,"مجموع استحقاقات اليوزرات لا يطابق الفاتورة قبل الضريبة والخصومات.");
             // Each classified amount is tied to a source line, never inferred from the registered owner.
             var sourceLines=app=="hs"?HungerStationInvoices.EffectiveLines(c,tx,source.S("id")):Store.List(c,"platform_invoice_line",tx).Where(l=>l.S("invoiceId")==source.S("id")).ToList();
+            // Company lines (blank platform account) stay inside amountExclVat with no rider and no account required.
+            decimal companyGross=sourceLines.Where(l=>l.S("lineType")=="company").Sum(l=>l.N("baseGross")+l.N("incentives"));
+            decimal gross=accounts.Sum(a=>a.N("baseGross")+a.N("incentives"))+companyGross;
+            J.Need(gross==source.N("amountExclVat")&&source.N("vat")>=0,"مجموع استحقاقات اليوزرات لا يطابق الفاتورة قبل الضريبة والخصومات.");
             foreach(var a in accounts)
             {
                 var line=sourceLines.SingleOrDefault(l=>l.S("id")==a.S("sourceLineId"));
