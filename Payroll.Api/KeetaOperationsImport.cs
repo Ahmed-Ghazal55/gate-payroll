@@ -72,7 +72,7 @@ public static class KeetaOperationsImport
         J.Need(header.Count>=Headers.Length,"أعمدة تشغيل كيتا ناقصة؛ حمّل النموذج العربي.");
         for(int i=0;i<Headers.Length;i++)
             J.Need(i<header.Count&&header[i]==Headers[i],$"عمود {(i+1)} يجب أن يكون «{Headers[i]}» بنفس ترتيب ورقة السجل.");
-        var missingCache=KeetaInvoices.MissingCache(bytes,sheet.Name,Enumerable.Range(0,Headers.Length).ToHashSet());
+        var missingCache=Imports.MissingFormulaCacheRows(bytes,sheet.Name,Enumerable.Range(0,Headers.Length).ToHashSet());
 
         var lines=OperationsImports.SourceLines(c,tx,"keeta",invoice.S("id"));
         J.Need(lines.Count>0,"الفاتورة بلا سطور.");
