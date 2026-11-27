@@ -27,7 +27,7 @@ async function put(route,body,status=200){
 }
 try{
  let ready=false;for(let n=0;n<150;n++){if(spawnError)throw spawnError;if(server.exitCode!==null)throw Error(logs);try{if((await fetch(base+'/health')).ok){ready=true;break;}}catch{}await new Promise(resolve=>setTimeout(resolve,100));}assert.ok(ready,logs);
- assert.equal((await req('/health',undefined,200,false)).version,'0.34.0');
+ assert.equal((await req('/health',undefined,200,false)).version,'0.34.1');
  await req('/api/finance/coa/target',undefined,401,false);
  const password=randomBytes(24).toString('hex');await req('/api/auth/setup',{username:'synthetic-admin',password});
  await grantApproveOwn(req,put,'synthetic-admin',password,()=>{cookie='';});const admin=cookie;
