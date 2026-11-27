@@ -50,15 +50,15 @@ test('template download requires imports.view or endpoint permission via allowed
 
 test('data pages expose import buttons gated by permission helpers', () => {
   const cases = [
-    ['src/app/companies/page.tsx', "testId: 'import-companies'", 'COMPANIES_IMPORT'],
-    ['src/app/debts/page.tsx', 'import-opening-debts', 'OPENING_DEBTS_IMPORT'],
-    ['src/app/debts/page.tsx', 'import-bulk-collect', 'BULK_COLLECT_IMPORT'],
-    ['src/app/accounting/page.tsx', 'import-treasury-opening', 'TREASURY_OPENING_IMPORT'],
-    ['src/app/payroll/page.tsx', 'import-ninja-operations', 'NINJA_OPS_IMPORT'],
-    ['src/app/payroll/page.tsx', 'import-keeta-operations', 'KEETA_OPS_IMPORT'],
-    ['src/app/payroll/page.tsx', 'import-hs-operations', 'HS_OPS_IMPORT'],
+    ['src/app/companies/page.tsx', "testId: 'import-companies'", 'COMPANIES_IMPORT', 'ImportUploadDialog'],
+    ['src/app/debts/page.tsx', 'import-opening-debts', 'OPENING_DEBTS_IMPORT', 'ImportUploadDialog'],
+    ['src/app/debts/page.tsx', 'import-bulk-collect', 'BULK_COLLECT_IMPORT', 'ImportUploadDialog'],
+    ['src/app/accounting/page.tsx', 'import-treasury-opening', 'TREASURY_OPENING_IMPORT', 'ImportUploadDialog'],
+    ['src/app/payroll/page.tsx', 'import-ninja-operations', 'NINJA_OPS_IMPORT', 'ImportUploadDialog'],
+    ['src/app/payroll/page.tsx', 'import-keeta-operations', 'KEETA_OPS_IMPORT', 'KeetaOperationsImportDialog'],
+    ['src/app/payroll/page.tsx', 'import-hs-operations', 'HS_OPS_IMPORT', 'ImportUploadDialog'],
   ];
-  for (const [file, marker, step] of cases) {
+  for (const [file, marker, step, dialog] of cases) {
     const text = read(file);
     if (marker.startsWith('testId:')) {
       assert.match(text, new RegExp(marker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), `${file} missing ${marker}`);
@@ -66,8 +66,20 @@ test('data pages expose import buttons gated by permission helpers', () => {
       assert.match(text, new RegExp(`data-testid="${marker}"`), `${file} missing ${marker}`);
     }
     assert.match(text, new RegExp(`canShowImportStep\\(${step}`), `${file} missing gate for ${step}`);
-    assert.match(text, /ImportUploadDialog/, `${file} missing dialog`);
+    assert.match(text, new RegExp(dialog), `${file} missing ${dialog}`);
   }
+});
+
+test('Keeta ops dialog picks register before upload and styles dismissed rows', () => {
+  const dialog = read('src/features/imports/KeetaOperationsImportDialog.tsx');
+  assert.match(dialog, /اختر السجل قبل/);
+  assert.match(dialog, /register/);
+  assert.match(dialog, /invoiceId/);
+  assert.match(dialog, /displayRows/);
+  assert.match(dialog, /bg-red-600 text-white/);
+  assert.match(dialog, /api-contract/);
+  assert.match(dialog, /AutoFilterTh/);
+  assert.match(read('src/features/imports/import-steps.ts'), /الصلاحية متوقعة فقط/);
 });
 
 test('companies import-companies primary opens file ImportUploadDialog', () => {

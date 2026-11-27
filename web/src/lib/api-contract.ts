@@ -6263,7 +6263,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Preview actual operators against approved invoice lines using catalog XLSX columns */
+        /** Preview operations XLSX (Keeta: Arabic register sheet A..AH; others: catalog columns) */
         post: {
             parameters: {
                 query?: never;
@@ -6279,13 +6279,49 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            rows: {
+                                invoiceId: string;
+                                app: string;
+                                accounts: {
+                                    accountId: string;
+                                    sourceLineId: string;
+                                    baseGross: number;
+                                    incentives: number;
+                                    orders: number;
+                                    riders: {
+                                        rider: string;
+                                        orders: number;
+                                        baseGross: number;
+                                        deduction: number;
+                                        category: string;
+                                        days: number;
+                                        metrics: Record<string, never>;
+                                        sourceLineId?: string;
+                                        operationSourceIds?: string[];
+                                        chefzFullTimeCommission?: number;
+                                    }[];
+                                }[];
+                                deductions: Record<string, never>[];
+                            }[];
+                            fingerprint: string;
+                            register?: string;
+                            registerSheet?: string;
+                            columns?: string[];
+                            displayRows?: Record<string, never>[];
+                            counts?: {
+                                rows: number;
+                                dismissed: number;
+                                duplicateIdRows: number;
+                                uniqueIds: number;
+                            };
+                        };
                     };
                 };
             };
@@ -6321,13 +6357,56 @@ export interface paths {
                 };
             };
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            app: string;
+                            invoiceId: string;
+                            companyId: string;
+                            period: string;
+                            sourceSha256?: string;
+                            review: {
+                                invoiceId: string;
+                                app: string;
+                                accounts: {
+                                    accountId: string;
+                                    sourceLineId: string;
+                                    baseGross: number;
+                                    incentives: number;
+                                    orders: number;
+                                    riders: {
+                                        rider: string;
+                                        orders: number;
+                                        baseGross: number;
+                                        deduction: number;
+                                        category: string;
+                                        days: number;
+                                        metrics: Record<string, never>;
+                                        sourceLineId?: string;
+                                        operationSourceIds?: string[];
+                                        chefzFullTimeCommission?: number;
+                                    }[];
+                                }[];
+                                deductions: Record<string, never>[];
+                            };
+                            createdBy?: string;
+                            createdAt?: string;
+                            register?: string;
+                            registerSheet?: string;
+                            columns?: string[];
+                            displayRows?: Record<string, never>[];
+                            counts?: {
+                                rows: number;
+                                dismissed: number;
+                                duplicateIdRows: number;
+                                uniqueIds: number;
+                            };
+                        };
                     };
                 };
             };
@@ -6358,13 +6437,56 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            id: string;
+                            app: string;
+                            invoiceId: string;
+                            companyId: string;
+                            period: string;
+                            sourceSha256?: string;
+                            review: {
+                                invoiceId: string;
+                                app: string;
+                                accounts: {
+                                    accountId: string;
+                                    sourceLineId: string;
+                                    baseGross: number;
+                                    incentives: number;
+                                    orders: number;
+                                    riders: {
+                                        rider: string;
+                                        orders: number;
+                                        baseGross: number;
+                                        deduction: number;
+                                        category: string;
+                                        days: number;
+                                        metrics: Record<string, never>;
+                                        sourceLineId?: string;
+                                        operationSourceIds?: string[];
+                                        chefzFullTimeCommission?: number;
+                                    }[];
+                                }[];
+                                deductions: Record<string, never>[];
+                            };
+                            createdBy?: string;
+                            createdAt?: string;
+                            register?: string;
+                            registerSheet?: string;
+                            columns?: string[];
+                            displayRows?: Record<string, never>[];
+                            counts?: {
+                                rows: number;
+                                dismissed: number;
+                                duplicateIdRows: number;
+                                uniqueIds: number;
+                            };
+                        };
                     };
                 };
             };

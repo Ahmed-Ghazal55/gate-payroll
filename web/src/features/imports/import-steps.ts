@@ -90,13 +90,15 @@ export const NINJA_OPS_IMPORT: PageImportStep = {
 export const KEETA_OPS_IMPORT: PageImportStep = {
   key: 'keeta_operations',
   labelAr: 'استيراد تشغيل كيتا',
-  purposeAr: 'الطلبات والأيام لكل مندوب على كل حساب كيتا.',
+  purposeAr: 'ورقة سجل واحدة بأعمدة عربية كترتيب إكسل؛ الصلاحية متوقعة فقط والنهائي من الفاتورة.',
   permission: 'pay.manage',
   templatePermission: 'imports.view',
   templateUrl: '/api/imports/templates/operations-keeta',
   previewUrl: '/api/pay/apps/keeta/operations/import/preview',
   commitUrl: '/api/pay/apps/keeta/operations/import/commit',
   upload: 'xlsx',
+  noteAr:
+    'اختر السجل قبل الرفع. ورقة واحدة = سجل واحد. المعرف يتكرر لكل مندوب. المفصول بأداء يظهر أحمر بخط أبيض. كفالة اليوزر للعرض فقط.',
 };
 
 export const HS_OPS_IMPORT: PageImportStep = {
