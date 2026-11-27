@@ -81,7 +81,7 @@ public static class KeetaOperationsImport
         {
             if(line.S("platformAccountId",line.S("accountId"))=="")
             {
-                J.Need(line.ContainsKey("baseGross")&&line.ContainsKey("incentives")&&line.ContainsKey("orders")&&line.N("baseGross")==0&&line.N("incentives")==0&&line.N("orders")==0,"سطر شركة باستحقاق غير موزع يحتاج مراجعة.");
+                J.Need(line.ContainsKey("baseGross")&&line.ContainsKey("incentives")&&line.ContainsKey("orders")&&line.N("incentives")==0&&line.N("orders")==0&&(line.S("lineType")=="company"||line.N("baseGross")==0),"سطر شركة باستحقاق غير موزع يحتاج مراجعة.");
                 continue;
             }
             accounts.Add(OperationsImports.Account(line));

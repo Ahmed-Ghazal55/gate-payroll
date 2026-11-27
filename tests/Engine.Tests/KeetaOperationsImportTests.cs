@@ -65,6 +65,24 @@ public sealed class KeetaOperationsImportTests
     static JsonObject Confirm(JsonObject preview)=>new(){["invoiceId"]=InvoiceId,["register"]=Register,["confirm"]=true,["rows"]=preview["rows"]!.DeepClone(),["fingerprint"]=preview.S("fingerprint")};
 
     [TestMethod]
+    public void KeetaPositiveCompanyLineCountsInCycleBaseGrossWithoutPlatformAccountOrRider()
+    {
+        // Positive blank-account company line stays in amountExclVat; the cycle draft accepts it with no platform account and no rider.
+        using var f=new PayFixture();Seed(f.Store);f.Approve("pay_terms","keeta",f.Draft("pay_terms","keeta",PayFixture.Terms()));
+        f.Store.Write((c,tx)=>{
+            var inv=Store.Get(c,InvoiceId,"platform_invoice",tx)!;inv["amountExclVat"]=130;Store.Save(c,"platform_invoice",inv,tx);
+            Store.Save(c,"platform_invoice_line",new(){["id"]="synthetic-keeta-ops-company",["invoiceId"]=InvoiceId,["platformAccountId"]="",["lineType"]="company",["baseGross"]=20,["incentives"]=0,["orders"]=0,["deductionAmount"]=0,["deductions"]=new JsonArray()},tx);
+            return true;
+        });
+        var bytes=Workbook();
+        var preview=f.Store.Read(c=>OperationsImports.Preview(c,PayFixture.Maker,"keeta",Input(),bytes));
+        var saved=f.Store.Write((c,tx)=>OperationsImports.Commit(c,tx,PayFixture.Maker,"keeta",Confirm(preview),bytes));
+        var cycle=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,new(){["companyId"]=Company,["period"]="2026-10",["invoices"]=new JsonArray(saved["review"]!.DeepClone())}));
+        Assert.AreEqual("draft",cycle.S("status"));
+        Assert.AreEqual("",f.Store.Read(c=>Store.List(c,"platform_invoice_line").Single(l=>l.S("lineType")=="company").S("platformAccountId")));
+    }
+
+    [TestMethod]
     public void ArabicRegisterSheetPreviewAndCommitKeepsExpectedOnlyAndFlagsDismissed()
     {
         using var f=new PayFixture();Seed(f.Store);f.Approve("pay_terms","keeta",f.Draft("pay_terms","keeta",PayFixture.Terms()));
