@@ -4,9 +4,9 @@
 |---|---|
 | Current writer | (free) |
 | Branch | `feat/keeta-ops-import` |
-| Updated | 2026-11-27 by Cursor (KOPS1 Keeta ops import redo) |
+| Updated | 2026-11-27 by Cursor (KOPS1b fix round) |
 | Live | unchanged (local commit only; never pushed) |
-| Next | Planner: Grok review of KOPS1; never push until Ghazal says |
+| Next | Planner: Grok re-check KOPS1b; never push until Ghazal says |
 
 ## Goal now
 KOPS1 done: Keeta operations import redone to Arabic register sheets A..AH. Report: `~/.cache/agents-runs/cursor-KOPS1-report.md`.

@@ -19,11 +19,7 @@ import {
 import { fileToBase64 } from './parseBrowserFile';
 
 type OpsPreview = paths['/api/pay/apps/{app}/operations/import/preview']['post']['responses'][200]['content']['application/json'];
-type OpsDisplayRow = NonNullable<OpsPreview['displayRows']>[number] & {
-  dismissed?: boolean;
-  row?: number;
-  [key: string]: unknown;
-};
+type OpsDisplayRow = NonNullable<OpsPreview['displayRows']>[number];
 
 export type KeetaOperationsImportDialogProps = {
   open: boolean;
@@ -211,15 +207,13 @@ export function KeetaOperationsImportDialog({
     return [] as string[];
   }, [preview]);
 
-  const displayRows = useMemo(() => {
-    const rows = preview?.displayRows;
-    return Array.isArray(rows) ? (rows as OpsDisplayRow[]) : [];
-  }, [preview]);
+  const displayRows: OpsDisplayRow[] = useMemo(() => preview?.displayRows ?? [], [preview]);
 
+  type PreviewTableRow = { row: OpsDisplayRow; __rowNo: number; __dismissed: boolean };
   const tableRows = useMemo(
-    () =>
-      displayRows.map((row, idx): Record<string, unknown> => ({
-        ...row,
+    (): PreviewTableRow[] =>
+      displayRows.map((row, idx) => ({
+        row,
         __rowNo: Number(row.row ?? idx + 1),
         __dismissed: Boolean(row.dismissed),
       })),
@@ -227,12 +221,12 @@ export function KeetaOperationsImportDialog({
   );
   const filterCols = useMemo(
     () => [
-      { key: '__rowNo', header: '#', type: 'number' as const, getValue: (r: Record<string, unknown>) => Number(r.__rowNo ?? 0) },
+      { key: '__rowNo', header: '#', type: 'number' as const, getValue: (r: PreviewTableRow) => r.__rowNo },
       ...columns.map((c) => ({
         key: c,
         header: c,
         type: 'text' as const,
-        getValue: (r: Record<string, unknown>) => String(r[c] ?? ''),
+        getValue: (r: PreviewTableRow) => String(displayCell(r.row, c) ?? ''),
       })),
     ],
     [columns]
@@ -404,21 +398,21 @@ export function KeetaOperationsImportDialog({
                     </tr>
                   </thead>
                   <tbody>
-                    {tableFilter.rows.map((row) => {
-                      const dismissed = Boolean(row.__dismissed);
+                    {tableFilter.rows.map((entry) => {
+                      const dismissed = entry.__dismissed;
                       return (
                         <tr
-                          key={String(row.__rowNo)}
+                          key={String(entry.__rowNo)}
                           className={
                             dismissed
                               ? 'bg-red-600 text-white border-b border-red-700'
                               : 'border-b border-[var(--line)] last:border-0'
                           }
                         >
-                          <td className="p-2">{String(row.__rowNo)}</td>
+                          <td className="p-2">{String(entry.__rowNo)}</td>
                           {columns.map((c) => (
                             <td key={c} className="p-2 whitespace-nowrap max-w-[160px] truncate">
-                              {formatCell(row[c])}
+                              {formatCell(displayCell(entry.row, c))}
                             </td>
                           ))}
                         </tr>
@@ -433,6 +427,21 @@ export function KeetaOperationsImportDialog({
       </div>
     </Dialog>
   );
+}
+
+/** Read a contract display-row field by column header without casting the row. */
+function displayCell(row: OpsDisplayRow, column: string): string | number | boolean | undefined {
+  for (const [key, value] of Object.entries(row)) {
+    if (key === column) {
+      if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return value;
+      return undefined;
+    }
+  }
+  if (column === 'row') return row.row;
+  if (column === 'dismissed') return row.dismissed;
+  if (column === 'active') return row.active;
+  if (column === 'expectedApproval') return row.expectedApproval;
+  return undefined;
 }
 
 function formatCell(value: unknown): string {

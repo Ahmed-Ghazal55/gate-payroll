@@ -142,10 +142,20 @@ public static class KeetaOperationsImport
             string from=NormalizeDate(V("تاريخ الاستلام1"),period,i+1,"تاريخ الاستلام1");
             string to=NormalizeDate(V("تاريخ التسليم"),period,i+1,"تاريخ التسليم");
             J.Need((from=="")==(to==""),$"الصف {i+1}: تاريخا الاستلام والتسليم معًا أو فارغان.");
+            // Keeta only: keep real start/stop; accept a span that overlaps the invoice month.
+            // Clip only for the shared assignment rule (Ninja/HS both-ends-in-month stays unchanged).
+            string assignFrom=from,assignTo=to;
             if(from!="")
             {
-                J.Need(from.StartsWith(period+"-",StringComparison.Ordinal)&&to.StartsWith(period+"-",StringComparison.Ordinal),$"الصف {i+1}: فترة التشغيل داخل شهر الفاتورة.");
-                J.Need(string.CompareOrdinal(from,to)<=0,$"الصف {i+1}: تاريخ الاستلام بعد التسليم.");
+                J.Need(DateOnly.TryParseExact(from,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var first),$"الصف {i+1}: تواريخ التشغيل بصيغة سنة-شهر-يوم.");
+                J.Need(DateOnly.TryParseExact(to,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var last),$"الصف {i+1}: تواريخ التشغيل بصيغة سنة-شهر-يوم.");
+                J.Need(first<=last,$"الصف {i+1}: تاريخ الاستلام بعد التسليم.");
+                int year=int.Parse(period[..4],CultureInfo.InvariantCulture),month=int.Parse(period[5..],CultureInfo.InvariantCulture);
+                var monthStart=new DateOnly(year,month,1);
+                var monthEnd=new DateOnly(year,month,DateTime.DaysInMonth(year,month));
+                J.Need(first<=monthEnd&&last>=monthStart,$"الصف {i+1}: فترة التشغيل يجب أن تتقاطع مع شهر الفاتورة.");
+                if(first<monthStart)assignFrom=monthStart.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);
+                if(last>monthEnd)assignTo=monthEnd.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture);
             }
 
             string accountId=ResolveAccountId(accountKey);
@@ -157,13 +167,7 @@ public static class KeetaOperationsImport
             var person=Store.Get(c,rider,"rider",tx)??throw new ApiError($"الصف {i+1}: المندوب غير موجود.");
             FinancialScopes.DemandRider(actor,person);
             J.Need(ErpRiderClassification.ListedAsRider(person),$"الصف {i+1}: الهوية ليست لمندوب تشغيل.");
-            if(!dismissed)OperationsImports.AssignmentPublic(account,rider,period,from,to);
-            else if(from!="")
-            {
-                // Dismissed with performance: keep declared dates; assignment may already have ended.
-                J.Need(DateOnly.TryParseExact(from,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out _)
-                    &&DateOnly.TryParseExact(to,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out _),$"الصف {i+1}: تواريخ التشغيل بصيغة سنة-شهر-يوم.");
-            }
+            if(!dismissed)OperationsImports.AssignmentPublic(account,rider,period,assignFrom,assignTo);
 
             string expectedEligibility=V("الصلاحية المتوقعة");
             J.Need(expectedEligibility!="",$"الصف {i+1}: الصلاحية المتوقعة مطلوبة (متوقع فقط؛ النهائي من الفاتورة).");
@@ -227,10 +231,8 @@ public static class KeetaOperationsImport
         J.Need(pending.Count>0,"لا توجد صفوف تشغيل بعد التحقق.");
         AllocateGross(pending);
         foreach(var (review,share,_) in pending)review["riders"]!.AsArray().Add(share);
-
-        foreach(var group in accounts.OfType<JsonObject>().SelectMany(a=>a["riders"]!.AsArray().OfType<JsonObject>()).GroupBy(r=>r.S("rider")))
-            J.Need(group.Select(r=>r.S("category")+":"+r.N("days")+":"+FinancialImports.Canonical(r["metrics"])).Distinct().Count()==1,
-                "مقاييس وأيام وفئة المندوب تخص شهر التطبيق كله؛ لا تختلف بين اليوزرات.");
+        // Keeta grain is one row per rider per ID; same rider may differ by ID (days/orders/category).
+        // Per-ID duplicate key and per-account order total against the invoice stay below.
 
         // Rider order totals must match the approved invoice account orders.
         foreach(var reviewAcc in accounts.OfType<JsonObject>())

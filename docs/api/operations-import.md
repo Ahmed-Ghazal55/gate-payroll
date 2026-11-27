@@ -14,7 +14,8 @@
 - **One sheet = one register.** A single-sheet workbook is accepted as-is. A multi-sheet workbook must contain the register sheet name (`Express` / `Albwaba` / `Togary`); helper sheets are ignored for parsing selection.
 - **Columns:** Arabic headers A..AH in the same order as the register sheets of Ghazal’s Keeta ops workbook. Trailing comparison columns are ignored. Download `/api/imports/templates/operations-keeta`.
 - **Rows:** one row per rider per ID (the same ID may repeat). Dismissed IDs (`الحالة` false) that still have performance in the month are allowed and flagged (`dismissed` on `displayRows` and under rider `metrics`).
-- **Dates:** `تاريخ الاستلام1` / `تاريخ التسليم` kept on the rider metrics as ID and rider start/stop.
+- **Dates:** `تاريخ الاستلام1` / `تاريخ التسليم` kept as real start/stop on rider metrics. The span must **overlap** the invoice month (Keeta only; Ninja/HS still require both ends inside the month). Assignment matching clips to the invoice month without changing the shared Ninja/HS rule.
+- **Same rider, multiple IDs:** allowed; days/category/metrics may differ per ID. Duplicate key remains `accountId:rider`. Per-account sheet order totals must still match the approved invoice.
 - **`كفالة اليوزر`:** display-only owner register (no settings).
 - **`الصلاحية المتوقعة`:** stored as expected only (`metrics.expectedApproval = expected_only`, `expectedFinal = false`). Final eligibility is the approved invoice.
 

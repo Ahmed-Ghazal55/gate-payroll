@@ -79,6 +79,10 @@ test('Keeta ops dialog picks register before upload and styles dismissed rows', 
   assert.match(dialog, /bg-red-600 text-white/);
   assert.match(dialog, /api-contract/);
   assert.match(dialog, /AutoFilterTh/);
+  assert.match(dialog, /OpsDisplayRow/);
+  assert.doesNotMatch(dialog, /as OpsDisplayRow/);
+  assert.doesNotMatch(dialog, /Record<string, never>/);
+  assert.doesNotMatch(dialog, /\[key: string\]: unknown/);
   assert.match(read('src/features/imports/import-steps.ts'), /الصلاحية متوقعة فقط/);
 });
 

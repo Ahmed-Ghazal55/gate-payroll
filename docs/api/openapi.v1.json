@@ -119,7 +119,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -137,7 +137,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -360,7 +360,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -2590,7 +2590,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -3893,7 +3893,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -4446,7 +4446,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -4799,7 +4799,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -4868,7 +4868,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -4954,7 +4954,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -5040,7 +5040,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -5126,7 +5126,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -10622,7 +10622,127 @@
                     "displayRows": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "required": [
+                          "row",
+                          "dismissed"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "row": {
+                            "type": "number"
+                          },
+                          "dismissed": {
+                            "type": "boolean"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "expectedApproval": {
+                            "type": "string"
+                          },
+                          "المعرف": {
+                            "type": "string"
+                          },
+                          "الاسم بالكامل": {
+                            "type": "string"
+                          },
+                          "رقم بطاقة الهوية": {
+                            "type": "string"
+                          },
+                          "كفالة اليوزر": {
+                            "type": "string"
+                          },
+                          "المركبة": {
+                            "type": "string"
+                          },
+                          "الحالة": {
+                            "type": "string"
+                          },
+                          "رقم الهوية1": {
+                            "type": "string"
+                          },
+                          "البديل 1": {
+                            "type": "string"
+                          },
+                          "رقم التواصل": {
+                            "type": "string"
+                          },
+                          "نوع البديل": {
+                            "type": "string"
+                          },
+                          "نوع المركبة": {
+                            "type": "string"
+                          },
+                          "رقم كرت البنزين1": {
+                            "type": "string"
+                          },
+                          "الأدوات1": {
+                            "type": "string"
+                          },
+                          "الجنسية 1": {
+                            "type": "string"
+                          },
+                          "الرقم المسجل": {
+                            "type": "string"
+                          },
+                          "الايبان 1": {
+                            "type": "string"
+                          },
+                          "تاريخ الاستلام1": {
+                            "type": "string"
+                          },
+                          "تاريخ التسليم": {
+                            "type": "string"
+                          },
+                          "الأيام الصالحة": {
+                            "type": "number"
+                          },
+                          "الطلبات": {
+                            "type": "number"
+                          },
+                          "المخالفات": {
+                            "type": "number"
+                          },
+                          "المسافة المدفوعة": {
+                            "type": "number"
+                          },
+                          "عدد ايام عمل المندوب": {
+                            "type": "number"
+                          },
+                          "الصلاحية المتوقعة": {
+                            "type": "string"
+                          },
+                          "اجمالي المسافه": {
+                            "type": "number"
+                          },
+                          "مطابقة المسافة": {
+                            "type": "string"
+                          },
+                          "الملاحظات": {
+                            "type": "string"
+                          },
+                          "اجمالي طلبات المعادلة": {
+                            "type": "number"
+                          },
+                          "اجمالي طلبات اليوزر": {
+                            "type": "number"
+                          },
+                          "مطابقة الطلبات": {
+                            "type": "string"
+                          },
+                          "عدد البدلاء": {
+                            "type": "number"
+                          },
+                          "اجمالي ايام المعادلة": {
+                            "type": "number"
+                          },
+                          "اجمالي ايام اليوزر": {
+                            "type": "number"
+                          },
+                          "مطابقة الايام": {
+                            "type": "string"
+                          }
+                        }
                       }
                     },
                     "counts": {
@@ -10841,7 +10961,127 @@
                     "displayRows": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "required": [
+                          "row",
+                          "dismissed"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "row": {
+                            "type": "number"
+                          },
+                          "dismissed": {
+                            "type": "boolean"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "expectedApproval": {
+                            "type": "string"
+                          },
+                          "المعرف": {
+                            "type": "string"
+                          },
+                          "الاسم بالكامل": {
+                            "type": "string"
+                          },
+                          "رقم بطاقة الهوية": {
+                            "type": "string"
+                          },
+                          "كفالة اليوزر": {
+                            "type": "string"
+                          },
+                          "المركبة": {
+                            "type": "string"
+                          },
+                          "الحالة": {
+                            "type": "string"
+                          },
+                          "رقم الهوية1": {
+                            "type": "string"
+                          },
+                          "البديل 1": {
+                            "type": "string"
+                          },
+                          "رقم التواصل": {
+                            "type": "string"
+                          },
+                          "نوع البديل": {
+                            "type": "string"
+                          },
+                          "نوع المركبة": {
+                            "type": "string"
+                          },
+                          "رقم كرت البنزين1": {
+                            "type": "string"
+                          },
+                          "الأدوات1": {
+                            "type": "string"
+                          },
+                          "الجنسية 1": {
+                            "type": "string"
+                          },
+                          "الرقم المسجل": {
+                            "type": "string"
+                          },
+                          "الايبان 1": {
+                            "type": "string"
+                          },
+                          "تاريخ الاستلام1": {
+                            "type": "string"
+                          },
+                          "تاريخ التسليم": {
+                            "type": "string"
+                          },
+                          "الأيام الصالحة": {
+                            "type": "number"
+                          },
+                          "الطلبات": {
+                            "type": "number"
+                          },
+                          "المخالفات": {
+                            "type": "number"
+                          },
+                          "المسافة المدفوعة": {
+                            "type": "number"
+                          },
+                          "عدد ايام عمل المندوب": {
+                            "type": "number"
+                          },
+                          "الصلاحية المتوقعة": {
+                            "type": "string"
+                          },
+                          "اجمالي المسافه": {
+                            "type": "number"
+                          },
+                          "مطابقة المسافة": {
+                            "type": "string"
+                          },
+                          "الملاحظات": {
+                            "type": "string"
+                          },
+                          "اجمالي طلبات المعادلة": {
+                            "type": "number"
+                          },
+                          "اجمالي طلبات اليوزر": {
+                            "type": "number"
+                          },
+                          "مطابقة الطلبات": {
+                            "type": "string"
+                          },
+                          "عدد البدلاء": {
+                            "type": "number"
+                          },
+                          "اجمالي ايام المعادلة": {
+                            "type": "number"
+                          },
+                          "اجمالي ايام اليوزر": {
+                            "type": "number"
+                          },
+                          "مطابقة الايام": {
+                            "type": "string"
+                          }
+                        }
                       }
                     },
                     "counts": {
@@ -11058,7 +11298,127 @@
                     "displayRows": {
                       "type": "array",
                       "items": {
-                        "type": "object"
+                        "required": [
+                          "row",
+                          "dismissed"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "row": {
+                            "type": "number"
+                          },
+                          "dismissed": {
+                            "type": "boolean"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "expectedApproval": {
+                            "type": "string"
+                          },
+                          "المعرف": {
+                            "type": "string"
+                          },
+                          "الاسم بالكامل": {
+                            "type": "string"
+                          },
+                          "رقم بطاقة الهوية": {
+                            "type": "string"
+                          },
+                          "كفالة اليوزر": {
+                            "type": "string"
+                          },
+                          "المركبة": {
+                            "type": "string"
+                          },
+                          "الحالة": {
+                            "type": "string"
+                          },
+                          "رقم الهوية1": {
+                            "type": "string"
+                          },
+                          "البديل 1": {
+                            "type": "string"
+                          },
+                          "رقم التواصل": {
+                            "type": "string"
+                          },
+                          "نوع البديل": {
+                            "type": "string"
+                          },
+                          "نوع المركبة": {
+                            "type": "string"
+                          },
+                          "رقم كرت البنزين1": {
+                            "type": "string"
+                          },
+                          "الأدوات1": {
+                            "type": "string"
+                          },
+                          "الجنسية 1": {
+                            "type": "string"
+                          },
+                          "الرقم المسجل": {
+                            "type": "string"
+                          },
+                          "الايبان 1": {
+                            "type": "string"
+                          },
+                          "تاريخ الاستلام1": {
+                            "type": "string"
+                          },
+                          "تاريخ التسليم": {
+                            "type": "string"
+                          },
+                          "الأيام الصالحة": {
+                            "type": "number"
+                          },
+                          "الطلبات": {
+                            "type": "number"
+                          },
+                          "المخالفات": {
+                            "type": "number"
+                          },
+                          "المسافة المدفوعة": {
+                            "type": "number"
+                          },
+                          "عدد ايام عمل المندوب": {
+                            "type": "number"
+                          },
+                          "الصلاحية المتوقعة": {
+                            "type": "string"
+                          },
+                          "اجمالي المسافه": {
+                            "type": "number"
+                          },
+                          "مطابقة المسافة": {
+                            "type": "string"
+                          },
+                          "الملاحظات": {
+                            "type": "string"
+                          },
+                          "اجمالي طلبات المعادلة": {
+                            "type": "number"
+                          },
+                          "اجمالي طلبات اليوزر": {
+                            "type": "number"
+                          },
+                          "مطابقة الطلبات": {
+                            "type": "string"
+                          },
+                          "عدد البدلاء": {
+                            "type": "number"
+                          },
+                          "اجمالي ايام المعادلة": {
+                            "type": "number"
+                          },
+                          "اجمالي ايام اليوزر": {
+                            "type": "number"
+                          },
+                          "مطابقة الايام": {
+                            "type": "string"
+                          }
+                        }
                       }
                     },
                     "counts": {
@@ -13944,7 +14304,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -22557,7 +22917,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -22575,7 +22935,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -22593,7 +22953,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -22611,7 +22971,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -22629,7 +22989,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -24561,7 +24921,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -41627,7 +41987,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -47767,7 +48127,7 @@
             "description": "OK",
             "content": {
               "application/json": {
-                "schema": { }
+                "schema": {}
               }
             }
           }
@@ -49715,7 +50075,7 @@
               "string"
             ]
           },
-          "snapshot": { },
+          "snapshot": {},
           "checkpoint": {
             "$ref": "#/components/schemas/JsonElement"
           },
@@ -50838,8 +51198,8 @@
       "JsonArray": {
         "type": "array"
       },
-      "JsonElement": { },
-      "JsonNode": { },
+      "JsonElement": {},
+      "JsonNode": {},
       "JsonObject": {
         "type": "object"
       },

@@ -127,8 +127,21 @@ public static partial class ApiContracts
     static OpenApiSchema OperationsImportAccount()=>O(new(){["accountId"]=S(),["sourceLineId"]=S(),["baseGross"]=N(),["incentives"]=N(),["orders"]=N(),["riders"]=A(OperationsImportRiderShare())},"accountId","sourceLineId","baseGross","incentives","orders","riders");
     static OpenApiSchema OperationsImportReview()=>O(new(){["invoiceId"]=S(),["app"]=S(),["accounts"]=A(OperationsImportAccount()),["deductions"]=A(Free())},"invoiceId","app","accounts","deductions");
     static OpenApiSchema OperationsImportCounts()=>O(new(){["rows"]=N(),["dismissed"]=N(),["duplicateIdRows"]=N(),["uniqueIds"]=N()},"rows","dismissed","duplicateIdRows","uniqueIds");
-    static OpenApiSchema OperationsImportPreview()=>O(new(){["rows"]=A(OperationsImportReview()),["fingerprint"]=S(),["register"]=S(),["registerSheet"]=S(),["columns"]=A(S()),["displayRows"]=A(Free()),["counts"]=OperationsImportCounts()},"rows","fingerprint");
-    static OpenApiSchema OperationsImportDoc()=>O(new(){["id"]=S(),["app"]=S(),["invoiceId"]=S(),["companyId"]=S(),["period"]=S(),["sourceSha256"]=S(),["review"]=OperationsImportReview(),["createdBy"]=S(),["createdAt"]=S(),["register"]=S(),["registerSheet"]=S(),["columns"]=A(S()),["displayRows"]=A(Free()),["counts"]=OperationsImportCounts()},"id","app","invoiceId","companyId","period","review");
+    static OpenApiSchema OperationsImportDisplayRow()
+    {
+        var props=new Dictionary<string,IOpenApiSchema>
+        {
+            ["row"]=N(),
+            ["dismissed"]=B(),
+            ["active"]=B(),
+            ["expectedApproval"]=S()
+        };
+        foreach(var col in KeetaOperationsImport.Columns)
+            props[col.Header]=col.Numeric?N():S();
+        return O(props,"row","dismissed");
+    }
+    static OpenApiSchema OperationsImportPreview()=>O(new(){["rows"]=A(OperationsImportReview()),["fingerprint"]=S(),["register"]=S(),["registerSheet"]=S(),["columns"]=A(S()),["displayRows"]=A(OperationsImportDisplayRow()),["counts"]=OperationsImportCounts()},"rows","fingerprint");
+    static OpenApiSchema OperationsImportDoc()=>O(new(){["id"]=S(),["app"]=S(),["invoiceId"]=S(),["companyId"]=S(),["period"]=S(),["sourceSha256"]=S(),["review"]=OperationsImportReview(),["createdBy"]=S(),["createdAt"]=S(),["register"]=S(),["registerSheet"]=S(),["columns"]=A(S()),["displayRows"]=A(OperationsImportDisplayRow()),["counts"]=OperationsImportCounts()},"id","app","invoiceId","companyId","period","review");
     public static OpenApiSchema? Response(string method,string path)
     {
         bool get=method=="GET";
