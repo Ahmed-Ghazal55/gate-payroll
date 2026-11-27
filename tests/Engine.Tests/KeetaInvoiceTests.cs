@@ -76,21 +76,39 @@ public sealed class KeetaInvoiceTests
         f.Store.Write((c,tx)=>{var account=Store.Get(c,"synthetic-keeta-account","platform_account",tx)!;account["companyId"]=FinancialCore.Sponsors[1].Id;Store.Save(c,"platform_account",account,tx);return true;});
         input["rows"]=preview["rows"]!.DeepClone();input["fingerprint"]=preview.S("fingerprint");input["confirm"]=true;Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>KeetaInvoices.Commit(c,tx,Actor(),input,bytes)));
     }
-    internal static byte[] OctoberLayoutWorkbook()
+    internal static byte[] OctoberLayoutWorkbook(bool withPositiveCompany=false,bool withRiderCredit=false,string? partnerTax=null,string? partnerDue=null)
     {
-        // Real October rider sheet headers (diacritics + driver id + inclusive due only; no bare net).
+        // Real October rider sheet headers (diacritics + driver id + due ex-VAT only; no bare net).
         string[] headers=["معرف الشريك","اسم الشريك","دورة الفوترة","معرّف سائق التوصيل","اسم سائق التوصيل","صالح","السبب","أيام الاتصال-صالحة","ساعات الاتصال اليومي-صالحة","ساعات الاتصال اليومي خلال وقت الذروة-صالحة","الطلبات المُسلمة","مسافة التوصيل","الخصم","تعويض عن تلف الطعام","رسوم خدمة التسجيل","خصومات المعدات","تعديل آخر","خصم TGA (بدون ضريبة القيمة المضافة).","إجمالي المبلغ المستحق"];
         string[] title=["عنوان وهمي","","","","","","","","","","","","","","","","","",""];
-        string[] row=["999","SYN_PARTNER","أكتوبر 2026","SYN-K1","SYNTHETIC_DRIVER","صالح","سبب آخر","-","-","-","10","1km","0","0","0","0","0","0","\u200f115.00\xa0ر.س.\u200f"];
-        string[] blankOrders=["999","SYN_PARTNER","أكتوبر 2026","SYN-K2","SYNTHETIC_DRIVER_2","-","-","-","-","-","-","-","0","0","0","0","0","0","\u200f10.00\xa0ر.س.\u200f"];
-        // Distractor sheets that must not be chosen as the invoice sheet.
-        string[] partnerHeaders=["معرّف الفاتورة","معرف الشريك","اسم الشريك","إجمالي المبلغ المستحق"];
-        string[] partnerRow=["1","999","SYN_PARTNER","115"];
+        string[] row=["999","SYN_PARTNER","أكتوبر 2026","SYN-K1","SYNTHETIC_DRIVER","صالح","سبب آخر","-","-","-","10","1km","0","0","0","0","0","0","\u200f100.00\xa0ر.س.\u200f"];
+        var riderRows=new List<string[]>{title,headers,row};
+        decimal riderDueSum=100m;
+        if(withRiderCredit)
+        {
+            riderRows.Add(["999","SYN_PARTNER","أكتوبر 2026","SYN-K2","SYNTHETIC_DRIVER_2","-","-","-","-","-","0","-","0","0","0","0","0","0","\u200f-10.00\xa0ر.س.\u200f"]);
+            riderDueSum+=-10m;
+        }
+        else
+        {
+            riderRows.Add(["999","SYN_PARTNER","أكتوبر 2026","SYN-K2","SYNTHETIC_DRIVER_2","-","-","-","-","-","-","-","0","0","0","0","0","0","\u200f15.00\xa0ر.س.\u200f"]);
+            riderDueSum+=15m;
+        }
+        if(withPositiveCompany)
+        {
+            riderRows.Add(["999","SYN_PARTNER","أكتوبر 2026","","","-","-","-","-","-","0","-","0","0","0","0","5","0","\u200f20.00\xa0ر.س.\u200f"]);
+            riderDueSum+=20m;
+        }
+        // Partner sheet: tax + payable due (not مبلغ الفاتورة). Rider due sum + tax = partner due.
+        decimal tax=partnerTax!=null?decimal.Parse(partnerTax,System.Globalization.CultureInfo.InvariantCulture):J.Money(riderDueSum*0.15m);
+        decimal dueTotal=partnerDue!=null?decimal.Parse(partnerDue,System.Globalization.CultureInfo.InvariantCulture):J.Money(riderDueSum+tax);
+        string[] partnerHeaders=["معرّف الفاتورة","معرف الشريك","اسم الشريك","مبلغ الضريبة","مبلغ الفاتورة","إجمالي المبلغ المستحق"];
+        string[] partnerRow=["1","999","SYN_PARTNER",tax.ToString(System.Globalization.CultureInfo.InvariantCulture),"999999.99",dueTotal.ToString(System.Globalization.CultureInfo.InvariantCulture)];
         string[] detailHeaders=["معرف الشريك","معرّف سائق التوصيل","إجمالي المبلغ المستحق"];
         string[] detailRow=["999","SYN-K1","10"];
         return DebtSheetReviewTests.Book([
             ("تفاصيل الشركاء",[partnerHeaders,partnerRow]),
-            ("تفاصيل سائق التوصيل",[title,headers,row,blankOrders]),
+            ("تفاصيل سائق التوصيل",riderRows.ToArray()),
             ("تفاصيل طلب السائق",[detailHeaders,detailRow])
         ]);
     }
@@ -102,10 +120,36 @@ public sealed class KeetaInvoiceTests
         var parsed=f.Store.Read(c=>KeetaInvoices.Parse(c,null,Actor(),Input(),OctoberLayoutWorkbook()));
         Assert.AreEqual("تفاصيل سائق التوصيل",parsed.S("sourceSheet"));
         Assert.AreEqual(2,parsed["lines"]!.AsArray().Count);
-        Assert.AreEqual(125m,parsed.N("amountExclVat"));
-        Assert.AreEqual(0m,parsed.N("vat"));
-        Assert.AreEqual(115m,parsed["lines"]![0]!.N("invoiceInclusive"));
+        Assert.AreEqual(115m,parsed.N("amountExclVat"));
+        Assert.AreEqual(17.25m,parsed.N("vat"));
+        Assert.AreEqual(0m,parsed["lines"]![0]!.N("vat"));
+        Assert.AreEqual(100m,parsed["lines"]![0]!.N("invoiced"));
         Assert.AreEqual(0m,parsed["lines"]![1]!.N("orders"));
         Assert.DoesNotContain("SYNTHETIC_DRIVER",parsed.ToJsonString());
+    }
+    [TestMethod]
+    public void OctoberPositiveCompanyRowAndRiderCreditStayInsidePartnerTotal()
+    {
+        using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);
+        f.Store.Write((c,tx)=>{Store.Save(c,"platform_account",new(){["id"]="synthetic-keeta-account-2",["externalAccountId"]="SYN-K2",["platformCode"]="keeta",["companyId"]=Company},tx);return true;});
+        var input=Input();input["companyRows"]=new JsonArray(5); // 1-based: title,header,k1,credit,company => row 5
+        var bytes=OctoberLayoutWorkbook(withPositiveCompany:true,withRiderCredit:true);
+        var parsed=f.Store.Read(c=>KeetaInvoices.Parse(c,null,Actor(),input,bytes));
+        Assert.AreEqual(3,parsed["lines"]!.AsArray().Count);
+        var company=parsed["lines"]!.AsArray().OfType<JsonObject>().Single(l=>l.S("lineType")=="company");
+        Assert.AreEqual(20m,company.N("invoiced"));Assert.AreEqual(20m,company.N("baseGross"));Assert.AreEqual(0m,company.N("deductionAmount"));
+        var credit=parsed["lines"]!.AsArray().OfType<JsonObject>().Single(l=>l.S("lineType")=="account"&&l.N("invoiced")<0);
+        Assert.AreEqual(-10m,credit.N("invoiced"));Assert.AreEqual(0m,credit.N("orders"));
+        // 100 + (-10) + 20 = 110; tax 16.50; partner due 126.50
+        Assert.AreEqual(16.50m,parsed.N("vat"));
+        Assert.AreEqual(110m,parsed["lines"]!.AsArray().OfType<JsonObject>().Sum(l=>l.N("invoiced")));
+    }
+    [TestMethod]
+    public void OctoberPartnerTotalMismatchAbortsInArabic()
+    {
+        using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);
+        f.Store.Write((c,tx)=>{Store.Save(c,"platform_account",new(){["id"]="synthetic-keeta-account-2",["externalAccountId"]="SYN-K2",["platformCode"]="keeta",["companyId"]=Company},tx);return true;});
+        var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>KeetaInvoices.Parse(c,null,Actor(),Input(),OctoberLayoutWorkbook(partnerTax:"1",partnerDue:"999"))));
+        Assert.Contains("الشريك",err.Message);
     }
 }

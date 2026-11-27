@@ -22,6 +22,7 @@ public static class KeetaInvoices
     static readonly string[] OrdersAliases=["الطلبات المسلمة"];
     static readonly string[] DueAliases=["اجمالي المبلغ المستحق"];
     static readonly string[] NetAliases=["الاجمالي","مبلغ الفاتورة"];
+    static readonly string[] PartnerTaxAliases=["مبلغ الضريبة"];
     static string Header(string value)
     {
         string text=value.Trim().Normalize(NormalizationForm.FormKD);
@@ -40,6 +41,12 @@ public static class KeetaInvoices
     }
     static bool RowHasAliases(IReadOnlyList<string> headers,params string[][] groups)
         =>groups.All(g=>g.Any(alias=>headers.Contains(Header(alias))));
+    static int AliasIndex(IReadOnlyList<string> headers,IEnumerable<string> aliases)
+    {
+        var found=headers.Select((v,i)=>(v,i)).Where(x=>aliases.Any(a=>x.v==Header(a))).ToArray();
+        J.Need(found.Length<=1,"عمود فاتورة مكرر.");
+        return found.Length==0?-1:found[0].i;
+    }
     static int FindHeaderRow(Imports.Sheet sheet)
     {
         int limit=Math.Min(sheet.Rows.Count,40);
@@ -49,6 +56,38 @@ public static class KeetaInvoices
             if(RowHasAliases(headers,AccountAliases,OrdersAliases,DueAliases))return i;
         }
         return -1;
+    }
+    static int FindPartnerHeaderRow(Imports.Sheet sheet)
+    {
+        int limit=Math.Min(sheet.Rows.Count,40);
+        for(int i=0;i<limit;i++)
+        {
+            var headers=sheet.Rows[i].Select(Header).ToList();
+            // Partner summary: tax + due, without rider account/orders (avoids rider and order-detail sheets).
+            if(RowHasAliases(headers,PartnerTaxAliases,DueAliases)&&!RowHasAliases(headers,OrdersAliases)&&AliasIndex(headers,AccountAliases)<0)return i;
+        }
+        return -1;
+    }
+    static (decimal Tax,decimal PartnerDue) ReadPartnerTotals(IReadOnlyList<Imports.Sheet> sheets)
+    {
+        var hits=sheets.Select(s=>(Sheet:s,HeaderRow:FindPartnerHeaderRow(s))).Where(x=>x.HeaderRow>=0).ToList();
+        J.Need(hits.Count==1,"حدد ورقة تفاصيل الشركاء لضريبة الفاتورة.");
+        var sheet=hits[0].Sheet;int headerRow=hits[0].HeaderRow;
+        var header=sheet.Rows[headerRow].Select(Header).ToList();
+        int taxCol=AliasIndex(header,PartnerTaxAliases),dueCol=AliasIndex(header,DueAliases);
+        J.Need(taxCol>=0&&dueCol>=0,"عمود ضريبة أو إجمالي الشريك مفقود.");
+        var dataRows=new List<(decimal Tax,decimal Due)>();
+        for(int i=headerRow+1;i<sheet.Rows.Count;i++)
+        {
+            var row=sheet.Rows[i];
+            if(row.All(string.IsNullOrWhiteSpace))continue;
+            string V(int index)=>index>=0&&index<row.Count?row[index].Trim():"";
+            if(IsBlankToken(V(taxCol))&&IsBlankToken(V(dueCol)))continue;
+            dataRows.Add((ParseMoneyCell(V(taxCol),i+1),ParseMoneyCell(V(dueCol),i+1)));
+        }
+        J.Need(dataRows.Count==1,"ورقة الشركاء يجب أن تحتوي صف بيانات واحد.");
+        J.Need(dataRows[0].Tax>=0,"ضريبة الشريك لا تكون سالبة.");
+        return dataRows[0];
     }
     static bool IsBlankToken(string value)
     {
@@ -105,8 +144,8 @@ public static class KeetaInvoices
             return hits.Length==0?-1:hits[0].i;
         }
         int accountCol=ColAlias(AccountAliases,true),ordersCol=ColAlias(OrdersAliases,true),netCol=ColAlias(NetAliases);
-        // October Keeta rider sheets expose inclusive due only; treat due as net (vat 0) when no excl-VAT column exists.
-        if(netCol<0)netCol=due;
+        // October rider sheets: due is ex-VAT (no bare net). Line VAT stays 0; invoice VAT comes from partner tax.
+        bool dueIsNetExVat=netCol<0;if(netCol<0)netCol=due;
         var selected=new HashSet<int>{accountCol,ordersCol,netCol,due};foreach(var d in DeductionColumns){int col=Col(d.Header);if(col>=0)selected.Add(col);}var cache=Imports.MissingFormulaCacheRows(bytes,sheet.Name,selected);
         var accounts=Store.List(c,"platform_account",tx);var lines=new JsonArray();var seen=new HashSet<string>();
         var companyRows=(input["companyRows"] as JsonArray??[]).Select(x=>x!.GetValue<int>()).ToHashSet();var usedCompanyRows=new HashSet<int>();
@@ -119,21 +158,28 @@ public static class KeetaInvoices
             bool companyRow=companyRows.Contains(i+1);if(key==""&&!companyRow){J.Need(V(netCol)==""&&V(due)=="","حدد سطر تعديل الشركة أو الإجمالي صراحة؛ صف "+(i+1));continue;}
             J.Need(!cache.Contains(i+1),"formula_without_cached_value: row "+(i+1));
             decimal N(int col)=>ParseMoneyCell(V(col),i+1);
-            decimal net=N(netCol),inclusive=N(due),vat=J.Money(inclusive-net),orders=N(ordersCol);string account="";
+            decimal net=N(netCol),inclusive=dueIsNetExVat?net:N(due),vat=dueIsNetExVat?0:J.Money(inclusive-net),orders=N(ordersCol);string account="";
             J.Need(orders>=0&&orders==decimal.Truncate(orders),"طلبات صحيحة غير سالبة مطلوبة؛ صف "+(i+1));
-            if(companyRow){J.Need(key==""&&net<0&&orders==0&&vat<=0,"تعديل الشركة السالب بدون يوزر؛ التعديل الموجب يحتاج مراجعة مستقلة.");usedCompanyRows.Add(i+1);}
+            if(companyRow)
+            {
+                // Blank-account company line (positive invoiced or negative credit adjustment); components ignored.
+                J.Need(key==""&&orders==0&&vat<=0,"تعديل الشركة بدون يوزر وبطلبات صفر؛ صف "+(i+1));
+                usedCompanyRows.Add(i+1);
+            }
             else
             {
                 key=AccountKey(key);J.Need(seen.Add(key),"يوزر مكرر؛ لا تجمع التفصيلي والملخص.");
                 var matches=accounts.Where(a=>a.S("companyId")==company&&PayPlatforms.For(a.S("platformCode")).App=="keeta"&&(a.S("externalAccountId")==key||a.S("code")==key||a.S("id")==key)).ToArray();
                 J.Need(matches.Length==1,"اليوزر غير مربوط بشكل فريد بالشركة والمنصة؛ صف "+(i+1));account=matches[0].S("id");
-                J.Need(net>=0&&vat>=0,"الإشعار الدائن يحتاج مسار عكس؛ صف "+(i+1));
+                // Negative due on an account row stays inside the supplier total (rider credit line); no separate reverse path.
+                if(!dueIsNetExVat)J.Need(net>=0&&vat>=0,"الإشعار الدائن يحتاج مسار عكس؛ صف "+(i+1));
+                else J.Need(vat==0,"ضريبة السطر يجب أن تكون صفرًا في تخطيط الاستحقاق بدون صافي؛ صف "+(i+1));
             }
             var deductions=new JsonArray();
             if(companyRow)
             {
-                // October company adjustment rows may still fill component columns; the net/due cell is the posting amount.
-                deductions.Add(new JsonObject{["category"]="supplier_adjustment",["amount"]=-net,["level"]="unclassified"});
+                // Negative company credit: supplier_adjustment amount = -net. Positive company: invoiced/baseGross = due, no deduction.
+                if(net<0)deductions.Add(new JsonObject{["category"]="supplier_adjustment",["amount"]=-net,["level"]="unclassified"});
             }
             else
             {
@@ -149,9 +195,19 @@ public static class KeetaInvoices
                 ["baseGross"]=gross,["incentives"]=0,["deductionAmount"]=deduction,["deductions"]=deductions,["orders"]=orders,["vat"]=vat,["invoiced"]=net,["invoiceInclusive"]=inclusive,["sourceMetrics"]=sourceMetrics,["status"]="invoiced",["reason"]="final supplier invoice; no expected amount substituted"});
         }
         J.Need(usedCompanyRows.SetEquals(companyRows),"صف تعديل شركة غير موجود أو مختلط بسطر إجمالي.");
-        J.Need(lines.Count>0&&lines.OfType<JsonObject>().Any(l=>l.S("lineType")=="account")&&lines.OfType<JsonObject>().Sum(l=>l.N("vat"))>=0,"الفاتورة بلا سطور يوزرات أو ضريبتها سالبة.");
+        var lineList=lines.OfType<JsonObject>().ToList();
+        J.Need(lineList.Count>0&&lineList.Any(l=>l.S("lineType")=="account"),"الفاتورة بلا سطور يوزرات.");
+        decimal headerVat=lineList.Sum(l=>l.N("vat"));
+        if(dueIsNetExVat)
+        {
+            var partner=ReadPartnerTotals(sheets);
+            headerVat=partner.Tax;
+            decimal riderDueSum=lineList.Sum(l=>l.N("invoiced"));
+            J.Need(Math.Abs(riderDueSum+headerVat-partner.PartnerDue)<=0.01m,"مجموع استحقاق السائقين مع ضريبة الشريك لا يطابق إجمالي الشريك المستحق.");
+        }
+        else J.Need(headerVat>=0,"ضريبة الفاتورة سالبة.");
         string role=input.S("accountingRole","cycle_only");J.Need(role is "principal" or "cycle_only","حدد principal أو cycle_only.");
-        return new(){["id"]=id,["platform"]="Keeta",["companyId"]=company,["period"]=period,["reference"]=reference,["sourceSha256"]=sha,["sourceSheet"]=sheet.Name,["accountingRole"]=role,["amountExclVat"]=lines.OfType<JsonObject>().Sum(l=>l.N("baseGross")),["deductionsTotal"]=lines.OfType<JsonObject>().Sum(l=>l.N("deductionAmount")),["vat"]=lines.OfType<JsonObject>().Sum(l=>l.N("vat")),["status"]="invoiced",["odooVoucherNo"]=input.S("odooVoucherNo"),["lines"]=lines};
+        return new(){["id"]=id,["platform"]="Keeta",["companyId"]=company,["period"]=period,["reference"]=reference,["sourceSha256"]=sha,["sourceSheet"]=sheet.Name,["accountingRole"]=role,["amountExclVat"]=lineList.Sum(l=>l.N("baseGross")),["deductionsTotal"]=lineList.Sum(l=>l.N("deductionAmount")),["vat"]=headerVat,["status"]="invoiced",["odooVoucherNo"]=input.S("odooVoucherNo"),["lines"]=lines};
     }
     public static JsonObject Preview(DbConnection c,ClaimsPrincipal actor,JsonObject input,byte[] bytes)
     {var rows=new JsonArray(Parse(c,null,actor,input,bytes));return new(){["rows"]=rows,["fingerprint"]=FinancialImports.Issue(c,PreviewKind,rows,actor.Identity!.Name!)};}
