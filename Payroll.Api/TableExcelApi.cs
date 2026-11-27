@@ -5,7 +5,6 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml;
-using System.Xml.Linq;
 using System.Data.Common;
 
 namespace Payroll;
@@ -78,20 +77,16 @@ public static class TableExcelApi
         J.Need(Path.GetExtension(input.S("filename")).Equals(".xlsx", StringComparison.OrdinalIgnoreCase), "استخدم قالب Excel بصيغة xlsx.");
         byte[] bytes;
         try { bytes = Convert.FromBase64String(input.Required("dataBase64")); } catch (FormatException) { throw new ApiError("محتوى الملف غير صالح."); }
-        J.Need(bytes.Length is > 0 and <= 8 * 1024 * 1024, "الملف يجب ألا يتجاوز8ميجابايت.");
+        J.Need(bytes.Length is > 0 and <= 12 * 1024 * 1024, "الملف يجب ألا يتجاوز12ميجابايت.");
         List<Imports.Sheet> sheets;
         try
         {
             // Canonical entry templates contain values, not calculated spreadsheet formulas.
             using (var zip = new ZipArchive(new MemoryStream(bytes)))
             {
-                J.Need(zip.Entries.Count <= 3000 && zip.Entries.Sum(e => e.Length) <= 160L * 1024 * 1024, "ملف أكبر من حد المعالجة.");
-                XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main";
+                J.Need(zip.Entries.Count <= 3000 && zip.Entries.Sum(e => e.Length) <= Imports.MaxWorkbookUncompressedBytes, "ملف أكبر من حد المعالجة.");
                 foreach (var entry in zip.Entries.Where(e => e.FullName.StartsWith("xl/worksheets/") && e.FullName.EndsWith(".xml")))
-                {
-                    J.Need(entry.Length < 40 * 1024 * 1024, "ورقة كبيرة جدًا.");
-                    using var stream = entry.Open(); J.Need(!XDocument.Load(stream).Descendants(ns + "f").Any(), "قالب الإدخال يقبل قيمًا مباشرة فقط؛ احذف الصيغ أو الصق القيم.");
-                }
+                    J.Need(!Imports.SheetContainsFormulas(entry), "قالب الإدخال يقبل قيمًا مباشرة فقط؛ احذف الصيغ أو الصق القيم.");
             }
             sheets = Imports.Read(bytes, input.S("filename"));
         }

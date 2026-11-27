@@ -3,8 +3,6 @@ using System.Globalization;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text.Json.Nodes;
-using System.Xml.Linq;
-using System.IO.Compression;
 namespace Payroll;
 
 public static class KeetaInvoices
@@ -28,19 +26,10 @@ public static class KeetaInvoices
         if(decimal.TryParse(text,NumberStyles.Float,CultureInfo.InvariantCulture,out var n)&&n==decimal.Truncate(n))return n.ToString("0",CultureInfo.InvariantCulture);
         J.Need(text.Length is >0 and <=128&&!text.Any(char.IsControl),"معرف اليوزر غير صالح.");return text;
     }
-    internal static HashSet<int> MissingCache(byte[] bytes,string name,HashSet<int> selected)
-    {
-        using var zip=new ZipArchive(new MemoryStream(bytes));XNamespace ns="http://schemas.openxmlformats.org/spreadsheetml/2006/main",rel="http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-        XElement Xml(string path){using var stream=(zip.GetEntry(path)??throw new ApiError("مصنف غير صالح.")).Open();return XElement.Load(stream);}
-        var sheet=Xml("xl/workbook.xml").Descendants(ns+"sheet").Single(s=>(string?)s.Attribute("name")==name);
-        string id=(string)sheet.Attribute(rel+"id")!;string target=(string)Xml("xl/_rels/workbook.xml.rels").Elements().Single(x=>(string?)x.Attribute("Id")==id).Attribute("Target")!;
-        int Column(XElement cell){int column=0;foreach(char ch in ((string?)cell.Attribute("r")??"A1").TakeWhile(char.IsAsciiLetter))column=column*26+char.ToUpperInvariant(ch)-'A'+1;return column-1;}
-        return Xml(target.StartsWith('/')?target[1..]:"xl/"+target).Descendants(ns+"row").Where(r=>r.Elements(ns+"c").Any(c=>selected.Contains(Column(c))&&c.Element(ns+"f")!=null&&string.IsNullOrEmpty(c.Element(ns+"v")?.Value))).Select(r=>int.Parse((string)r.Attribute("r")!,CultureInfo.InvariantCulture)).ToHashSet();
-    }
     public static JsonObject Parse(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject input,byte[] bytes)
     {
         string company=FinancialCore.ResolveSponsor(input.Required("companyId")).Id,period=J.Period(input.Required("period")),reference=input.Required("reference");Scope(actor,company);
-        J.Need(bytes.Length is >0 and <=8*1024*1024&&reference.Length<=200,"ملف حتى8ميجابايت ومرجع حتى200حرف.");
+        J.Need(bytes.Length is >0 and <=12*1024*1024&&reference.Length<=200,"ملف حتى12ميجابايت ومرجع حتى200حرف.");
         string sha=Convert.ToHexString(SHA256.HashData(bytes)),id="keeta-invoice:"+Hash(company+":"+period+":"+reference);
         var allInvoices=Store.List(c,"platform_invoice",tx);id=InvoiceDiscard.ReplacementId(allInvoices,id,company,period,reference,"Keeta");
         J.Need(!allInvoices.Where(InvoiceDiscard.Active).Any(i=>i.S("sourceSha256")==sha||i.S("sourceHash")==sha||i.S("id")==id),"الفاتورة أو بصمة الملف موجودة؛ لا تعيد تسجيلها.");
@@ -51,7 +40,7 @@ public static class KeetaInvoices
         int Col(string name,bool required=false){var found=prefix.Select((v,i)=>(v,i)).Where(x=>x.v==name).ToArray();J.Need(found.Length<=1&&(!required||found.Length==1),"عمود فاتورة مفقود أو مكرر: "+name);return found.Length==0?-1:found[0].i;}
         int accountCol=Col("المعرف",true),ordersCol=Col("الطلبات المُسلمة",true),netCol=Col("الإجمالي");
         if(netCol<0){var possible=prefix.Select((v,i)=>(v,i)).Where(x=>x.v=="الاجمالي").ToArray();J.Need(possible.Length==1,"يلزم حقل صريح للإجمالي قبل الضريبة؛ لا نفترض الضريبة من ملف الرواتب.");netCol=possible[0].i;}
-        var selected=new HashSet<int>{accountCol,ordersCol,netCol,due};foreach(var d in DeductionColumns){int col=Col(d.Header);if(col>=0)selected.Add(col);}var cache=MissingCache(bytes,sheet.Name,selected);
+        var selected=new HashSet<int>{accountCol,ordersCol,netCol,due};foreach(var d in DeductionColumns){int col=Col(d.Header);if(col>=0)selected.Add(col);}var cache=Imports.MissingFormulaCacheRows(bytes,sheet.Name,selected);
         var accounts=Store.List(c,"platform_account",tx);var lines=new JsonArray();var seen=new HashSet<string>();
         var companyRows=(input["companyRows"] as JsonArray??[]).Select(x=>x!.GetValue<int>()).ToHashSet();var usedCompanyRows=new HashSet<int>();
         for(int i=1;i<sheet.Rows.Count;i++)
@@ -98,13 +87,15 @@ public static class KeetaInvoices
         FinancialImports.Verify(c,tx,input,PreviewKind,actor.Identity!.Name!);var parsed=Parse(c,tx,actor,input,bytes);
         J.Need(input["rows"] is JsonArray{Count:1}&&FinancialImports.Canonical(input["rows"]![0])==FinancialImports.Canonical(parsed),"الملف أو خيارات الورقة تغيرت؛ أعد المعاينة.");
         var lines=parsed["lines"]!.DeepClone().AsArray();parsed.Remove("lines");parsed["createdBy"]=actor.Identity!.Name;parsed["createdAt"]=DateTimeOffset.UtcNow.ToString("O");parsed["approvalStatus"]="pending";
-        Store.Save(c,"platform_invoice",parsed,tx);foreach(var line in lines.OfType<JsonObject>())Store.Save(c,"platform_invoice_line",line,tx);Store.Audit(c,tx,"platform.keeta.invoice_imported",parsed.S("id"),actor.Identity!.Name!);return parsed;
+        Store.Save(c,"platform_invoice",parsed,tx);
+        Store.BufferedWrites(c,tx,()=>{foreach(var line in lines.OfType<JsonObject>())Store.Save(c,"platform_invoice_line",line,tx);});
+        Store.Audit(c,tx,"platform.keeta.invoice_imported",parsed.S("id"),actor.Identity!.Name!);return parsed;
     }
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapPost("/platforms/keeta/invoices",async(HttpContext ctx)=>
         {
-            AccessPolicy.Demand(ctx.User,"pay.manage");J.Need(ctx.Request.HasFormContentType,"ارفع ملفxlsx كـmultipart.");var form=await ctx.Request.ReadFormAsync();J.Need(form.Files.Count==1,"ملف واحد لكل فاتورة.");var file=form.Files[0];J.Need(file.Length is >0 and <=8*1024*1024&&Path.GetExtension(file.FileName).Equals(".xlsx",StringComparison.OrdinalIgnoreCase),"ملفxlsx حتى8ميجابايت.");
+            AccessPolicy.Demand(ctx.User,"pay.manage");J.Need(ctx.Request.HasFormContentType,"ارفع ملفxlsx كـmultipart.");var form=await ctx.Request.ReadFormAsync();J.Need(form.Files.Count==1,"ملف واحد لكل فاتورة.");var file=form.Files[0];J.Need(file.Length is >0 and <=12*1024*1024&&Path.GetExtension(file.FileName).Equals(".xlsx",StringComparison.OrdinalIgnoreCase),"ملفxlsx حتى12ميجابايت.");
             using var buffer=new MemoryStream();await file.CopyToAsync(buffer,ctx.RequestAborted);byte[] bytes=buffer.ToArray();var input=new JsonObject{["companyId"]=form["companyId"].ToString(),["period"]=form["period"].ToString(),["reference"]=form["reference"].ToString(),["sheetName"]=form["sheetName"].ToString(),["accountingRole"]=form["accountingRole"].ToString()==""?"cycle_only":form["accountingRole"].ToString(),["odooVoucherNo"]=form["odooVoucherNo"].ToString(),["companyRows"]=form["companyRows"].ToString()==""?new JsonArray():JsonNode.Parse(form["companyRows"].ToString())};
             if(ctx.Request.Query["commit"]!="1")return store.Read(c=>Preview(c,ctx.User,input,bytes));
             input["confirm"]=form["confirm"]=="true";input["fingerprint"]=form["fingerprint"].ToString();input["rows"]=JsonNode.Parse(form["rows"].ToString());return store.Write((c,tx)=>Commit(c,tx,ctx.User,input,bytes));

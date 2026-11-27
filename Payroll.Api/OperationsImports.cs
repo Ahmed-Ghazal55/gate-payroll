@@ -80,7 +80,7 @@ public static class OperationsImports
         var sheets=Imports.Read(bytes,"operations.xlsx").Where(s=>s.Rows.Any(r=>r.Any(v=>!string.IsNullOrWhiteSpace(v)))).ToList();J.Need(sheets.Count==1,"ورقة واحدة لكل معاينة تشغيل.");
         var sheet=sheets.Single();var header=sheet.Rows[0].Select(v=>v.Trim()).ToList();var step=ImportCatalog.Steps().Single(s=>s.Key==(app=="hs"?"hungerstation":app)+"_operations");
         J.Need(header.Distinct().Count()==header.Count&&header.All(h=>step.Columns.Any(c=>c.Header==h))&&step.Required.All(header.Contains),"أعمدة التشغيل لا تطابق نموذج الكتالوج.");
-        var missingCache=KeetaInvoices.MissingCache(bytes,sheet.Name,Enumerable.Range(0,header.Count).ToHashSet());
+        var missingCache=Imports.MissingFormulaCacheRows(bytes,sheet.Name,Enumerable.Range(0,header.Count).ToHashSet());
         var lines=SourceLines(c,tx,app,invoice.S("id"));J.Need(lines.Count>0,"الفاتورة بلا سطور.");var accounts=new JsonArray();
         foreach(var line in lines)
         {
