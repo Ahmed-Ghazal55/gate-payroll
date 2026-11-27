@@ -76,4 +76,36 @@ public sealed class KeetaInvoiceTests
         f.Store.Write((c,tx)=>{var account=Store.Get(c,"synthetic-keeta-account","platform_account",tx)!;account["companyId"]=FinancialCore.Sponsors[1].Id;Store.Save(c,"platform_account",account,tx);return true;});
         input["rows"]=preview["rows"]!.DeepClone();input["fingerprint"]=preview.S("fingerprint");input["confirm"]=true;Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>KeetaInvoices.Commit(c,tx,Actor(),input,bytes)));
     }
+    internal static byte[] OctoberLayoutWorkbook()
+    {
+        // Real October rider sheet headers (diacritics + driver id + inclusive due only; no bare net).
+        string[] headers=["معرف الشريك","اسم الشريك","دورة الفوترة","معرّف سائق التوصيل","اسم سائق التوصيل","صالح","السبب","أيام الاتصال-صالحة","ساعات الاتصال اليومي-صالحة","ساعات الاتصال اليومي خلال وقت الذروة-صالحة","الطلبات المُسلمة","مسافة التوصيل","الخصم","تعويض عن تلف الطعام","رسوم خدمة التسجيل","خصومات المعدات","تعديل آخر","خصم TGA (بدون ضريبة القيمة المضافة).","إجمالي المبلغ المستحق"];
+        string[] title=["عنوان وهمي","","","","","","","","","","","","","","","","","",""];
+        string[] row=["999","SYN_PARTNER","أكتوبر 2026","SYN-K1","SYNTHETIC_DRIVER","صالح","سبب آخر","-","-","-","10","1km","0","0","0","0","0","0","\u200f115.00\xa0ر.س.\u200f"];
+        string[] blankOrders=["999","SYN_PARTNER","أكتوبر 2026","SYN-K2","SYNTHETIC_DRIVER_2","-","-","-","-","-","-","-","0","0","0","0","0","0","\u200f10.00\xa0ر.س.\u200f"];
+        // Distractor sheets that must not be chosen as the invoice sheet.
+        string[] partnerHeaders=["معرّف الفاتورة","معرف الشريك","اسم الشريك","إجمالي المبلغ المستحق"];
+        string[] partnerRow=["1","999","SYN_PARTNER","115"];
+        string[] detailHeaders=["معرف الشريك","معرّف سائق التوصيل","إجمالي المبلغ المستحق"];
+        string[] detailRow=["999","SYN-K1","10"];
+        return DebtSheetReviewTests.Book([
+            ("تفاصيل الشركاء",[partnerHeaders,partnerRow]),
+            ("تفاصيل سائق التوصيل",[title,headers,row,blankOrders]),
+            ("تفاصيل طلب السائق",[detailHeaders,detailRow])
+        ]);
+    }
+    [TestMethod]
+    public void OctoberHeaderAliasesFindHeaderRowAndParseCurrencyDueWithoutBareNet()
+    {
+        using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);
+        f.Store.Write((c,tx)=>{Store.Save(c,"platform_account",new(){["id"]="synthetic-keeta-account-2",["externalAccountId"]="SYN-K2",["platformCode"]="keeta",["companyId"]=Company},tx);return true;});
+        var parsed=f.Store.Read(c=>KeetaInvoices.Parse(c,null,Actor(),Input(),OctoberLayoutWorkbook()));
+        Assert.AreEqual("تفاصيل سائق التوصيل",parsed.S("sourceSheet"));
+        Assert.AreEqual(2,parsed["lines"]!.AsArray().Count);
+        Assert.AreEqual(125m,parsed.N("amountExclVat"));
+        Assert.AreEqual(0m,parsed.N("vat"));
+        Assert.AreEqual(115m,parsed["lines"]![0]!.N("invoiceInclusive"));
+        Assert.AreEqual(0m,parsed["lines"]![1]!.N("orders"));
+        Assert.DoesNotContain("SYNTHETIC_DRIVER",parsed.ToJsonString());
+    }
 }

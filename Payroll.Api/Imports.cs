@@ -46,18 +46,60 @@ public static class Imports
         }
         return sheets;
     }
+    const string SheetOversizeMessage = "ورقة غير مضغوطة أكبر من الحد الآمن (250 ميجابايت). صغّر الورقة أو اقسم الملف.";
     static void NeedSheetSize(ZipArchiveEntry entry)
     {
-        J.Need(entry.Length <= MaxSheetUncompressedBytes,
-            "ورقة غير مضغوطة أكبر من الحد الآمن (250 ميجابايت). صغّر الورقة أو اقسم الملف.");
+        J.Need(entry.Length <= MaxSheetUncompressedBytes, SheetOversizeMessage);
+    }
+    /// <summary>Enforces the uncompressed sheet byte cap while reading (Zip entry Length can understate).</summary>
+    public static Stream LimitSheetBytes(Stream stream, long? maxBytes = null)
+        => new CountingLimitStream(stream, maxBytes ?? MaxSheetUncompressedBytes);
+    static Stream OpenCapped(ZipArchiveEntry entry)
+    {
+        NeedSheetSize(entry);
+        return LimitSheetBytes(entry.Open());
+    }
+    sealed class CountingLimitStream : Stream
+    {
+        readonly Stream _inner;
+        readonly long _limit;
+        long _read;
+        public CountingLimitStream(Stream inner, long limit) { _inner = inner; _limit = limit; }
+        void Count(int n)
+        {
+            if (n <= 0) return;
+            _read += n;
+            if (_read > _limit) throw new ApiError(SheetOversizeMessage);
+        }
+        public override int Read(byte[] buffer, int offset, int count)
+        {
+            int n = _inner.Read(buffer, offset, count); Count(n); return n;
+        }
+        public override int Read(Span<byte> buffer)
+        {
+            int n = _inner.Read(buffer); Count(n); return n;
+        }
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            int n = await _inner.ReadAsync(buffer, cancellationToken).ConfigureAwait(false); Count(n); return n;
+        }
+        public override bool CanRead => _inner.CanRead;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => _inner.Length;
+        public override long Position { get => _inner.Position; set => throw new NotSupportedException(); }
+        public override void Flush() => _inner.Flush();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        protected override void Dispose(bool disposing) { if (disposing) _inner.Dispose(); base.Dispose(disposing); }
     }
     static List<string> ReadSharedStrings(ZipArchive zip)
     {
         var entry = zip.GetEntry("xl/sharedStrings.xml");
         if (entry == null) return [];
-        NeedSheetSize(entry);
         var strings = new List<string>();
-        using var stream = entry.Open();
+        using var stream = OpenCapped(entry);
         using var reader = XmlReader.Create(stream, SafeXml);
         while (reader.Read())
         {
@@ -76,9 +118,8 @@ public static class Imports
     static List<List<string>> ReadSheetRows(ZipArchive zip, string path, List<string> strings)
     {
         var entry = zip.GetEntry(path) ?? throw new ApiError("المصنف غير صالح: " + path);
-        NeedSheetSize(entry);
         var rows = new List<List<string>>();
-        using var stream = entry.Open();
+        using var stream = OpenCapped(entry);
         using var reader = XmlReader.Create(stream, SafeXml);
         while (reader.Read())
         {
@@ -144,9 +185,8 @@ public static class Imports
         string target = (string)XmlSmall("xl/_rels/workbook.xml.rels").Elements().Single(x => (string?)x.Attribute("Id") == id).Attribute("Target")!;
         string path = target.StartsWith('/') ? target[1..] : "xl/" + target;
         var entry = zip.GetEntry(path) ?? throw new ApiError("مصنف غير صالح.");
-        NeedSheetSize(entry);
         var missing = new HashSet<int>();
-        using var stream = entry.Open();
+        using var stream = OpenCapped(entry);
         using var reader = XmlReader.Create(stream, SafeXml);
         while (reader.Read())
         {
@@ -165,7 +205,8 @@ public static class Imports
                 while (cell.Read())
                 {
                     if (cell.NodeType != XmlNodeType.Element) continue;
-                    if (cell.LocalName == "f") { hasFormula = true; cell.Skip(); }
+                    // Do not Skip <f>: Skip advances past a following sibling <v> and loses the cached value.
+                    if (cell.LocalName == "f") hasFormula = true;
                     else if (cell.LocalName == "v")
                     {
                         string text = cell.ReadElementContentAsString();
@@ -179,8 +220,7 @@ public static class Imports
     }
     public static bool SheetContainsFormulas(ZipArchiveEntry entry)
     {
-        NeedSheetSize(entry);
-        using var stream = entry.Open();
+        using var stream = OpenCapped(entry);
         using var reader = XmlReader.Create(stream, SafeXml);
         while (reader.Read())
         {

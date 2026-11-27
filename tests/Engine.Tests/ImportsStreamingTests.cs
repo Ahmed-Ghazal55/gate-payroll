@@ -145,4 +145,66 @@ public sealed class ImportsStreamingTests
         var invoice = f.Store.Write((c, tx) => KeetaInvoices.Commit(c, tx, KeetaInvoiceTests.Actor(), confirmed, bytes));
         Assert.AreEqual(250, f.Store.Read(c => Store.List(c, "platform_invoice_line").Count(l => l.S("invoiceId") == invoice.S("id"))));
     }
+
+    [TestMethod]
+    public void FormulaCacheKeepsValueAfterFormulaElementAndFlagsMissingValue()
+    {
+        // <f>1+1</f><v>2</v> and shared <f t="shared"/><v>9</v> must keep the cached value (no Skip on <f>).
+        var withCache = DebtSheetReviewTests.Book([("Synthetic", [
+            ["المعرف", "الطلبات المُسلمة", "الإجمالي", "إجمالي المبلغ المستحق"],
+            ["SYN-F1", "1", "=CACHED", "115"],
+            ["SYN-F2", "1", "10", "11.5"]
+        ])]);
+        Assert.AreEqual(0, Imports.MissingFormulaCacheRows(withCache, "Synthetic", [0, 1, 2, 3]).Count);
+
+        var sharedFormula = BookWithExplicitFormulaCells("Synthetic", [
+            ("A1", "inline", "H"), ("B1", "inline", "V"),
+            ("A2", "inline", "R"), ("B2", "shared-f", "9")
+        ]);
+        Assert.AreEqual(0, Imports.MissingFormulaCacheRows(sharedFormula, "Synthetic", [1]).Count);
+
+        var missing = DebtSheetReviewTests.Book([("Synthetic", [
+            ["المعرف", "الطلبات المُسلمة", "الإجمالي", "إجمالي المبلغ المستحق"],
+            ["SYN-F3", "1", "=NOCACHE", "115"]
+        ])]);
+        var rows = Imports.MissingFormulaCacheRows(missing, "Synthetic", [0, 1, 2, 3]);
+        Assert.AreEqual(1, rows.Count);
+        Assert.IsTrue(rows.Contains(2));
+    }
+
+    [TestMethod]
+    public void CountingStreamEnforcesCapEvenWhenCallerPassesLowerLimit()
+    {
+        var data = new byte[256];
+        using var capped = Imports.LimitSheetBytes(new MemoryStream(data), 100);
+        var buf = new byte[64];
+        Assert.AreEqual(64, capped.Read(buf, 0, 64));
+        var error = Assert.ThrowsExactly<ApiError>(() =>
+        {
+            while (capped.Read(buf, 0, 64) > 0) { }
+        });
+        Assert.Contains("250", error.Message);
+        Assert.Contains("ميجابايت", error.Message);
+    }
+
+    static byte[] BookWithExplicitFormulaCells(string sheetName, (string Ref, string Kind, string Value)[] cells)
+    {
+        using var output = new MemoryStream();
+        using (var zip = new ZipArchive(output, ZipArchiveMode.Create, true))
+        {
+            XNamespace ns = "http://schemas.openxmlformats.org/spreadsheetml/2006/main", rel = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
+            void Xml(string path, XElement xml) { using var writer = new StreamWriter(zip.CreateEntry(path).Open(), new UTF8Encoding(false)); xml.Save(writer); }
+            Xml("xl/workbook.xml", new(ns + "workbook", new XAttribute(XNamespace.Xmlns + "r", rel), new XElement(ns + "sheets", new XElement(ns + "sheet", new XAttribute("name", sheetName), new XAttribute(rel + "id", "r0")))));
+            Xml("xl/_rels/workbook.xml.rels", new("Relationships", new XElement("Relationship", new XAttribute("Id", "r0"), new XAttribute("Target", "worksheets/s0.xml"))));
+            var byRow = cells.GroupBy(c => int.Parse(new string(c.Ref.SkipWhile(char.IsAsciiLetter).ToArray())));
+            Xml("xl/worksheets/s0.xml", new(ns + "worksheet", new XElement(ns + "sheetData", byRow.Select(g =>
+                new XElement(ns + "row", new XAttribute("r", g.Key), g.Select(c => c.Kind switch
+                {
+                    "inline" => new XElement(ns + "c", new XAttribute("r", c.Ref), new XAttribute("t", "inlineStr"), new XElement(ns + "is", new XElement(ns + "t", c.Value))),
+                    "shared-f" => new XElement(ns + "c", new XAttribute("r", c.Ref), new XElement(ns + "f", new XAttribute("t", "shared"), new XAttribute("si", "0")), new XElement(ns + "v", c.Value)),
+                    _ => new XElement(ns + "c", new XAttribute("r", c.Ref), new XElement(ns + "f", "1+1"), new XElement(ns + "v", c.Value))
+                }))))));
+        }
+        return output.ToArray();
+    }
 }
