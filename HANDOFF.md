@@ -3,13 +3,13 @@
 | Field | Value |
 |---|---|
 | Current writer | (free) |
-| Branch | `trial/local-2026-11-23` |
-| Updated | 2026-11-23 by Cursor (TRIAL2 feedback fixes) |
-| Live | unchanged (no push/deploy; local trial only) |
-| Next | Planner: restart local trial for Ghazal; sqltest later; never push until backup + «دمج» |
+| Branch | `chore/ninja-reset` |
+| Updated | 2026-11-27 by Cursor (NRST1 done) |
+| Live | unchanged (no push; local gate_rel340 wiped for Ninja drafts only) |
+| Next | Ghazal restarts Ninja October: one register invoice + calc from live ERP |
 
 ## Goal now
-TRIAL2 done on trial branch: every `trial-feedback.md` row T1–T13 (T10 pending Ghazal). Report: `~/.cache/agents-runs/cursor-TRIAL2-report.md`.
+NRST1 DONE: `tools/ninja_reset.py` + dry-run/`--apply` on `gate_rel340` (524 rows deleted; 0 blockers; masters/other apps unchanged). Report: `~/.cache/agents-runs/cursor-NRST1-report.md`.
 
 ## Done (TRIAL1)
 - Merges through `feat/w3-screens-pay`; contracts regenerated (`4bcdfe3`); integration fix (`d9d40ca`).
