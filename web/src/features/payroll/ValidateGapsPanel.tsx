@@ -54,7 +54,7 @@ export function ValidateGapsPanel({ defaultCompanyId = '', defaultPeriod }: { de
   return (
     <div className="space-y-4 p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
       <div>
-        <h3 className="text-sm font-bold">فجوات ValidateRiders (أعداد فقط)</h3>
+        <h3 className="text-sm font-bold">فجوات تحقق مناديب التشغيل (أعداد فقط)</h3>
         <p className="text-xs text-[var(--muted)] mt-0.5">لا يعرض هويات. استخدمه لإصلاح التعيينات والفئات قبل تجاوز المرحلة 2.</p>
       </div>
       <div className="flex flex-wrap gap-3 items-end">

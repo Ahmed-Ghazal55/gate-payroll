@@ -965,14 +965,15 @@ function PayrollPageInner() {
     setDraftError(null);
     try {
       const comp = selectedCompany !== 'all' ? selectedCompany : 'BW';
+      const draftApp = selectedPlatform === 'keeta' ? 'keeta' : 'ninja';
       const draft = await api.getPayReviewDraft({
-        app: 'ninja',
+        app: draftApp,
         period: selectedPeriod,
         companyId: comp,
       });
       setReviewDraft(draft);
     } catch (err: any) {
-      setDraftError(err.message || 'تعذر تحميل مسودة المراجعة المقترحة لنينجا');
+      setDraftError(err.message || 'تعذر تحميل مسودة المراجعة المقترحة');
       setReviewDraft(null);
     } finally {
       setLoadingDraft(false);
@@ -3731,10 +3732,17 @@ function PayrollPageInner() {
               ) : !reviewDraft ? (
                 <EmptyState
                   title="لا توجد مسودة مراجعة مقترحة"
-                  description="ارفع واعتمد فاتورة نينجا أولاً لتوليد مسودة المراجعة المقترحة."
+                  description={
+                    selectedPlatform === 'keeta'
+                      ? 'ارفع واعتمد فاتورة كيتا واستورد تشغيل السجل أولاً لتوليد مسودة المراجعة المقترحة.'
+                      : 'ارفع واعتمد فاتورة نينجا أولاً لتوليد مسودة المراجعة المقترحة.'
+                  }
                   action={{
-                    label: 'انتقل لرفع فاتورة نينجا',
-                    onClick: () => navigateMainTab('ninja_upload'),
+                    label: selectedPlatform === 'keeta' ? 'انتقل لتسويات كيتا' : 'انتقل لرفع فاتورة نينجا',
+                    onClick: () =>
+                      selectedPlatform === 'keeta'
+                        ? navigateMainTab('platforms')
+                        : navigateMainTab('ninja_upload'),
                   }}
                 />
               ) : (

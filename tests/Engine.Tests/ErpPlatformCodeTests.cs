@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using ErpImport;
 using Microsoft.VisualStudio.TestTools.UnitTesting;
 using Payroll;
@@ -56,5 +57,15 @@ public sealed class ErpPlatformCodeTests
         string sql=LiveOperationsQuery.PreviewSql("platform_account",scope,page).CountSql;
         StringAssert.Contains(sql,"cp.[Code] IN");
         StringAssert.Contains(sql,"@pcap");
+    }
+    [TestMethod]
+    public void ParseRequestReadsPlatformQueryIntoPlatformApp()
+    {
+        var page=LiveOperationsQuery.ParseRequest(new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase){["page"]="1",["pageSize"]="25",["platform"]="keeta"});
+        Assert.AreEqual("keeta",page.PlatformApp);
+        Assert.AreEqual("",page.Query);
+        var alt=LiveOperationsQuery.ParseRequest(new Dictionary<string,string>(StringComparer.OrdinalIgnoreCase){["platformApp"]="ninja",["q"]="BW"});
+        Assert.AreEqual("ninja",alt.PlatformApp);
+        Assert.AreEqual("BW",alt.Query);
     }
 }

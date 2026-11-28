@@ -132,12 +132,14 @@ public sealed class KeetaInvoiceTests
     {
         using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);
         f.Store.Write((c,tx)=>{Store.Save(c,"platform_account",new(){["id"]="synthetic-keeta-account-2",["externalAccountId"]="SYN-K2",["platformCode"]="keeta",["companyId"]=Company},tx);return true;});
-        var input=Input();input["companyRows"]=new JsonArray(5); // 1-based: title,header,k1,credit,company => row 5
+        // Auto-detect blank-account company row — no manual companyRows required.
         var bytes=OctoberLayoutWorkbook(withPositiveCompany:true,withRiderCredit:true);
-        var parsed=f.Store.Read(c=>KeetaInvoices.Parse(c,null,Actor(),input,bytes));
+        var parsed=f.Store.Read(c=>KeetaInvoices.Parse(c,null,Actor(),Input(),bytes));
         Assert.AreEqual(3,parsed["lines"]!.AsArray().Count);
+        Assert.IsTrue(parsed["detectedCompanyRows"]!.AsArray().Any(x=>x!.GetValue<int>()==5));
         var company=parsed["lines"]!.AsArray().OfType<JsonObject>().Single(l=>l.S("lineType")=="company");
         Assert.AreEqual(20m,company.N("invoiced"));Assert.AreEqual(20m,company.N("baseGross"));Assert.AreEqual(0m,company.N("deductionAmount"));
+        Assert.IsTrue(company.B("companyAdjustmentDetected"));
         var credit=parsed["lines"]!.AsArray().OfType<JsonObject>().Single(l=>l.S("lineType")=="account"&&l.N("invoiced")<0);
         Assert.AreEqual(-10m,credit.N("invoiced"));Assert.AreEqual(0m,credit.N("orders"));
         // 100 + (-10) + 20 = 110; tax 16.50; partner due 126.50
@@ -145,11 +147,35 @@ public sealed class KeetaInvoiceTests
         Assert.AreEqual(110m,parsed["lines"]!.AsArray().OfType<JsonObject>().Sum(l=>l.N("invoiced")));
     }
     [TestMethod]
-    public void OctoberPartnerTotalMismatchAbortsInArabic()
+    public void OctoberManualCompanyRowsOverrideStillAccepted()
     {
         using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);
         f.Store.Write((c,tx)=>{Store.Save(c,"platform_account",new(){["id"]="synthetic-keeta-account-2",["externalAccountId"]="SYN-K2",["platformCode"]="keeta",["companyId"]=Company},tx);return true;});
-        var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>KeetaInvoices.Parse(c,null,Actor(),Input(),OctoberLayoutWorkbook(partnerTax:"1",partnerDue:"999"))));
-        Assert.Contains("الشريك",err.Message);
+        var input=Input();input["companyRows"]=new JsonArray(5);
+        var parsed=f.Store.Read(c=>KeetaInvoices.Parse(c,null,Actor(),input,OctoberLayoutWorkbook(withPositiveCompany:true)));
+        Assert.AreEqual(1,parsed["lines"]!.AsArray().OfType<JsonObject>().Count(l=>l.S("lineType")=="company"));
+    }
+    [TestMethod]
+    public void OctoberPartnerResidualBecomesCompanyAdjustmentLine()
+    {
+        // Albwaba-shaped gap: rider dues + tax leave 100 SAR only on the partner sheet (no rider row).
+        using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);
+        f.Store.Write((c,tx)=>{Store.Save(c,"platform_account",new(){["id"]="synthetic-keeta-account-2",["externalAccountId"]="SYN-K2",["platformCode"]="keeta",["companyId"]=Company},tx);return true;});
+        // Rider dues 115; tax 17.25; partner due inflated by +100 → residual company line.
+        var parsed=f.Store.Read(c=>KeetaInvoices.Parse(c,null,Actor(),Input(),OctoberLayoutWorkbook(partnerTax:"17.25",partnerDue:"232.25")));
+        Assert.AreEqual(100m,parsed.N("partnerResidual"));
+        var residual=parsed["lines"]!.AsArray().OfType<JsonObject>().Single(l=>l.B("partnerResidual"));
+        Assert.AreEqual("company",residual.S("lineType"));
+        Assert.AreEqual(100m,residual.N("invoiced"));
+        Assert.AreEqual(0,residual.N("sourceRow"));
+        Assert.AreEqual(215m,parsed["lines"]!.AsArray().OfType<JsonObject>().Sum(l=>l.N("invoiced")));
+    }
+    [TestMethod]
+    public void OctoberNegativePartnerTaxAbortsInArabic()
+    {
+        using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);
+        f.Store.Write((c,tx)=>{Store.Save(c,"platform_account",new(){["id"]="synthetic-keeta-account-2",["externalAccountId"]="SYN-K2",["platformCode"]="keeta",["companyId"]=Company},tx);return true;});
+        var err=Assert.ThrowsExactly<ApiError>(()=>f.Store.Read(c=>KeetaInvoices.Parse(c,null,Actor(),Input(),OctoberLayoutWorkbook(partnerTax:"-1",partnerDue:"114"))));
+        Assert.Contains("ضريبة",err.Message);
     }
 }

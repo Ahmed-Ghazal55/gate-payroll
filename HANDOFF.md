@@ -3,13 +3,13 @@
 | Field | Value |
 |---|---|
 | Current writer | (free) |
-| Branch | `feat/keeta-ops-import` |
-| Updated | 2026-11-27 by Cursor (KOPS1b fix round) |
+| Branch | `fix/keeta-cycle-and-upload` |
+| Updated | 2026-11-28 by Cursor (KFIX2 done) |
 | Live | unchanged (local commit only; never pushed) |
-| Next | Planner: Grok re-check KOPS1b; never push until Ghazal says |
+| Next | Planner: review KFIX2; never push until Ghazal says |
 
 ## Goal now
-KOPS1 done: Keeta operations import redone to Arabic register sheets A..AH. Report: `~/.cache/agents-runs/cursor-KOPS1-report.md`.
+KFIX2 DONE: Keeta company-row auto-detect + partner residual, Keeta PayReviewDraft, platform filter, ValidateRiders Arabic. Report: `~/.cache/agents-runs/cursor-KFIX2-report.md`.
 
 ## Done (TRIAL1)
 - Merges through `feat/w3-screens-pay`; contracts regenerated (`4bcdfe3`); integration fix (`d9d40ca`).

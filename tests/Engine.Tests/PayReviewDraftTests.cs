@@ -56,4 +56,49 @@ public sealed class PayReviewDraftTests
         f.Store.Write((c,tx)=>{Store.Save(c,OperationsImports.Kind,new(){["id"]="synthetic-r8-saved-ops",["invoiceId"]=Invoice,["companyId"]=Company,["period"]="2026-10",["app"]="ninja",["review"]=review},tx);return true;});
         var blocked=f.Store.Read(c=>PayReviewDraft.Build(c,null,PayFixture.Maker,"ninja","2026-10",Company));Assert.IsFalse(blocked.B("canCreate"));Assert.IsTrue(blocked["blockers"]!.AsArray().Any(b=>b.S("code")=="operations_review_invalid"));
     }
+    internal static PayFixture SetupKeeta()
+    {
+        var f=new PayFixture();f.Approve("pay_setting","global",f.Global());f.Approve("pay_terms","keeta",f.Draft("pay_terms","keeta",PayFixture.Terms()));
+        var eligibility=f.Approve("pay_eligibility","keeta",f.Draft("pay_eligibility","keeta",PayFixture.Eligibility()));var schemeData=PayFixture.Scheme("percent_of_gross",eligibility.S("id"));schemeData["accountingRole"]="principal";var scheme=f.Approve("pay_scheme","keeta",f.Draft("pay_scheme","keeta",schemeData,"synthetic-keeta"));
+        f.Store.Write((c,tx)=>
+        {
+            Store.Save(c,"rider",new(){["id"]=Rider,["iqama"]=Rider,["sponsorId"]=Company,["isDeliveryRider"]=true,["payCategory"]="sponsored_private"},tx);
+            Store.Save(c,"platform_account",new(){["id"]="synthetic-keeta-r8-account",["companyId"]=Company,["platformCode"]="keeta",["assignments"]=new JsonArray(new JsonObject{["riderId"]=Rider,["RawEffectiveFrom"]="2026-10-01T00:00:00+03:00"})},tx);
+            Store.Save(c,"pay_assignment",new(){["id"]="synthetic-keeta-r8-choice",["rider"]=Rider,["app"]="keeta",["period"]="2026-10",["status"]="approved",["schemeId"]=scheme.S("id"),["choiceApprovedAt"]="2026-09-29T00:00:00.0000000+00:00"},tx);
+            Store.Save(c,"platform_invoice",new(){["id"]="synthetic-keeta-r8-invoice",["companyId"]=Company,["period"]="2026-10",["platform"]="Keeta",["approvalStatus"]="approved",["status"]="final",["amountExclVat"]=100,["vat"]=15,["deductionsTotal"]=0},tx);
+            Store.Save(c,"platform_invoice_line",new(){["id"]="synthetic-keeta-r8-line",["invoiceId"]="synthetic-keeta-r8-invoice",["platformAccountId"]="synthetic-keeta-r8-account",["lineType"]="account",["baseGross"]=100,["incentives"]=0,["orders"]=10,["deductionAmount"]=0,["deductions"]=new JsonArray()},tx);
+            return true;
+        });return f;
+    }
+    [TestMethod]
+    public void KeetaDraftRejectsNoLongerAndRequiresRegisterOpsImport()
+    {
+        using var f=SetupKeeta();
+        var draft=f.Store.Read(c=>PayReviewDraft.Build(c,null,PayFixture.Maker,"keeta","2026-10",Company));
+        Assert.AreEqual("keeta",draft.S("app"));
+        Assert.IsFalse(draft.B("canCreate"));
+        Assert.IsTrue(draft["blockers"]!.AsArray().Any(b=>b.S("code")=="operations_missing"));
+        Assert.IsFalse(draft["blockers"]!.AsArray().Any(b=>b.S("message")!.Contains("نينجا فقط",StringComparison.Ordinal)));
+    }
+    [TestMethod]
+    public void KeetaDraftUsesSavedOpsImportAndMarksExpectedOnly()
+    {
+        using var f=SetupKeeta();
+        var review=new JsonObject
+        {
+            ["invoiceId"]="synthetic-keeta-r8-invoice",["app"]="keeta",
+            ["accounts"]=new JsonArray(new JsonObject
+            {
+                ["accountId"]="synthetic-keeta-r8-account",["sourceLineId"]="synthetic-keeta-r8-line",["baseGross"]=100,["incentives"]=0,["orders"]=10,
+                ["riders"]=new JsonArray(new JsonObject{["rider"]=Rider,["orders"]=10,["baseGross"]=100,["deduction"]=0,["category"]="sponsored_private",["days"]=1,["metrics"]=new JsonObject{["expectedApproval"]="expected_only",["expectedFinal"]=false}})
+            }),
+            ["deductions"]=new JsonArray()
+        };
+        f.Store.Write((c,tx)=>{Store.Save(c,OperationsImports.Kind,new(){["id"]="synthetic-keeta-ops",["invoiceId"]="synthetic-keeta-r8-invoice",["companyId"]=Company,["period"]="2026-10",["app"]="keeta",["createdAt"]="2026-10-02T00:00:00Z",["review"]=review},tx);return true;});
+        var draft=f.Store.Read(c=>PayReviewDraft.Build(c,null,PayFixture.Maker,"keeta","2026-10",Company));
+        Assert.IsTrue(draft.B("canCreate"),draft["blockers"]!.ToJsonString());
+        var metrics=draft["invoices"]![0]!["accounts"]![0]!["riders"]![0]!["metrics"]!.AsObject();
+        Assert.AreEqual("expected_only",metrics.S("expectedApproval"));
+        Assert.IsFalse(metrics.B("expectedFinal"));
+    }
 }

@@ -1899,11 +1899,12 @@ export const api = {
 
 
   // Operations & Assets APIs (Codex R4.6)
-  getOperations: (kind: string, params?: { page?: number; pageSize?: number; q?: string }) => {
+  getOperations: (kind: string, params?: { page?: number; pageSize?: number; q?: string; platform?: string }) => {
     const p = new URLSearchParams();
     if (params?.page) p.set('page', String(params.page));
     if (params?.pageSize) p.set('pageSize', String(params.pageSize));
     if (params?.q) p.set('q', params.q);
+    if (params?.platform) p.set('platform', params.platform);
     const qs = p.toString() ? `?${p.toString()}` : '';
     return handleRequest<OperationsResponse>(`/operations/${encodeURIComponent(kind)}${qs}`);
   },

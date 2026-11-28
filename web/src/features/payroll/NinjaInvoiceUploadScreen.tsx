@@ -175,7 +175,7 @@ export function NinjaInvoiceUploadScreen({
     (async () => {
       const found: OperationAccount[] = [];
       for (let page = 1; page <= 20; page++) {
-        const res = (await api.getOperations('platform_account', { page, pageSize: 200, q: platform })) as unknown as { items?: OperationAccount[]; total?: number };
+        const res = (await api.getOperations('platform_account', { page, pageSize: 200, platform })) as unknown as { items?: OperationAccount[]; total?: number };
         const items = res?.items || [];
         found.push(...items);
         if (items.length === 0 || found.length >= (res?.total ?? 0)) break;
@@ -443,6 +443,19 @@ export function NinjaInvoiceUploadScreen({
         ? await api.uploadKeetaInvoice(formData, false)
         : await api.uploadNinjaInvoice(formData, false);
       setServerPreview(preview);
+      if (isKeeta) {
+        const previewRows = (preview as { rows?: Array<{ detectedCompanyRows?: number[]; partnerResidual?: number }> } | null)?.rows;
+        const row0 = Array.isArray(previewRows) ? previewRows[0] : null;
+        const detected = row0?.detectedCompanyRows;
+        if (Array.isArray(detected) && detected.length > 0) {
+          setNeedsCompanyRows(true);
+          setCompanyRowsInput(detected.join(', '));
+        }
+        const residual = row0?.partnerResidual;
+        if (typeof residual === 'number' && Math.abs(residual) > 0.01) {
+          setNeedsCompanyRows(true);
+        }
+      }
       setStepperStage(2);
       toast(`تمت عملية معاينة ومطابقة فاتورة ${platformNameAr} بنجاح`, 'success');
     } catch (err: unknown) {
@@ -1232,17 +1245,23 @@ export function NinjaInvoiceUploadScreen({
             </div>
           )}
 
-          {isKeeta && needsCompanyRows && (
+          {isKeeta && (
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">أسطر تعديل الشركة:</label>
+              <label className="text-xs font-bold text-[var(--ink)]">أسطر تعديل الشركة (تُكتشف تلقائيًا؛ التعديل اليدوي اختياري):</label>
               <input
                 type="text"
                 aria-label="أسطر تعديل الشركة"
-                placeholder="مثال: 5"
+                placeholder="تُملأ تلقائيًا بعد المعاينة، أو اكتب أرقام الصفوف يدويًا"
                 value={companyRowsInput}
-                onChange={(e) => setCompanyRowsInput(e.target.value)}
+                onChange={(e) => {
+                  setCompanyRowsInput(e.target.value);
+                  setNeedsCompanyRows(true);
+                }}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden font-mono"
               />
+              {needsCompanyRows && (
+                <p className="text-[11px] text-[var(--muted)]">صفوف بدون يوزر وبطلبات صفر ومبلغ غير صفري تُعامل كتعديل شركة وتظهر في المعاينة للتأكيد.</p>
+              )}
             </div>
           )}
         </div>
