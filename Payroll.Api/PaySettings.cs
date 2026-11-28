@@ -33,7 +33,19 @@ public static partial class PaySettings
     {
         J.Need(Kinds.Contains(kind),"نوع إعداد غير معروف.");bool global=kind=="pay_setting";app=global?"global":PayPlatforms.App(app);Scope(actor,"pay.manage",global?null:app,true);
         PayValues.Fields(input,"app","period","code","data","effectiveFrom","fromDefaults","baseVersionId");if(input.ContainsKey("app"))J.Need(input.S("app")==app,"الإعداد يخص تطبيقًا آخر.");string effective=global?PayValues.Date(input.Required("effectiveFrom")):"";period=global?effective[..7]:J.Period(period??input.Required("period"));if(input.ContainsKey("period"))J.Need(input.S("period")==period,"الشهر لا يطابق المسار.");
-        string code=PayValues.Name(input.S("code",global?"global":kind=="pay_scheme"?"":"default"));var data=input.B("fromDefaults")&&global?Defaults():PayValues.Object(input["data"]).Clone();Validate(kind,app,data);
+        string code=PayValues.Name(input.S("code",global?"global":kind=="pay_scheme"?"":"default"));
+        JsonObject data;
+        if(input.B("fromDefaults")&&global)data=Defaults();
+        else
+        {
+            data=PayValues.Object(input["data"]).Clone();
+            if(global)
+            {
+                var prior=Store.List(c,"pay_setting",tx).Where(d=>d.S("status")=="approved").OrderByDescending(d=>d.S("effectiveFrom"),StringComparer.Ordinal).ThenByDescending(d=>d.N("version")).FirstOrDefault();
+                data=CompleteGlobalData(data,prior?["data"]?.AsObject());
+            }
+        }
+        Validate(kind,app,data);
         var siblings=Store.List(c,kind,tx).Where(d=>d.S("app")==app&&d.S("period")==period&&d.S("code")==code).ToList();
         if(input.S("baseVersionId")!="")J.Need(siblings.OrderByDescending(d=>d.N("version")).FirstOrDefault()?.S("id")==input.S("baseVersionId"),"تغير إصدار الإعداد؛ راجع أحدث نسخة.");
         var doc=new JsonObject{["id"]="pay-config:"+Guid.NewGuid().ToString("N"),["kind"]=kind,["app"]=app,["period"]=period,["code"]=code,["version"]=(siblings.Count==0?0:siblings.Max(d=>d.N("version")))+1,["status"]="draft",["data"]=data,["createdBy"]=actor.Identity!.Name,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};
@@ -43,7 +55,13 @@ public static partial class PaySettings
     {
         bool global=kind=="pay_setting";app=global?"global":PayPlatforms.App(app);Scope(actor,"pay.approve",global?null:app,true);var doc=Store.Get(c,id,kind,tx)?.Clone()??throw new ApiError("الإعداد غير موجود.",404);J.Need(doc.S("app")==app,"الإعداد يخص تطبيقًا آخر.");
         AccessPolicy.ValidateApproval(actor,new(){["requestedBy"]=doc.S("createdBy"),["targetDepartment"]="FIN",["requiredRankLevel"]=1},new JsonObject(),"pay.approve",c,tx,"pay.config_approved",doc);if(doc.S("status")=="approved")return doc;
-        J.Need(doc.S("status")=="draft"&&!Store.List(c,kind,tx).Any(d=>d.S("app")==app&&d.S("period")==doc.S("period")&&d.S("code")==doc.S("code")&&d.N("version")>doc.N("version")),"اعتمد أحدث مسودة فقط.");Validate(kind,app,doc["data"]!.AsObject());References(c,tx,doc,true);doc["status"]="approved";doc["approvedBy"]=actor.Identity!.Name;doc["approvedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,kind,doc,tx);Store.Audit(c,tx,"pay.config_approved",id,actor.Identity!.Name!);return doc;
+        J.Need(doc.S("status")=="draft"&&!Store.List(c,kind,tx).Any(d=>d.S("app")==app&&d.S("period")==doc.S("period")&&d.S("code")==doc.S("code")&&d.N("version")>doc.N("version")),"اعتمد أحدث مسودة فقط.");
+        if(global)
+        {
+            var prior=Store.List(c,"pay_setting",tx).Where(d=>d.S("status")=="approved"&&d.S("id")!=id).OrderByDescending(d=>d.S("effectiveFrom"),StringComparer.Ordinal).ThenByDescending(d=>d.N("version")).FirstOrDefault();
+            doc["data"]=CompleteGlobalData(doc["data"]!.AsObject(),prior?["data"]?.AsObject());
+        }
+        Validate(kind,app,doc["data"]!.AsObject());References(c,tx,doc,true);doc["status"]="approved";doc["approvedBy"]=actor.Identity!.Name;doc["approvedAt"]=DateTimeOffset.UtcNow.ToString("O");Store.Save(c,kind,doc,tx);Store.Audit(c,tx,"pay.config_approved",id,actor.Identity!.Name!);return doc;
     }
     public static JsonObject? TryResolve(DbConnection c,DbTransaction? tx,string kind,string app,string period,string code="default")=>Store.List(c,kind,tx).Where(d=>d.S("app")==PayPlatforms.App(app)&&d.S("period")==J.Period(period)&&d.S("code")==code&&d.S("status")=="approved").OrderByDescending(d=>d.N("version")).FirstOrDefault();
     public static JsonObject Resolve(DbConnection c,DbTransaction? tx,string kind,string app,string period,string code="default")=>TryResolve(c,tx,kind,app,period,code)??throw new ApiError("لا توجد نسخة إعداد معتمدة للتطبيق والشهر.",409);

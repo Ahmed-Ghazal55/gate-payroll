@@ -1855,6 +1855,13 @@ function PayrollPageInner() {
   };
 
   const handleApproveGlobalSettings = async (settingDoc: PayConfigDoc) => {
+    const housing = settingDoc.data?.values?.housingMonthly;
+    if (housing === undefined || housing === null || Number.isNaN(Number(housing))) {
+      const ok = window.confirm(
+        'قيمة السكن الشهرية ناقصة في هذه المسودة. سيتم إكمالها تلقائياً من آخر إعداد معتمد أو من القيم الافتراضية (200 ر.س) عند الاعتماد. هل تريد المتابعة؟'
+      );
+      if (!ok) return;
+    }
     try {
       await api.approveGlobalPaySettings(settingDoc.id);
       showToast('تم اعتماد الإعدادات العامة بنجاح وتثبيتها للقراءة فقط', 'success');
@@ -4858,6 +4865,7 @@ function PayrollPageInner() {
           {/* SECTION B: RULE RECORD & ACCOUNT EXCEPTIONS (S5) */}
           {rulesSection === 'record' && (
             <RuleRecordWorkspace
+              key={`s5-${appSlug}-${selectedPeriod}`}
               appSlug={appSlug}
               appNameAr={platformsList.find((p) => p.id === selectedPlatform)?.nameAr || appSlug}
               period={selectedPeriod}
@@ -4866,9 +4874,15 @@ function PayrollPageInner() {
                 setEditingDoc(null);
                 setEditorModalOpen(true);
               }}
-              activeEligibilityDoc={activeNinjaEligibility}
+              activeEligibilityDoc={
+                appSlug === 'ninja'
+                  ? activeNinjaEligibility
+                  : eligibilityList.find((e) => e.status === 'approved') || eligibilityList[0] || null
+              }
               activeTermsDoc={termsList.find((t) => t.status === 'approved') || termsList[0] || null}
               activeSchemeDoc={schemesList.find((s) => s.status === 'approved') || schemesList[0] || null}
+              activeGlobalDoc={globalSettings[0] || null}
+              onOpenSection={(section) => setRulesSection(section)}
             />
           )}
 
@@ -4977,7 +4991,7 @@ function PayrollPageInner() {
                       )}
                     </div>
 
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs pt-2">
+                    <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3 text-xs pt-2">
                       <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
                         <span className="text-[var(--muted)] block">أيام الشهر القياسية:</span>
                         <span className="font-bold text-[var(--ink)] num">{v?.standardDays || 30} يوماً</span>
@@ -4993,6 +5007,23 @@ function PayrollPageInner() {
                       <div className="p-3 rounded-xl bg-[var(--surface)] border border-[var(--line)]">
                         <span className="text-[var(--muted)] block">النطاق الزمني:</span>
                         <span className="font-mono font-bold">{v?.timeZone || 'Asia/Riyadh'}</span>
+                      </div>
+                      <div
+                        className={`p-3 rounded-xl border ${
+                          v?.housingMonthly === undefined || v?.housingMonthly === null
+                            ? 'border-[var(--danger)]/40 bg-[var(--danger)]/5'
+                            : 'border-[var(--line)] bg-[var(--surface)]'
+                        }`}
+                      >
+                        <span className="text-[var(--muted)] block">السكن الشهري (مطلوب):</span>
+                        <span className="font-bold text-[var(--ink)] num">
+                          {v?.housingMonthly !== undefined && v?.housingMonthly !== null
+                            ? formatSar(Number(v.housingMonthly))
+                            : 'غير مُدخل — سيُكمَّل من المعتمد السابق أو الافتراضي عند الاعتماد'}
+                        </span>
+                        <span className="text-[10px] text-[var(--muted)] block mt-1">
+                          حساب الدخل: {acc?.housingIncome || '421401'}
+                        </span>
                       </div>
                     </div>
 

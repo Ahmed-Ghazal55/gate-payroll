@@ -906,10 +906,13 @@ export interface PayGlobalValues {
     company_bike: number;
     private: number;
   };
+  /** Monthly housing charge (BR §16 / §38.4); required on every global pay_setting draft. */
+  housingMonthly: number;
   accounts: {
     salaryExpense: string;
     vehicleIncomeCar: string;
     vehicleIncomeBike: string;
+    housingIncome?: string;
     outputVat: string;
   };
 }
@@ -1544,7 +1547,17 @@ export interface NinjaReconciliationLine {
   status?: string;
   reason?: string;
   reasons?: string[];
+  /** Wire name from NinjaBilling.Reconcile (preferred). */
+  differences?: NinjaReconciliationDiff[];
+  /** Legacy alias — prefer `differences`. */
   diffs?: NinjaReconciliationDiff[];
+  engineFinal?: number;
+  invoiceFinal?: number;
+  capability?: string;
+  level?: string;
+  /** Synthetic row for invoice-level / unlinked adjustments shown in the captains grid. */
+  lineKind?: 'captain' | 'adjustment';
+  levelType?: string;
 }
 
 export interface NinjaReconciliationAdjustment {

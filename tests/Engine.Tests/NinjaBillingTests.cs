@@ -70,11 +70,14 @@ public sealed class NinjaBillingTests
     {
         var rows=new List<List<string>>{Header.ToList(),Row("SYN-A","capability_car",31,500,31),Row("SYN-B","capability_bike",20,250,20),Row("SYN-C","capability_car",31,460,31,finalOverride:6400)};
         var adj=Header.Select(h=>h switch{"captain_id"=>"SYN-ADJ","Target Level Type"=>"DEDUCTIONS ","Contract Amount"=>"-","Final Amount"=>"-33.12","TOTAL COST"=>"-38.09",_=>"0"}).ToList();rows.Add(adj);
+        var unlinked=Header.Select(h=>h switch{"captain_id"=>"","Target Level Type"=>"COMPANY LINE","Contract Amount"=>"0","Final Amount"=>"31","TOTAL COST"=>"35.65",_=>"0"}).ToList();rows.Add(unlinked);
         var r=NinjaBilling.Reconcile([new("Sheet1",rows)],"2026-10",P,"SYNHASH");
-        Assert.AreEqual(3m,r.N("captains"));Assert.AreEqual(2m,r.N("matched"));Assert.AreEqual(1m,r.N("different"));Assert.AreEqual(1,r["adjustments"]!.AsArray().Count);
+        Assert.AreEqual(3m,r.N("captains"));Assert.AreEqual(2m,r.N("matched"));Assert.AreEqual(1m,r.N("different"));Assert.AreEqual(2,r["adjustments"]!.AsArray().Count);
         var diff=r["lines"]!.AsArray().OfType<JsonObject>().Single(l=>l.S("status")=="difference");Assert.AreEqual("SYN-C",diff.S("captainId"));
+        Assert.IsTrue(diff.ContainsKey("differences"),"wire field is differences (UI must not look for diffs only)");
         Assert.IsTrue(diff["differences"]!.AsArray().OfType<JsonObject>().Any(d=>d.S("field")=="finalAmount"&&d.N("difference")==-100));
-        Assert.AreEqual(-100m,r["totals"]!["finalAmount"]!.AsObject().N("difference"),"the adjustment line counts on both sides");
+        Assert.IsTrue(r["adjustments"]!.AsArray().OfType<JsonObject>().Any(a=>a.S("captainId")==""&&a.N("finalAmount")==31));
+        Assert.AreEqual(-100m,r["totals"]!["finalAmount"]!.AsObject().N("difference"),"captain diff only; adjustments match invoice=engine on both sides");
     }
     [TestMethod]
     public void ReconcileRefusesAnInvoiceWithMissingColumns()
