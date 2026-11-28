@@ -1174,8 +1174,8 @@ export function DataTable<T extends Record<string, any>>({
                     data-type={colType}
                     data-numeric={isNumeric ? 'true' : 'false'}
                     style={{ width: col.width }}
-                    className={`px-3.5 py-3 font-bold text-start whitespace-nowrap select-none ${
-                      isNumeric ? 'text-end' : ''
+                    className={`px-3.5 py-3 font-bold whitespace-nowrap select-none ${
+                      isNumeric ? 'text-end' : 'text-start'
                     } ${hasColumnFilter || isSorted ? 'bg-[var(--accent)]/5' : ''} ${
                       col.className || ''
                     }`}
@@ -1378,8 +1378,8 @@ export function DataTable<T extends Record<string, any>>({
                       return (
                         <td
                           key={col.key}
-                          className={`px-3.5 py-2.5 text-start whitespace-nowrap ${
-                            isNumeric ? 'text-end num' : ''
+                          className={`px-3.5 py-2.5 whitespace-nowrap ${
+                            isNumeric ? 'text-end num' : 'text-start'
                           } ${col.className || ''}`}
                         >
                           {content}

@@ -39,6 +39,9 @@ import type {
   TargetCoaResponse,
   TrialBalanceResponse,
   IncomeStatementResponse,
+  CostCentresResponse,
+  MudadListResponse,
+  VaultCountsResponse,
   AdvanceRequest,
   AdvanceRequestSummary,
   OrgCatalog,
@@ -1602,9 +1605,7 @@ export const api = {
     }),
   listVaultCounts: (companyId?: string) => {
     const q = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
-    return handleRequest<{ items?: Array<Record<string, unknown>>; allowedActions?: string[] }>(
-      `/treasury/vault-counts${q}`
-    );
+    return handleRequest<VaultCountsResponse>(`/treasury/vault-counts${q}`);
   },
   createVaultCount: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/treasury/vault-counts', { method: 'POST', body: JSON.stringify(input) }),
@@ -1784,6 +1785,23 @@ export const api = {
     if (params?.view) q.set('view', params.view);
     const qs = q.toString() ? `?${q.toString()}` : '';
     return handleRequest<IncomeStatementResponse>(`/finance/income-statement${qs}`);
+  },
+
+  getCostCentres: (params?: { sponsorId?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<CostCentresResponse>(`/finance/cost-centres${qs}`);
+  },
+
+  getMudadUploads: (params?: { companyId?: string; periodMonth?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.periodMonth) q.set('periodMonth', params.periodMonth);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<MudadListResponse>(`/mudad${qs}`);
   },
 
   // Riders Directory APIs (Track L & Spec 09)

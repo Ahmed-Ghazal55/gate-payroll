@@ -228,4 +228,25 @@ public sealed class FinanceViewsTests
     {
         foreach(string role in new[]{"Admin","SuperAdmin","FinancialManager","Accountant","FinancialAccountant","OperationsManager"}){var user=UserAccess.Principal(new(){["role"]=role,["username"]="synthetic"});bool expected=role is "Admin" or "SuperAdmin" or "FinancialManager";Assert.AreEqual(expected,AccessPolicy.Allowed(user,"POST","/api/finance/bank-file/preview"));Assert.AreEqual(expected,AccessPolicy.Allowed(user,"POST","/api/finance/bank-file/export"));}
     }
+    [TestMethod] public void CostCentresListsSeededCentresAndChecksPermission()
+    {
+        InStore(store=>{
+            var cc=store.Read(c=>FinanceViews.CostCentres(c,Admin,null,"2026-10","2026-10"));
+            var items=cc["items"] as JsonArray;
+            Assert.IsNotNull(items);
+            Assert.IsTrue(items.OfType<JsonObject>().Any(x=>x.S("code")=="none"));
+        });
+        var reader=UserAccess.Principal(new(){["role"]="Reviewer",["username"]="synthetic-reader"});
+        Assert.IsFalse(AccessPolicy.Allowed(reader,"GET","/api/finance/cost-centres"));
+        var acc=UserAccess.Principal(new(){["role"]="Accountant",["username"]="synthetic-acc"});
+        Assert.IsTrue(AccessPolicy.Allowed(acc,"GET","/api/finance/cost-centres"));
+    }
+    [TestMethod] public void VaultCountsListIncludesCashBoxesArray()
+    {
+        InStore(store=>{
+            var vc=store.Read(c=>TreasuryVaultCountsApi.List(c,null,Admin,null));
+            Assert.IsNotNull(vc["items"] as JsonArray);
+            Assert.IsNotNull(vc["cashBoxes"] as JsonArray);
+        });
+    }
 }

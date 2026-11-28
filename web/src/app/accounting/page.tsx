@@ -36,7 +36,6 @@ import {
   Upload,
 } from 'lucide-react';
 import { PageHeader } from '../../components/ui/PageHeader';
-import { ScreenShell } from '../../components/ui/ScreenShell';
 import { StatCard } from '../../components/ui/StatCard';
 import { DataTable, ColumnDef } from '../../components/ui/DataTable';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
@@ -48,6 +47,13 @@ import { api } from '../../lib/api';
 import { formatSar } from '../../lib/money';
 import { ManualJournalsPanel } from '../../features/accounting/ManualJournalsPanel';
 import { CoaManagePanel } from '../../features/accounting/CoaManagePanel';
+import {
+  GeneralLedgerPanel,
+  BalanceSheetPanel,
+  CostCentresPanel,
+  AppProfitabilityPanel,
+  AccountingReportsPanel,
+} from '../../features/accounting/AccountingExtendedPanels';
 import { paginateFilteredRows } from '../../features/accounting/trial-balance-paging';
 import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
 import { canShowImportStep, TREASURY_OPENING_IMPORT } from '../../features/imports/import-steps';
@@ -245,9 +251,14 @@ function AccountingPageContent() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'trial_balance') {
+    if (activeTab === 'trial_balance' || activeTab === 'app_profitability' || activeTab === 'reports') {
       loadTrialBalance();
-    } else if (activeTab === 'income_statement') {
+    }
+    if (activeTab === 'income_statement' || activeTab === 'reports') {
+      loadIncomeStatement();
+    }
+    if (activeTab === 'balance_sheet') {
+      loadTrialBalance();
       loadIncomeStatement();
     }
   }, [activeTab, trialView, incomeView, selectedSponsor, periodMonth]);
@@ -619,21 +630,7 @@ function AccountingPageContent() {
     },
   ];
 
-  const w3ShellTabs = new Set([
-    'general_ledger',
-    'balance_sheet',
-    'cost_centres',
-    'app_profitability',
-    'reports',
-  ]);
-  if (w3ShellTabs.has(activeTab)) {
-    return (
-      <ScreenShell
-        title={ACCOUNTING_TAB_LABELS[activeTab]}
-        description="شاشة محاسبية قيد التجهيز لهذا التبويب."
-      />
-    );
-  }
+  // Extended accounting tabs render below alongside the shared PageHeader.
 
   return (
     <div className="space-y-6">
@@ -1188,6 +1185,99 @@ function AccountingPageContent() {
             <EmptyState title="لا توجد بيانات لقائمة الدخل" description="تأكد من اختيار الفترة المحددة." />
           )}
         </div>
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 5: General Ledger (دفتر الأستاذ / كشف حساب)           */}
+      {/* ======================================================== */}
+      {activeTab === 'general_ledger' && (
+        <GeneralLedgerPanel
+          coaAccounts={coaAccounts}
+          journals={journals}
+          loadingJournals={loadingJournals}
+          journalsError={journalsError}
+          onReloadJournals={loadJournals}
+          onSelectJournal={setSelectedJournal}
+          companies={companies}
+          selectedSponsor={selectedSponsor}
+          onSponsorChange={setSelectedSponsor}
+          periodMonth={periodMonth}
+          onPeriodChange={setPeriodMonth}
+          companyName={companyName}
+          onExportExcel={handleExportExcel}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 6: Balance Sheet (الميزانية العمومية)                  */}
+      {/* ======================================================== */}
+      {activeTab === 'balance_sheet' && (
+        <BalanceSheetPanel
+          trialData={trialData}
+          incomeData={incomeData}
+          loading={loadingTrial || loadingIncome}
+          error={trialError || incomeError}
+          onReload={() => {
+            void loadTrialBalance();
+            void loadIncomeStatement();
+          }}
+          companies={companies}
+          selectedSponsor={selectedSponsor}
+          onSponsorChange={setSelectedSponsor}
+          periodMonth={periodMonth}
+          onPeriodChange={setPeriodMonth}
+          companyName={companyName}
+          onExportExcel={handleExportExcel}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 7: Cost Centres & Cities (مراكز التكلفة والمدن)       */}
+      {/* ======================================================== */}
+      {activeTab === 'cost_centres' && (
+        <CostCentresPanel
+          companies={companies}
+          selectedSponsor={selectedSponsor}
+          onSponsorChange={setSelectedSponsor}
+          periodMonth={periodMonth}
+          onPeriodChange={setPeriodMonth}
+          companyName={companyName}
+          onExportExcel={handleExportExcel}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 8: App Profitability (ربحية التطبيقات)                */}
+      {/* ======================================================== */}
+      {activeTab === 'app_profitability' && (
+        <AppProfitabilityPanel
+          trialData={trialData}
+          loading={loadingTrial}
+          error={trialError}
+          onReload={loadTrialBalance}
+          companies={companies}
+          selectedSponsor={selectedSponsor}
+          onSponsorChange={setSelectedSponsor}
+          periodMonth={periodMonth}
+          onPeriodChange={setPeriodMonth}
+          companyName={companyName}
+          onExportExcel={handleExportExcel}
+        />
+      )}
+
+      {/* ======================================================== */}
+      {/* TAB 9: Financial Reports Hub (التقارير)                   */}
+      {/* ======================================================== */}
+      {activeTab === 'reports' && (
+        <AccountingReportsPanel
+          trialData={trialData}
+          incomeData={incomeData}
+          journals={journals}
+          periodMonth={periodMonth}
+          onPeriodChange={setPeriodMonth}
+          onNavigateTab={navigateTab}
+          onExportExcel={handleExportExcel}
+        />
       )}
 
       {/* ======================================================== */}

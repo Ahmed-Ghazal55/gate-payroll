@@ -159,7 +159,7 @@ export function buildNavGroups(
         { id: 'pr-amazon', href: '/payroll/amazon', label: 'أمازون', laterBadge: true, disabled: true },
         { id: 'pr-chefz', href: '/payroll/?tab=platforms&app=chefz', label: 'شيفز' },
         { id: 'pr-jahez', href: '/payroll/?tab=platforms&app=jahez', label: 'جاهز' },
-        { id: 'pr-mudad', href: '/payroll/?tab=platforms', label: 'رواتب مدد' },
+        { id: 'pr-mudad', href: '/payroll/?tab=mudad', label: 'رواتب مدد' },
         { id: 'pr-bank', href: '/payroll/?tab=bank', label: 'مسيرات الرواتب والبنك' },
         { id: 'pr-holds', href: '/payroll/?tab=deductions', label: 'طلبات إيقاف والخصم' },
         { id: 'pr-settings', href: '/payroll/?tab=rules', label: 'إعدادات الرواتب' },

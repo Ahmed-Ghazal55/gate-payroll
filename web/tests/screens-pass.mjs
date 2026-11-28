@@ -439,7 +439,7 @@ const SCREENS = [
   { id: 'pr-jahez-schemes', label: 'الرواتب / جاهز - الأنظمة الداخلية', url: '/app/payroll/?tab=platforms&app=jahez&sub=internal_schemes&period=2026-10' },
   { id: 'pr-jahez-elig', label: 'الرواتب / جاهز - الأهلية والضوابط', url: '/app/payroll/?tab=platforms&app=jahez&sub=eligibility&period=2026-10' },
   { id: 'pr-jahez-accounts', label: 'الرواتب / جاهز - الحسابات والمعرفات', url: '/app/payroll/?tab=platforms&app=jahez&sub=accounts&period=2026-10' },
-  { id: 'pr-mudad', label: 'الرواتب / رواتب مدد (platforms بدون app)', url: '/app/payroll/?tab=platforms&period=2026-10', sidebarId: 'pr-mudad', expectMudad: true },
+  { id: 'pr-mudad', label: 'الرواتب / رواتب مدد', url: '/app/payroll/?tab=mudad&period=2026-10', sidebarId: 'pr-mudad', expectMudad: true },
   { id: 'pr-amazon', label: 'الرواتب / أمازون (مسار مباشر)', url: '/app/payroll/amazon/?period=2026-10' },
   { id: 'pr-cycle', label: 'الرواتب / دورة الرواتب والمسير', url: '/app/payroll/?tab=cycle&period=2026-10' },
   { id: 'pr-current-cycle', label: 'الرواتب / الدورة الحالية', url: '/app/payroll/?tab=current-cycle&period=2026-10' },

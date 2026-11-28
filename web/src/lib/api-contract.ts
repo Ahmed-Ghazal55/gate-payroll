@@ -21656,13 +21656,25 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            rows: {
+                                id: string;
+                                companyId: string;
+                                periodMonth: string;
+                                fileKind: string;
+                                fileName: string;
+                                rowCount: number;
+                                status: number;
+                                uploadedBy?: string;
+                                uploadedAt?: string;
+                            }[];
+                        };
                     };
                 };
             };
@@ -23061,6 +23073,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/finance/cost-centres": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read finance cost centres and balances */
+        get: {
+            parameters: {
+                query?: {
+                    sponsorId?: string;
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            from: string;
+                            to: string;
+                            items: {
+                                id: string;
+                                code: string;
+                                nameAr: string;
+                                kind: string;
+                                companyId?: string;
+                                companyCode?: string;
+                                companyNameAr?: string;
+                                status: number;
+                                opening: number;
+                                debit: number;
+                                credit: number;
+                                closing: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/finance/coa": {
         parameters: {
             query?: never;
@@ -24027,7 +24096,17 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": Record<string, never>;
+                        "application/json": {
+                            items: Record<string, never>[];
+                            allowedActions: string[];
+                            cashBoxes: {
+                                id: string;
+                                code: string;
+                                nameAr: string;
+                                companyId: string;
+                                accountCode: string;
+                            }[];
+                        };
                     };
                 };
             };

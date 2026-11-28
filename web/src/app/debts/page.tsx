@@ -167,7 +167,7 @@ function DebtsPageContent() {
   const debtsRequestIdRef = useRef(0);
 
   // Data states
-  const [loading, setLoading] = useState<boolean>(true);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<string | null>(null);
   const [debts, setDebts] = useState<DebtRecord[]>([]);
   const [debtsLoaded, setDebtsLoaded] = useState(false);
@@ -483,6 +483,9 @@ function DebtsPageContent() {
   // F-D2: fetch only the open tab's data; debts list is server-paged with filters/search.
   useEffect(() => {
     const kinds = debtsLoadKindsForTab(activeTab);
+    if (!kinds.some((k) => k === 'debts' || k === 'approvals' || k === 'promissory')) {
+      setLoading(false);
+    }
     if (kinds.includes('debts')) {
       setDebtsPage(1);
       void loadDebts(1, debtsPageSize, debouncedSearch);

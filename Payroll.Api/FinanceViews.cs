@@ -169,10 +169,87 @@ public static class FinanceViews
         }
         trial["companies"]=companies;return trial;
     }
+    public static JsonObject CostCentres(DbConnection c,ClaimsPrincipal user,string? sponsorId,string? from,string? to)
+    {
+        AccessPolicy.Demand(user,"treasury.journals");
+        var period=Periods(from,to);
+        var companies=Companies(user,sponsorId).ToDictionary(s=>s.Id,StringComparer.OrdinalIgnoreCase);
+        var items=new JsonArray();
+        if(!SchemaSql.TableExists(c,null,"org","cost_centre"))
+            return new(){["from"]=period.From,["to"]=period.To,["items"]=items};
+
+        var balances=new Dictionary<string,(decimal Opening,decimal Debit,decimal Credit,decimal Closing)>(StringComparer.OrdinalIgnoreCase);
+        if(SchemaSql.TableExists(c,null,"fin","period_balance"))
+        {
+            using var balCmd=Store.Command(c,null,$"""
+                SELECT cost_centre_id,company_id,period_month,opening,debit,credit,closing
+                FROM {SchemaSql.Q(c,"fin","period_balance")}
+                """);
+            using var br=balCmd.ExecuteReader();
+            while(br.Read())
+            {
+                string cid=br["company_id"].ToString()!;
+                if(!companies.ContainsKey(cid))continue;
+                string ccId=br["cost_centre_id"].ToString()!;
+                string monthRaw=br["period_month"] switch
+                {
+                    DateTime dt=>dt.ToString("yyyy-MM"),
+                    DateOnly d=>d.ToString("yyyy-MM"),
+                    string s=>s.Length>=7?s[..7]:s,
+                    _=>Convert.ToDateTime(br["period_month"]).ToString("yyyy-MM")
+                };
+                if(string.CompareOrdinal(monthRaw,period.From)<0||string.CompareOrdinal(monthRaw,period.To)>0)continue;
+                decimal op=Convert.ToDecimal(br["opening"]);
+                decimal db=Convert.ToDecimal(br["debit"]);
+                decimal cr=Convert.ToDecimal(br["credit"]);
+                decimal cl=Convert.ToDecimal(br["closing"]);
+                balances.TryGetValue(ccId,out var cur);
+                balances[ccId]=(cur.Opening+op,cur.Debit+db,cur.Credit+cr,cur.Closing+cl);
+            }
+        }
+
+        using var cmd=Store.Command(c,null,$"""
+            SELECT id,code,name_ar,kind,company_id,status
+            FROM {SchemaSql.Q(c,"org","cost_centre")}
+            ORDER BY kind,code
+            """);
+        using var r=cmd.ExecuteReader();
+        while(r.Read())
+        {
+            string? cid=r["company_id"] is DBNull?null:r["company_id"].ToString();
+            if(!string.IsNullOrWhiteSpace(cid)&&!companies.ContainsKey(cid))continue;
+            if(!string.IsNullOrWhiteSpace(sponsorId)&&string.IsNullOrWhiteSpace(cid))
+            {
+                // Keep shared sentinel 'none' only when no specific sponsor balance excludes it.
+            }
+            string id=r["id"].ToString()!;
+            balances.TryGetValue(id,out var b);
+            string companyCode=cid!=null&&companies.TryGetValue(cid,out var comp)?comp.Code:"";
+            string companyName=cid!=null&&companies.TryGetValue(cid,out var comp2)?comp2.ShortNameAr:"";
+            items.Add(new JsonObject
+            {
+                ["id"]=id,
+                ["code"]=r["code"].ToString(),
+                ["nameAr"]=r["name_ar"].ToString(),
+                ["kind"]=r["kind"].ToString(),
+                ["companyId"]=cid??"",
+                ["companyCode"]=companyCode,
+                ["companyNameAr"]=companyName,
+                ["status"]=Convert.ToInt32(r["status"]),
+                ["opening"]=J.Money(b.Opening),
+                ["debit"]=J.Money(b.Debit),
+                ["credit"]=J.Money(b.Credit),
+                ["closing"]=J.Money(b.Closing)
+            });
+        }
+        return new(){["from"]=period.From,["to"]=period.To,["items"]=items};
+    }
+
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapGet("/finance/coa/target",(HttpContext ctx)=>{AccessPolicy.Demand(ctx.User,"treasury.view");return Results.Json(TargetChart());}).WithTags("Accounting and reports").WithSummary("Read finance coa target");
         api.MapGet("/finance/trial-balance",(HttpContext ctx,string? sponsorId,string? from,string? to,string? view)=>store.Read(c=>Results.Json(TrialBalance(c,ctx.User,sponsorId,from,to,view??"current")))).WithTags("Accounting and reports").WithSummary("Read finance trial balance");
         api.MapGet("/finance/income-statement",(HttpContext ctx,string? sponsorId,string? from,string? to,string? view)=>store.Read(c=>Results.Json(IncomeStatement(c,ctx.User,sponsorId,from,to,view??"target")))).WithTags("Accounting and reports").WithSummary("Read finance income statement");
+        api.MapGet("/finance/cost-centres",(HttpContext ctx,string? sponsorId,string? from,string? to)=>store.Read(c=>Results.Json(CostCentres(c,ctx.User,sponsorId,from,to)))).WithTags("Accounting and reports").WithSummary("Read finance cost centres and balances");
     }
 }
