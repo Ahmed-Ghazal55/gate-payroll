@@ -73,6 +73,8 @@ public static class FinanceViews
             if(platform==""&&run?["sourceRows"] is JsonArray sources){var platforms=sources.OfType<JsonObject>().Select(s=>s.S("platform")).Where(p=>p!="").Distinct().ToArray();if(platforms.Length==1)platform=platforms[0];}
             return platform!=""?PayPlatforms.For(platform).Agent:null;
         }
+        // 5111 = admin staff salary (current chart under 5100); always maps to target 521101.
+        if(code=="5111")return targets.Contains("521101")?"521101":null;
         if(code is "5101" or "5102" or "5103" or "5104" or "5105" or "5106" or "5109" or "5301")
         {
             string target=employee?code switch {"5104"=>"521201","5105"=>"521202","5301"=>"521101",_=>"521204"}:code switch {"5101"=>"512201","5102"=>"512202","5103"=>"512203","5104"=>"512204","5105"=>"512107","5106"=>"512205","5109"=>"512208",_=>"512101"};

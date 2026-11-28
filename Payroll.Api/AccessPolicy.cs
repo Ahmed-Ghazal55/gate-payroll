@@ -117,6 +117,14 @@ public static partial class AccessPolicy
         if(path=="/api/workforce/legal-cases")return method=="GET"&&Has("riders.legal_cases.view");
         if(path.StartsWith("/api/workforce/",StringComparison.Ordinal)&&path.EndsWith("/360",StringComparison.Ordinal))return method=="GET"&&Has("riders.view_360")&&Has("debts.view");
         if(path.StartsWith("/api/hr-catalogs/",StringComparison.Ordinal))return method=="GET"&&Has("riders.view");
+        if(path.StartsWith("/api/staff/hr/",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has(StaffHr.ViewPermission)||Has(StaffHr.ManagePermission)||Has(StaffHr.ApprovePermission);
+            if(method is not ("POST" or "PUT"))return false;
+            if(path.Contains("/contracts",StringComparison.Ordinal)&&method=="POST")return Has(StaffHr.ContractUploadPermission)&&Has(StaffHr.ManagePermission);
+            if(path.EndsWith("/approve",StringComparison.Ordinal)||path.EndsWith("/reverse",StringComparison.Ordinal))return Has(StaffHr.ApprovePermission);
+            return Has(StaffHr.ManagePermission);
+        }
         if(path.StartsWith("/api/riders/",StringComparison.Ordinal))
         {
             if(path.EndsWith("/profile-360",StringComparison.Ordinal))return method=="GET"&&Has("riders.view_360")&&Has("debts.view");

@@ -948,6 +948,41 @@ export const api = {
     return handleRequest<{ items: Array<{ id: string; action: string; actor: string; at: string }>; total: number; page: number; pageSize: number }>(`/audit?${q}`);
   },
 
+  // Staff HR (HR1)
+  getStaffHrCatalogs: () => handleRequest<Record<string, string[]>>('/staff/hr/catalogs'),
+  getStaffHrDashboard: () => handleRequest<Record<string, unknown>>('/staff/hr/dashboard'),
+  getStaffEmployees: (params?: { companyId?: string; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString();
+    return handleRequest<Record<string, unknown>[]>(`/staff/hr/employees${qs ? `?${qs}` : ''}`);
+  },
+  createStaffEmployee: (payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/staff/hr/employees', { method: 'POST', body: JSON.stringify(payload) }),
+  getStaffEmployee: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}`),
+  updateStaffEmployee: (id: string, payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  addStaffContract: (id: string, payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}/contracts`, { method: 'POST', body: JSON.stringify(payload) }),
+  upsertStaffMonth: (id: string, payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}/months`, { method: 'PUT', body: JSON.stringify(payload) }),
+  createStaffAdvance: (id: string, payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}/advances`, { method: 'POST', body: JSON.stringify(payload) }),
+  approveStaffAdvance: (id: string, debtId: string) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}/advances/${encodeURIComponent(debtId)}/approve`, { method: 'POST', body: '{}' }),
+  getStaffRuns: (companyId?: string) => {
+    const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+    return handleRequest<Record<string, unknown>[]>(`/staff/hr/runs${qs}`);
+  },
+  createStaffRun: (payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/staff/hr/runs', { method: 'POST', body: JSON.stringify(payload) }),
+  getStaffRun: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/runs/${encodeURIComponent(id)}`),
+  staffRunAction: (id: string, action: 'recalculate' | 'submit-review' | 'back-to-draft' | 'approve' | 'mudad' | 'post' | 'reverse') =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/runs/${encodeURIComponent(id)}/${action}`, { method: 'POST', body: '{}' }),
+
   // Campaigns
   getEvaluationStaff: () =>
     handleRequest<EvaluationStaffItem[]>('/forms/evaluations/staff'),

@@ -191,6 +191,7 @@ RegisterOpsLiveApi.Map(api,store,app.Configuration,app.Environment);
 PaySourcesLiveApi.Map(api,store,app.Configuration,app.Environment);
 Operations.Map(api,store,app.Configuration,app.Environment);
 WorkforceApi.Map(api,store,app.Configuration,app.Environment);
+StaffHr.Map(api,store);
 PayStatements.Map(app,api,store);
 HungerStationInvoices.MapImports(api,store);
 HungerStationInvoices.MapReview(api,store);

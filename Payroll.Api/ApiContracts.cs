@@ -331,6 +331,7 @@ public static partial class ApiContracts
         if(path=="/api/payroll/runs")return A(PayrollRun());
         if(path is "/api/adjustments" or "/api/payments")return get?A(Free()):Free();
         if(path=="/api/ledger/{iqama}")return O(new(){["rows"]=A(O(new(){["id"]=S(),["iqama"]=S(),["amount"]=N(),["kind"]=S(),["period"]=S()},"id","iqama","amount")),["balance"]=N()},"rows","balance");
+        var staff=StaffHrResponse(method,path);if(staff!=null)return staff;
         return null;
     }
     public static void Describe(OpenApiOperation operation,string method,string path)

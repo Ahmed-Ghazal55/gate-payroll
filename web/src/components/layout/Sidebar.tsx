@@ -85,6 +85,12 @@ export function buildNavGroups(
           permission: 'companies.view',
         },
         {
+          id: 'hr-staff',
+          href: '/hr/staff/',
+          label: 'شؤون الموظفين',
+          permission: ['staff.hr.view', 'staff.hr.manage'],
+        },
+        {
           id: 'hr-catalogs',
           href: '/hr/catalogs/',
           label: 'كتالوجات الموظفين',
@@ -310,6 +316,7 @@ function SidebarInner({
     if (pathname === '/' || pathname === '') return 'home';
     const clean = pathname.replace(/\/$/, '');
     if (clean === '/payments' || clean.startsWith('/payments/')) return 'payments';
+    if (clean === '/hr/staff' || clean.startsWith('/hr/staff/')) return 'hr-staff';
     if (clean === '/hr' || clean.startsWith('/hr/')) return 'companies';
     if (clean === '/riders' || clean.startsWith('/riders/')) {
       if (clean.startsWith('/riders/statement')) return 'workforce';
