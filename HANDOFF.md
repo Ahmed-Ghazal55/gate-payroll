@@ -2,14 +2,15 @@
 
 | Field | Value |
 |---|---|
-| Current writer | (free) |
-| Branch | `feat/keeta-ops-import` |
-| Updated | 2026-11-27 by Cursor (KOPS1b fix round) |
+| Current writer | Cursor 2026-11-28 05:41 |
+| Branch | `chore/app-reset` |
+| Updated | 2026-11-28 by Cursor (ARESET) |
 | Live | unchanged (local commit only; never pushed) |
-| Next | Planner: Grok re-check KOPS1b; never push until Ghazal says |
+| Next | Planner: review ARESET; never push until Ghazal says |
 
 ## Goal now
-KOPS1 done: Keeta operations import redone to Arabic register sheets A..AH. Report: `~/.cache/agents-runs/cursor-KOPS1-report.md`.
+ARESET done: `tools/app_reset.py --app ninja|keeta` (dry-run default; `--apply` one transaction + audit `platform.<app>.reset`). `tools/ninja_reset.py` is a thin wrapper. Dry-run OK on `gate_rel340`; `--apply` skipped because port 5290 uses that DB. Report: `~/.cache/agents-runs/cursor-ARESET-report.md`.
+
 
 ## Done (TRIAL1)
 - Merges through `feat/w3-screens-pay`; contracts regenerated (`4bcdfe3`); integration fix (`d9d40ca`).
