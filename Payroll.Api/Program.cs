@@ -180,6 +180,7 @@ ChefzOperations.Map(api,store);
 CompanyRegistryImport.Map(api,store);
 PlatformPosting.Map(api,store);
 PaySettings.Map(api,store);
+ParentTermsDisplay.Map(api,store,builder.Configuration,app.Environment);
 PayAssignments.Map(api,store);
 PayCycles.Map(api,store,builder.Configuration,app.Environment);
 PayReviewDraft.Map(api,store,app.Configuration,app.Environment);

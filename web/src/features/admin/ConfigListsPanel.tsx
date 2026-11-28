@@ -17,6 +17,7 @@ import {
   ShieldCheck,
   Loader2,
   Settings,
+  Trash2,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import type { ConfigListGroup, ConfigListItem, ConfigFieldDef } from '../../lib/types';
@@ -84,6 +85,7 @@ export function ConfigListsPanel({ includeGroups, excludeGroups }: ConfigListsPa
   const [submittingField, setSubmittingField] = useState<boolean>(false);
 
   const [approvingCode, setApprovingCode] = useState<string | null>(null);
+  const [deletingCode, setDeletingCode] = useState<string | null>(null);
 
   const fetchLists = async () => {
     setLoading(true);
@@ -238,6 +240,29 @@ export function ConfigListsPanel({ includeGroups, excludeGroups }: ConfigListsPa
       toast(err.message || 'تعذر اعتماد العنصر.', 'danger');
     } finally {
       setApprovingCode(null);
+    }
+  };
+
+  const handleDeleteItem = async (item: ConfigListItem) => {
+    if (!activeGroup || activeGroup.group !== 'operating_systems') return;
+    if (!(item.allowedActions || []).includes('delete')) {
+      const reason =
+        (item.deleteBlockers && item.deleteBlockers.length > 0
+          ? item.deleteBlockers.join('؛ ')
+          : null) || 'النظام مستخدم ولا يمكن حذفه.';
+      toast(reason, 'danger');
+      return;
+    }
+    if (!window.confirm(`حذف نهائي لنظام التشغيل «${item.nameAr}» (${item.code})؟ لا يمكن التراجع.`)) return;
+    setDeletingCode(item.code);
+    try {
+      await api.deleteConfigListItem(activeGroup.group, item.code);
+      toast('تم الحذف النهائي لنظام التشغيل.', 'success');
+      await fetchLists();
+    } catch (err: any) {
+      toast(err.message || 'تعذر حذف نظام التشغيل.', 'danger');
+    } finally {
+      setDeletingCode(null);
     }
   };
 
@@ -500,6 +525,32 @@ export function ConfigListsPanel({ includeGroups, excludeGroups }: ConfigListsPa
                                 <Edit2 size={13} />
                               </button>
                             )}
+
+                            {canManage &&
+                              activeGroup.group === 'operating_systems' &&
+                              (item.allowedActions || []).includes('delete') && (
+                                <button
+                                  type="button"
+                                  disabled={deletingCode === item.code}
+                                  onClick={() => handleDeleteItem(item)}
+                                  className="p-1.5 rounded-lg border border-[var(--danger)]/30 text-[var(--danger)] hover:bg-[var(--danger)]/10 transition disabled:opacity-50"
+                                  title="حذف نهائي (بلا مراجع)"
+                                >
+                                  <Trash2 size={13} />
+                                </button>
+                              )}
+
+                            {canManage &&
+                              activeGroup.group === 'operating_systems' &&
+                              !(item.allowedActions || []).includes('delete') &&
+                              (item.deleteBlockers?.length ?? 0) > 0 && (
+                                <span
+                                  className="text-[10px] text-[var(--muted)] max-w-[10rem] truncate"
+                                  title={(item.deleteBlockers || []).join('؛ ')}
+                                >
+                                  لا يُحذف: {(item.deleteBlockers || [])[0]}
+                                </span>
+                              )}
                           </div>
                         </td>
                       </tr>

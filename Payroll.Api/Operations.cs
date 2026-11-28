@@ -23,7 +23,7 @@ public static class Operations
         ["fuel_usage"]=["riderId","companyId","fuelCardId","month","period","liters","amount","totalAmount","amountBeforeTax","vat","fuelType"],
         ["sponsorship_period"]=["riderId","companyId","sponsorId","effectiveFrom","effectiveTo"],
         ["legal_case"]=["companyId","number","personName","personTypeCode","riderId","partyRoleCode","caseDate","caseTime","details"],
-        ["platform_account"]=["code","externalAccountId","platformCode","registeredRiderId","companyId","cityId","paymentModelCode","startDate","endDate"],
+        ["platform_account"]=["code","externalAccountId","platformCode","registeredRiderId","companyId","cityId","paymentModelCode","startDate","endDate","vehicleType"],
         ["platform_day_usage"]=["riderId","companyId","platformAccountId","date","orders","hours","collectedAmount","deductionsAmount"],
         ["rider_work_timeline"]=["riderId","companyId","platformCode","platformAccountId","accountCode","externalAccountId","effectiveFrom","effectiveTo","endReasonCode","endReason","nextRiderId","paymentModelCode","slot","compensationModel","ninjaRiderTypeCode"],
         ["chefz_account"]=["platformAccountId","companyId","registeredRiderId","reportIdNumber","accountType","vehicleType","dashboardStatus"],
@@ -33,7 +33,8 @@ public static class Operations
         ["chefz_order_row"]=["riderId","companyId","platformAccountId","date","orderId","deliveryFees","cashCollected"],
         ["ninja_daily"]=["riderId","companyId","platformAccountId","date","orders","hours","CaptainId"],
         ["ninja_daily_deduction"]=["riderId","companyId","platformAccountId","date","collectedAmount","amount","CaptainId"],
-        ["ninja_evaluation_snapshot"]=["frozen","policyVersion","inputRevision","reason","createdAt"],
+        // accountIdsJson from ERP AccountIdsJson (PullContracts); accountIds when already parsed.
+        ["ninja_evaluation_snapshot"]=["frozen","policyVersion","inputRevision","reason","createdAt","accountIdsJson","accountIds"],
         ["jahez_commission_policy"]=["companyId","platformAccountId","from","to","rate"],
         ["jahez_daily_order"]=["companyId","platformAccountId","date","count"]
     };

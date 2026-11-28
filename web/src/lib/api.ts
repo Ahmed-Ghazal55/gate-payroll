@@ -2106,6 +2106,25 @@ export const api = {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
     return handleRequest<PayConfigListResponse>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`);
   },
+  /** Display-only parent terms: ERP expected eligibility vs approved invoice (no calculation effect). */
+  getParentTermsDisplay: (app: string, period: string) =>
+    handleRequest<Record<string, unknown>>(
+      `/pay/apps/${encodeURIComponent(app)}/parent-terms/display?period=${encodeURIComponent(period)}`
+    ),
+  getKeetaEligibility: (params?: { month?: string; page?: number; pageSize?: number; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.month) q.set('month', params.month);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString();
+    return handleRequest<Record<string, unknown>>(`/pay/sources/keeta-eligibility${qs ? `?${qs}` : ''}`);
+  },
+  deleteConfigListItem: (group: string, code: string) =>
+    handleRequest<{ deleted: boolean; code: string; id: string }>(
+      `/config/lists/${encodeURIComponent(group)}/items/${encodeURIComponent(code)}`,
+      { method: 'DELETE' }
+    ),
   createPayTerms: (app: string, input: PayTermsCreateInput, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
     return handleRequest<PayConfigDoc>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`, {

@@ -21,7 +21,10 @@ public static class PayValues
 public static partial class PaySettings
 {
     public static readonly string[] SchemeTypes=["daily_commission","percent_of_gross","target_salary","monthly_commission","percent_monthly_with_vehicle"];
+    // Six base cells stay mandatory. Optional bike-on-car-ID cells price mismatch separately (Ghazal 2026-11-27).
     public static readonly string[] Categories=["sponsored_company_car","sponsored_company_bike","sponsored_private","external_company_car","external_company_bike","external_private"];
+    public static readonly string[] OptionalCategories=VehicleIdentity.OptionalMismatchCategories;
+    public static readonly string[] AllCategories=[..Categories,..OptionalCategories];
     public static readonly string[] Operators=["gt","gte","eq","neq","lt","lte"];
     public static readonly string[] Kinds=["pay_terms","pay_scheme","pay_eligibility","pay_setting"];
     public static JsonObject Defaults()=>JsonNode.Parse(typeof(PaySettings).Assembly.GetManifestResourceStream("Payroll.PayDefaults.v1.json")!)!.AsObject();
@@ -61,9 +64,11 @@ public static partial class PaySettings
     static void ValidateScheme(JsonObject data)
     {
         PayValues.Fields(data,"name","type","parameters","eligibilitySetId","accountingRole");string type=data.Required("type");J.Need(SchemeTypes.Contains(type),"نظام داخلي غير مدعوم.");J.Need(data.S("accountingRole") is "principal" or "agent","حدد صفة الأصيل أو الوكيل للنظام.");
-        var parameters=PayValues.Object(data["parameters"]);PayValues.Fields(parameters,"categories");var cells=PayValues.Object(parameters["categories"]);J.Need(cells.Count==Categories.Length&&Categories.All(cells.ContainsKey),"حدد خلايا الكفالة والمركبة الست صراحة؛ لا يوجد بديل تلقائي.");
+        var parameters=PayValues.Object(data["parameters"]);PayValues.Fields(parameters,"categories");var cells=PayValues.Object(parameters["categories"]);
+        J.Need(Categories.All(cells.ContainsKey),"حدد خلايا الكفالة والمركبة الست صراحة؛ لا يوجد بديل تلقائي.");
         foreach(var pair in cells)
         {
+            J.Need(AllCategories.Contains(pair.Key),"فئة مندوب غير معروفة في النظام الداخلي: "+pair.Key);
             var cell=PayValues.Object(pair.Value);J.Need(cell.S("enabled")==""||cell["enabled"] is JsonValue,"حالة الخلية غير صالحة.");bool enabled=PayValues.Flag(cell,"enabled");
             if(!enabled){PayValues.Fields(cell,"enabled");continue;}
             PayValues.Fields(cell,"enabled","dailyCommission","monthlyCommission","companyPercent","prorate","chargeCompanyVehicle","bands","fallbackRate","operatingCost","fuelCap","internet","operatingCostAccount");PayValues.Flag(cell,"chargeCompanyVehicle");
@@ -71,6 +76,7 @@ public static partial class PaySettings
             if(type is "percent_of_gross" or "percent_monthly_with_vehicle")PayValues.Number(cell,"companyPercent",0,100);
             if(type=="monthly_commission"){PayValues.Number(cell,"monthlyCommission");PayValues.Flag(cell,"prorate");}
             if(type=="target_salary")Bands(cell["bands"]);
+            // bike_on_car_id is a company bike (§24.4) — require vehicle charge like other company-vehicle cells.
             if(type=="percent_monthly_with_vehicle"&&!pair.Key.EndsWith("_private",StringComparison.Ordinal))J.Need(cell.B("chargeCompanyVehicle"),"هذا النظام يشمل مركبة الشركة صراحة.");
             foreach(string key in new[]{"dailyCommission","monthlyCommission","companyPercent","fallbackRate","operatingCost","fuelCap","internet"})if(cell.ContainsKey(key))PayValues.Number(cell,key,0,key=="companyPercent"?100:1000000000);
             if(cell.ContainsKey("operatingCostAccount")){string account=PayPlatforms.Active(cell.S("operatingCostAccount"));J.Need(account.StartsWith('4'),"تكلفة التشغيل المستردة تحتاج حساب دخل محددًا.");}

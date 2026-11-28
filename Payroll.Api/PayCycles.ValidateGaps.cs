@@ -31,7 +31,7 @@ public static partial class PayCycles
                 if(person==null){missingRecord.Add(rider);continue;}
                 string category=person.S("payCategory");
                 if(category=="")missingCategory.Add(rider);
-                else if(!PaySettings.Categories.Contains(category))invalidCategory.Add(rider);
+                else if(!PaySettings.AllCategories.Contains(category))invalidCategory.Add(rider);
             }
         }
         var daily=Daily();

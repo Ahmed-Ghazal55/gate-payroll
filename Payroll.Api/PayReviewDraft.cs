@@ -25,16 +25,14 @@ public static class PayReviewDraft
         void Setup(string code,string message,string action,string source=""){if(!setupChecklist.OfType<JsonObject>().Any(b=>b.S("code")==code&&b.S("sourceLineId")==source))setupChecklist.Add(new JsonObject{["code"]=code,["message"]=message,["fixAction"]=action,["sourceLineId"]=source});}
         var invoices=Store.List(c,"platform_invoice",tx).Where(i=>InvoiceDiscard.Active(i)&&i.S("platform")==platformName&&i.S("companyId")==company&&i.S("period")==period&&i.S("status")!="reversed"&&i.S("accountingStatus")!="reversed").OrderBy(i=>i.S("id"),StringComparer.Ordinal).ToList();
         if(invoices.Count==0)Block("invoice_missing","ارفع واعتمد فاتورة "+(app=="keeta"?"كيتا":"نينجا")+" للشركة والشهر.","upload_invoice");
-        // Settings gaps → short setup checklist with one-click default (Ninja); Keeta still blocks until settings approved.
-        foreach(string kind in new[]{"pay_terms","pay_eligibility"})
+        // Parent terms (الشروط الأصلية) are display-only and never block calculation (Ghazal 2026-11-27).
+        // Eligibility gaps → setup checklist (Ninja) or approve_settings (Keeta).
+        try{PaySettings.Resolve(c,tx,"pay_eligibility",app,period);}
+        catch(ApiError)
         {
-            try{PaySettings.Resolve(c,tx,kind,app,period);}
-            catch(ApiError)
-            {
-                string msg="إعداد "+(app=="keeta"?"كيتا":"نينجا")+" للشهر غير معتمد: "+(kind=="pay_terms"?"شروط الأجر":"قواعد الاستحقاق");
-                if(app=="ninja"){Setup(kind+"_missing",msg,"apply_default_settings");Block(kind+"_missing",msg,"apply_default_settings");}
-                else Block(kind+"_missing",msg,"approve_settings");
-            }
+            string msg="إعداد "+(app=="keeta"?"كيتا":"نينجا")+" للشهر غير معتمد: قواعد الاستحقاق";
+            if(app=="ninja"){Setup("pay_eligibility_missing",msg,"apply_default_settings");Block("pay_eligibility_missing",msg,"apply_default_settings");}
+            else Block("pay_eligibility_missing",msg,"approve_settings");
         }
         try{PaySettings.Global(c,tx,period+"-01");}
         catch(ApiError)
@@ -132,6 +130,7 @@ public static class PayReviewDraft
                     var groups=rows.GroupBy(d=>d.S("riderId")).ToList();
                     if(groups.Count>1)
                     {
+                        // Fixed default (orders→days); parent terms never change the split weight (brief D).
                         var (weight,tie)=PayReviewCategory.AllocationSetting(c,tx,"ninja",period);
                         var metrics=groups.Select(g=>new PayReviewCategory.OperatorMetrics(g.Key,g.Sum(d=>d.N("orders")),g.Select(d=>d.S("date")[..10]).Distinct().Count(),1m,0m)).OrderBy(x=>x.Rider,StringComparer.Ordinal).ToList();
                         proposals.Add(new JsonObject{["sourceLineId"]=source,["accountId"]=accountId,["weight"]=weight,["tieBreak"]=tie,["riders"]=PayReviewCategory.Propose(metrics,line.N("orders"),line.N("baseGross"),accountDeduction,weight,tie)});
@@ -140,10 +139,15 @@ public static class PayReviewDraft
                     string riderId=groups.Single().Key;
                     if(!people.TryGetValue(riderId,out var personRow)){missing.Add(new JsonObject{["sourceLineId"]=source});Block("rider_not_found","أضف المندوب المرتبط بمصدر التشغيل.","review_rider_record",source);continue;}
                     FinancialScopes.DemandRider(actor,personRow);if(!ErpRiderClassification.ListedAsRider(personRow)||personRow.B("debtOnly")){Block("rider_ineligible","المصدر لا يخص مندوب تشغيل فعال.","review_rider",source);continue;}
-                    string category=PayReviewCategory.Derive(c,tx,personRow,period,liveOps);
-                    if(!PaySettings.Categories.Contains(category)){Block("category_missing","تعذر تحديد فئة الكفالة والمركبة؛ حددها في ملف التشغيل المراجع.","import_operations",source);continue;}
+                    // Prefer stored platform_account.vehicleType / invoice vehicleType; نوع المركبة before المركبة (rider text).
+                    string platformVehicle=local.S("vehicleType");
+                    if(platformVehicle=="")platformVehicle=line.S("vehicleType");
+                    if(platformVehicle==""&&line["sourceMetrics"] is JsonObject sm)
+                        platformVehicle=sm.S("نوع المركبة",sm.S("vehicleType",sm.S("المركبة")));
+                    string category=PayReviewCategory.Derive(c,tx,personRow,period,liveOps,platformVehicle);
+                    if(!PaySettings.AllCategories.Contains(category)){Block("category_missing","تعذر تحديد فئة الكفالة والمركبة؛ حددها في ملف التشغيل المراجع.","import_operations",source);continue;}
                     var riderDays=daily.Where(d=>d.S("riderId")==riderId).Select(d=>d.S("date")[..10]).Distinct().Count();
-                    var riderShare=new JsonObject{["rider"]=riderId,["orders"]=line.N("orders"),["baseGross"]=line.N("baseGross"),["deduction"]=accountDeduction,["category"]=category,["days"]=riderDays,["metrics"]=new JsonObject()};
+                    var riderShare=new JsonObject{["rider"]=riderId,["orders"]=line.N("orders"),["baseGross"]=line.N("baseGross"),["deduction"]=accountDeduction,["category"]=category,["days"]=riderDays,["metrics"]=new JsonObject(),["platformVehicleType"]=platformVehicle,["accountVehicleType"]=platformVehicle};
                     account["riders"]!.AsArray().Add(riderShare);
                 }
                 JsonArray deductions;

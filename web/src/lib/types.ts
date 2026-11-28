@@ -1433,6 +1433,15 @@ export interface PayReviewRow {
   phase2: number;
   phase3: number;
   net: number;
+  blockers?: string[];
+  vehicleTypeMismatch?: boolean;
+  vehicleMismatches?: Array<{
+    app?: string;
+    riderVehicleType?: string;
+    platformVehicleType?: string;
+    code?: string;
+    labelAr?: string;
+  }>;
   items: PayReviewItem[];
   edits: PayReviewEdit[];
 }
@@ -1475,6 +1484,10 @@ export interface ConfigListItem {
   values?: Record<string, any>;
   status?: string;
   version?: number;
+  allowedActions?: string[];
+  approvalBlockers?: string[];
+  deleteBlockers?: string[];
+  references?: Array<{ kind?: string; id?: string; code?: string; field?: string; labelAr?: string }>;
 }
 
 export interface ConfigListGroup {

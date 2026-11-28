@@ -224,6 +224,26 @@ export function PayrollReviewDrawer({
           </span>
         </div>
 
+        {row.vehicleTypeMismatch && (row.vehicleMismatches?.length ?? 0) > 0 && (
+          <div className="p-3 rounded-2xl border border-[var(--warning)]/40 bg-[var(--warning)]/10 text-xs space-y-2">
+            <p className="font-bold text-[var(--warning)] inline-flex items-center gap-1.5">
+              <AlertTriangle size={14} />
+              عدم تطابق نوع مركبة المندوب مع يوزر المنصة
+            </p>
+            {(row.vehicleMismatches || []).map((m, i) => (
+              <p key={`${m.app ?? 'app'}-${i}`} className="text-[var(--ink)]">
+                {m.labelAr || 'دباب على يوزر سيارة'}
+                {m.app ? ` · التطبيق: ${m.app}` : ''}
+                {m.riderVehicleType ? ` · مركبة المندوب: ${m.riderVehicleType}` : ''}
+                {m.platformVehicleType ? ` · مركبة اليوزر: ${m.platformVehicleType}` : ''}
+              </p>
+            ))}
+            <p className="text-[11px] text-[var(--muted)]">
+              يمكن تسعير «دباب على يوزر سيارة» بخانة منفصلة في النظام الداخلي (عمولة أو شرائح راتب).
+            </p>
+          </div>
+        )}
+
         {/* Financial Flow Cards (BR §29: Phases Flow) */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-2.5 p-3 rounded-2xl border border-[var(--line)] bg-[var(--raised)]/40 text-xs">
           <div className="p-2 rounded-xl bg-[var(--surface)] border border-[var(--line)]">

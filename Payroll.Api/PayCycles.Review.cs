@@ -34,6 +34,16 @@ public static partial class PayCycles
         var row=new JsonObject{["rider"]=rider,["name"]=person?.S("name")??"",["status"]=summary.S("status"),["review"]=summary.S("review","pending"),["reviewedBy"]=summary["reviewedBy"]?.DeepClone(),["reviewedAt"]=summary["reviewedAt"]?.DeepClone()};
         foreach(string k in new[]{"gross","commission","afterCommission","phase1","preliminaryDue","phase2","phase3","net"})row[k]=summary[k]?.DeepClone();
         row["blockers"]=Blockers(summary).DeepClone();row["salaryApprovedAt"]=summary.S("salaryApprovedAt");row["debtDeductionStatus"]=summary.S("debtDeductionStatus");
+        // Surface rider vs platform-ID vehicle mismatch for cycle review (display; acceptance is the norm).
+        var mismatchLines=lines.Where(l=>l.S("vehicleTypeMismatch")!="").ToList();
+        if(mismatchLines.Count>0)
+        {
+            row["vehicleTypeMismatch"]=true;
+            row["vehicleMismatches"]=new JsonArray(mismatchLines.Select(l=>(JsonNode)new JsonObject{
+                ["app"]=l.S("app"),["riderVehicleType"]=l.S("riderVehicleType"),["platformVehicleType"]=l.S("platformVehicleType"),
+                ["code"]=l.S("vehicleTypeMismatch"),["labelAr"]=l.S("vehicleTypeMismatchAr",VehicleIdentity.ArabicMismatch(l.S("vehicleTypeMismatch")))
+            }).ToArray());
+        }
         var actions=new JsonArray();if(AccessPolicy.Has(actor,"pay.manage")&&summary.S("salaryApprovedAt")==""&&cycle.N("stage")>=6&&cycle.S("status") is "review" or "needs_decision" or "partially_approved")
         {actions.Add("adjust");actions.Add("edit");if(Blockers(summary).Count==0)actions.Add("approve");}
         row["allowedActions"]=actions;

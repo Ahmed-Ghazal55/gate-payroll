@@ -161,9 +161,9 @@ const hsParse = read('../Payroll.Api/HungerStationInvoices.Parse.cs');
 const commissionQuery = read('../Payroll.Sync/PlatformCommissionLiveQuery.cs');
 const paySourcesApi = read('../Payroll.Api/PaySourcesLiveApi.cs');
 
-test('T10: PENDING Ghazal — parent terms keep/hide decision; no silent change required', () => {
-  // Documented wait: do not remove parent_terms until Ghazal answers.
+test('T10: parent terms stay as display-only tab (Ghazal 2026-11-27)', () => {
   assert.match(payrollPage, /parent_terms/);
+  assert.match(payrollPage, /ParentTermsDisplayPanel/);
 });
 
 test('T11: eligibility hidden for jahez/chefz/hs via per-app flag', () => {

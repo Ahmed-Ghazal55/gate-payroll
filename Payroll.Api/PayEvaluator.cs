@@ -80,7 +80,9 @@ public static class PayEvaluator
     {
         string app=PayPlatforms.App(facts.App);J.Period(facts.Period);Approved(scheme,app,facts.Period);J.Need(global.S("status")=="approved"&&string.CompareOrdinal(global.S("effectiveFrom"),facts.Period+"-01")<=0,"إعداد الأيام والإيجار غير معتمد للشهر.");
         var values=PayValues.Object(global["data"]?["values"]);int monthDays=DaysInPayrollMonth(facts.Period,values);J.Need(facts.Orders>=0&&facts.Days>=0&&facts.Days==decimal.Truncate(facts.Days),"الطلبات والأيام غير صالحة.");decimal days=Math.Min(facts.Days,monthDays);
-        var data=PayValues.Object(scheme["data"]);PaySettings.Validate("pay_scheme",app,data);J.Need(PaySettings.Categories.Contains(facts.Category),"فئة مندوب غير معروفة.");string type=data.S("type"),role=data.S("accountingRole");var p=PayValues.Object(data["parameters"]?["categories"]?[facts.Category]);var lines=new List<PayExplain>();var blockers=new List<string>();decimal total=Round(facts.PlatformGross+facts.Incentives,values),earned=0,fee=0,cost=0,rent=0,fuelCap=0;decimal penalties=Round(Math.Max(0,facts.PlatformPenalties),values);JsonObject? chosen=null;
+        var data=PayValues.Object(scheme["data"]);PaySettings.Validate("pay_scheme",app,data);J.Need(PaySettings.AllCategories.Contains(facts.Category),"فئة مندوب غير معروفة.");string type=data.S("type"),role=data.S("accountingRole");
+        var categoryNode=data["parameters"]?["categories"]?[facts.Category] as JsonObject??throw new ApiError("خلية النظام الداخلي للفئة غير موجودة: "+facts.Category);
+        var p=PayValues.Object(categoryNode);var lines=new List<PayExplain>();var blockers=new List<string>();decimal total=Round(facts.PlatformGross+facts.Incentives,values),earned=0,fee=0,cost=0,rent=0,fuelCap=0;decimal penalties=Round(Math.Max(0,facts.PlatformPenalties),values);JsonObject? chosen=null;
         void Line(string label,string formula,JsonObject inputs,decimal amount,string category,bool affects=true,string? account=null)=>lines.Add(new(label,formula,inputs,Round(amount,values),category,affects,account));
         Line("استحقاق المنصة قبل النظام الداخلي","platformGross + incentives",new(){["platformGross"]=facts.PlatformGross,["incentives"]=facts.Incentives},total,"source_gross",false);
         if(!p.B("enabled"))blockers.Add("category_not_enabled");
@@ -139,7 +141,8 @@ public static class PayEvaluator
             if(zero){Line("أثر الأهلية: استحقاق صفر","earnings ×0",new(){["before"]=earned},-earned,"eligibility_zero");earned=0;cost=0;}
             if(p.B("chargeCompanyVehicle"))
             {
-                string expected=facts.Category.EndsWith("_company_car",StringComparison.Ordinal)?"company_car":facts.Category.EndsWith("_company_bike",StringComparison.Ordinal)?"company_bike":"private";J.Need(expected==facts.VehicleType,"المركبة لا تطابق فئة المندوب.");
+                // bike_on_car_id: rider rides a bike while the platform ID is car — charge bike rent when applicable.
+                string expected=facts.Category.EndsWith("_bike_on_car_id",StringComparison.Ordinal)?"company_bike":facts.Category.EndsWith("_company_car",StringComparison.Ordinal)?"company_car":facts.Category.EndsWith("_company_bike",StringComparison.Ordinal)?"company_bike":"private";J.Need(expected==facts.VehicleType,"المركبة لا تطابق فئة المندوب.");
                 if(expected!="private"&&facts.VehicleDays==null)blockers.Add("vehicle_period_missing");else rent=VehicleCharge(expected,facts.VehicleDays??0,facts.Period,values);
                 bool salaryVehicle=type=="target_salary";
                 Line("مقابل حيازة المركبة","monthlyRent / monthDays × min(vehicleDays,monthDays)"+(salaryVehicle?" (مصروف شركة §40.3)":""),new(){["type"]=expected,["vehicleDays"]=facts.VehicleDays,["monthDays"]=monthDays,["monthlyRent"]=values["vehicleRent"]?[expected]?.DeepClone()},salaryVehicle?rent:-rent,"vehicle_charge",!salaryVehicle,salaryVehicle?PayExpenseAccounts.SalaryVehicle:null);
