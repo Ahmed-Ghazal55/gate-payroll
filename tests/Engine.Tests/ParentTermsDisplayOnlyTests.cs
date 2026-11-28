@@ -19,6 +19,24 @@ public sealed class ParentTermsDisplayOnlyTests
     }
 
     [TestMethod]
+    [DataRow("ninja")]
+    [DataRow("keeta")]
+    public void ReviewDraft_EligibilityMissingIsSetupOnly_NeverBlock(string app)
+    {
+        using var f = new PayFixture();
+        f.Approve("pay_setting", "global", f.Global());
+        // No pay_eligibility for the month.
+        string company = FinancialCore.Sponsors[0].Id;
+        var draft = f.Store.Read(c => PayReviewDraft.Build(c, null, PayFixture.Maker, app, "2026-10", company));
+        Assert.IsFalse(
+            draft["blockers"]!.AsArray().OfType<JsonObject>().Any(b => b.S("code") == "pay_eligibility_missing"),
+            draft["blockers"]!.ToJsonString());
+        Assert.IsTrue(
+            draft["setupChecklist"]!.AsArray().OfType<JsonObject>().Any(s => s.S("code") == "pay_eligibility_missing"),
+            draft["setupChecklist"]!.ToJsonString());
+    }
+
+    [TestMethod]
     public void TryResolve_ReturnsNullWithoutThrowing_WhenParentTermsMissing()
     {
         using var f = new PayFixture();

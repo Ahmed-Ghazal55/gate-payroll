@@ -91,6 +91,20 @@ public sealed class NinjaInputsLiveQueryTests
     }
 
     [TestMethod]
+    public void PreviewPaymentMethodsSql_WithMonthIncludesClosedOverlappingAssignments()
+    {
+        var (sql, names) = NinjaInputsLiveQuery.PreviewPaymentMethodsSql(All, 1, 50, Oct.From, Oct.To);
+        CollectionAssert.Contains(names.ToList(), "@from");
+        CollectionAssert.Contains(names.ToList(), "@to");
+        StringAssert.Contains(sql, "INNER JOIN [app].[RiderClientAssignments]");
+        StringAssert.Contains(sql, "a.[EffectiveFrom]<=@to");
+        StringAssert.Contains(sql, "(a.[EffectiveTo] IS NULL OR a.[EffectiveTo]>=@from)");
+        Assert.IsFalse(sql.Contains("LEFT JOIN [app].[RiderClientAssignments]", StringComparison.Ordinal));
+        Assert.IsFalse(sql.Contains("pa.[StartDate]", StringComparison.Ordinal));
+        Assert.IsFalse(sql.Contains("OUTER APPLY", StringComparison.Ordinal));
+    }
+
+    [TestMethod]
     public void PreviewAccountBearersSql_SeparatesOwnerAndActualRiderDates()
     {
         var (sql, names) = NinjaInputsLiveQuery.PreviewAccountBearersSql(All, Oct);

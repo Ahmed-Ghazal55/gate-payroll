@@ -34,7 +34,8 @@ public static class Operations
         ["ninja_daily"]=["riderId","companyId","platformAccountId","date","orders","hours","CaptainId"],
         ["ninja_daily_deduction"]=["riderId","companyId","platformAccountId","date","collectedAmount","amount","CaptainId"],
         // accountIdsJson from ERP AccountIdsJson (PullContracts); accountIds when already parsed.
-        ["ninja_evaluation_snapshot"]=["frozen","policyVersion","inputRevision","reason","createdAt","accountIdsJson","accountIds"],
+        // queryJson/resultJson carry Omar Year/Month (NinjaEvaluationQuery) — required for month filter (never createdAt).
+        ["ninja_evaluation_snapshot"]=["frozen","policyVersion","inputRevision","reason","createdAt","accountIdsJson","accountIds","queryJson","resultJson","period"],
         ["jahez_commission_policy"]=["companyId","platformAccountId","from","to","rate"],
         ["jahez_daily_order"]=["companyId","platformAccountId","date","count"]
     };

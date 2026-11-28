@@ -732,6 +732,7 @@ function PayrollPageInner() {
   const [globalSettingsError, setGlobalSettingsError] = useState<string | null>(null);
 
   const [copyingMonth, setCopyingMonth] = useState<boolean>(false);
+  const [seedingDefaults, setSeedingDefaults] = useState<boolean>(false);
 
   // ========================================================
   // LEGACY PRODUCTION PAYROLL RUN STATES (F2)
@@ -1592,6 +1593,25 @@ function PayrollPageInner() {
       showToast(err.message || `تعذر نسخ إعدادات شهر ${prevMonth}`, 'error');
     } finally {
       setCopyingMonth(false);
+    }
+  };
+
+
+  const handleSeedDefaults = async (targetApp = appSlug) => {
+    setSeedingDefaults(true);
+    try {
+      const res = await api.seedPayDefaults(targetApp, selectedPeriod);
+      showToast(
+        `تمت تهيئة ${res.created} مسودة افتراضية لشهر ${selectedPeriod} (${res.existing} موجودة مسبقاً) — يلزم اعتماد مستقل`,
+        'success'
+      );
+      loadSchemes();
+      loadTerms();
+      loadEligibility();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر تهيئة الأنظمة الافتراضية', 'error');
+    } finally {
+      setSeedingDefaults(false);
     }
   };
 
@@ -3095,6 +3115,16 @@ function PayrollPageInner() {
 
                 {!usesOmarCommission && (
                 <div className="flex items-center gap-2">
+                  {appSlug === 'ninja' && (
+                    <button
+                      type="button"
+                      disabled={seedingDefaults}
+                      onClick={() => handleSeedDefaults(appSlug)}
+                      className="px-3.5 py-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--raised)] transition inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+                    >
+                      <span>استيراد الأنظمة الافتراضية (مسودة)</span>
+                    </button>
+                  )}
                   <button
                     type="button"
                     disabled={copyingMonth}

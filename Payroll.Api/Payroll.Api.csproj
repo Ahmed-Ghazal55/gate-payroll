@@ -10,7 +10,7 @@
     <Content Include="wwwroot/rider-form.js;wwwroot/rider-form.html" CopyToOutputDirectory="PreserveNewest" CopyToPublishDirectory="PreserveNewest" />
     <Content Update="App_Data/**;appsettings.Local.json" CopyToOutputDirectory="Never" CopyToPublishDirectory="Never" />
   </ItemGroup>
-  <ItemGroup><EmbeddedResource Include="Resources/target-coa.v1.json" LogicalName="Payroll.TargetCoa.v1.json" /><EmbeddedResource Include="Resources/ninja-terms.v1.json" LogicalName="Payroll.NinjaTerms.v1.json" /><EmbeddedResource Include="Resources/pay-defaults.v1.json" LogicalName="Payroll.PayDefaults.v1.json" /></ItemGroup>
+  <ItemGroup><EmbeddedResource Include="Resources/target-coa.v1.json" LogicalName="Payroll.TargetCoa.v1.json" /><EmbeddedResource Include="Resources/ninja-terms.v1.json" LogicalName="Payroll.NinjaTerms.v1.json" /><EmbeddedResource Include="Resources/pay-defaults.v1.json" LogicalName="Payroll.PayDefaults.v1.json" /><EmbeddedResource Include="Resources/pay-default-schemes.v1.json" LogicalName="Payroll.PayDefaultSchemes.v1.json" /></ItemGroup>
   <Target Name="BuildChoiceFrontend" BeforeTargets="PrepareForBuild" Condition="'$(SkipFrontendBuild)' != 'true'">
     <Exec WorkingDirectory="../RiderForm" Command="npm run build" />
     <Copy SourceFiles="../RiderForm/web/rider-form.html" DestinationFiles="wwwroot/rider-form.html" />

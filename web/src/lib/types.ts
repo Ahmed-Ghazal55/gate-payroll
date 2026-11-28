@@ -1038,27 +1038,18 @@ export interface PayCopyMonthResponse {
   unchanged: number;
 }
 
-export interface PayAssignment {
-  id: string;
-  rider: string;
-  app: string;
-  schemeId: string;
-  period: string;
-  companyId?: string;
-  status: string;
-  choiceApprovedAt: string;
-  source?: {
-    kind: string;
-    formId: string;
-    responseId: string;
-    version: number;
-    fieldId: string;
-    approvedBy: string;
-    fingerprint?: string;
-  };
-}
 
-export interface PayAssignmentPreviewResult {
+/** NSET1 — wire types from generated OpenAPI contract (never hand-written). */
+export type PaySeedDefaultsResponse =
+  paths['/api/pay/apps/{app}/defaults/seed']['post']['responses'][200]['content']['application/json'];
+export type PayDefaultAssignmentPreviewResult =
+  paths['/api/pay/apps/{app}/assignments/defaults/preview']['post']['responses'][200]['content']['application/json'];
+export type PayDefaultAssignmentDraftsResponse =
+  paths['/api/pay/apps/{app}/assignments/defaults/drafts']['post']['responses'][200]['content']['application/json'];
+export type PayAssignment =
+  paths['/api/pay/apps/{app}/assignments/{id}/approve']['post']['responses'][200]['content']['application/json'];
+/** Form-import preview OpenAPI schema is Free/JsonObject; shape mirrors the approve row + preview envelope. */
+export type PayAssignmentPreviewResult = {
   rows: PayAssignment[];
   canCommit: boolean;
   errors: Array<{ code: string }>;
@@ -1070,7 +1061,7 @@ export interface PayAssignmentPreviewResult {
     lateIgnored: number;
     unapprovedIgnored: number;
   };
-}
+};
 
 export interface PayCycle {
   id: string;

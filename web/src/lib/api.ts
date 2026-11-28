@@ -64,8 +64,11 @@ import type {
   PayEligibilityCreateInput,
   PayGlobalCreateInput,
   PayCopyMonthResponse,
+  PaySeedDefaultsResponse,
   PayAssignment,
   PayAssignmentPreviewResult,
+  PayDefaultAssignmentPreviewResult,
+  PayDefaultAssignmentDraftsResponse,
   ImportPreviewResult,
 } from './types';
 import type { paths, components } from './api-contract';
@@ -2236,6 +2239,39 @@ export const api = {
   copyPayMonth: (app: string, from: string, to: string) =>
     handleRequest<PayCopyMonthResponse>(
       `/pay/apps/${encodeURIComponent(app)}/copy?from=${encodeURIComponent(from)}&to=${encodeURIComponent(to)}`,
+      { method: 'POST' }
+    ),
+
+
+  seedPayDefaults: (app: string, period?: string) => {
+    const q = period ? `?period=${encodeURIComponent(period)}` : '';
+    return handleRequest<PaySeedDefaultsResponse>(
+      `/pay/apps/${encodeURIComponent(app)}/defaults/seed${q}`,
+      { method: 'POST' }
+    );
+  },
+
+  previewDefaultPayAssignments: (
+    app: string,
+    input: { period: string; campaignId?: string; schemeMap?: Record<string, string>; enforceCutoff?: boolean }
+  ) =>
+    handleRequest<PayDefaultAssignmentPreviewResult>(
+      `/pay/apps/${encodeURIComponent(app)}/assignments/defaults/preview`,
+      { method: 'POST', body: JSON.stringify(input) }
+    ),
+
+  saveDefaultPayAssignmentDrafts: (
+    app: string,
+    input: { period: string; campaignId?: string; schemeMap: Record<string, string>; enforceCutoff?: boolean }
+  ) =>
+    handleRequest<PayDefaultAssignmentDraftsResponse>(
+      `/pay/apps/${encodeURIComponent(app)}/assignments/defaults/drafts`,
+      { method: 'POST', body: JSON.stringify(input) }
+    ),
+
+  approvePayAssignment: (app: string, id: string) =>
+    handleRequest<PayAssignment>(
+      `/pay/apps/${encodeURIComponent(app)}/assignments/${encodeURIComponent(id)}/approve`,
       { method: 'POST' }
     ),
 

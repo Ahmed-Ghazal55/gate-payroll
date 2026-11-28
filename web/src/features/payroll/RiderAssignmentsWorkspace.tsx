@@ -18,7 +18,7 @@ import type { ColumnDef } from '../../components/ui/DataTable';
 import { Skeleton } from '../../components/ui/Skeleton';
 import { useToast } from '../../components/ui/Toast';
 import { api } from '../../lib/api';
-import type { PayAssignment, PayConfigDoc } from '../../lib/types';
+import type { PayAssignment, PayConfigDoc, PayDefaultAssignmentPreviewResult } from '../../lib/types';
 
 export interface RiderAssignmentRow {
   id: string;
@@ -61,6 +61,9 @@ export function RiderAssignmentsWorkspace({
   const [loading, setLoading] = useState(false);
   const [assignments, setAssignments] = useState<PayAssignment[]>([]);
   const [error, setError] = useState<string | null>(null);
+  const [previewingDefaults, setPreviewingDefaults] = useState(false);
+  const [defaultsPreview, setDefaultsPreview] = useState<PayDefaultAssignmentPreviewResult | null>(null);
+  const [savingDefaults, setSavingDefaults] = useState(false);
 
   // Filter selection: 'all' | 'unassigned' | schemeId
   const [selectedSchemeFilter, setSelectedSchemeFilter] = useState<string>('all');
@@ -81,8 +84,50 @@ export function RiderAssignmentsWorkspace({
   };
 
   useEffect(() => {
+    setDefaultsPreview(null);
     loadAssignments();
   }, [appSlug, period]);
+
+  const handlePreviewDefaults = async () => {
+    setPreviewingDefaults(true);
+    try {
+      const res = await api.previewDefaultPayAssignments(appSlug, { period });
+      setDefaultsPreview(res);
+      toast('تم حساب معاينة التوزيع الافتراضي (أعداد فقط) بنجاح', 'success');
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : 'تعذر معاينة التوزيع الافتراضي.';
+      toast(msg, 'danger');
+    } finally {
+      setPreviewingDefaults(false);
+    }
+  };
+
+  const handleApplyDefaultDrafts = async () => {
+    if (!defaultsPreview) return;
+    const schemeMap: Record<string, string> = {};
+    for (const s of schemesList.filter((x) => x.status === 'approved')) {
+      if (s.code === 'ninja-commission' || s.code?.includes('commission')) schemeMap.commission = s.id;
+      if (s.code === 'ninja-salary' || s.code?.includes('salary')) schemeMap.salary = s.id;
+      const name = (s.data as { name?: string } | undefined)?.name ?? '';
+      if (!schemeMap.commission && name.includes('عمولة')) schemeMap.commission = s.id;
+      if (!schemeMap.salary && name.includes('راتب')) schemeMap.salary = s.id;
+    }
+    if (!schemeMap.commission || !schemeMap.salary) {
+      toast('يلزم أنظمة معتمدة للعمولة والراتب قبل حفظ المسودات', 'danger');
+      return;
+    }
+    setSavingDefaults(true);
+    try {
+      const res = await api.saveDefaultPayAssignmentDrafts(appSlug, { period, schemeMap });
+      toast(`حُفظت ${res.drafted} مسودة توزيع (${res.existing} موجودة) — يلزم اعتماد مستقل`, 'success');
+      setDefaultsPreview(null);
+      await loadAssignments();
+    } catch (err: unknown) {
+      toast(err instanceof Error ? err.message : 'تعذر حفظ مسودات التوزيع', 'danger');
+    } finally {
+      setSavingDefaults(false);
+    }
+  };
 
   // Map scheme ID to readable name
   const schemeNameMap = useMemo(() => {
@@ -315,7 +360,18 @@ export function RiderAssignmentsWorkspace({
             <RefreshCw size={14} className={loading ? 'animate-spin' : ''} />
           </button>
 
-          <button
+          
+          {appSlug === 'ninja' && (
+            <button
+              type="button"
+              onClick={handlePreviewDefaults}
+              disabled={previewingDefaults}
+              className="px-3.5 py-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-[var(--ink)] text-xs font-bold hover:bg-[var(--line)] transition inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
+            >
+              <span>استيراد وتوزيع خيارات المناديب (معاينة)</span>
+            </button>
+          )}
+<button
             type="button"
             onClick={onOpenImportModal}
             className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition inline-flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -325,6 +381,35 @@ export function RiderAssignmentsWorkspace({
           </button>
         </div>
       </div>
+
+      
+      {defaultsPreview && appSlug === 'ninja' && (
+        <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--raised)]/50 space-y-2 text-xs">
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <span className="font-bold text-[var(--ink)]">
+              معاينة التوزيع الافتراضي لشهر {defaultsPreview.period} من طريقة دفع عمر:
+            </span>
+            <span className="text-[var(--muted)]">
+              المناديب: <strong className="num text-[var(--ink)]">{Number(defaultsPreview.counts.eligibleRiders ?? 0)}</strong> ·
+              عمولة: <strong className="num text-[var(--ink)]">{Number(defaultsPreview.counts.commission ?? 0)}</strong> ·
+              راتب: <strong className="num text-[var(--ink)]">{Number(defaultsPreview.counts.salary ?? 0)}</strong> ·
+              كفالة: <strong className="num text-[var(--ink)]">{Number(defaultsPreview.counts.sponsoredKafala ?? 0)}</strong> ·
+              خارجي: <strong className="num text-[var(--ink)]">{Number(defaultsPreview.counts.external ?? 0)}</strong>
+              {defaultsPreview.errors.length > 0 && (
+                <> · تحتاج مراجعة: <strong className="num text-[var(--danger)]">{defaultsPreview.errors.length}</strong></>
+              )}
+            </span>
+          </div>
+          <button
+            type="button"
+            disabled={savingDefaults || defaultsPreview.errors.length > 0}
+            onClick={handleApplyDefaultDrafts}
+            className="px-3 py-1.5 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-xs font-bold disabled:opacity-50"
+          >
+            تطبيق كمسودات (يلزم اعتماد شخص آخر)
+          </button>
+        </div>
+      )}
 
       {/* Summary Stat Cards with Interactive Filtering */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">

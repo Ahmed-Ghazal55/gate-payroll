@@ -13,6 +13,15 @@ public static partial class PaySettings
     }
     static void References(DbConnection c,DbTransaction? tx,JsonObject doc,bool approving)
     {
+        if(approving&&doc.S("kind")=="pay_scheme")
+        {
+            if(doc["data"].S("type")=="target_salary")
+            {
+                var cats=doc["data"]?["parameters"]?["categories"] as JsonObject;
+                bool hasPositiveBand=cats!=null&&cats.Any(p=>p.Value is JsonObject cell&&cell.B("enabled")&&(cell["bands"] as JsonArray)?.OfType<JsonObject>().Any(b=>b.N("base")>0||b.N("perOrderRate")>0||b.N("extraRate")>0)==true);
+                J.Need(hasPositiveBand,"لا يمكن اعتماد نظام راتب جميع شرائحه صفر؛ حدّث الشرائح بقيم موجبة أولًا.");
+            }
+        }
         if(doc["data"].S("eligibilitySetId")!="")
         {
             var rules=Store.Get(c,doc["data"].S("eligibilitySetId"),"pay_eligibility",tx)??throw new ApiError("شروط الأهلية غير موجودة.");
@@ -99,6 +108,7 @@ public static partial class PaySettings
         api.MapPost("/pay/apps/{app}/schemes/{id}/approve",(string app,string id,HttpContext ctx)=>store.Write((c,tx)=>Approve(c,tx,ctx.User,"pay_scheme",app,id))).WithTags("Payroll").WithSummary("Independently approve latest scheme and validated eligibility reference");
         api.MapPost("/pay/apps/{app}/eligibility/{id}/approve",(string app,string id,HttpContext ctx)=>store.Write((c,tx)=>Approve(c,tx,ctx.User,"pay_eligibility",app,id))).WithTags("Payroll").WithSummary("Independently approve app-owned eligibility");
         api.MapPost("/pay/apps/{app}/copy",(string app,HttpContext ctx)=>store.Write((c,tx)=>Copy(c,tx,ctx.User,app,ctx.Request.Query["from"].ToString(),ctx.Request.Query["to"].ToString()))).WithTags("Payroll").WithSummary("Copy approved prior month into new drafts without overwriting approvals");
+        api.MapPost("/pay/apps/{app}/defaults/seed",(string app,HttpContext ctx)=>store.Write((c,tx)=>SeedDefaults(c,tx,ctx.User,app,ctx.Request.Query["period"].FirstOrDefault()))).WithTags("Payroll").WithSummary("Seed Ninja default pay schemes/terms as unapproved drafts (maker-checker)");
         api.MapGet("/pay/settings",(HttpContext ctx)=>List(store,ctx,"pay_setting","global")).WithTags("Payroll").WithSummary("Read effective-dated global pay settings versions");
         api.MapPost("/pay/settings",(JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Create(c,tx,ctx.User,"pay_setting","global",input))).WithTags("Payroll").WithSummary("Append draft global values; defaults never auto-approve");
         api.MapPost("/pay/settings/{id}/approve",(string id,HttpContext ctx)=>store.Write((c,tx)=>Approve(c,tx,ctx.User,"pay_setting","global",id))).WithTags("Payroll").WithSummary("Independently approve latest effective-dated global settings");
