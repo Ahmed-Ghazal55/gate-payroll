@@ -49,7 +49,10 @@ public sealed class KeetaInvoiceTests
     {
         using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);var invoice=Commit(f.Store,Workbook("10"));string id=invoice.S("id");
         var line=f.Store.Read(c=>KeetaInvoices.Workflow.Lines(c,null,id).Single());Assert.AreEqual(110m,line.N("baseGross"));Assert.AreEqual(100m,line.N("invoiced"));Assert.AreEqual(10m,line.N("deductionAmount"));
-        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>KeetaInvoices.Workflow.Approve(c,tx,Actor("checker"),id)));
+        // Account-row penalty defaults to account_level (invoice final); checker can approve without a forced classify.
+        Assert.AreEqual("account_level",(line["deductions"] as JsonArray)!.OfType<JsonObject>().Single(d=>d.S("category")=="penalty").S("level"));
+        Assert.IsTrue(f.Store.Read(c=>KeetaInvoices.Workflow.View(c,null,Actor("checker"),invoice))["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));
+        // Override to company for principal posting path.
         f.Store.Write((c,tx)=>KeetaInvoices.Workflow.Classify(c,tx,Actor(),id,new(){["lineId"]=line.S("id"),["category"]="penalty",["level"]="company_level",["expenseAccount"]="512101"}));
         Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>KeetaInvoices.Workflow.Approve(c,tx,Actor(),id)));
         f.Store.Write((c,tx)=>KeetaInvoices.Workflow.Approve(c,tx,Actor("checker"),id));
@@ -62,6 +65,41 @@ public sealed class KeetaInvoiceTests
         Assert.AreEqual(journal.N("totalDebit"),journal.N("totalCredit"));Assert.IsTrue(journal["lines"]!.AsArray().Any(l=>l.S("accountCode")==PayPlatforms.For("keeta").Receivable));
         f.Store.Write((c,tx)=>KeetaInvoices.Workflow.Post(c,tx,Actor("checker"),id));Assert.AreEqual(1,f.Store.Read(c=>Store.List(c,"journal").Count));
         Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));Assert.AreEqual("Keeta",f.Store.Read(c=>Store.List(c,PlatformDeductions.Kind).Single()).S("platform"));
+    }
+    /// <summary>KAPP1 / r8-keeta-flow: browser-shaped upload (penalty on user + auto-detected company adjustment). After maker classifies only supplier_adjustment, checker view must include approve.</summary>
+    [TestMethod]
+    public void BrowserShapedDefaultOnUserAllowsCheckerApproveAfterCompanyAdjustmentClassify()
+    {
+        using var f=new HungerStationInvoiceTests.Fixture();
+        f.Store.Write((c,tx)=>{Store.Save(c,"platform_account",new(){["id"]="synthetic-keeta-browser-acc",["externalAccountId"]="998877",["platformCode"]="keeta",["companyId"]=Company},tx);return true;});
+        // Same shape as web/tests/r8-keeta-flow.mjs syntheticKeetaInvoice (row 2 account + row 3 blank-account company adj).
+        string[] headers=["المعرف","الطلبات المُسلمة","الخصم","الإجمالي","إجمالي المبلغ المستحق"];
+        string[] captain=["998877","210","-150","4200","4830"];
+        string[] companyAdj=["","0","0","-80","-92"];
+        byte[] bytes=DebtSheetReviewTests.Book([("KeetaSynthetic",[headers,captain,companyAdj])]);
+        var input=Input();var preview=f.Store.Read(c=>KeetaInvoices.Preview(c,Actor(),input,bytes));
+        Assert.IsTrue(preview["rows"]![0]!["detectedCompanyRows"]!.AsArray().Any(x=>x!.GetValue<int>()==3),"blank-account company row must auto-detect");
+        var confirmed=input.Clone();confirmed["rows"]=preview["rows"]!.DeepClone();confirmed["fingerprint"]=preview.S("fingerprint");confirmed["confirm"]=true;
+        var invoice=f.Store.Write((c,tx)=>KeetaInvoices.Commit(c,tx,Actor(),confirmed,bytes));string id=invoice.S("id");
+        var lines=f.Store.Read(c=>KeetaInvoices.Workflow.Lines(c,null,id));
+        Assert.AreEqual(2,lines.Count);
+        var accountLine=lines.Single(l=>l.S("lineType")=="account");
+        var companyLine=lines.Single(l=>l.S("lineType")=="company");
+        Assert.AreEqual("account_level",(accountLine["deductions"] as JsonArray)!.OfType<JsonObject>().Single(d=>d.S("category")=="penalty").S("level"));
+        Assert.AreEqual("unclassified",(companyLine["deductions"] as JsonArray)!.OfType<JsonObject>().Single(d=>d.S("category")=="supplier_adjustment").S("level"));
+        // Before company adjustment classify: checker blocked (unclassified supplier_adjustment).
+        var blocked=f.Store.Read(c=>KeetaInvoices.Workflow.View(c,null,Actor("synthetic-checker"),invoice));
+        Assert.IsFalse(blocked["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"),string.Join("|",blocked["approvalBlockers"]!.AsArray()));
+        // UI sends company_level + expense account for supplier_adjustment (same as r8-keeta-flow).
+        f.Store.Write((c,tx)=>KeetaInvoices.Workflow.Classify(c,tx,Actor(),id,new(){["lineId"]=companyLine.S("id"),["category"]="supplier_adjustment",["level"]="company_level",["expenseAccount"]="512101"}));
+        var maker=f.Store.Read(c=>KeetaInvoices.Workflow.View(c,null,Actor(),invoice));
+        Assert.IsFalse(maker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));
+        StringAssert.Contains(string.Join("|",maker["approvalBlockers"]!.AsArray()),"مستخدم آخر");
+        var checker=f.Store.Read(c=>KeetaInvoices.Workflow.View(c,null,Actor("synthetic-checker"),invoice));
+        Assert.IsTrue(checker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"),string.Join("|",checker["approvalBlockers"]!.AsArray()));
+        f.Store.Write((c,tx)=>KeetaInvoices.Workflow.Approve(c,tx,Actor("synthetic-checker"),id));
+        var after=f.Store.Read(c=>KeetaInvoices.Workflow.View(c,null,Actor("synthetic-checker"),KeetaInvoices.Workflow.Get(c,null,Actor("synthetic-checker"),id)));
+        Assert.AreEqual("approved",after.S("approvalStatus"));
     }
     [TestMethod]
     public void MissingCachesMultipleSheetsUnknownAccountsAndScopeChangesFailClosed()

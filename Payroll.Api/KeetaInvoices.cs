@@ -199,10 +199,12 @@ public static class KeetaInvoices
             }
             else
             {
+                // Invoice is final: a deduction that arrives on a user/ID defaults to that account (ops split later), matching Ninja.
+                // Company-row supplier_adjustment stays unclassified and needs an explicit override.
                 foreach(var field in DeductionColumns)
                 {
                     int col=Col(field.Header);if(col<0)continue;decimal value=N(col),amount=field.Signed||dueIsNetExVat?Math.Max(0,-value):Math.Abs(value);if(amount==0)continue;
-                    deductions.Add(new JsonObject{["category"]=field.Category,["amount"]=amount,["level"]="unclassified",["sourceHeader"]=field.Header,["sourceSignedAmount"]=value});
+                    deductions.Add(new JsonObject{["category"]=field.Category,["amount"]=amount,["level"]="account_level",["sourceHeader"]=field.Header,["sourceSignedAmount"]=value});
                 }
             }
             decimal deduction=deductions.OfType<JsonObject>().Sum(d=>d.N("amount")),gross=J.Money(net+deduction);

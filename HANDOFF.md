@@ -4,27 +4,23 @@
 |---|---|
 | Current writer | (free) |
 | Branch | `release/0.35.0` |
-| Updated | 2026-11-28 by Cursor (INTEG1 DONE) |
+| Updated | 2026-11-28 by Cursor (KAPP1 DONE) |
 | Live | unchanged (local only; never push) |
-| Next | Planner: review INTEG1 report; push/PR only after Ghazal yes |
+| Next | Planner: push KAPP1 commit for PR #77 CI re-run after Ghazal yes |
 
 ## Goal now
-Release **0.35.0** integration branch ready locally. Report: `~/.cache/agents-runs/cursor-INTEG1-report.md`.
+Fix Keeta invoice checker approve after default-on-user path (KAPP1). Report: `~/.cache/agents-runs/cursor-KAPP1-report.md`.
 
-## In this release (local commits)
-- Already on branch before INTEG1: Keeta cycle/upload, app-reset, agy-screens
-- Applied own diffs: ninja-cycle-flow, core1-terms-schemes, erpv1-ops-display, jc1-jahez-chefz, hr1-staff
-- Contracts regenerated; version bumped 0.34.2 → 0.35.0
+## In this release (local)
+- KAPP1: Keeta account-row deductions default to `account_level` (match Ninja); company `supplier_adjustment` stays unclassified
+- Engine repro: `BrowserShapedDefaultOnUserAllowsCheckerApproveAfterCompanyAdjustmentClassify`
 
 ## How to verify
 ```bash
 dotnet build tests/Engine.Tests
-dotnet test tests/Engine.Tests
-cd scripts && python3 -m unittest test_ftps_deploy
-cd web && npx tsc --noEmit && npm test
-python3 scripts/release_source.py   # then delete artifacts/
+dotnet test tests/Engine.Tests --filter "FullyQualifiedName~KeetaInvoice|FullyQualifiedName~NinjaInvoice|FullyQualifiedName~PlatformInvoice|FullyQualifiedName~NFlow1Invoice|FullyQualifiedName~SalPlatformInvoice"
 ```
 
 ## Open for Ghazal
-- Push / PR / merge / deploy of 0.35.0
+- Push / PR CI re-run / merge / deploy of 0.35.0
 - Never push from this worktree without his yes
