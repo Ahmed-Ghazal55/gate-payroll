@@ -1,0 +1,53 @@
+{
+  "ninja": {
+    "eligibility": [
+      {
+        "code": "ninja-default-eligibility",
+        "data": {
+          "name": "نينجا — أهلية وضوابط افتراضية (مسودة من شروط عمر؛ لا بوابات إلزامية حتى الاعتماد)",
+          "rules": []
+        }
+      }
+    ],
+    "schemes": [
+      {
+        "code": "ninja-commission",
+        "data": {
+          "name": "نينجا — عمولة 10% من مستحق المندوب بعد غرامات المنصة (جميع الفئات)",
+          "type": "percent_of_gross",
+          "accountingRole": "principal",
+          "eligibilitySetId": "",
+          "parameters": {
+            "categories": {
+              "sponsored_company_car": { "enabled": true, "companyPercent": 10, "chargeCompanyVehicle": true },
+              "external_company_car": { "enabled": true, "companyPercent": 10, "chargeCompanyVehicle": true },
+              "sponsored_private": { "enabled": true, "companyPercent": 10, "chargeCompanyVehicle": false },
+              "external_private": { "enabled": true, "companyPercent": 10, "chargeCompanyVehicle": false },
+              "sponsored_company_bike": { "enabled": true, "companyPercent": 10, "chargeCompanyVehicle": true },
+              "external_company_bike": { "enabled": true, "companyPercent": 10, "chargeCompanyVehicle": true }
+            }
+          }
+        }
+      },
+      {
+        "code": "ninja-salary",
+        "data": {
+          "name": "نينجا — راتب ثابت (مسودة قيد اعتماد الشرائح من الإدارة)",
+          "type": "target_salary",
+          "accountingRole": "principal",
+          "eligibilitySetId": "",
+          "parameters": {
+            "categories": {
+              "sponsored_company_car": { "enabled": true, "chargeCompanyVehicle": false, "fuelCap": 0, "internet": 0, "bands": [{ "min": 0, "base": 0, "extraRate": 0, "fuelCap": 0, "internet": 0 }] },
+              "external_company_car": { "enabled": true, "chargeCompanyVehicle": false, "fuelCap": 0, "internet": 0, "bands": [{ "min": 0, "base": 0, "extraRate": 0, "fuelCap": 0, "internet": 0 }] },
+              "sponsored_private": { "enabled": true, "chargeCompanyVehicle": false, "fuelCap": 0, "internet": 0, "bands": [{ "min": 0, "base": 0, "extraRate": 0, "fuelCap": 0, "internet": 0 }] },
+              "external_private": { "enabled": true, "chargeCompanyVehicle": false, "fuelCap": 0, "internet": 0, "bands": [{ "min": 0, "base": 0, "extraRate": 0, "fuelCap": 0, "internet": 0 }] },
+              "sponsored_company_bike": { "enabled": true, "chargeCompanyVehicle": false, "fuelCap": 0, "internet": 0, "bands": [{ "min": 0, "base": 0, "extraRate": 0, "fuelCap": 0, "internet": 0 }] },
+              "external_company_bike": { "enabled": true, "chargeCompanyVehicle": false, "fuelCap": 0, "internet": 0, "bands": [{ "min": 0, "base": 0, "extraRate": 0, "fuelCap": 0, "internet": 0 }] }
+            }
+          }
+        }
+      }
+    ]
+  }
+}

@@ -406,7 +406,7 @@ try {
     await catCheckbox.check();
 
     // Fill typed daily commission
-    const inputCommission = modal.locator('input[aria-label="العمولة اليومية"]');
+    const inputCommission = modal.locator('input[aria-label="عمولة الشركة بالنسبة المئوية"]');
     await inputCommission.waitFor({ state: 'visible', timeout: 5000 });
     await inputCommission.fill(typedDailyCommission);
 
@@ -637,12 +637,12 @@ try {
       drawerText.includes('عمولة الشركة') || drawerText.includes('dailyCommission'),
       'Explain drawer must contain company commission calculation line',
     );
-    // 25 days * 15.50 = 387.50
+    // Ninja commission is a percentage of the rider's due before deductions (Ghazal 11-28): 15.50% of 6,500.00 = 1,007.50; net 5,492.50
     assert.ok(
-      drawerText.includes('387.50') || drawerText.includes('15.50') || drawerText.includes(typedDailyCommission),
-      `Explain drawer must reflect the exact typed daily commission calculation: ${drawerText}`,
+      drawerText.includes('1,007.50') || drawerText.includes('1007.50') || drawerText.includes('5,492.50'),
+      `Explain drawer must reflect the typed percentage commission calculation: ${drawerText}`,
     );
-    console.log(`✓ Verified «كيف حُسب؟» shows the typed value calculation (15.50 × 25 = 387.50 SAR)!`);
+    console.log(`✓ Verified «كيف حُسب؟» shows the percentage commission (15.50% × 6,500.00 = 1,007.50 SAR)!`);
 
     await pageA.screenshot({
       path: path.join(resultsDir, 'r9-how-calculated-drawer.png'),

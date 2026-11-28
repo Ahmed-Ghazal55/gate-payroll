@@ -7967,6 +7967,79 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pay/apps/{app}/defaults/seed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Seed Ninja default pay schemes/terms as unapproved drafts (maker-checker) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            app: string;
+                            period: string;
+                            drafts: {
+                                id: string;
+                                kind?: string;
+                                app: string;
+                                period: string;
+                                code?: string;
+                                version: number;
+                                status: string;
+                                data: {
+                                    name?: string;
+                                    type?: string;
+                                    billingModel?: string;
+                                    accountingRole?: string;
+                                    eligibilitySetId?: string;
+                                    parameters?: Record<string, never>;
+                                    values?: Record<string, never>;
+                                    rules?: {
+                                        metric: string;
+                                        operator: string;
+                                        threshold: number;
+                                        effect: {
+                                            type: string;
+                                        };
+                                        included?: boolean;
+                                    }[];
+                                };
+                                createdBy?: string;
+                                effectiveFrom?: string;
+                                allowedActions?: string[];
+                            }[];
+                            created: number;
+                            existing: number;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pay/settings": {
         parameters: {
             query?: never;
@@ -8265,6 +8338,230 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/{app}/assignments/defaults/preview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Preview default app scheme assignments (counts and draft/choice rows) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            app: string;
+                            period: string;
+                            source: string;
+                            counts: {
+                                [key: string]: number;
+                            };
+                            rows: {
+                                id: string;
+                                rider: string;
+                                app: string;
+                                schemeId: string;
+                                period: string;
+                                companyId?: string;
+                                status: string;
+                                choiceApprovedAt: string;
+                                approvedBy?: string;
+                                approvedAt?: string;
+                                createdBy?: string;
+                                createdAt?: string;
+                                source?: {
+                                    kind: string;
+                                    formId?: string;
+                                    responseId?: string;
+                                    version?: number;
+                                    fieldId?: string;
+                                    approvedBy?: string;
+                                    fingerprint?: string;
+                                    rule?: string;
+                                    choice?: string;
+                                    period?: string;
+                                    category?: string;
+                                    bikeOnCarId?: boolean;
+                                };
+                            }[];
+                            canCommit: boolean;
+                            errors: {
+                                code: string;
+                            }[];
+                            fingerprint: string;
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/{app}/assignments/defaults/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Save default app scheme assignments as drafts requiring independent approval */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            app: string;
+                            period: string;
+                            drafted: number;
+                            approvedFromSubmission: number;
+                            existing: number;
+                            rows: {
+                                id: string;
+                                rider: string;
+                                app: string;
+                                schemeId: string;
+                                period: string;
+                                companyId?: string;
+                                status: string;
+                                choiceApprovedAt: string;
+                                approvedBy?: string;
+                                approvedAt?: string;
+                                createdBy?: string;
+                                createdAt?: string;
+                                source?: {
+                                    kind: string;
+                                    formId?: string;
+                                    responseId?: string;
+                                    version?: number;
+                                    fieldId?: string;
+                                    approvedBy?: string;
+                                    fingerprint?: string;
+                                    rule?: string;
+                                    choice?: string;
+                                    period?: string;
+                                    category?: string;
+                                    bikeOnCarId?: boolean;
+                                };
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/{app}/assignments/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Independently approve a drafted default scheme assignment */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            rider: string;
+                            app: string;
+                            schemeId: string;
+                            period: string;
+                            companyId?: string;
+                            status: string;
+                            choiceApprovedAt: string;
+                            approvedBy?: string;
+                            approvedAt?: string;
+                            createdBy?: string;
+                            createdAt?: string;
+                            source?: {
+                                kind: string;
+                                formId?: string;
+                                responseId?: string;
+                                version?: number;
+                                fieldId?: string;
+                                approvedBy?: string;
+                                fingerprint?: string;
+                                rule?: string;
+                                choice?: string;
+                                period?: string;
+                                category?: string;
+                                bikeOnCarId?: boolean;
+                            };
+                        };
                     };
                 };
             };
@@ -11603,6 +11900,9 @@ export interface paths {
                                 createdAt?: string;
                                 accountIdsJson?: string;
                                 accountIds?: string;
+                                queryJson?: string;
+                                resultJson?: string;
+                                period?: string;
                             } | {
                                 id: string;
                                 code?: string;
@@ -11899,6 +12199,9 @@ export interface paths {
                                 createdAt?: string;
                                 accountIdsJson?: string;
                                 accountIds?: string;
+                                queryJson?: string;
+                                resultJson?: string;
+                                period?: string;
                             } | {
                                 id: string;
                                 code?: string;

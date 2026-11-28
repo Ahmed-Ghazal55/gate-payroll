@@ -117,4 +117,60 @@ public sealed class PaySettingsTests
     public void FinancialRoundingPrecisionCannotDriftFromTheTwoDecimalPostingRule()
     {using var f=new PayFixture();foreach(int precision in new[]{0,1,3,6}){var data=PaySettings.Defaults();data["values"]!["roundingDigits"]=precision;Assert.ThrowsExactly<ApiError>(()=>f.Global(values:data));}Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"pay_setting").Count));}
 
+    /// <summary>NUI1: legacy/incomplete October drafts missing housingMonthly must complete from prior approved or defaults on approve.</summary>
+    [TestMethod]
+    public void ApproveGlobalCompletesMissingHousingMonthlyFromDefaults()
+    {
+        using var f=new PayFixture();
+        var incomplete=PaySettings.Defaults().DeepClone().AsObject();
+        incomplete["values"]!.AsObject().Remove("housingMonthly");
+        incomplete["values"]!["accounts"]!.AsObject().Remove("housingIncome");
+        // Bypass Create validation by storing a draft directly (simulates legacy row).
+        var id=f.Store.Write((c,tx)=>
+        {
+            var doc=new JsonObject{["id"]="pay-config:synthetic-missing-housing",["kind"]="pay_setting",["app"]="global",["period"]="2026-10",["code"]="global",["version"]=1,["status"]="draft",["effectiveFrom"]="2026-10-01",["data"]=incomplete,["createdBy"]=PayFixture.Maker.Identity!.Name,["createdAt"]=DateTimeOffset.UtcNow.ToString("O")};
+            Store.Save(c,"pay_setting",doc,tx);return doc.S("id");
+        });
+        var approved=f.Store.Write((c,tx)=>PaySettings.Approve(c,tx,PayFixture.Checker,"pay_setting","global",id));
+        Assert.AreEqual("approved",approved.S("status"));
+        Assert.AreEqual(200m,approved["data"]!["values"]!.AsObject().N("housingMonthly"));
+        Assert.AreEqual("421401",approved["data"]!["values"]!["accounts"]!.AsObject().S("housingIncome"));
+    }
+
+    [TestMethod]
+    public void CompleteGlobalDataFillsHousingFromPriorApproved()
+    {
+        var prior=PaySettings.Defaults().DeepClone().AsObject();
+        prior["values"]!["housingMonthly"]=175;
+        prior["values"]!["accounts"]!["housingIncome"]="421401";
+        var incomplete=new JsonObject{["values"]=new JsonObject{["standardDays"]=30,["februaryDays"]=28,["billingCutoff"]="14:00",["timeZone"]="Asia/Riyadh",["roundingDigits"]=2,["roundingMode"]="AwayFromZero",["vehicleRent"]=new JsonObject{["company_car"]=1800,["company_bike"]=800,["private"]=0},["accounts"]=new JsonObject{["salaryExpense"]="512101",["vehicleIncomeCar"]="421101",["vehicleIncomeBike"]="421102",["outputVat"]="213201"}}};
+        var filled=PaySettings.CompleteGlobalData(incomplete,prior);
+        Assert.AreEqual(175m,filled["values"]!.AsObject().N("housingMonthly"));
+        Assert.AreEqual("421401",filled["values"]!["accounts"]!.AsObject().S("housingIncome"));
+        PaySettings.Validate("pay_setting","global",filled);
+    }
+
+    /// <summary>NUI1b / Grok NUI1 #2: prior approved that omits housingMonthly must not yield 0 — catalog default is 200.</summary>
+    [TestMethod]
+    public void CompleteGlobalDataUsesCatalogWhenPriorOmitsHousing()
+    {
+        var prior=PaySettings.Defaults().DeepClone().AsObject();
+        prior["values"]!.AsObject().Remove("housingMonthly");
+        var incomplete=new JsonObject{["values"]=new JsonObject{["standardDays"]=30,["februaryDays"]=28,["billingCutoff"]="14:00",["timeZone"]="Asia/Riyadh",["roundingDigits"]=2,["roundingMode"]="AwayFromZero",["vehicleRent"]=new JsonObject{["company_car"]=1800,["company_bike"]=800,["private"]=0},["accounts"]=new JsonObject{["salaryExpense"]="512101",["vehicleIncomeCar"]="421101",["vehicleIncomeBike"]="421102",["housingIncome"]="421401",["outputVat"]="213201"}}};
+        var filled=PaySettings.CompleteGlobalData(incomplete,prior);
+        Assert.AreEqual(200m,filled["values"]!.AsObject().N("housingMonthly"));
+        PaySettings.Validate("pay_setting","global",filled);
+    }
+
+    /// <summary>NUI1b: default catalog / fromDefaults draft housingMonthly is 200 SAR.</summary>
+    [TestMethod]
+    public void GlobalDefaultsDraftHousingMonthlyIs200()
+    {
+        Assert.AreEqual(200m,PaySettings.Defaults()["values"]!.AsObject().N("housingMonthly"));
+        using var f=new PayFixture();
+        var draft=f.Store.Write((c,tx)=>PaySettings.Create(c,tx,PayFixture.Maker,"pay_setting","global",new JsonObject{["effectiveFrom"]="2026-10-01",["fromDefaults"]=true}));
+        Assert.AreEqual(200m,draft["data"]!["values"]!.AsObject().N("housingMonthly"));
+        Assert.AreEqual("draft",draft.S("status"));
+    }
+
 }

@@ -44,6 +44,7 @@ import {
   NinjaReconcileResponse,
   NinjaInvoiceResult,
   NinjaReconciliationLine,
+  NinjaReconciliationDiff,
 } from '../../lib/types';
 import { loadCompanyOptions, companyLabel } from '../../lib/company-options';
 import { formatSar } from '../../lib/money';
@@ -641,17 +642,74 @@ export function NinjaInvoiceUploadScreen({
     };
   }, [reconcileResult]);
 
-  // Filtered lines for active invoice
+  /** Wire uses `differences`; older UI used `diffs`. Status is `difference` | `match` | `error`. */
+  const lineDiffs = (line: NinjaReconciliationLine): NinjaReconciliationDiff[] =>
+    line.differences || line.diffs || [];
+
+  const isDifferenceLine = (line: NinjaReconciliationLine): boolean => {
+    if (line.lineKind === 'adjustment') return true;
+    const status = (line.status || '').toLowerCase();
+    if (status === 'difference' || status === 'error' || status === 'diff') return true;
+    return lineDiffs(line).length > 0;
+  };
+
+  // Captains + unlinked/company adjustment rows so count and list stay in sync
+  const displayLines = useMemo((): NinjaReconciliationLine[] => {
+    if (!activeInvoice) return [];
+    const captains = (activeInvoice.lines || []).map((line) => ({
+      ...line,
+      lineKind: line.lineKind || ('captain' as const),
+      captainId: line.captainId || '',
+    }));
+    const adjustments = (activeInvoice.adjustments || []).map((adj) => ({
+      row: adj.row,
+      captainId: adj.captainId || '',
+      status: 'difference' as const,
+      lineKind: 'adjustment' as const,
+      levelType: adj.levelType,
+      invoiceFinal: adj.finalAmount,
+      engineFinal: adj.finalAmount,
+      reason: adj.captainId
+        ? `بند تسوية بلا عقد كابتن (${adj.levelType || 'تسوية'})`
+        : 'بند شركة / غير مربوط بكابتن',
+      reasons: ['invoice_adjustment_unlinked'],
+      differences: [],
+    }));
+    return [...captains, ...adjustments];
+  }, [activeInvoice]);
+
+  const listedDifferentCount = useMemo(
+    () => displayLines.filter(isDifferenceLine).length,
+    [displayLines]
+  );
+
+  // Filtered lines for active invoice (list agrees with chips)
   const filteredLines = useMemo(() => {
-    if (!activeInvoice || !activeInvoice.lines) return [];
-    return activeInvoice.lines.filter((line) => {
-      const isDiff = (line.diffs && line.diffs.length > 0) || line.status === 'error';
+    return displayLines.filter((line) => {
+      const isDiff = isDifferenceLine(line);
       if (filterMode === 'different' && !isDiff) return false;
       if (filterMode === 'matched' && isDiff) return false;
       if (!searchCaptain.trim()) return true;
-      return line.captainId.toLowerCase().includes(searchCaptain.toLowerCase().trim());
+      const q = searchCaptain.toLowerCase().trim();
+      const id = (line.captainId || '').toLowerCase();
+      const label = (line.levelType || line.reason || '').toLowerCase();
+      return id.includes(q) || label.includes(q) || (!id && 'شركة'.includes(q));
     });
-  }, [activeInvoice, filterMode, searchCaptain]);
+  }, [displayLines, filterMode, searchCaptain]);
+
+  /** Field-level gap totals that explain the headline net gap (e.g. 213.09). */
+  const gapBreakdown = useMemo(() => {
+    if (!activeInvoice?.totals) return [];
+    const keys = ['targetTotal', 'attendanceDeduction', 'finalAmount', 'totalCost'] as const;
+    return keys
+      .map((key) => {
+        const t = activeInvoice.totals[key];
+        if (!t) return null;
+        const diff = Math.round((t.invoice - t.engine) * 100) / 100;
+        return { key, ...t, diff };
+      })
+      .filter((x): x is NonNullable<typeof x> => x != null && x.diff !== 0);
+  }, [activeInvoice]);
 
   const mapReasonText = (reason: string): string => {
     if (reason.startsWith('capability_label_edited:')) {
@@ -689,6 +747,8 @@ export function NinjaInvoiceUploadScreen({
         type: 'number',
         numeric: true,
         width: '60px',
+        filterable: false,
+        sortable: true,
         getValue: (line) => line.row,
         render: (line) => <span className="font-mono text-[11px] text-[var(--muted)]">{line.row}</span>,
       },
@@ -697,23 +757,37 @@ export function NinjaInvoiceUploadScreen({
         header: 'معرف الكابتن',
         type: 'text',
         filterType: 'text',
-        getValue: (line) => line.captainId,
-        render: (line) => <span className="font-mono font-bold text-xs text-[var(--ink)]">{line.captainId}</span>,
+        getValue: (line) =>
+          line.captainId ||
+          (line.lineKind === 'adjustment' ? `شركة:${line.levelType || line.row}` : ''),
+        render: (line) =>
+          line.captainId ? (
+            <span className="font-mono font-bold text-xs text-[var(--ink)]">{line.captainId}</span>
+          ) : (
+            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-[var(--raised)] border border-[var(--line)] text-[var(--muted)]">
+              <Building size={11} />
+              <span>{line.levelType?.trim() || 'بند شركة / غير مربوط'}</span>
+            </span>
+          ),
       },
       {
         key: 'status',
         header: 'حالة المطابقة',
         type: 'list',
         filterType: 'list',
-        getValue: (line) => {
-          const hasDiffs = (line.diffs && line.diffs.length > 0) || line.status === 'error';
-          return hasDiffs ? 'diff' : 'matched';
-        },
+        getValue: (line) => (isDifferenceLine(line) ? 'diff' : 'matched'),
         labelOf: (v) => (v === 'diff' ? 'يوجد فرق' : 'مطابق 100%'),
         toneOf: (v) => (v === 'diff' ? 'warning' : 'success'),
         render: (line) => {
-          const hasDiffs = (line.diffs && line.diffs.length > 0) || line.status === 'error';
-          return hasDiffs ? (
+          if (line.lineKind === 'adjustment') {
+            return (
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-[var(--raised)] text-[var(--muted)] border border-[var(--line)]">
+                <Building size={12} />
+                <span>تسوية فاتورة</span>
+              </span>
+            );
+          }
+          return isDifferenceLine(line) ? (
             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/10 text-amber-700 dark:text-amber-400">
               <AlertTriangle size={12} />
               <span>يوجد فرق</span>
@@ -740,7 +814,9 @@ export function NinjaInvoiceUploadScreen({
                     key={ri}
                     className="px-2 py-0.5 rounded-md bg-[var(--raised)] border border-[var(--line)] text-[10px] font-semibold text-[var(--ink)]"
                   >
-                    {mapReasonText(r)}
+                    {r === 'invoice_adjustment_unlinked'
+                      ? line.reason || 'بند تسوية بلا عقد كابتن'
+                      : mapReasonText(r)}
                   </span>
                 ))}
               </div>
@@ -753,18 +829,22 @@ export function NinjaInvoiceUploadScreen({
         },
       },
       {
-        key: 'diffs',
+        key: 'differences',
         header: 'تفاصيل الفروقات (الفاتورة vs المحرك)',
         type: 'text',
         getValue: (line) =>
-          (line.diffs || [])
+          lineDiffs(line)
             .map((d) => `${mapFieldLabel(d.field)}: فاتورة ${d.invoice} | محرك ${d.engine}`)
-            .join('; ') || 'مطابق',
+            .join('; ') ||
+          (line.lineKind === 'adjustment'
+            ? `تسوية ${formatSar(line.invoiceFinal)}`
+            : 'مطابق'),
         render: (line) => {
-          if (line.diffs && line.diffs.length > 0) {
+          const diffs = lineDiffs(line);
+          if (diffs.length > 0) {
             return (
               <div className="space-y-1">
-                {line.diffs.map((d, di) => (
+                {diffs.map((d, di) => (
                   <div
                     key={di}
                     className="inline-flex items-center gap-2 p-1 px-2 rounded-lg bg-[var(--raised)] text-[10px] num font-mono me-1 mb-1"
@@ -782,6 +862,13 @@ export function NinjaInvoiceUploadScreen({
                   </div>
                 ))}
               </div>
+            );
+          }
+          if (line.lineKind === 'adjustment') {
+            return (
+              <span className="text-[11px] text-[var(--muted)]">
+                يُؤخذ كما ورد من الفاتورة · {formatSar(line.invoiceFinal)}
+              </span>
             );
           }
           return (
@@ -1695,8 +1782,8 @@ export function NinjaInvoiceUploadScreen({
             />
             <StatCard
               label="كباتن بفروقات"
-              value={overallTotals.totalDifferent}
-              hint="الفرق للعلم فقط (§31)"
+              value={listedDifferentCount || overallTotals.totalDifferent}
+              hint="يشمل بنود الشركة غير المربوطة · الفرق للعلم (§31)"
               icon={AlertTriangle}
               active={filterMode === 'different'}
               onClick={() => setFilterMode(filterMode === 'different' ? 'all' : 'different')}
@@ -1704,7 +1791,7 @@ export function NinjaInvoiceUploadScreen({
             <StatCard
               label="تسويات الفاتورة"
               value={overallTotals.totalAdjustments}
-              hint="بنود بدون عقد كابتن"
+              hint="بنود بدون عقد كابتن — تظهر في قائمة الفروقات"
               icon={FileCheck}
             />
             <StatCard
@@ -1800,6 +1887,70 @@ export function NinjaInvoiceUploadScreen({
                     );
                   })}
                 </div>
+
+                {gapBreakdown.length > 0 && (
+                  <div className="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
+                      <span className="text-xs font-bold text-[var(--ink)]">
+                        مصدر صافي الفرق · {formatSar(Math.abs(overallTotals?.diffCost || 0))}
+                      </span>
+                      <span className="text-[10px] text-[var(--muted)]">
+                        البنود ذات الفرق غير الصفري (استحقاق التارجت / خصم الحضور / المبلغ النهائي)
+                      </span>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      {gapBreakdown.map((g) => (
+                        <span
+                          key={g.key}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-[var(--surface)] border border-[var(--line)] text-[11px] font-bold num"
+                        >
+                          <span className="font-sans text-[var(--muted)]">{mapFieldLabel(g.key)}</span>
+                          <span className="text-amber-700 dark:text-amber-400">
+                            {g.diff > 0 ? `+${formatSar(g.diff)}` : formatSar(g.diff)}
+                          </span>
+                        </span>
+                      ))}
+                    </div>
+                    {filterMode === 'different' &&
+                      filteredLines.filter((l) => l.lineKind !== 'adjustment').length > 0 && (
+                        <div className="pt-1 border-t border-[var(--line)] space-y-1">
+                          <span className="text-[10px] font-bold text-[var(--muted)]">
+                            مساهمة كل كابتن في الفروقات المعروضة:
+                          </span>
+                          <div className="flex flex-wrap gap-1.5">
+                            {filteredLines
+                              .filter((l) => l.lineKind !== 'adjustment' && lineDiffs(l).length > 0)
+                              .map((l) => {
+                                const finalDiff = lineDiffs(l).find((d) => d.field === 'finalAmount');
+                                const targetDiff = lineDiffs(l).find((d) => d.field === 'targetTotal');
+                                const attDiff = lineDiffs(l).find((d) => d.field === 'attendanceDeduction');
+                                return (
+                                  <span
+                                    key={`${l.row}-${l.captainId}`}
+                                    className="inline-flex flex-col gap-0.5 px-2 py-1 rounded-lg bg-[var(--surface)] border border-[var(--line)] text-[10px]"
+                                  >
+                                    <span className="font-mono font-bold text-[var(--ink)]">
+                                      {l.captainId || `سطر ${l.row}`}
+                                    </span>
+                                    <span className="num text-[var(--muted)]">
+                                      {targetDiff
+                                        ? `تارجت ${targetDiff.difference > 0 ? '+' : ''}${formatSar(targetDiff.difference)}`
+                                        : null}
+                                      {attDiff
+                                        ? ` · حضور ${attDiff.difference > 0 ? '+' : ''}${formatSar(attDiff.difference)}`
+                                        : null}
+                                      {finalDiff
+                                        ? ` · نهائي ${finalDiff.difference > 0 ? '+' : ''}${formatSar(finalDiff.difference)}`
+                                        : null}
+                                    </span>
+                                  </span>
+                                );
+                              })}
+                          </div>
+                        </div>
+                      )}
+                  </div>
+                )}
               </div>
 
               {/* Adjustments Table (if any) */}
@@ -1830,6 +1981,7 @@ export function NinjaInvoiceUploadScreen({
                         header: 'السطر',
                         type: 'number',
                         numeric: true,
+                        filterable: false,
                         getValue: (adj) => Number(adj.row ?? 0),
                         render: (adj) => <span className="font-mono text-[var(--muted)]">{adj.row}</span>,
                       },
@@ -1881,7 +2033,7 @@ export function NinjaInvoiceUploadScreen({
                 <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
                   <div className="flex items-center gap-2">
                     <h3 className="text-xs sm:text-sm font-bold text-[var(--ink)]">
-                      كشف مقارنة الكباتن ({filteredLines.length} من أصل {(activeInvoice.lines || []).length}):
+                      كشف مقارنة الكباتن ({filteredLines.length} من أصل {displayLines.length}):
                     </h3>
                   </div>
 
@@ -1906,7 +2058,7 @@ export function NinjaInvoiceUploadScreen({
                           : 'text-[var(--muted)]'
                       }`}
                     >
-                      الفروقات فقط ({activeInvoice.different})
+                      الفروقات فقط ({listedDifferentCount})
                     </button>
                     <button
                       type="button"
@@ -1917,7 +2069,7 @@ export function NinjaInvoiceUploadScreen({
                           : 'text-[var(--muted)]'
                       }`}
                     >
-                      المطابق فقط ({activeInvoice.matched})
+                      المطابق فقط ({displayLines.length - listedDifferentCount})
                     </button>
                   </div>
                 </div>
@@ -1926,6 +2078,9 @@ export function NinjaInvoiceUploadScreen({
                   tableId="ninja-reconcile-captains"
                   columns={captainColumns}
                   data={filteredLines}
+                  getRowId={(line) =>
+                    `${line.lineKind || 'captain'}-${line.row}-${line.captainId || line.levelType || ''}`
+                  }
                   emptyTitle="لا توجد سجلات كباتن"
                   emptyDescription="لم يتم العثور على أي كباتن يطابقون شروط البحث والتصفية."
                   exportFilename={`ninja_captains_${activeInvoice.fileName || 'reconcile'}`}

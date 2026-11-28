@@ -1,10 +1,9 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import {
   FileText,
   Calendar,
-  MapPin,
   Clock,
   Layers,
   Award,
@@ -13,14 +12,10 @@ import {
   Plus,
   Save,
   CheckCircle2,
-  Trash2,
-  Lock,
   User,
-  DollarSign,
   TrendingUp,
+  Link2,
 } from 'lucide-react';
-import { SearchableSelect } from '../../components/ui/SearchableSelect';
-import { RiderPicker } from '../../components/ui/RiderPicker';
 import { useToast } from '../../components/ui/Toast';
 import { DataTable } from '../../components/ui/DataTable';
 import type { PayConfigDoc } from '../../lib/types';
@@ -34,6 +29,26 @@ export interface RuleRecordWorkspaceProps {
   activeEligibilityDoc?: any | null;
   activeTermsDoc?: PayConfigDoc | null;
   activeSchemeDoc?: PayConfigDoc | null;
+  activeGlobalDoc?: PayConfigDoc | null;
+  onOpenSection?: (section: 'eligibility' | 'record' | 'global') => void;
+}
+
+function platformSelectValue(slug: string): string {
+  if (slug === 'hs' || slug === 'hungerstation') return 'hs';
+  if (slug === 'thechefz' || slug === 'chefz') return 'chefz';
+  return slug;
+}
+
+function platformLabel(slug: string, nameAr: string): string {
+  const key = platformSelectValue(slug);
+  if (nameAr && nameAr !== slug && nameAr !== key) return nameAr;
+  if (key === 'ninja') return 'نينجا';
+  if (key === 'keeta') return 'كيتا';
+  if (key === 'hs') return 'هنقرستيشن';
+  if (key === 'jahez') return 'جاهز';
+  if (key === 'chefz') return 'ذا شيفز';
+  if (key === 'amazon') return 'أمازون';
+  return nameAr || slug;
 }
 
 export function RuleRecordWorkspace({
@@ -44,48 +59,109 @@ export function RuleRecordWorkspace({
   activeEligibilityDoc,
   activeTermsDoc,
   activeSchemeDoc,
+  activeGlobalDoc,
+  onOpenSection,
 }: RuleRecordWorkspaceProps) {
   const { toast } = useToast();
+  const displayName = platformLabel(appSlug, appNameAr);
 
-  // Rule Record Header state
-  const [ruleName, setRuleName] = useState<string>(`لائحة قواعد وتشغيل ${appNameAr} · ${period}`);
-  const [selectedApp, setSelectedApp] = useState<string>(appSlug);
+  // Rule Record Header state — kept in sync with selected platform/period (no stale HungerStation title)
+  const [ruleName, setRuleName] = useState<string>(`لائحة قواعد وتشغيل ${displayName} · ${period}`);
+  const [selectedApp, setSelectedApp] = useState<string>(platformSelectValue(appSlug));
   const [selectedCity, setSelectedCity] = useState<string>('all');
   const [validFrom, setValidFrom] = useState<string>(`${period}-01`);
   const [validTo, setValidTo] = useState<string>('');
   const [isActive, setIsActive] = useState<boolean>(true);
   const [onMissingReport, setOnMissingReport] = useState<string>('flag_decision');
 
+  useEffect(() => {
+    const label = platformLabel(appSlug, appNameAr);
+    setSelectedApp(platformSelectValue(appSlug));
+    setRuleName(`لائحة قواعد وتشغيل ${label} · ${period}`);
+    setValidFrom(`${period}-01`);
+  }, [appSlug, appNameAr, period]);
+
   // Sub-tabs
   type RuleTabKey = 'daily' | 'monthly' | 'levels' | 'incentives' | 'compliance' | 'exceptions' | 'performance' | 'notes';
   const [activeTab, setActiveTab] = useState<RuleTabKey>('daily');
 
-  // Daily rules state
-  const [dailyCommission, setDailyCommission] = useState<string>('10.00');
-  const [minWorkingHours, setMinWorkingHours] = useState<string>('8');
-  const [dailyCarRent, setDailyCarRent] = useState<string>('60.00');
-  const [dailyBikeRent, setDailyBikeRent] = useState<string>('26.67');
+  // Values read from the month's registry (pay_scheme / pay_setting / pay_terms) — no duplicate settings store
+  const registryDaily = useMemo(() => {
+    const values = activeGlobalDoc?.data?.values;
+    const standardDays = Number(values?.standardDays || 30) || 30;
+    const carMonthly = Number(values?.vehicleRent?.company_car ?? 1800);
+    const bikeMonthly = Number(values?.vehicleRent?.company_bike ?? 800);
+    const schemeType = String(activeSchemeDoc?.data?.type || '');
+    const isNinja = platformSelectValue(appSlug) === 'ninja';
+    // Ninja (and percent schemes): unit is % of rider due before deductions — not SAR/day (Ghazal 11-28 NUI1b).
+    const commissionIsPercent =
+      isNinja ||
+      schemeType === 'percent_of_gross' ||
+      schemeType === 'percent_monthly_with_vehicle';
+    const cats = activeSchemeDoc?.data?.parameters?.categories || {};
+    const firstCell = Object.values(cats)[0] as
+      | { dailyCommission?: number; companyPercent?: number }
+      | undefined;
+    const commissionRaw = commissionIsPercent
+      ? firstCell?.companyPercent ?? firstCell?.dailyCommission ?? 10
+      : firstCell?.dailyCommission ?? 10;
+    const commission = Number(commissionRaw);
+    const params = (activeTermsDoc?.data?.parameters || {}) as Record<string, unknown>;
+    const shortDays = (params.shortDays || {}) as { deductionPercentOfDailyAmount?: number };
+    const attendance = (params.attendance || {}) as {
+      minRatio?: number;
+      deductionPercent?: number;
+    };
+    return {
+      dailyCommission: commission.toFixed(2),
+      commissionIsPercent,
+      minWorkingHours: '8',
+      dailyCarRent: (carMonthly / standardDays).toFixed(2),
+      dailyBikeRent: (bikeMonthly / standardDays).toFixed(2),
+      shortDayDeduction: String(shortDays.deductionPercentOfDailyAmount ?? 50),
+      attendanceMinRatio: String(attendance.minRatio ?? 0.8),
+      shiftComplianceMin: String(attendance.deductionPercent ?? 15),
+      monthDaysMode: String(params.monthDays || 'calendar'),
+      housingMonthly: Number(values?.housingMonthly ?? 200),
+    };
+  }, [activeGlobalDoc, activeSchemeDoc, activeTermsDoc, appSlug]);
+
+  const [dailyCommission, setDailyCommission] = useState<string>(registryDaily.dailyCommission);
+  const [minWorkingHours, setMinWorkingHours] = useState<string>(registryDaily.minWorkingHours);
+  const [dailyCarRent, setDailyCarRent] = useState<string>(registryDaily.dailyCarRent);
+  const [dailyBikeRent, setDailyBikeRent] = useState<string>(registryDaily.dailyBikeRent);
 
   // Monthly rules state
   const [targetOrders, setTargetOrders] = useState<string>('450');
   const [mandatoryWorkingDays, setMandatoryWorkingDays] = useState<string>('26');
-  const [monthDaysMode, setMonthDaysMode] = useState<string>('calendar');
+  const [monthDaysMode, setMonthDaysMode] = useState<string>(registryDaily.monthDaysMode);
 
   // Incentives state
   const [fuelCap, setFuelCap] = useState<string>('400.00');
   const [internetAllowance, setInternetAllowance] = useState<string>('50.00');
-  const [shortDayDeduction, setShortDayDeduction] = useState<string>('50');
+  const [shortDayDeduction, setShortDayDeduction] = useState<string>(registryDaily.shortDayDeduction);
 
   // Compliance state
-  const [attendanceMinRatio, setAttendanceMinRatio] = useState<string>('0.80');
-  const [shiftComplianceMin, setShiftComplianceMin] = useState<string>('85');
+  const [attendanceMinRatio, setAttendanceMinRatio] = useState<string>(registryDaily.attendanceMinRatio);
+  const [shiftComplianceMin, setShiftComplianceMin] = useState<string>(registryDaily.shiftComplianceMin);
+
+  useEffect(() => {
+    setDailyCommission(registryDaily.dailyCommission);
+    setMinWorkingHours(registryDaily.minWorkingHours);
+    setDailyCarRent(registryDaily.dailyCarRent);
+    setDailyBikeRent(registryDaily.dailyBikeRent);
+    setShortDayDeduction(registryDaily.shortDayDeduction);
+    setAttendanceMinRatio(registryDaily.attendanceMinRatio);
+    setShiftComplianceMin(registryDaily.shiftComplianceMin);
+    setMonthDaysMode(registryDaily.monthDaysMode);
+  }, [registryDaily]);
 
   // Notes state
   const [notes, setNotes] = useState<string>(
-    'تسري هذه اللائحة على كافة مناديب التشغيل المعتمدين لدى المنصة. تُستبعد الأيام التي يقل فيها العمل عن 4 ساعات وتُخصم بنسبة 50% للأيام بين 4 و8 ساعات وفق المعايير.'
+    'تسري هذه اللائحة على كافة مناديب التشغيل المعتمدين لدى المنصة. المصدر الوحيد للاحتساب هو سجل الشروط والأنظمة والأهلية والإعدادات العامة المعتمدة لنفس الشهر — لا إعدادات مكررة هنا.'
   );
 
-  // Demo Account Exceptions state
+  // Account exceptions mirror (synthetic demo ids only) — real edits go through the exception modal / assignments API
   const [localExceptions, setLocalExceptions] = useState<Array<{
     id: string;
     rider: string;
@@ -93,20 +169,51 @@ export function RuleRecordWorkspace({
     dailyAmount: number;
     vehicleRent: number;
     validFrom: string;
-  }>>([
-    {
-      id: 'exc-demo-01',
-      rider: '2000000001',
-      ruleType: 'عمولة يومية مخصصة',
-      dailyAmount: 12.5,
-      vehicleRent: 50.0,
-      validFrom: `${period}-01`,
-    },
-  ]);
+  }>>([]);
 
   const handleSaveWorkspace = () => {
-    toast(`تم حفظ مسودة سجل القواعد للائحة «${ruleName}» بنجاح.`, 'success');
+    toast(
+      'هذا السجل عرض للقراءة من إعدادات الشهر المعتمدة. عدّل الشروط أو الأنظمة أو الأهلية أو الإعدادات العامة من تبويباتها ثم أعد التحميل.',
+      'info'
+    );
   };
+
+  const sourceLinks = [
+    {
+      key: 'terms',
+      label: 'شروط التشغيل',
+      ready: Boolean(activeTermsDoc),
+      detail: activeTermsDoc
+        ? `${activeTermsDoc.status === 'approved' ? 'معتمد' : 'مسودة'} v${activeTermsDoc.version}`
+        : 'غير محمّل',
+    },
+    {
+      key: 'scheme',
+      label: 'الأنظمة الداخلية',
+      ready: Boolean(activeSchemeDoc),
+      detail: activeSchemeDoc
+        ? `${activeSchemeDoc.status === 'approved' ? 'معتمد' : 'مسودة'} v${activeSchemeDoc.version}`
+        : 'غير محمّل',
+    },
+    {
+      key: 'eligibility',
+      label: 'الأهلية',
+      ready: Boolean(activeEligibilityDoc),
+      detail: activeEligibilityDoc
+        ? `${activeEligibilityDoc.status === 'approved' ? 'معتمد' : 'مسودة'} v${activeEligibilityDoc.version || ''}`
+        : 'غير محمّل',
+      open: 'eligibility' as const,
+    },
+    {
+      key: 'global',
+      label: 'الإعدادات العامة',
+      ready: Boolean(activeGlobalDoc),
+      detail: activeGlobalDoc
+        ? `${activeGlobalDoc.status === 'approved' ? 'معتمد' : 'مسودة'} v${activeGlobalDoc.version}`
+        : 'غير محمّل',
+      open: 'global' as const,
+    },
+  ];
 
   const tabsMeta: Array<{ key: RuleTabKey; label: string; icon: React.ReactNode }> = [
     { key: 'daily', label: 'القواعد اليومية', icon: <Clock size={14} /> },
@@ -121,12 +228,33 @@ export function RuleRecordWorkspace({
 
   return (
     <div className="space-y-5">
-      {/* P6 Notice Banner */}
-      <div className="p-3.5 rounded-2xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-xs text-[var(--ink)] flex items-start gap-2.5">
-        <AlertTriangle size={16} className="text-[var(--accent)] shrink-0 mt-0.5" />
-        <div className="leading-relaxed">
-          <strong>ملاحظة:</strong> محددات الفوترة والأنظمة والأهلية تُحفظ عبر واجهة الرواتب المعتمدة.
-          بعض الحقول الموسعة (المدينة، التواريخ الممتدة، وسجل الأداء الشهري) ما زالت قيد التطوير.
+      {/* Registry source banner */}
+      <div className="p-3.5 rounded-2xl bg-[var(--accent)]/10 border border-[var(--accent)]/20 text-xs text-[var(--ink)] space-y-2">
+        <div className="flex items-start gap-2.5">
+          <Link2 size={16} className="text-[var(--accent)] shrink-0 mt-0.5" />
+          <div className="leading-relaxed">
+            <strong>مصدر واحد لشهر {period} · منصة {displayName}:</strong> محرك الرواتب وتبويبات الشروط/الأهلية/الأنظمة تقرأ من نفس السجل المعتمد لهذا الشهر — لا إعدادات مكررة في هذه الشاشة.
+          </div>
+        </div>
+        <div className="flex flex-wrap gap-2 ps-6">
+          {sourceLinks.map((s) => (
+            <button
+              key={s.key}
+              type="button"
+              disabled={!s.open || !onOpenSection}
+              onClick={() => s.open && onOpenSection?.(s.open)}
+              className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-[11px] font-bold transition ${
+                s.ready
+                  ? 'border-[var(--money-pos)]/30 bg-[var(--money-pos)]/10 text-[var(--money-pos)]'
+                  : 'border-[var(--line)] bg-[var(--raised)] text-[var(--muted)]'
+              } ${s.open && onOpenSection ? 'cursor-pointer hover:opacity-90' : 'cursor-default'}`}
+            >
+              {s.ready ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
+              <span>
+                {s.label}: {s.detail}
+              </span>
+            </button>
+          ))}
         </div>
       </div>
 
@@ -174,12 +302,15 @@ export function RuleRecordWorkspace({
             <select
               value={selectedApp}
               onChange={(e) => setSelectedApp(e.target.value)}
-              className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--surface)] font-semibold"
+              disabled
+              title="تتحدد المنصة من تبويب المنصات المختار أعلاه"
+              className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] font-semibold opacity-90"
             >
               <option value="ninja">نينجا</option>
               <option value="keeta">كيتا</option>
-              <option value="hungerstation">هنقرستيشن</option>
+              <option value="hs">هنقرستيشن</option>
               <option value="jahez">جاهز</option>
+              <option value="chefz">ذا شيفز</option>
               <option value="amazon">أمازون</option>
             </select>
           </div>
@@ -260,19 +391,30 @@ export function RuleRecordWorkspace({
           <div className="border-b border-[var(--line)] pb-2">
             <h4 className="font-bold text-sm text-[var(--ink)]">القواعد اليومية لساعات التشغيل والعمولات</h4>
             <p className="text-[11px] text-[var(--muted)] mt-0.5">
-              ضوابط احتساب اليوم التشغيلي، عمولة الشركة اليومية، وإيجارات المركبات.
+              {registryDaily.commissionIsPercent
+                ? 'ضوابط احتساب اليوم التشغيلي، نسبة عمولة الشركة من مستحق المندوب قبل الاستقطاعات، وإيجارات المركبات.'
+                : 'ضوابط احتساب اليوم التشغيلي، عمولة الشركة اليومية، وإيجارات المركبات.'}
             </p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
             <div className="space-y-1">
-              <label className="font-bold text-[var(--ink)] block">العمولة اليومية للشركة (ر.س):</label>
+              <label className="font-bold text-[var(--ink)] block">
+                {registryDaily.commissionIsPercent
+                  ? 'عمولة الشركة (% من مستحق المندوب من اليوزر قبل الاستقطاعات):'
+                  : 'العمولة اليومية للشركة (ر.س):'}
+              </label>
               <input
                 type="number"
                 step="0.01"
                 value={dailyCommission}
                 onChange={(e) => setDailyCommission(e.target.value)}
                 className="w-full p-2 rounded-xl border border-[var(--line)] num font-bold"
+                aria-label={
+                  registryDaily.commissionIsPercent
+                    ? 'عمولة الشركة بالنسبة المئوية'
+                    : 'العمولة اليومية للشركة بالريال'
+                }
               />
             </div>
             <div className="space-y-1">

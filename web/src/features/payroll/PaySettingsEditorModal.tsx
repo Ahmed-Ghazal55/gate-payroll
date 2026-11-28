@@ -949,11 +949,19 @@ export function PaySettingsEditorModal({
                         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                           {schemeForm.type === 'daily_commission' && (
                             <div>
-                              <span className="text-[var(--muted)] block text-[10px]">العمولة اليومية للشركة (ر.س):</span>
+                              <span className="text-[var(--muted)] block text-[10px]">
+                                {appSlug === 'ninja'
+                                  ? 'عمولة الشركة (% من مستحق المندوب من اليوزر قبل الاستقطاعات):'
+                                  : 'العمولة اليومية للشركة (ر.س):'}
+                              </span>
                               <input
                                 type="number"
                                 step="0.01"
-                                aria-label="العمولة اليومية"
+                                aria-label={
+                                  appSlug === 'ninja'
+                                    ? 'عمولة الشركة بالنسبة المئوية'
+                                    : 'العمولة اليومية'
+                                }
                                 placeholder="10.00"
                                 value={cell.dailyCommission}
                                 onChange={(e) => {

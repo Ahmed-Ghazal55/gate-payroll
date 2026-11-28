@@ -101,11 +101,14 @@ public static class NinjaBilling
         int matched=0,different=0;string supplier="";
         for(int r=1;r<sheet.Rows.Count;r++)
         {
-            var row=sheet.Rows[r];string captain=Cell(row,"captain_id").Trim();if(captain=="")continue;supplier=supplier==""?Cell(row,"supplier_id").Trim():supplier;
+            var row=sheet.Rows[r];string captain=Cell(row,"captain_id").Trim();supplier=supplier==""?Cell(row,"supplier_id").Trim():supplier;
             decimal invoiceFinal=Num(Cell(row,"Final Amount"));
-            if(Num(Cell(row,"Contract Amount"))==0)
-            {   // Invoice-level adjustment (e.g. "DEDUCTIONS") with no captain contract: kept as a line, never recalculated.
-                adjustments.Add(new JsonObject{["row"]=r+1,["captainId"]=captain,["levelType"]=Cell(row,"Target Level Type").Trim(),["finalAmount"]=Math.Round(invoiceFinal,2),["totalCost"]=Math.Round(Num(Cell(row,"TOTAL COST")),2)});
+            // Empty captain id OR zero contract = company/unlinked invoice line (still listed; never engine-recalculated).
+            if(captain==""||Num(Cell(row,"Contract Amount"))==0)
+            {
+                string levelType=Cell(row,"Target Level Type").Trim();
+                if(captain==""&&invoiceFinal==0&&Num(Cell(row,"TOTAL COST"))==0&&levelType=="")continue; // blank sheet row
+                adjustments.Add(new JsonObject{["row"]=r+1,["captainId"]=captain,["levelType"]=levelType==""?"بند شركة / غير مربوط":levelType,["finalAmount"]=Math.Round(invoiceFinal,2),["totalCost"]=Math.Round(Num(Cell(row,"TOTAL COST")),2)});
                 Add(totals,"finalAmount",invoiceFinal,invoiceFinal);Add(totals,"totalCost",Num(Cell(row,"TOTAL COST")),Num(Cell(row,"TOTAL COST")));continue;
             }
             var pass=PassThrough.ToDictionary(x=>x.Code,x=>Num(Cell(row,x.Column)));

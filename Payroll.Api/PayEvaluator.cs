@@ -125,14 +125,16 @@ public static class PayEvaluator
             }
             else if(!fallback&&!zero)
             {
-                bool percent=type is "percent_of_gross" or "percent_monthly_with_vehicle";
+                // Ninja: company share is always a percent of rider due before stage deductions (Ghazal 11-28); dailyCommission on a ninja daily_commission cell means that percent (not SAR/day).
+                bool ninjaPercent=app=="ninja"&&type=="daily_commission";
+                bool percent=type is "percent_of_gross" or "percent_monthly_with_vehicle"||ninjaPercent;
                 // §40.3: base is signed (Ninja negative Final Amount must not floor to zero — §40.6 carry needs a negative net).
                 // No commission on a non-positive base: the whole negative share stays on the rider (September sheet practice: BX = BU when BU ≤ 0).
                 decimal commissionBase=percent?total-penalties:total;
                 if(percent&&penalties>0)Line("غرامات المنصة على المندوب قبل النسبة","platform penalties allocated to rider (§40.3)",new(){["penalties"]=penalties,["gross"]=total},-penalties,"platform_penalties",false);
-                fee=type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>facts.ChefzFullTimeCommission.Value,"daily_commission"=>p.N("dailyCommission")*days,"monthly_commission"=>p.N("monthlyCommission")*(p.B("prorate")?days/monthDays:1),"percent_of_gross" or "percent_monthly_with_vehicle"=>Math.Max(0,commissionBase)*p.N("companyPercent")/100,_=>throw new ApiError("نوع نظام غير مدعوم.")};fee=Round(fee,values);earned=Round(commissionBase-fee,values);
+                fee=type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>facts.ChefzFullTimeCommission.Value,"daily_commission" when ninjaPercent=>Math.Max(0,commissionBase)*p.N("dailyCommission")/100,"daily_commission"=>p.N("dailyCommission")*days,"monthly_commission"=>p.N("monthlyCommission")*(p.B("prorate")?days/monthDays:1),"percent_of_gross" or "percent_monthly_with_vehicle"=>Math.Max(0,commissionBase)*p.N("companyPercent")/100,_=>throw new ApiError("نوع نظام غير مدعوم.")};fee=Round(fee,values);earned=Round(commissionBase-fee,values);
                 Line("الإجمالي قبل العمولة",percent?"(platformGross + incentives − platformPenalties)":"platformGross + incentives",new(){["gross"]=facts.PlatformGross,["incentives"]=facts.Incentives,["platformPenalties"]=penalties,["commissionBase"]=commissionBase},commissionBase,"earnings");
-                Line("عمولة الشركة",type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>"chefz half-month commission from reviewed operation days","daily_commission"=>"dailyCommission × days","monthly_commission"=>"monthlyCommission × (prorate ? days/monthDays : 1)",_=>"commissionBase × companyPercent /100 (§40.3)"},new(){["parameters"]=p.Clone(),["days"]=days,["monthDays"]=monthDays,["gross"]=total,["commissionBase"]=commissionBase,["chefzFullTimeCommission"]=facts.ChefzFullTimeCommission},-fee,"company_commission");
+                Line("عمولة الشركة",type switch{"daily_commission" when app=="chefz"&&facts.ChefzFullTimeCommission.HasValue=>"chefz half-month commission from reviewed operation days","daily_commission" when ninjaPercent=>"commissionBase × dailyCommission /100 (Ninja percent of due)","daily_commission"=>"dailyCommission × days","monthly_commission"=>"monthlyCommission × (prorate ? days/monthDays : 1)",_=>"commissionBase × companyPercent /100 (§40.3)"},new(){["parameters"]=p.Clone(),["days"]=days,["monthDays"]=monthDays,["gross"]=total,["commissionBase"]=commissionBase,["chefzFullTimeCommission"]=facts.ChefzFullTimeCommission},-fee,"company_commission");
             }
             if(fallback&&!zero)
             {
@@ -161,7 +163,7 @@ public static class PayEvaluator
         // §40.3 salary: vehicle/operating shown as expense, not deducted from net (Keeta ineligible fallback keeps §22.9.2 recovery).
         decimal netRent=salaryExpense?0:rent;
         decimal net=Round(entitlement-netRent,values);
-        bool penaltiesInBase=type is "percent_of_gross" or "percent_monthly_with_vehicle";
+        bool penaltiesInBase=type is "percent_of_gross" or "percent_monthly_with_vehicle"||(app=="ninja"&&type=="daily_commission");
         // Agent company share is on the signed post-penalty base when §40.3 applies (not total−earned, which would swallow penalties).
         decimal agentBase=penaltiesInBase?total-penalties:total;
         decimal commission=role=="agent"?Round(agentBase-earned,values):fee;

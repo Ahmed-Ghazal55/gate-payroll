@@ -3,24 +3,27 @@
 | Field | Value |
 |---|---|
 | Current writer | (free) |
-| Branch | `release/0.35.0` |
-| Updated | 2026-11-28 by Cursor (KAPP1 DONE) |
+| Branch | `release/0.35.2` |
+| Updated | 2026-11-28 by Cursor (INTEG2 DONE) |
 | Live | unchanged (local only; never push) |
-| Next | Planner: push KAPP1 commit for PR #77 CI re-run after Ghazal yes |
+| Next | Planner: push / PR / CI after Ghazal yes |
 
 ## Goal now
-Fix Keeta invoice checker approve after default-on-user path (KAPP1). Report: `~/.cache/agents-runs/cursor-KAPP1-report.md`.
+Integrate NSET1b + NUI1/NUI1b as release **0.35.2** (local only).
 
 ## In this release (local)
-- KAPP1: Keeta account-row deductions default to `account_level` (match Ninja); company `supplier_adjustment` stays unclassified
-- Engine repro: `BrowserShapedDefaultOnUserAllowsCheckerApproveAfterCompanyAdjustmentClassify`
+- NSET1b: live Omar terms, default settings/assignments seed, eligibility = setup warning only (never blocks)
+- NUI1/NUI1b: invoice preview diffs, housingMonthly catalog 200, Ninja commission as % of due
+- Contracts regenerated; version 0.35.2
 
 ## How to verify
 ```bash
 dotnet build tests/Engine.Tests
-dotnet test tests/Engine.Tests --filter "FullyQualifiedName~KeetaInvoice|FullyQualifiedName~NinjaInvoice|FullyQualifiedName~PlatformInvoice|FullyQualifiedName~NFlow1Invoice|FullyQualifiedName~SalPlatformInvoice"
+dotnet test tests/Engine.Tests
+cd scripts && python3 -m unittest test_ftps_deploy
+cd web && npx tsc --noEmit && npm test
+python3 scripts/release_source.py && rm -rf artifacts
 ```
 
 ## Open for Ghazal
-- Push / PR CI re-run / merge / deploy of 0.35.0
-- Never push from this worktree without his yes
+- Push / PR / merge / deploy of 0.35.2 — never from this worktree without his yes

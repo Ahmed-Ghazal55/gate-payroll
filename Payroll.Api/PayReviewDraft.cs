@@ -26,13 +26,13 @@ public static class PayReviewDraft
         var invoices=Store.List(c,"platform_invoice",tx).Where(i=>InvoiceDiscard.Active(i)&&i.S("platform")==platformName&&i.S("companyId")==company&&i.S("period")==period&&i.S("status")!="reversed"&&i.S("accountingStatus")!="reversed").OrderBy(i=>i.S("id"),StringComparer.Ordinal).ToList();
         if(invoices.Count==0)Block("invoice_missing","ارفع واعتمد فاتورة "+(app=="keeta"?"كيتا":"نينجا")+" للشركة والشهر.","upload_invoice");
         // Parent terms (الشروط الأصلية) are display-only and never block calculation (Ghazal 2026-11-27).
-        // Eligibility gaps → setup checklist (Ninja) or approve_settings (Keeta).
+        // Eligibility gaps are setup/warning only for every app — never Block invoice upload, dues, or pay cycles (Ghazal 2026-11-28).
         try{PaySettings.Resolve(c,tx,"pay_eligibility",app,period);}
         catch(ApiError)
         {
             string msg="إعداد "+(app=="keeta"?"كيتا":"نينجا")+" للشهر غير معتمد: قواعد الاستحقاق";
-            if(app=="ninja"){Setup("pay_eligibility_missing",msg,"apply_default_settings");Block("pay_eligibility_missing",msg,"apply_default_settings");}
-            else Block("pay_eligibility_missing",msg,"approve_settings");
+            string action=app=="ninja"?"apply_default_settings":"approve_settings";
+            Setup("pay_eligibility_missing",msg,action);
         }
         try{PaySettings.Global(c,tx,period+"-01");}
         catch(ApiError)

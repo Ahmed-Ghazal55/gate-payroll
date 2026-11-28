@@ -58,12 +58,14 @@ public sealed class R9PayrollHttpTests
         // Negative rider also needs debt confirm (or deferred) before their salary approval.
         await f.Request(f.Checker,path+"/debt-deductions",new(){["action"]="confirm-all"});
         cycle=(await f.Request(f.Checker,path+"/advance",new(){["stage"]=7})).AsObject();Assert.AreEqual("approved",cycle.S("status"));
-        var carry=f.Store.Read(c=>Store.List(c,"debt").Single(d=>d.S("category")=="NegativeSalaryCarryover"));Assert.AreEqual(32.95m,carry.N("remainingBalance"));Assert.AreEqual("112507",carry.S("receivableAccountCode"));
+        // 0.35.2 NUI1b: Ninja daily_commission=10 means 10% of due (not 10 SAR/day). Negative due → 0 company commission → carryover = |−22.95|.
+        // Positive due 6500 → commission 650 → bank net 4716.88 after bonus/correction/debt/supplier adjustment.
+        var carry=f.Store.Read(c=>Store.List(c,"debt").Single(d=>d.S("category")=="NegativeSalaryCarryover"));Assert.AreEqual(22.95m,carry.N("remainingBalance"));Assert.AreEqual("112507",carry.S("receivableAccountCode"));
         Assert.AreEqual(9000m,f.Store.Read(c=>Store.Get(c,"synthetic-r9-debt","debt")!.N("remainingBalance")));Assert.AreEqual(50m,f.Store.Read(c=>Store.Get(c,"synthetic-r9-skip","debt")!.N("remainingBalance")));
-        var bank=(await f.Request(f.Maker,"/api/finance/bank-file/preview",new(){["sponsorId"]=company,["period"]="2026-10"})).AsObject();Assert.IsTrue(bank.B("canExport"));Assert.AreEqual(1,bank["rows"]!.AsArray().Count);Assert.AreEqual(5066.88m,bank["rows"]![0]!.N("amount"));
-        using(var export=await f.Maker.PostAsJsonAsync("/api/finance/bank-file/export",new JsonObject{["sponsorId"]=company,["period"]="2026-10",["previewToken"]=bank.S("previewToken"),["rows"]=bank["rows"]!.DeepClone()})){Assert.AreEqual(HttpStatusCode.OK,export.StatusCode);StringAssert.Contains(await export.Content.ReadAsStringAsync(),"5066.88");}
+        var bank=(await f.Request(f.Maker,"/api/finance/bank-file/preview",new(){["sponsorId"]=company,["period"]="2026-10"})).AsObject();Assert.IsTrue(bank.B("canExport"));Assert.AreEqual(1,bank["rows"]!.AsArray().Count);Assert.AreEqual(4716.88m,bank["rows"]![0]!.N("amount"));
+        using(var export=await f.Maker.PostAsJsonAsync("/api/finance/bank-file/export",new JsonObject{["sponsorId"]=company,["period"]="2026-10",["previewToken"]=bank.S("previewToken"),["rows"]=bank["rows"]!.DeepClone()})){Assert.AreEqual(HttpStatusCode.OK,export.StatusCode);StringAssert.Contains(await export.Content.ReadAsStringAsync(),"4716.88");}
         var journals=f.Store.Read(c=>Store.List(c,"journal").Where(j=>j.S("payCycleId")==id).ToList());foreach(var j in journals){Assert.AreEqual(j.N("totalDebit"),j.N("totalCredit"));Assert.IsTrue(j["lines"]!.AsArray().All(l=>l!.N("debit")>=0&&l.N("credit")>=0));}
-        var posted=journals.SelectMany(j=>j["lines"]!.AsArray().OfType<JsonObject>()).ToList();Assert.AreEqual(5066.88m,posted.Where(l=>l.S("accountCode")=="212103").Sum(l=>l.N("credit")-l.N("debit")));
+        var posted=journals.SelectMany(j=>j["lines"]!.AsArray().OfType<JsonObject>()).ToList();Assert.AreEqual(4716.88m,posted.Where(l=>l.S("accountCode")=="212103").Sum(l=>l.N("credit")-l.N("debit")));
         int count=journals.Count;await f.Request(f.Checker,path+"/advance",new(){["stage"]=7});await f.Request(f.Checker,path+"/debt-deductions",new(){["action"]="confirm-all"});Assert.AreEqual(count,f.Store.Read(c=>Store.List(c,"journal").Count(j=>j.S("payCycleId")==id)));
     }
     internal sealed class Host:IAsyncDisposable

@@ -248,10 +248,10 @@ public static class NinjaInputsLiveQuery
 
     /// <summary>Reader 3 — payment method / pay scheme per Ninja account (Omar PaymentModel).</summary>
     public static (string Sql, IReadOnlyList<string> ParameterNames) PreviewPaymentMethodsSql(
-        LiveOperationsQuery.Scope? scope, int page, int pageSize)
+        LiveOperationsQuery.Scope? scope, int page, int pageSize, DateOnly? from = null, DateOnly? to = null)
     {
         using var cmd = new SqlCommand();
-        string sql = BuildPaymentMethodsSql(cmd, scope, page, pageSize);
+        string sql = BuildPaymentMethodsSql(cmd, scope, page, pageSize, from, to);
         return (sql, cmd.Parameters.Cast<SqlParameter>().Select(p => p.ParameterName).ToList());
     }
 
@@ -261,13 +261,23 @@ public static class NinjaInputsLiveQuery
         int page,
         int pageSize,
         CancellationToken cancellationToken = default)
+        => PaymentMethods(source, scope, page, pageSize, null, null, cancellationToken);
+
+    public static PageResult PaymentMethods(
+        DbConnection source,
+        LiveOperationsQuery.Scope scope,
+        int page,
+        int pageSize,
+        DateOnly? from,
+        DateOnly? to,
+        CancellationToken cancellationToken = default)
     {
         if (source is not SqlConnection) throw new ImportFailure("live_ops_requires_sql");
         DateTimeOffset asOf = DateTimeOffset.UtcNow;
         using var cmd = source.CreateCommand();
         cmd.CommandTimeout = CommandTimeoutSeconds;
         using var cancel = SyncCancellation.Register(cmd, cancellationToken);
-        cmd.CommandText = BuildPaymentMethodsSql(cmd, scope, page, pageSize);
+        cmd.CommandText = BuildPaymentMethodsSql(cmd, scope, page, pageSize, from, to);
         var items = new List<JsonObject>();
         long total = 0;
         using var reader = cmd.ExecuteReader();
@@ -280,12 +290,50 @@ public static class NinjaInputsLiveQuery
         return new(items, total, new JsonObject { ["total"] = total }, asOf);
     }
 
-    static string BuildPaymentMethodsSql(DbCommand cmd, LiveOperationsQuery.Scope? scope, int page, int pageSize)
+    static string BuildPaymentMethodsSql(DbCommand cmd, LiveOperationsQuery.Scope? scope, int page, int pageSize, DateOnly? from = null, DateOnly? to = null)
     {
         Add(cmd, "@skip", (page - 1) * pageSize);
         Add(cmd, "@take", pageSize);
         Add(cmd, "@ninja", PlatformCode);
         string sponsorScope = BuildSponsorScopeSql(scope, cmd, "s");
+        if (from.HasValue && to.HasValue)
+        {
+            Add(cmd, "@from", from.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            Add(cmd, "@to", to.Value.ToString("yyyy-MM-dd", CultureInfo.InvariantCulture));
+            return $"""
+                WITH scoped AS (
+                    SELECT pa.[Id], pa.[ExternalAccountId], pa.[Code] AS AccountCode, pa.[Status],
+                           pa.[PaymentModel] AS AccountPaymentModel,
+                           pa.[RegisteredEmployeeId] AS OwnerEmployeeId,
+                           s.[UnifiedNationalNumber] AS OwnerUnifiedNumber,
+                           a.[Id] AS OpenAssignmentId,
+                           a.[RiderProfileId] AS OpenActualRiderProfileId,
+                           a.[PaymentModel] AS AssignmentPaymentModel,
+                           a.[NinjaRiderType],
+                           a.[EffectiveFrom] AS OpenEffectiveFrom,
+                           a.[EffectiveTo] AS OpenEffectiveTo
+                    FROM [app].[PlatformRiderAccounts] pa
+                    INNER JOIN [platform].[ClientPlatforms] cp ON cp.[Id]=pa.[ClientPlatformId] AND cp.[IsDeleted]=0 AND cp.[Code]=@ninja
+                    INNER JOIN [app].[Sponsors] s ON s.[Id]=pa.[SponsorId] AND s.[IsDeleted]=0
+                    INNER JOIN [app].[RiderClientAssignments] a
+                        ON a.[PlatformRiderAccountId]=pa.[Id]
+                       AND a.[IsDeleted]=0
+                       AND a.[EffectiveFrom]<=@to
+                       AND (a.[EffectiveTo] IS NULL OR a.[EffectiveTo]>=@from)
+                    WHERE pa.[IsDeleted]=0{sponsorScope}
+                ),
+                coverage AS (SELECT COUNT_BIG(*) AS CoverageTotal FROM scoped),
+                page AS (
+                    SELECT * FROM scoped
+                    ORDER BY [ExternalAccountId], [OpenEffectiveFrom], [OpenAssignmentId], [Id]
+                    OFFSET @skip ROWS FETCH NEXT @take ROWS ONLY
+                )
+                SELECT p.*, c.[CoverageTotal]
+                FROM page p
+                CROSS JOIN coverage c
+                ORDER BY p.[ExternalAccountId], p.[OpenEffectiveFrom], p.[OpenAssignmentId], p.[Id]
+                """;
+        }
         return $"""
             WITH scoped AS (
                 SELECT pa.[Id], pa.[ExternalAccountId], pa.[Code] AS AccountCode, pa.[Status],

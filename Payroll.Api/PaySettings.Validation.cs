@@ -28,6 +28,38 @@ public static partial class PaySettings
     public static readonly string[] Operators=["gt","gte","eq","neq","lt","lte"];
     public static readonly string[] Kinds=["pay_terms","pay_scheme","pay_eligibility","pay_setting"];
     public static JsonObject Defaults()=>JsonNode.Parse(typeof(PaySettings).Assembly.GetManifestResourceStream("Payroll.PayDefaults.v1.json")!)!.AsObject();
+
+    /// <summary>Fill missing global keys (e.g. housingMonthly / housingIncome) from a prior approved version or catalog defaults so legacy drafts remain approvable.</summary>
+    public static JsonObject CompleteGlobalData(JsonObject data,JsonObject? priorApprovedData=null)
+    {
+        var defaults=Defaults();
+        var srcValues=(priorApprovedData?["values"] as JsonObject)??(defaults["values"] as JsonObject)!;
+        var srcAccounts=(srcValues["accounts"] as JsonObject)??(defaults["values"]!["accounts"] as JsonObject)!;
+        var values=data["values"] as JsonObject??new JsonObject();
+        data["values"]=values;
+        bool missingHousing=values["housingMonthly"] is null
+            ||(values["housingMonthly"] is JsonValue hv&&(hv.GetValueKind()==System.Text.Json.JsonValueKind.Null||string.IsNullOrWhiteSpace(hv.ToString())||!decimal.TryParse(hv.ToString(),System.Globalization.NumberStyles.Number,System.Globalization.CultureInfo.InvariantCulture,out _)));
+        // Grok NUI1 #2 / NUI1b: prior approved may omit the key → N() yields 0; use catalog 200 unless prior has a real number (0 allowed when explicit).
+        if(missingHousing)
+        {
+            decimal catalogHousing=(defaults["values"] as JsonObject)!.N("housingMonthly");
+            decimal priorHousing=0;
+            bool priorHasNumber=srcValues["housingMonthly"] is JsonValue phv
+                &&phv.GetValueKind()!=System.Text.Json.JsonValueKind.Null
+                &&!string.IsNullOrWhiteSpace(phv.ToString())
+                &&decimal.TryParse(phv.ToString(),System.Globalization.NumberStyles.Number,System.Globalization.CultureInfo.InvariantCulture,out priorHousing);
+            values["housingMonthly"]=JsonValue.Create(priorHasNumber?priorHousing:catalogHousing);
+        }
+        var accounts=values["accounts"] as JsonObject??new JsonObject();
+        values["accounts"]=accounts;
+        foreach(string key in new[]{"salaryExpense","vehicleIncomeCar","vehicleIncomeBike","housingIncome","outputVat"})
+            if(accounts[key] is null||(accounts[key] is JsonValue av&&(av.GetValueKind()==System.Text.Json.JsonValueKind.Null||string.IsNullOrWhiteSpace(av.ToString()))))
+                accounts[key]=JsonValue.Create(srcAccounts.S(key,defaults["values"]!["accounts"]!.AsObject().S(key)));
+        foreach(string key in new[]{"standardDays","februaryDays","billingCutoff","timeZone","roundingDigits","roundingMode","vehicleRent"})
+            if(values[key] is null)values[key]=srcValues[key]?.DeepClone()??defaults["values"]![key]!.DeepClone();
+        return data;
+    }
+
     static void Bands(JsonNode? node)
     {
         var bands=PayValues.Array(node);J.Need(bands.Count>0,"شرائح الإعداد مطلوبة.");var starts=new HashSet<decimal>();

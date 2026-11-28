@@ -46,6 +46,33 @@ public sealed class PayEvaluatorTests
         Assert.IsTrue(result.PenaltiesInCommissionBase);
         Assert.AreEqual(100m,result.PlatformPenalties);
     }
+    /// <summary>NUI1b: Ninja percent_of_gross — due 1000 → company commission 100 (10%).</summary>
+    [TestMethod]
+    public void NinjaPercentOfGrossCommissionIsTenPercentOfDue()
+    {
+        var facts=Facts(app:"ninja",gross:1000,incentive:0,days:30);
+        var scheme=Scheme("percent_of_gross",app:"ninja");
+        var result=PayEvaluator.Evaluate(facts,scheme,null,Global());
+        Assert.AreEqual(100m,result.CompanyCommission);
+        Assert.AreEqual(900m,result.Gross);
+        Assert.AreEqual(900m,result.NetBeforePersonal);
+        Assert.IsTrue(result.PenaltiesInCommissionBase);
+    }
+    /// <summary>NUI1b: Ninja daily_commission cell value 10 means 10% of due, not 10 SAR/day.</summary>
+    [TestMethod]
+    public void NinjaDailyCommissionFieldMeansPercentOfDue()
+    {
+        var facts=Facts(app:"ninja",gross:1000,incentive:0,days:30);
+        var scheme=Scheme("daily_commission",app:"ninja");
+        scheme["data"]!["parameters"]!["categories"]!["sponsored_private"]!["dailyCommission"]=10;
+        var result=PayEvaluator.Evaluate(facts,scheme,null,Global());
+        Assert.AreEqual(100m,result.CompanyCommission);
+        Assert.AreEqual(900m,result.Gross);
+        Assert.IsTrue(result.PenaltiesInCommissionBase);
+        // Contrast: same cell on Keeta remains SAR/day (10 × 30 = 300).
+        var keeta=Eval("daily_commission",Facts(gross:1000,incentive:0,days:30),p=>p["dailyCommission"]=10);
+        Assert.AreEqual(300m,keeta.CompanyCommission);
+    }
     [TestMethod]
     public void PercentCommissionKeepsNegativePlatformShareReady()
     {

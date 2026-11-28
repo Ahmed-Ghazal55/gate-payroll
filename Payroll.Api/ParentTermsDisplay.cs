@@ -2,6 +2,7 @@ using System.Data.Common;
 using System.Globalization;
 using System.Security.Claims;
 using System.Text.Json.Nodes;
+using ErpImport;
 using Microsoft.Extensions.Configuration;
 using Microsoft.Extensions.Hosting;
 namespace Payroll;
@@ -51,17 +52,29 @@ public static class ParentTermsDisplay
         }
         else if(app=="ninja")
         {
-            var snaps=Store.List(c,"ninja_evaluation_snapshot")
-                .Where(s=>s.S("period")==period||s.S("createdAt").StartsWith(period,StringComparison.Ordinal))
-                .OrderByDescending(s=>s.S("createdAt"),StringComparer.Ordinal).Take(50).ToList();
+            List<JsonObject> snaps;
+            if(config!=null&&env!=null&&Operations.SourceMode(config,env)==Operations.SourceLive)
+            {
+                source=Operations.SourceLive;
+                snaps=LoadNinjaSnapshotsLive(c,actor,config,period);
+                erpNote=snaps.Count==0
+                    ?"لا توجد لقطات أهلية نينجا حية في نظام عمر لهذا الشهر."
+                    :"لقطات أهلية نينجا من نظام عمر (قراءة فقط — متوقعة فقط، ليست اعتماداً).";
+            }
+            else
+            {
+                snaps=Store.List(c,"ninja_evaluation_snapshot")
+                    .Where(s=>SnapshotMatchesPeriod(s,period))
+                    .OrderByDescending(s=>s.S("createdAt"),StringComparer.Ordinal).Take(50).ToList();
+                erpNote=snaps.Count==0
+                    ?"لا توجد لقطات أهلية نينجا محلية؛ فعّل القراءة الحية لعرضها من نظام عمر."
+                    :"لقطات أهلية نينجا المحلية (متوقعة فقط) مربوطة بخطوط الفاتورة عند توفر معرف الحساب.";
+            }
             liveErp=new JsonArray(snaps.Select(s=>(JsonNode)new JsonObject{
                 ["id"]=s.S("id"),["frozen"]=s.B("frozen"),["reason"]=s.S("reason"),
                 ["policyVersion"]=s.S("policyVersion"),["createdAt"]=s.S("createdAt"),
-                ["approval"]="expected_only"
+                ["approval"]="expected_only",["source"]=source
             }).ToArray());
-            erpNote=snaps.Count==0
-                ?"لا توجد لقطات أهلية نينجا محلية؛ عند تفعيل القراءة الحية تُعرض من نظام عمر."
-                :"لقطات أهلية نينجا (متوقعة فقط) مربوطة بخطوط الفاتورة عند توفر معرف الحساب.";
             MergeNinjaSnapshotAccounts(c,snaps,expectedList,expectedByAccount);
         }
 
@@ -247,6 +260,59 @@ public static class ParentTermsDisplay
             }
         }
         return rows;
+    }
+
+    /// <summary>
+    /// Match Omar evaluation snapshot to the requested pay month via stored period or QueryJson Year/Month.
+    /// Never uses createdAt prefix (snapshot may be created after the month).
+    /// </summary>
+    static bool SnapshotMatchesPeriod(JsonObject snap,string period)
+    {
+        if(snap.S("period")==period)return true;
+        if(TryQueryMonth(snap.S("queryJson"),out string qMonth)&&qMonth==period)return true;
+        if(TryQueryMonth(snap.S("resultJson"),out string rMonth)&&rMonth==period)return true;
+        return false;
+    }
+
+    static bool TryQueryMonth(string json,out string month)
+    {
+        month="";
+        if(string.IsNullOrWhiteSpace(json))return false;
+        try
+        {
+            if(JsonNode.Parse(json) is not JsonObject obj)return false;
+            int year=(int)obj.N("Year",obj.N("year"));
+            int mon=(int)obj.N("Month",obj.N("month"));
+            if(year is < 2000 or > 2100||mon is < 1 or > 12)return false;
+            month=$"{year:D4}-{mon:D2}";
+            return true;
+        }
+        catch{return false;}
+    }
+
+    /// <summary>Read-only live Ninja evaluation snapshots from Omar ERP (ninja.EvaluationSnapshots).</summary>
+    static List<JsonObject> LoadNinjaSnapshotsLive(DbConnection payroll,ClaimsPrincipal actor,IConfiguration config,string period)
+    {
+        using var erp=Operations.OpenErp(config);
+        var scope=Operations.LiveScope(payroll,actor);
+        int size=LiveOperationsQuery.MaxPageSize;
+        var matched=new List<JsonObject>();
+        int pageNum=1;long total=0;
+        while(true)
+        {
+            int skip=(pageNum-1)*size;
+            var request=new LiveOperationsQuery.PageRequest(pageNum,size,"id","",skip,size,"","","","","");
+            var page=LiveOperationsQuery.Page(erp,"ninja_evaluation_snapshot",request,scope,FinancialCore.Sponsors);
+            total=page.Total;
+            var raw=LiveOperationsSource.Documents(page.Snapshot,FinancialCore.Sponsors,"ninja_evaluation_snapshot").ToList();
+            matched.AddRange(raw.Select(d=>Operations.Project(d,"ninja_evaluation_snapshot")).Where(s=>SnapshotMatchesPeriod(s,period)));
+            if(raw.Count<size||pageNum*(long)size>=total)break;
+            pageNum++;
+        }
+        return matched
+            .OrderByDescending(s=>s.S("createdAt"),StringComparer.Ordinal)
+            .Take(50)
+            .ToList();
     }
 
     static void MergeNinjaSnapshotAccounts(DbConnection c,List<JsonObject> snaps,List<JsonObject> expectedList,Dictionary<string,List<JsonObject>> expectedByAccount)

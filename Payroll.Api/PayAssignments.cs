@@ -6,7 +6,7 @@ using System.Text;
 using System.Text.Json.Nodes;
 namespace Payroll;
 
-public static class PayAssignments
+public static partial class PayAssignments
 {
     public const string Kind="pay_assignment";
     static string Hash(string value)=>Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(value)));
@@ -65,19 +65,43 @@ public static class PayAssignments
         app=PayPlatforms.App(app);Admin(actor,app);string period=J.Period(input.Required("period"));FinancialImports.Verify(c,tx,input,PreviewKind(app,period),actor.Identity!.Name!);int imported=0,unchanged=0;
         foreach(var row in input["rows"]!.AsArray().OfType<JsonObject>())
         {
-            J.Need(row.S("app")==app&&row.S("period")==period&&DateTimeOffset.Parse(row.S("choiceApprovedAt"),CultureInfo.InvariantCulture)<Cutoff(period),"الاختيار لا يخص التطبيق والشهر أو جاء بعد بداية الشهر.");Scheme(c,tx,row.S("schemeId"),app,period);if(Store.Get(c,row.S("id"),Kind,tx)!=null){unchanged++;continue;}
+            J.Need(row.S("status")=="approved","المسودات الافتراضية تحتاج اعتمادًا مستقلًا ولا تُرحّل مباشرة.");
+            J.Need(row["source"].S("kind") is not ("default_rule" or "erp_payment_model"),"قواعد التوزيع الافتراضي تُحفظ كمسودة وتعتمد من شخص آخر.");
+            J.Need(row.S("app")==app&&row.S("period")==period&&DateTimeOffset.TryParse(row.S("choiceApprovedAt"),CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var cat)&&cat<Cutoff(period),"الاختيار لا يخص التطبيق والشهر أو جاء بعد بداية الشهر.");
+            Scheme(c,tx,row.S("schemeId"),app,period);if(Store.Get(c,row.S("id"),Kind,tx)!=null){unchanged++;continue;}
             var doc=row.Clone();doc["importedAt"]=DateTimeOffset.UtcNow.ToString("O");doc["importedBy"]=actor.Identity!.Name;Store.Save(c,Kind,doc,tx);Store.Audit(c,tx,"pay.assignment_imported",doc.S("id"),actor.Identity!.Name!);imported++;
         }
         return new(){["imported"]=imported,["unchanged"]=unchanged};
     }
+    static bool IsDefaultSource(JsonObject a)=>a["source"].S("kind") is "default_rule" or "erp_payment_model";
+    static bool IsApprovedDefaultEligible(DbConnection c,DbTransaction? tx,JsonObject a)
+    {
+        if(a.S("status")!="approved"||!IsDefaultSource(a))return false;
+        string by=a.S("approvedBy"),at=a.S("approvedAt"),maker=a.S("createdBy");
+        if(by==""||at=="")return false;
+        if(maker=="")return false;
+        var checker=UserAccess.Principal(new JsonObject{["username"]=by,["role"]="Reviewer"});
+        return AccessPolicy.Independent(checker,maker,"pay.assignment_approved",c,tx,a,scope:AccessPolicy.ScopePayApprovals);
+    }
+    static bool IsApprovedSubmissionEligible(JsonObject a,string period)
+        =>a.S("status")=="approved"&&!IsDefaultSource(a)&&a.S("choiceApprovedAt")!=""&&DateTimeOffset.TryParse(a.S("choiceApprovedAt"),CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var cat)&&cat<Cutoff(period);
     public static JsonObject Resolve(DbConnection c,DbTransaction? tx,string rider,string app,string period)
     {
-        app=PayPlatforms.App(app);J.Period(period);var rows=Store.List(c,Kind,tx).Where(a=>a.S("rider")==rider&&a.S("app")==app&&a.S("period")==period&&a.S("status")=="approved"&&DateTimeOffset.Parse(a.S("choiceApprovedAt"),CultureInfo.InvariantCulture)<Cutoff(period)).ToList();J.Need(rows.Count>0,"اختيار نظام معتمد قبل بداية الشهر غير موجود.");string last=rows.Max(a=>a.S("choiceApprovedAt"))!;var latest=rows.Where(a=>a.S("choiceApprovedAt")==last).ToList();J.Need(latest.Select(a=>a.S("schemeId")).Distinct().Count()==1,"اختيارات معتمدة متعارضة بنفس توقيت الاعتماد؛ راجع المصدر.");var chosen=latest.OrderBy(a=>a.S("id"),StringComparer.Ordinal).First();Scheme(c,tx,chosen.S("schemeId"),app,period);return chosen;
+        app=PayPlatforms.App(app);J.Period(period);
+        var all=Store.List(c,Kind,tx).Where(a=>a.S("rider")==rider&&a.S("app")==app&&a.S("period")==period&&a.S("status")=="approved").ToList();
+        var submissionRows=all.Where(a=>IsApprovedSubmissionEligible(a,period)).ToList();
+        var rows=submissionRows.Count>0?submissionRows:all.Where(a=>IsApprovedDefaultEligible(c,tx,a)).ToList();
+        J.Need(rows.Count>0,"اختيار نظام معتمد قبل بداية الشهر غير موجود.");
+        string SortAt(JsonObject a)=>a.S("choiceApprovedAt")!=""?a.S("choiceApprovedAt"):a.S("approvedAt");
+        string last=rows.Max(SortAt)!;var latest=rows.Where(a=>SortAt(a)==last).ToList();J.Need(latest.Select(a=>a.S("schemeId")).Distinct().Count()==1,"اختيارات معتمدة متعارضة بنفس توقيت الاعتماد؛ راجع المصدر.");var chosen=latest.OrderBy(a=>a.S("id"),StringComparer.Ordinal).First();Scheme(c,tx,chosen.S("schemeId"),app,period);return chosen;
     }
-    public static void Map(RouteGroupBuilder api,Store store)
+    public static void Map(RouteGroupBuilder api,Store store,IConfiguration? config=null,IHostEnvironment? env=null)
     {
         api.MapGet("/pay/apps/{app}/assignments",(string app,HttpContext ctx)=>store.Read(c=>{app=PayPlatforms.App(app);PaySettings.Scope(ctx.User,"pay.view",app);string period=ctx.Request.Query["period"].ToString();if(period!="")J.Period(period);return ApiPagination.Apply(Store.List(c,Kind).Where(a=>a.S("app")==app&&(period==""||a.S("period")==period)&&(a.S("companyId")!=""?FinancialScopes.Sponsor(ctx.User,a.S("companyId")):FinancialScopes.AllCompanies(ctx.User))),ctx.Request.Query,true);})).WithTags("Payroll").WithSummary("Read scoped immutable approved form-based scheme choices");
         api.MapPost("/pay/apps/{app}/assignments/import/preview",(string app,JsonObject input,HttpContext ctx)=>store.Read(c=>Preview(c,ctx.User,app,input))).WithTags("Payroll").WithSummary("Administrator maps approved pre-month form choices to app schemes in a signed preview");
+        api.MapPost("/pay/apps/{app}/assignments/defaults/preview",(string app,JsonObject input,HttpContext ctx)=>store.Read(c=>PreviewDefaults(c,ctx.User,app,input,config,env))).WithTags("Payroll").WithSummary("Preview default app scheme assignments (counts and draft/choice rows)");
+        api.MapPost("/pay/apps/{app}/assignments/defaults/drafts",(string app,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>SaveDefaultDrafts(c,tx,ctx.User,app,input,config,env))).WithTags("Payroll").WithSummary("Save default app scheme assignments as drafts requiring independent approval");
+        api.MapPost("/pay/apps/{app}/assignments/{id}/approve",(string app,string id,HttpContext ctx)=>store.Write((c,tx)=>Approve(c,tx,ctx.User,app,id))).WithTags("Payroll").WithSummary("Independently approve a drafted default scheme assignment");
         api.MapPost("/pay/apps/{app}/assignments/import/commit",(string app,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Commit(c,tx,ctx.User,app,input))).WithTags("Payroll").WithSummary("Store signed historical scheme choices without modifying responses or riders");
     }
 }

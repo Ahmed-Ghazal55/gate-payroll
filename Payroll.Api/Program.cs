@@ -181,7 +181,7 @@ CompanyRegistryImport.Map(api,store);
 PlatformPosting.Map(api,store);
 PaySettings.Map(api,store);
 ParentTermsDisplay.Map(api,store,builder.Configuration,app.Environment);
-PayAssignments.Map(api,store);
+PayAssignments.Map(api,store,builder.Configuration,app.Environment);
 PayCycles.Map(api,store,builder.Configuration,app.Environment);
 PayReviewDraft.Map(api,store,app.Configuration,app.Environment);
 PayDuesSplit.Map(api,store,app.Configuration,app.Environment);
