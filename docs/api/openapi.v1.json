@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:5878/"
+      "url": "http://127.0.0.1:19488/"
     }
   ],
   "paths": {
@@ -36362,11 +36362,60 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "rows"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "companyId",
+                          "periodMonth",
+                          "fileKind",
+                          "fileName",
+                          "rowCount",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "periodMonth": {
+                            "type": "string"
+                          },
+                          "fileKind": {
+                            "type": "string"
+                          },
+                          "fileName": {
+                            "type": "string"
+                          },
+                          "rowCount": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "number"
+                          },
+                          "uploadedBy": {
+                            "type": "string"
+                          },
+                          "uploadedAt": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -38921,6 +38970,117 @@
         }
       }
     },
+    "/api/finance/cost-centres": {
+      "get": {
+        "tags": [
+          "Accounting and reports"
+        ],
+        "summary": "Read finance cost centres and balances",
+        "parameters": [
+          {
+            "name": "sponsorId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "from",
+                    "to",
+                    "items"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "code",
+                          "nameAr",
+                          "kind",
+                          "status",
+                          "opening",
+                          "debit",
+                          "credit",
+                          "closing"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "companyCode": {
+                            "type": "string"
+                          },
+                          "companyNameAr": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "number"
+                          },
+                          "opening": {
+                            "type": "number"
+                          },
+                          "debit": {
+                            "type": "number"
+                          },
+                          "credit": {
+                            "type": "number"
+                          },
+                          "closing": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/finance/coa": {
       "get": {
         "tags": [
@@ -39871,7 +40031,56 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "required": [
+                    "items",
+                    "allowedActions",
+                    "cashBoxes"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "cashBoxes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "code",
+                          "nameAr",
+                          "companyId",
+                          "accountCode"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "accountCode": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }

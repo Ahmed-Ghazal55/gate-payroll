@@ -1617,5 +1617,13 @@ export interface ImportPreviewResult {
   count?: number;
 }
 
+export type MudadListResponse = paths['/api/mudad']['get']['responses'][200]['content']['application/json'];
+export type MudadUploadRow = MudadListResponse['rows'][number];
+export type CostCentresResponse = paths['/api/finance/cost-centres']['get']['responses'][200]['content']['application/json'];
+export type CostCentreRow = CostCentresResponse['items'][number];
+export type VaultCountsResponse = paths['/api/treasury/vault-counts']['get']['responses'][200]['content']['application/json'];
+export type VaultCashBox = VaultCountsResponse['cashBoxes'][number];
+
+
 
 

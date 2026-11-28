@@ -57,7 +57,7 @@ def permission(method,p):
   return 'debts.create.<category> (+ treasury.opening for opening balances)'
  if p.startswith('/api/finance/statement/') or p.startswith('/api/promissory'):return 'debts.view (promissory writes: Admin + feature enabled)'
  if '/bank-file/' in p:return 'finance.bankfile.export + payroll.view'
- if '/trial-balance' in p or '/income-statement' in p:return 'treasury.journals'
+ if '/trial-balance' in p or '/income-statement' in p or '/cost-centres' in p:return 'treasury.journals'
  if p=='/api/finance/catalog':return 'debts.view OR treasury.view'
  if '/opening/' in p or '/legacy-cash-allocation/' in p:return 'treasury.opening'
  if '/jahez-handovers/' in p:return 'treasury.jahez.receive'

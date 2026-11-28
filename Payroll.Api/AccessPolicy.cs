@@ -150,7 +150,7 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/finance/statement/rider/",StringComparison.Ordinal)&&path.EndsWith("/monthly",StringComparison.Ordinal))return method=="GET"&&CanAccessRiderMonthlyStatement(user);
         if(path.StartsWith("/api/finance/statement/",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
         if(path is "/api/finance/bank-file/preview" or "/api/finance/bank-file/export")return method=="POST"&&Has("finance.bankfile.export")&&Has("payroll.view");
-        if(path is "/api/finance/trial-balance" or "/api/finance/income-statement")return method=="GET"&&Has("treasury.journals");
+        if(path is "/api/finance/trial-balance" or "/api/finance/income-statement" or "/api/finance/cost-centres")return method=="GET"&&Has("treasury.journals");
         if(path=="/api/finance/catalog")return method=="GET"&&(Has("debts.view")||Has("treasury.view"));
         if(path=="/api/finance/coa"||path.StartsWith("/api/finance/coa/",StringComparison.Ordinal))
         {

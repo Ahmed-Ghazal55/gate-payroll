@@ -80,6 +80,7 @@ import { DebtDeductionStage } from '../../features/payroll/DebtDeductionStage';
 import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
 import { ChefzReviewPanel } from '../../features/payroll/ChefzReviewPanel';
+import { MudadPanel } from '../../features/payroll/MudadPanel';
 import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
 import { KeetaOperationsImportDialog } from '../../features/imports/KeetaOperationsImportDialog';
 import {
@@ -214,7 +215,9 @@ function PayrollPageInner() {
   type PayAppSubTab = 'settlements' | 'parent_terms' | 'internal_schemes' | 'eligibility' | 'accounts';
   const resolvedTab = resolvePayrollTab(searchParams?.get('tab'));
   const tabFromUrl: PayrollTab = resolvedTab.tab;
-  const appFromUrl = searchParams?.get('app') || 'hungerstation';
+  const rawAppFromUrl = searchParams?.get('app') || 'hungerstation';
+  const appFromUrl =
+    rawAppFromUrl === 'thechefz' || rawAppFromUrl === 'the-chefz' ? 'chefz' : rawAppFromUrl;
   const subFromUrl = (searchParams?.get('sub') as PayAppSubTab) || 'settlements';
   const [mainTab, setMainTab] = useState<PayrollTab>(tabFromUrl);
 
@@ -2193,7 +2196,7 @@ function PayrollPageInner() {
     { id: 'hungerstation', nameAr: 'هنقرستيشن', nameEn: 'HungerStation', tag: 'فواتير معتمدة', active: true },
     { id: 'keeta', nameAr: 'كيتا', nameEn: 'Keeta', tag: 'شرائح وعمولات', active: true },
     { id: 'ninja', nameAr: 'نينجا', nameEn: 'Ninja', tag: 'تارجت مقطوع', active: true },
-    { id: 'thechefz', nameAr: 'ذا شيفز', nameEn: 'The Chefz', tag: 'كشف دوري', active: true },
+    { id: 'chefz', nameAr: 'ذا شيفز', nameEn: 'The Chefz', tag: 'كشف دوري', active: true },
     { id: 'amazon', nameAr: 'أمازون', nameEn: 'Amazon', tag: 'شحنات لوجستية', active: true },
     { id: 'jahez', nameAr: 'جاهز (دورة مستقلة)', nameEn: 'Jahez', tag: 'تسويات متغيرة', active: true },
   ];
@@ -2278,6 +2281,11 @@ function PayrollPageInner() {
           allowedActions={importAllowedActions}
         />
       )}
+
+      {/* ======================================================== */}
+      {/* SECTION: MUDAD SALARIES (رواتب مدد)                      */}
+      {/* ======================================================== */}
+      {mainTab === 'mudad' && <MudadPanel />}
 
       {/* ======================================================== */}
       {/* SECTION: NINJA INVOICE RECONCILE (BR §26, §31)           */}
@@ -2999,9 +3007,10 @@ function PayrollPageInner() {
 
           {/* Fallback for other platforms settlements */}
           {selectedPlatform !== 'hungerstation' && selectedPlatform !== 'ninja' && selectedPlatform !== 'keeta' && selectedPlatform !== 'jahez' && selectedPlatform !== 'thechefz' && selectedPlatform !== 'chefz' && appSubTab === 'settlements' && (
-            <div className="p-8 text-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--muted)]">
-              تسويات وفواتير منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr} قيد التطوير والتفعيل.
-            </div>
+            <EmptyState
+              title={`لا توجد فواتير أو تسويات مسجلة لمنصة ${platformsList.find((p) => p.id === selectedPlatform)?.nameAr || selectedPlatform}`}
+              description="يمكنك إدارة الشروط الأصلية والأنظمة الداخلية والحسابات والمعرفات لهذه المنصة من التبويبات أعلاه."
+            />
           )}
 
           {/* ======================================================== */}

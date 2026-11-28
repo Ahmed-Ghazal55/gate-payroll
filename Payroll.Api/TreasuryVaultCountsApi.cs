@@ -58,9 +58,36 @@ public static class TreasuryVaultCountsApi
             row["allowedActions"]=Allowed(actor,row);
             rows.Add(row);
         }
+        var cashBoxes=new JsonArray();
+        using(var boxCmd=Store.Command(c,tx,$"""
+            SELECT b.id,b.code,b.name_ar,b.company_id,a.code AS account_code
+            FROM {SchemaSql.Q(c,"treasury","cash_box")} b
+            JOIN {SchemaSql.Q(c,"fin","account")} a ON a.id=b.account_id
+            WHERE b.status=1
+            ORDER BY b.code
+            """))
+        using(var br=boxCmd.ExecuteReader())
+        {
+            while(br.Read())
+            {
+                string comp=br["company_id"].ToString()!;
+                if(!FinancialScopes.Sponsor(actor,comp))continue;
+                if(!string.IsNullOrWhiteSpace(companyId)&&!string.Equals(comp,companyId,StringComparison.OrdinalIgnoreCase))continue;
+                string accCode=br["account_code"].ToString()!;
+                if(!FinancialScopes.TargetAccount(actor,comp,accCode))continue;
+                cashBoxes.Add(new JsonObject
+                {
+                    ["id"]=br["id"].ToString(),
+                    ["code"]=br["code"].ToString(),
+                    ["nameAr"]=br["name_ar"].ToString(),
+                    ["companyId"]=comp,
+                    ["accountCode"]=accCode
+                });
+            }
+        }
         var listActions=new JsonArray();
         if(AccessPolicy.Has(actor,"treasury.vault_reconcile")||AccessPolicy.Administrator(actor))listActions.Add("create");
-        return new(){["items"]=rows,["allowedActions"]=listActions};
+        return new(){["items"]=rows,["allowedActions"]=listActions,["cashBoxes"]=cashBoxes};
     }
 
     public static JsonObject Create(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)

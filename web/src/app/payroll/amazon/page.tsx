@@ -1,7 +1,6 @@
-'use client';
+import { redirect } from 'next/navigation';
 
-import { PlatformPayrollPage } from '../../../features/payroll/PlatformPayrollPage';
-
+/** Redirect direct /payroll/amazon link to the Amazon platform workspace. */
 export default function Page() {
-  return <PlatformPayrollPage app="amazon" />;
+  redirect('/payroll/?tab=platforms&app=amazon');
 }

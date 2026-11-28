@@ -169,10 +169,155 @@ public static class FinanceViews
         }
         trial["companies"]=companies;return trial;
     }
+    private sealed class CostCentreDimBalance
+    {
+        public string FirstMonth="";
+        public string LastMonth="";
+        public decimal Opening;
+        public decimal Debit;
+        public decimal Credit;
+        public decimal Closing;
+    }
+
+    public static JsonObject CostCentres(DbConnection c,ClaimsPrincipal user,string? sponsorId,string? from,string? to)
+    {
+        AccessPolicy.Demand(user,"treasury.journals");
+        var period=Periods(from,to);
+        var companies=Companies(user,sponsorId).ToDictionary(s=>s.Id,StringComparer.OrdinalIgnoreCase);
+        var items=new JsonArray();
+        if(!SchemaSql.TableExists(c,null,"org","cost_centre"))
+            return new(){["from"]=period.From,["to"]=period.To,["items"]=items};
+
+        var dims=new Dictionary<string,CostCentreDimBalance>(StringComparer.OrdinalIgnoreCase);
+        if(SchemaSql.TableExists(c,null,"fin","period_balance")&&SchemaSql.TableExists(c,null,"fin","account"))
+        {
+            using var balCmd=Store.Command(c,null,$"""
+                SELECT pb.cost_centre_id,pb.company_id,pb.account_id,pb.app_code,pb.period_month,
+                       pb.opening,pb.debit,pb.credit,pb.closing,a.nature
+                FROM {SchemaSql.Q(c,"fin","period_balance")} pb
+                JOIN {SchemaSql.Q(c,"fin","account")} a ON a.id=pb.account_id
+                """);
+            using var br=balCmd.ExecuteReader();
+            while(br.Read())
+            {
+                string cid=br["company_id"].ToString()!;
+                if(!companies.ContainsKey(cid))continue;
+                string monthRaw=br["period_month"] switch
+                {
+                    DateTime dt=>dt.ToString("yyyy-MM"),
+                    DateOnly d=>d.ToString("yyyy-MM"),
+                    string s=>s.Length>=7?s[..7]:s,
+                    _=>Convert.ToDateTime(br["period_month"]).ToString("yyyy-MM")
+                };
+                if(string.CompareOrdinal(monthRaw,period.From)<0||string.CompareOrdinal(monthRaw,period.To)>0)continue;
+                string ccId=br["cost_centre_id"].ToString()!;
+                string accountId=br["account_id"].ToString()!;
+                string appCode=br["app_code"].ToString()!;
+                int nature=Convert.ToInt32(br["nature"]);
+                decimal sign=nature==1?1m:-1m;
+                decimal op=sign*Convert.ToDecimal(br["opening"]);
+                decimal db=Convert.ToDecimal(br["debit"]);
+                decimal cr=Convert.ToDecimal(br["credit"]);
+                decimal cl=sign*Convert.ToDecimal(br["closing"]);
+                string dimKey=$"{ccId}|{cid}|{accountId}|{appCode}";
+                if(!dims.TryGetValue(dimKey,out var dim))
+                {
+                    dims[dimKey]=new CostCentreDimBalance{FirstMonth=monthRaw,LastMonth=monthRaw,Opening=op,Debit=db,Credit=cr,Closing=cl};
+                    continue;
+                }
+                if(string.CompareOrdinal(monthRaw,dim.FirstMonth)<0){dim.FirstMonth=monthRaw;dim.Opening=op;}
+                if(string.CompareOrdinal(monthRaw,dim.LastMonth)>0){dim.LastMonth=monthRaw;dim.Closing=cl;}
+                dim.Debit+=db;
+                dim.Credit+=cr;
+            }
+        }
+
+        var balances=new Dictionary<(string CcId,string CompanyId),(decimal Opening,decimal Debit,decimal Credit,decimal Closing)>();
+        var companiesByCc=new Dictionary<string,HashSet<string>>(StringComparer.OrdinalIgnoreCase);
+        foreach(var pair in dims)
+        {
+            string[] parts=pair.Key.Split('|',4);
+            string ccKey=parts[0].ToLowerInvariant();
+            string compKey=parts[1].ToLowerInvariant();
+            var k=(ccKey,compKey);
+            balances.TryGetValue(k,out var cur);
+            balances[k]=(cur.Opening+pair.Value.Opening,cur.Debit+pair.Value.Debit,cur.Credit+pair.Value.Credit,cur.Closing+pair.Value.Closing);
+            if(!companiesByCc.TryGetValue(ccKey,out var set))companiesByCc[ccKey]=set=new(StringComparer.OrdinalIgnoreCase);
+            set.Add(parts[1]);
+        }
+
+        static JsonObject CostCentreItem(string id,string code,string nameAr,string kind,int status,string companyId,string companyCode,string companyName,decimal opening,decimal debit,decimal credit,decimal closing)=>new()
+        {
+            ["id"]=id,
+            ["code"]=code,
+            ["nameAr"]=nameAr,
+            ["kind"]=kind,
+            ["companyId"]=companyId,
+            ["companyCode"]=companyCode,
+            ["companyNameAr"]=companyName,
+            ["status"]=status,
+            ["opening"]=J.Money(opening),
+            ["debit"]=J.Money(debit),
+            ["credit"]=J.Money(credit),
+            ["closing"]=J.Money(closing)
+        };
+
+        using var cmd=Store.Command(c,null,$"""
+            SELECT id,code,name_ar,kind,company_id,status
+            FROM {SchemaSql.Q(c,"org","cost_centre")}
+            ORDER BY kind,code
+            """);
+        using var r=cmd.ExecuteReader();
+        while(r.Read())
+        {
+            string? cid=r["company_id"] is DBNull?null:r["company_id"].ToString();
+            if(!string.IsNullOrWhiteSpace(cid)&&!companies.ContainsKey(cid))continue;
+            string id=r["id"].ToString()!;
+            string code=r["code"].ToString()!;
+            string nameAr=r["name_ar"].ToString()!;
+            string kind=r["kind"].ToString()!;
+            int status=Convert.ToInt32(r["status"]);
+
+            if(!string.IsNullOrWhiteSpace(cid))
+            {
+                var comp=companies[cid];
+                balances.TryGetValue((id.ToLowerInvariant(),cid.ToLowerInvariant()),out var b);
+                items.Add(CostCentreItem(id,code,nameAr,kind,status,cid,comp.Code,comp.ShortNameAr,b.Opening,b.Debit,b.Credit,b.Closing));
+                continue;
+            }
+
+            companiesByCc.TryGetValue(id.ToLowerInvariant(),out var ccCompanies);
+            if(!string.IsNullOrWhiteSpace(sponsorId))
+            {
+                var targetCompany=companies.Values.Single();
+                if(ccCompanies==null||!ccCompanies.Contains(targetCompany.Id))continue;
+                balances.TryGetValue((id.ToLowerInvariant(),targetCompany.Id.ToLowerInvariant()),out var b);
+                items.Add(CostCentreItem(id,code,nameAr,kind,status,targetCompany.Id,targetCompany.Code,targetCompany.ShortNameAr,b.Opening,b.Debit,b.Credit,b.Closing));
+                continue;
+            }
+
+            if(ccCompanies is {Count:>0})
+            {
+                foreach(string compId in ccCompanies.OrderBy(x=>companies[x].Code,StringComparer.Ordinal))
+                {
+                    var comp=companies[compId];
+                    balances.TryGetValue((id.ToLowerInvariant(),compId.ToLowerInvariant()),out var b);
+                    items.Add(CostCentreItem(id,code,nameAr,kind,status,comp.Id,comp.Code,comp.ShortNameAr,b.Opening,b.Debit,b.Credit,b.Closing));
+                }
+            }
+            else
+            {
+                items.Add(CostCentreItem(id,code,nameAr,kind,status,"","","",0m,0m,0m,0m));
+            }
+        }
+        return new(){["from"]=period.From,["to"]=period.To,["items"]=items};
+    }
+
     public static void Map(RouteGroupBuilder api,Store store)
     {
         api.MapGet("/finance/coa/target",(HttpContext ctx)=>{AccessPolicy.Demand(ctx.User,"treasury.view");return Results.Json(TargetChart());}).WithTags("Accounting and reports").WithSummary("Read finance coa target");
         api.MapGet("/finance/trial-balance",(HttpContext ctx,string? sponsorId,string? from,string? to,string? view)=>store.Read(c=>Results.Json(TrialBalance(c,ctx.User,sponsorId,from,to,view??"current")))).WithTags("Accounting and reports").WithSummary("Read finance trial balance");
         api.MapGet("/finance/income-statement",(HttpContext ctx,string? sponsorId,string? from,string? to,string? view)=>store.Read(c=>Results.Json(IncomeStatement(c,ctx.User,sponsorId,from,to,view??"target")))).WithTags("Accounting and reports").WithSummary("Read finance income statement");
+        api.MapGet("/finance/cost-centres",(HttpContext ctx,string? sponsorId,string? from,string? to)=>store.Read(c=>Results.Json(CostCentres(c,ctx.User,sponsorId,from,to)))).WithTags("Accounting and reports").WithSummary("Read finance cost centres and balances");
     }
 }
