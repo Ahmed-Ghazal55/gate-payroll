@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Cursor 2026-11-28 16:53 |
+| Current writer | (free) |
 | Branch | `release/0.35.2` |
-| Updated | 2026-11-28 by Cursor (INTEG2) |
+| Updated | 2026-11-28 by Cursor (INTEG2 DONE) |
 | Live | unchanged (local only; never push) |
 | Next | Planner: push / PR / CI after Ghazal yes |
 
