@@ -157,13 +157,14 @@ public sealed class RegisterOpsLiveQueryTests
     [TestMethod]
     public void High_MaskIbanUnlessPermitted_EmptiesIbanWithoutPermission()
     {
-        var withIban = new JsonObject { ["الايبان 1"] = "SA0000000000000000000000", ["رقم التواصل"] = "0500000000" };
-        var kept = new JsonObject { ["الايبان 1"] = "SA1111111111111111111111" };
+        var withIban = new JsonObject { ["الايبان 1"] = "SA0380000000608010167519", ["رقم التواصل"] = "0500000000" };
+        var kept = new JsonObject { ["الايبان 1"] = "SA0080000000608010167519" };
         RegisterOpsLiveQuery.MaskIbanUnlessPermitted([withIban], canViewIban: false);
         Assert.AreEqual("", withIban.S("الايبان 1"));
         Assert.AreEqual("0500000000", withIban.S("رقم التواصل"));
         RegisterOpsLiveQuery.MaskIbanUnlessPermitted([kept], canViewIban: true);
-        Assert.AreEqual("SA1111111111111111111111", kept.S("الايبان 1"));
+        Assert.AreEqual("SA0080000000608010167519", kept.S("الايبان 1"));
+
         Assert.IsTrue(AccessPolicy.Has(Principal("syn-iban", ["pay.view", WorkforceApi.PermIban]), WorkforceApi.PermIban));
         Assert.IsFalse(AccessPolicy.Has(Principal("syn-no-iban", ["pay.view"]), WorkforceApi.PermIban));
     }
