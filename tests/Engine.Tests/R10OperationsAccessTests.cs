@@ -107,7 +107,7 @@ public sealed class R10OperationsAccessTests
     [DataRow("SponsoredInternal","2","1","sponsored_company_car")]
     [DataRow("External","1","2","external_company_bike")]
     [DataRow("External","","","external_private")]
-    [DataRow("External","2","3","")] // Third-party vehicle: a person decides.
+    [DataRow("External","2","3","external_private")] // CORE1: ERP ownership 3 / third-party car → private pay category.
     [DataRow("","2","1","")]
     public void CategoryComesFromSponsorshipAndVehicleHeldInTheMonth(string engagement,string type,string owner,string expected)
     {
