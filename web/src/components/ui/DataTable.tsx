@@ -163,6 +163,8 @@ export interface DataTableProps<T> {
   selectedIds?: string[];
   onSelectionChange?: (ids: string[]) => void;
   getRowId?: (row: T) => string;
+  /** Optional row class (e.g. dismissed register-ops rows: red background, white text). */
+  rowClassName?: (row: T) => string | undefined;
   rowActions?: RowAction<T>[];
   emptyTitle?: string;
   emptyDescription?: string;
@@ -208,6 +210,7 @@ export function DataTable<T extends Record<string, any>>({
   selectedIds = [],
   onSelectionChange,
   getRowId,
+  rowClassName,
   rowActions,
   emptyTitle,
   emptyDescription,
@@ -1356,7 +1359,7 @@ export function DataTable<T extends Record<string, any>>({
                     key={id}
                     className={`transition-colors duration-100 ${
                       isSelected ? 'bg-[var(--row-selected)]' : 'hover:bg-[var(--row-hover)]'
-                    }`}
+                    } ${rowClassName?.(row) || ''}`}
                   >
                     {selectable && (
                       <td className="w-10 px-3 py-2.5 text-center">

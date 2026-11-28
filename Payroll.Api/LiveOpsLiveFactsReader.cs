@@ -40,7 +40,9 @@ public sealed class LiveOpsLiveFactsReader:IOpsLiveFactsReader
             "platform_account"=>LiveKindPages(erp,scope,app,from,to,"platform_account").ToList(),
             // U-W2-11: approved money-schema Keeta invoice lines (not platform_account stubs).
             "keeta_invoice_row"=>ApprovedKeetaInvoiceRows(companyId,periodMonth),
-            "hs_ops" or "platform_ops"=>LiveKindPages(erp,scope,app,from,to,"platform_day_usage").ToList(),
+            // Register-ops screen stays read-only; pay capture keeps platform_day_usage (never a month total on day 1).
+            "hs_ops"=>LiveKindPages(erp,scope,app,from,to,"platform_day_usage").ToList(),
+            "platform_ops"=>LiveKindPages(erp,scope,app,from,to,"platform_day_usage").ToList(),
             "jahez_day"=>LiveKindPages(erp,scope,app,from,to,liveKind).Select(NormalizeJahezDay).ToList(),
             "chefz_settlement"=>LiveKindPages(erp,scope,app,from,to,"chefz_settlement").ToList(),
             "hs_wallet"=>LiveKindPages(erp,scope,app,from,to,"custody_handover").Select(NormalizeHsWallet).ToList(),

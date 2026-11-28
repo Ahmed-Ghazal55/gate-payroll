@@ -109,6 +109,8 @@ export type PayCyclesResponse = ApiResp<'/api/pay/cycles'>;
 export type PayCycleCaptureResponse = ApiResp<'/api/pay/cycles/{id}/capture-inputs', 'post'>;
 export type PayCycleLinesResponse = ApiResp<'/api/pay/cycles/{id}/lines'>;
 export type PayCycleLineItem = PayCycleLinesResponse['items'][number];
+export type RegisterOpsLivePage = ApiResp<'/api/pay/apps/{app}/live/register-ops'>;
+export type RegisterOpsLiveRow = RegisterOpsLivePage['displayRows'][number];
 
 export type PayCatalog = ApiResp<'/api/pay/catalog'>;
 export type PayEligibilityResponse = ApiResp<'/api/pay/apps/{app}/eligibility'>;
@@ -2806,6 +2808,25 @@ export const api = {
       d.id === resolved.id ? resolved : d,
     );
     return { ...baseInvoice, disputes: existing };
+  },
+
+  // ERPV1 — live register-sheet ops (A..AH) from Omar ERP (types from generated contract)
+  getRegisterOpsLive: (params: {
+    app: 'keeta' | 'ninja';
+    register: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    pageSize?: number;
+  }) => {
+    const q = new URLSearchParams({ register: params.register });
+    if (params.from) q.set('from', params.from);
+    if (params.to) q.set('to', params.to);
+    if (params.page) q.set('page', String(params.page));
+    if (params.pageSize) q.set('pageSize', String(params.pageSize));
+    return handleRequest<RegisterOpsLivePage>(
+      `/pay/apps/${encodeURIComponent(params.app)}/live/register-ops?${q.toString()}`,
+    );
   },
 
   // Pay Review Draft (C3 / A5)

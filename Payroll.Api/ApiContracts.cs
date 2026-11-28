@@ -76,6 +76,18 @@ public static partial class ApiContracts
     static OpenApiSchema NinjaLiveDailyDeductionRow()=>O(new(){["id"]=S(),["reportDate"]=S(),["captainId"]=S(),["platformRiderAccountId"]=S(),["externalAccountId"]=S(),["accountCode"]=S(),["actualRiderProfileId"]=S(),["riderClientAssignmentId"]=S(),["sourceId"]=S(),["sourceRowNumber"]=N(),["collectedAmount"]=N(),["deductionsAmount"]=N(),["ownerUnifiedNumber"]=S()},"id","reportDate","captainId","platformRiderAccountId","externalAccountId","actualRiderProfileId");
     static OpenApiSchema NinjaLivePaymentMethodRow()=>O(new(){["platformRiderAccountId"]=S(),["externalAccountId"]=S(),["accountCode"]=S(),["accountStatus"]=S(),["accountPaymentModel"]=S(),["assignmentPaymentModel"]=S(),["payScheme"]=S(),["ownerEmployeeId"]=S(),["ownerUnifiedNumber"]=S(),["openAssignmentId"]=S(),["openActualRiderProfileId"]=S(),["ninjaRiderType"]=S(),["openEffectiveFrom"]=S(),["openEffectiveTo"]=S()},"platformRiderAccountId","externalAccountId","payScheme","ownerUnifiedNumber");
     static OpenApiSchema NinjaLivePage(OpenApiSchema row)=>O(new(){["items"]=A(row),["total"]=N(),["page"]=N(),["pageSize"]=N(),["coverage"]=NinjaLiveCoverage(),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","coverage","source","asOf","allowedActions");
+    static OpenApiSchema RegisterOpsLiveCoverage()=>O(new(){["requestedFrom"]=S(),["requestedTo"]=S(),["firstDay"]=S(),["lastDay"]=S(),["missingDays"]=A(S()),["missingDayCount"]=N(),["hasGapAtPeriodEnd"]=B()},"requestedFrom","requestedTo","missingDays","missingDayCount");
+    static OpenApiSchema RegisterOpsLivePage()
+    {
+        var row=OperationsImportDisplayRow();
+        return O(new()
+        {
+            ["items"]=A(row),["displayRows"]=A(row),["total"]=N(),["page"]=N(),["pageSize"]=N(),
+            ["register"]=S(),["registerSheet"]=S(),["columns"]=A(S()),["counts"]=OperationsImportCounts(),
+            ["coverage"]=RegisterOpsLiveCoverage(),["erpSources"]=A(S()),["source"]=S(),["asOf"]=S(),
+            ["cache"]=S(),["allowedActions"]=A(S())
+        },"items","displayRows","total","page","pageSize","register","columns","counts","coverage","source","asOf","allowedActions");
+    }
     static OpenApiSchema NinjaLivePaymentMethodsPage()=>O(new(){["items"]=A(NinjaLivePaymentMethodRow()),["total"]=N(),["page"]=N(),["pageSize"]=N(),["coverage"]=O(new(){["total"]=N()},"total"),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","coverage","source","asOf","allowedActions");
     static OpenApiSchema NinjaLiveAccountBearerRow()=>O(new(){["assignmentId"]=S(),["platformRiderAccountId"]=S(),["externalAccountId"]=S(),["accountCode"]=S(),["owningSponsorId"]=S(),["owningUnifiedNumber"]=S(),["ownerEmployeeId"]=S(),["ownerRiderProfileId"]=S(),["actualRiderProfileId"]=S(),["holderRiderProfileId"]=S(),["effectiveFrom"]=S(),["effectiveTo"]=S(),["assignmentPaymentModel"]=S(),["assignmentStatus"]=S()},"assignmentId","platformRiderAccountId","externalAccountId","owningUnifiedNumber","ownerEmployeeId","actualRiderProfileId","effectiveFrom");
     static OpenApiSchema NinjaLiveAccountBearersPage()=>O(new(){["items"]=A(NinjaLiveAccountBearerRow()),["total"]=N(),["page"]=N(),["pageSize"]=N(),["coverage"]=O(new(){["total"]=N(),["requestedFrom"]=S(),["requestedTo"]=S()},"total","requestedFrom","requestedTo"),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","coverage","source","asOf","allowedActions");
@@ -271,6 +283,7 @@ public static partial class ApiContracts
         if(get&&path=="/api/pay/apps/ninja/live/daily-deductions")return NinjaLivePage(NinjaLiveDailyDeductionRow());
         if(get&&path=="/api/pay/apps/ninja/live/payment-methods")return NinjaLivePaymentMethodsPage();
         if(get&&path=="/api/pay/apps/ninja/live/account-bearers")return NinjaLiveAccountBearersPage();
+        if(get&&path=="/api/pay/apps/{app}/live/register-ops")return RegisterOpsLivePage();
         if(path=="/api/pay/apps/{app}/operations/import/preview"&&!get)return OperationsImportPreview();
         if(path=="/api/pay/apps/{app}/operations/import/commit"&&!get)return OperationsImportDoc();
         if(path=="/api/pay/apps/{app}/operations/imports/{id}"&&get)return OperationsImportDoc();
