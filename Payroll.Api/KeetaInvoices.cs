@@ -164,7 +164,7 @@ public static class KeetaInvoices
             if(probeOrders==0&&(probeDue!=0||probeNet!=0))detectedCompanyRows.Add(i+1);
         }
         var companyRows=new HashSet<int>(manualCompanyRows);companyRows.UnionWith(detectedCompanyRows);
-        var usedCompanyRows=new HashSet<int>();
+        var usedCompanyRows=new HashSet<int>();var unlinkedRows=new HashSet<int>();
         for(int i=headerRow+1;i<sheet.Rows.Count;i++)
         {
             var row=sheet.Rows[i];string V(int index)=>index>=0&&index<row.Count?row[index].Trim():"";
@@ -186,7 +186,16 @@ public static class KeetaInvoices
             {
                 key=AccountKey(key);J.Need(seen.Add(key),"يوزر مكرر؛ لا تجمع التفصيلي والملخص.");
                 var matches=accounts.Where(a=>a.S("companyId")==company&&PayPlatforms.For(a.S("platformCode")).App=="keeta"&&(a.S("externalAccountId")==key||a.S("code")==key||a.S("id")==key)).ToArray();
-                J.Need(matches.Length==1,"اليوزر غير مربوط بشكل فريد بالشركة والمنصة؛ صف "+(i+1));account=matches[0].S("id");
+                if(matches.Length==0&&orders==0)
+                {
+                    // A user/ID with no account in our system and no orders this month (e.g. a wallet reward carried from last month):
+                    // the invoice is final, so keep it as its own line for the accountant (no rider, no platform account).
+                    unlinkedRows.Add(i+1);companyRow=true;
+                }
+                else
+                {
+                    J.Need(matches.Length==1,"اليوزر غير مربوط بشكل فريد بالشركة والمنصة؛ صف "+(i+1));account=matches[0].S("id");
+                }
                 // Negative due on an account row stays inside the supplier total (rider credit line); no separate reverse path.
                 if(!dueIsNetExVat)J.Need(net>=0&&vat>=0,"الإشعار الدائن يحتاج مسار عكس؛ صف "+(i+1));
                 else J.Need(vat==0,"ضريبة السطر يجب أن تكون صفرًا في تخطيط الاستحقاق بدون صافي؛ صف "+(i+1));
@@ -212,6 +221,7 @@ public static class KeetaInvoices
             bool autoDetected=detectedCompanyRows.Contains(i+1);
             lines.Add(new JsonObject{["id"]="keeta-line:"+Hash(id+":"+(i+1)),["invoiceId"]=id,["companyId"]=company,["period"]=period,["platform"]="Keeta",["sourceRow"]=i+1,["lineType"]=companyRow?"company":"account",["platformAccountId"]=account,
                 ["baseGross"]=gross,["incentives"]=0,["deductionAmount"]=deduction,["deductions"]=deductions,["orders"]=orders,["vat"]=vat,["invoiced"]=net,["invoiceInclusive"]=inclusive,["sourceMetrics"]=sourceMetrics,["status"]="invoiced",["reason"]=companyRow?(autoDetected?"company adjustment auto-detected from blank account row":"company adjustment (manual override)"):"final supplier invoice; no expected amount substituted",["companyAdjustmentDetected"]=companyRow&&autoDetected});
+            if(unlinkedRows.Contains(i+1)){var added=(JsonObject)lines[^1]!;added["unlinkedAccountKey"]=key;added["accountantReview"]=true;added["reason"]="user/ID not linked to any account and no orders this month (e.g. carried reward); invoice is final; accountant reviews";}
         }
         J.Need(manualCompanyRows.IsSubsetOf(usedCompanyRows),"صف تعديل شركة غير موجود أو مختلط بسطر إجمالي.");
         var lineList=lines.OfType<JsonObject>().ToList();

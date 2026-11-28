@@ -151,6 +151,20 @@ public sealed class KeetaInvoiceTests
         ]);
     }
     [TestMethod]
+    public void OctoberUnlinkedUserWithNoOrdersIsKeptAsAccountantLine()
+    {
+        // Ghazal 11-28 row 21: a user/ID with only a carried reward, no account in our system and no orders → accepted, flagged.
+        using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);
+        var parsed=f.Store.Read(c=>KeetaInvoices.Parse(c,null,Actor(),Input(),OctoberLayoutWorkbook()));
+        var lines=parsed["lines"]!.AsArray().OfType<JsonObject>().ToList();
+        Assert.AreEqual(2,lines.Count);
+        var unlinked=lines.Single(l=>l.B("accountantReview"));
+        Assert.AreEqual("",unlinked.S("platformAccountId"));
+        Assert.AreEqual("company",unlinked.S("lineType"));
+        Assert.AreEqual(15m,unlinked.N("invoiced"));
+        Assert.AreEqual(115m,parsed.N("amountExclVat"));
+    }
+    [TestMethod]
     public void OctoberHeaderAliasesFindHeaderRowAndParseCurrencyDueWithoutBareNet()
     {
         using var f=new HungerStationInvoiceTests.Fixture();Seed(f.Store);
