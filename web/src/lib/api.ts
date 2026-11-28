@@ -2948,10 +2948,56 @@ export const api = {
   reviewChefzOperations: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/pay/apps/chefz/operations/review', { method: 'POST', body: JSON.stringify(input) }),
 
+  getErpSettlementsLive: (app: string, q: { companyId: string; period?: string; half?: string; from?: string; to?: string }) => {
+    const params = new URLSearchParams({ companyId: q.companyId });
+    if (q.period) params.set('period', q.period);
+    if (q.half) params.set('half', q.half);
+    if (q.from) params.set('from', q.from);
+    if (q.to) params.set('to', q.to);
+    return handleRequest<ApiResp<'/api/sal/erp-settlements/{app}/live'>>(`/sal/erp-settlements/${encodeURIComponent(app)}/live?${params}`);
+  },
+  getJahezPeriodReport: (q: { companyId: string; from: string; to: string; invoiceNet?: number; invoiceVat?: number }) => {
+    const params = new URLSearchParams({ companyId: q.companyId, from: q.from, to: q.to });
+    if (q.invoiceNet != null) params.set('invoiceNet', String(q.invoiceNet));
+    if (q.invoiceVat != null) params.set('invoiceVat', String(q.invoiceVat));
+    return handleRequest<ApiResp<'/api/sal/erp-settlements/jahez/period-report'>>(`/sal/erp-settlements/jahez/period-report?${params}`);
+  },
+  takeErpSettlementSnapshot: (app: string, input: Record<string, unknown>) =>
+    handleRequest<ApiResp<'/api/sal/erp-settlements/{app}/snapshot', 'post'>>(`/sal/erp-settlements/${encodeURIComponent(app)}/snapshot`, {
+      method: 'POST', body: JSON.stringify(input),
+    }),
+
+  getOwnerExternalBoxTree: (includeArchived = false) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/tree'>>(`/finance/owner-external-box/tree?includeArchived=${includeArchived ? 'true' : 'false'}`),
+  listOwnerExternalBoxEntries: (q?: { nodeId?: string; from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (q?.nodeId) params.set('nodeId', q.nodeId);
+    if (q?.from) params.set('from', q.from);
+    if (q?.to) params.set('to', q.to);
+    const qs = params.toString();
+    return handleRequest<ApiResp<'/api/finance/owner-external-box/entries'>>(`/finance/owner-external-box/entries${qs ? `?${qs}` : ''}`);
+  },
+  growOwnerExternalBoxNode: (input: Record<string, unknown>) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/nodes', 'post'>>('/finance/owner-external-box/nodes', { method: 'POST', body: JSON.stringify(input) }),
+  archiveOwnerExternalBoxNode: (id: string) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/nodes/{id}/archive', 'post'>>(`/finance/owner-external-box/nodes/${encodeURIComponent(id)}/archive`, { method: 'POST', body: '{}' }),
+  confirmOwnerExternalBoxArchive: (id: string) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/nodes/{id}/confirm-archive', 'post'>>(`/finance/owner-external-box/nodes/${encodeURIComponent(id)}/confirm-archive`, { method: 'POST', body: '{}' }),
+  restoreOwnerExternalBoxNode: (id: string) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/nodes/{id}/restore', 'post'>>(`/finance/owner-external-box/nodes/${encodeURIComponent(id)}/restore`, { method: 'POST', body: '{}' }),
+  postOwnerExternalBoxEntry: (input: Record<string, unknown>) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/entries', 'post'>>('/finance/owner-external-box/entries', { method: 'POST', body: JSON.stringify(input) }),
+  confirmOwnerExternalBoxEntry: (id: string) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/entries/{id}/confirm', 'post'>>(`/finance/owner-external-box/entries/${encodeURIComponent(id)}/confirm`, { method: 'POST', body: '{}' }),
+  reverseOwnerExternalBoxEntry: (id: string, input?: Record<string, unknown>) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/entries/{id}/reverse', 'post'>>(`/finance/owner-external-box/entries/${encodeURIComponent(id)}/reverse`, { method: 'POST', body: JSON.stringify(input ?? {}) }),
+  cancelOwnerExternalBoxEntry: (id: string) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/entries/{id}/cancel', 'post'>>(`/finance/owner-external-box/entries/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}' }),
+
   listJahezReconciliations: () => handleRequest<JahezReconciliationDoc[]>('/finance/jahez-reconciliations'),
   buildJahezReconciliation: (input: {
     companyId: string; period: string; invoiceNet: number; invoiceVat: number;
-    lastTransactionDate: string; invoiceReference?: string; notes?: string;
+    lastTransactionDate: string; fromDate?: string; invoiceReference?: string; notes?: string;
   }) => handleRequest<JahezReconciliationDoc>('/finance/jahez-reconciliations', { method: 'POST', body: JSON.stringify(input) }),
   submitJahezReconciliation: (id: string) =>
     handleRequest<JahezReconciliationDoc>(`/finance/jahez-reconciliations/${encodeURIComponent(id)}/submit`, { method: 'POST', body: '{}' }),

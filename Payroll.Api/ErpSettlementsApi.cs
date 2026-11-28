@@ -31,20 +31,81 @@ public static class ErpSettlementsApi
         DemandPlatform(actor,platform);
         string period=query.S("period");
         string half=query.S("half");
-        var batch=ReadLiveBatch(c,tx,platform,companyId,period,half);
+        string from=query.S("from"),to=query.S("to");
+        var batch=ReadLiveBatch(c,tx,platform,companyId,period,half,from,to);
         var items=batch.Items.Select(r=>platform=="chefz"?ProjectChefzLive(r):ProjectJahezLive(r)).ToList();
+        if(platform=="chefz")
+        {
+            DateOnly asOfDay=DateOnly.FromDateTime(DateTime.UtcNow.AddHours(3));
+            foreach(var item in items)MarkChefzCompletion(item,asOfDay);
+        }
+        var totals=platform=="jahez"?JahezLiveTotals(items):ChefzLiveTotals(items);
+        bool snapshotSafe=platform!="chefz"||items.Count>0&&items.All(i=>i.B("isCompletedClosed"));
         return new()
         {
             ["app"]=platform,["companyId"]=companyId,["period"]=period,["half"]=half==""?"all":half,
+            ["from"]=from,["to"]=to,
             ["source"]=batch.Source,["asOf"]=batch.SourceAsOf.ToString("O"),
             ["items"]=new JsonArray(items.Select(x=>(JsonNode)x).ToArray()),
             ["total"]=items.Count,
-            ["allowedActions"]=LiveActions(actor,platform),
+            ["totals"]=totals,
+            ["snapshotSafe"]=snapshotSafe,
+            ["snapshotSafetyRuleAr"]=ChefzSnapshotSafetyRuleAr,
+            ["allowedActions"]=LiveActions(actor,platform,snapshotSafe),
             ["noteAr"]=platform=="chefz"
-                ?"قراءة مباشرة للعرض؛ تجميد المال بعد حفظ تسوية عمر واعتماد فاتورتنا."
-                :"قراءة مباشرة لعمليات جاهز؛ لقطة الساعة 12:00 ص للعرض فقط."
+                ?"قراءة مباشرة للعرض؛ لقطة العرض آمنة فقط للتصفيات المكتملة والمقفلة؛ تجميد المال بعد حفظ تسوية عمر واعتماد فاتورتنا."
+                :"قراءة مباشرة لعمليات جاهز (تصفيات متفرقة بلا دورة راتب)؛ لقطة الساعة 12:00 ص للعرض فقط."
         };
     }
+
+    /// <summary>JC1: for a Jahez invoice date range, aggregate settlements / commission / rider transfers / paid-on-behalf vs invoice figures.</summary>
+    public static JsonObject JahezPeriodReport(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject query)
+    {
+        AccessPolicy.Demand(actor,"pay.view");
+        string companyId=FinancialCore.ResolveSponsor(query.Required("companyId")).Id;
+        FinancialScopes.DemandSponsor(actor,companyId);
+        DemandPlatform(actor,"jahez");
+        J.Need(DateOnly.TryParseExact(query.Required("from"),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var from),"تاريخ البداية غير صالح.");
+        J.Need(DateOnly.TryParseExact(query.Required("to"),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var to),"تاريخ النهاية غير صالح.");
+        J.Need(to>=from,"نهاية الفترة بعد بدايتها.");
+        J.Need((to.DayNumber-from.DayNumber)<=92,"نطاق الفترة حتى 92 يومًا.");
+        var live=Live(c,tx,actor,"jahez",new(){["companyId"]=companyId,["from"]=from.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),["to"]=to.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture)});
+        decimal net=0;
+        foreach(var row in live["items"]!.AsArray().OfType<JsonObject>())
+            net=J.Money(net+row.N("net"));
+        // Same BR §37 totals as JahezReconciliation.Build (delivery + bonuses/tips + adjustments + commission − collections + paid-on-behalf).
+        var agg=JahezReconciliation.AggregatePeriod(c,tx,companyId,from,to);
+        decimal transferToRider=agg.TransferToRider,commission=agg.Commission;
+        decimal paidOnBehalf=agg.PaidOnBehalf,cashCollections=agg.CashCollections,deliveryFees=agg.DeliveryFees;
+        decimal companyDue=agg.CompanyDue,expectedNet=agg.ExpectedNet;
+        decimal invoiceNet=query.ContainsKey("invoiceNet")?J.Money(PayValues.Number(query,"invoiceNet",-1000000000)):0;
+        decimal invoiceVat=query.ContainsKey("invoiceVat")?J.Money(PayValues.Number(query,"invoiceVat")):0;
+        bool hasInvoice=query.ContainsKey("invoiceNet");
+        decimal variance=hasInvoice?J.Money(expectedNet-invoiceNet):0;
+        var rates=new JsonArray();
+        try
+        {
+            foreach(var rate in Store.List(c,"platform_daily_commission_rate",tx)
+                .Where(r=>r.S("program").Contains("jahez",StringComparison.OrdinalIgnoreCase)||r.S("programCode")=="1")
+                .OrderByDescending(r=>r.S("effectiveFrom")).Take(20))
+                rates.Add(new JsonObject{["effectiveFrom"]=rate.S("effectiveFrom"),["dailyRate"]=rate.N("dailyRate"),["percentRate"]=rate.N("percentRate"),["cityId"]=rate.S("operatingCityId",rate.S("cityId"))});
+        }
+        catch{/* optional local seed */}
+        return new()
+        {
+            ["app"]="jahez",["companyId"]=companyId,
+            ["from"]=from.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
+            ["to"]=to.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
+            ["live"]=live,
+            ["commissionRates"]=rates,
+            ["totals"]=BuildPeriodTotals(net,commission,transferToRider,deliveryFees,cashCollections,paidOnBehalf,companyDue,expectedNet,hasInvoice,invoiceNet,invoiceVat,variance,agg.BonusesTips,agg.DriverAdjustments),
+            ["noteAr"]="جاهز بلا دورة راتب؛ اختر فترة الفاتورة لتجميع التصفيات والعمولة والتحويل للمناديب نيابة عن جاهز ومقارنتها بالفاتورة.",
+            ["allowedActions"]=new JsonArray("refresh","compare_invoice")
+        };
+    }
+
+    public const string ChefzSnapshotSafetyRuleAr=
+        "لقطة العرض لشيفز آمنة فقط عندما تكون كل تصفيات النطاق مكتملة ومقفلة (انتهت فترة التصفية periodTo ولا توجد حالة مفتوحة). التصفيات المفتوحة أو الجارية تُعرض للقراءة فقط دون لقطة. تجميد المال مسار منفصل بعد اعتماد فاتورتنا وحفظ تسوية عمر.";
 
     public static JsonObject TakeDisplaySnapshot(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string app,JsonObject input)
     {
@@ -53,6 +114,8 @@ public static class ErpSettlementsApi
         var live=Live(c,tx,actor,platform,input);
         string companyId=live.S("companyId");
         DemandPlatform(actor,platform);
+        if(platform=="chefz")
+            J.Need(live.B("snapshotSafe"),"لقطة العرض لشيفز غير آمنة: توجد تصفيات غير مكتملة في النطاق. "+ChefzSnapshotSafetyRuleAr,409);
         string period=live.S("period",J.Period(DateTime.UtcNow.ToString("yyyy-MM")));
         string businessDate=input.S("businessDate",DateOnly.FromDateTime(DateTime.UtcNow.AddHours(3)).ToString("yyyy-MM-dd",CultureInfo.InvariantCulture));
         string id=$"snap:{platform}:{companyId}:{businessDate}:{Guid.NewGuid():N}";
@@ -67,7 +130,8 @@ public static class ErpSettlementsApi
             ["itemCount"]=live.N("total"),["payload"]=live.DeepClone(),
             ["sourceFingerprint"]=Convert.ToHexString(hash),
             ["capturedAt"]=DateTimeOffset.UtcNow.ToString("O"),["capturedBy"]=actor.Identity!.Name,
-            ["moneyFrozen"]=false
+            ["moneyFrozen"]=false,
+            ["snapshotSafetyRuleAr"]=platform=="chefz"?ChefzSnapshotSafetyRuleAr:""
         };
         if(doc.B("waitingHandover"))doc["status"]="waiting_handover";
         Store.Save(c,SnapshotKind,doc,tx);
@@ -273,9 +337,17 @@ public static class ErpSettlementsApi
 
     public static void Map(RouteGroupBuilder api,Store store)
     {
-        api.MapGet("/sal/erp-settlements/{app}/live",(string app,string companyId,string? period,string? half,HttpContext ctx)=>
-            store.Read(c=>Live(c,null,ctx.User,app,new(){["companyId"]=companyId,["period"]=period??"",["half"]=half??""})))
+        api.MapGet("/sal/erp-settlements/{app}/live",(string app,string companyId,string? period,string? half,string? from,string? to,HttpContext ctx)=>
+            store.Read(c=>Live(c,null,ctx.User,app,new(){["companyId"]=companyId,["period"]=period??"",["half"]=half??"",["from"]=from??"",["to"]=to??""})))
             .WithTags("Payroll").WithSummary("Live Jahez/Chefz settlements from Omar (display)");
+        api.MapGet("/sal/erp-settlements/jahez/period-report",(string companyId,string from,string to,decimal? invoiceNet,decimal? invoiceVat,HttpContext ctx)=>
+            store.Read(c=>{
+                var q=new JsonObject{["companyId"]=companyId,["from"]=from,["to"]=to};
+                if(invoiceNet.HasValue)q["invoiceNet"]=invoiceNet.Value;
+                if(invoiceVat.HasValue)q["invoiceVat"]=invoiceVat.Value;
+                return JahezPeriodReport(c,null,ctx.User,q);
+            }))
+            .WithTags("Payroll").WithSummary("Jahez invoice-period settlements, commission, rider transfers vs invoice");
         api.MapPost("/sal/erp-settlements/{app}/snapshot",(string app,JsonObject input,HttpContext ctx)=>
             store.Write((c,tx)=>TakeDisplaySnapshot(c,tx,ctx.User,app,input)))
             .WithTags("Payroll").WithSummary("Capture display snapshot (not money freeze)");
@@ -292,14 +364,17 @@ public static class ErpSettlementsApi
         }).WithTags("Administration").WithSummary("Manual trigger for midnight display snapshot (no Hangfire)");
     }
 
-    static LiveBatch ReadLiveBatch(DbConnection c,DbTransaction? tx,string platform,string companyId,string period,string half)
+    static LiveBatch ReadLiveBatch(DbConnection c,DbTransaction? tx,string platform,string companyId,string period,string half,string fromRaw="",string toRaw="")
     {
         if(LiveBatchProvider!=null)
         {
             var batch=LiveBatchProvider(c,tx,platform,companyId,period,half);
-            var filtered=platform=="chefz"
+            IReadOnlyList<JsonObject> filtered=platform=="chefz"
                 ?batch.Items.Where(r=>period==""||InPeriod(r.S("periodFrom"),period)).Where(r=>HalfOk(r,half)).ToList()
                 :batch.Items.Where(r=>period==""||InPeriod(r.S("executedAt"),period)).ToList();
+            if(DateOnly.TryParseExact(fromRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var fromF)
+               &&DateOnly.TryParseExact(toRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var toF))
+                filtered=filtered.Where(r=>InDayRange(platform=="chefz"?r.S("periodFrom",r.S("chargedFrom")):r.S("executedAt"),fromF,toF)).ToList();
             return batch with{Items=filtered};
         }
         string cs=Environment.GetEnvironmentVariable("ConnectionStrings__ErpReadonly")
@@ -317,8 +392,15 @@ public static class ErpSettlementsApi
         var sponsor=FinancialCore.FindSponsor(companyId);
         var numbers=sponsor?.UnifiedNumber is {Length:>0} n?[n]:Array.Empty<string>();
         var scope=new LiveOperationsQuery.Scope(false,numbers,[],[],[],null,null,PlatformRestricted:false);
-        var from=period.Length>=7?DateOnly.ParseExact(period.Length>=10?period[..10]:period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture):DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-1);
-        var to=new DateOnly(from.Year,from.Month,DateTime.DaysInMonth(from.Year,from.Month));
+        DateOnly from,to;
+        if(DateOnly.TryParseExact(fromRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out from)
+           &&DateOnly.TryParseExact(toRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out to))
+        { /* invoice date range */ }
+        else
+        {
+            from=period.Length>=7?DateOnly.ParseExact(period.Length>=10?period[..10]:period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture):DateOnly.FromDateTime(DateTime.UtcNow).AddMonths(-1);
+            to=new DateOnly(from.Year,from.Month,DateTime.DaysInMonth(from.Year,from.Month));
+        }
         var items=new List<JsonObject>();
         int page=1,size=LiveOperationsQuery.MaxPageSize;long seen=0;
         while(true)
@@ -358,10 +440,11 @@ public static class ErpSettlementsApi
         J.Need(Apps.Contains(a),"التطبيق يجب أن يكون jahez أو chefz.");
         return a;
     }
-    static JsonArray LiveActions(ClaimsPrincipal actor,string app)
+    static JsonArray LiveActions(ClaimsPrincipal actor,string app,bool snapshotSafe=true)
     {
         var a=new JsonArray("refresh");
-        if(AccessPolicy.Has(actor,"pay.manage")||AccessPolicy.Administrator(actor))a.Add("snapshot");
+        if(app=="jahez")a.Add("period_report");
+        if((AccessPolicy.Has(actor,"pay.manage")||AccessPolicy.Administrator(actor))&&(app!="chefz"||snapshotSafe))a.Add("snapshot");
         if(app=="chefz"&&(AccessPolicy.Has(actor,"pay.approve")||AccessPolicy.Administrator(actor)))a.Add("freeze");
         if(app=="chefz")a.Add("difference_report");
         return a;
@@ -377,14 +460,69 @@ public static class ErpSettlementsApi
         ["companyAmount"]=J.Money(row.N("companyAmount")),["riderAmount"]=J.Money(row.N("riderAmount")),
         ["commissionRate"]=row.N("commissionRate"),["dailyFee"]=row.N("dailyFee"),
         ["fullTimeDays"]=row.N("fullTimeDays"),["freelancerCommissionBase"]=row.N("freelancerCommissionBase"),
-        ["fullTimeFeeAmount"]=row.N("fullTimeFeeAmount")
+        ["fullTimeFeeAmount"]=row.N("fullTimeFeeAmount"),
+        ["status"]=row.S("status",row.S("statusCode",row.S("dashboardStatus")))
     };
     static JsonObject ProjectJahezLive(JsonObject row)=>new()
     {
         ["id"]=row.S("id"),["erpRowId"]=row.S("erpSourceId",row.S("id")),["executedAt"]=row.S("executedAt"),
         ["net"]=J.Money(row.N("net")),["commission"]=J.Money(row.N("commission",row.N("calculatedCommission"))),
-        ["fund"]=row.S("fund",row.S("fundCode")),["purpose"]=row.S("purpose",row.S("purposeCode")),["status"]=row.S("status")
+        ["transferToRider"]=J.Money(row.N("transferToRider")),
+        ["remaining"]=J.Money(row.N("remaining")),
+        ["fund"]=row.S("fund",row.S("fundCode")),["purpose"]=row.S("purpose",row.S("purposeCode")),
+        ["status"]=row.S("status",row.S("statusCode")),["paymentStatus"]=row.S("paymentStatus",row.S("paymentStatusCode")),
+        ["riderId"]=row.S("riderId"),["platformAccountId"]=row.S("platformAccountId",row.S("accountId"))
     };
+    static void MarkChefzCompletion(JsonObject item,DateOnly asOfDay)
+    {
+        string status=item.S("status").Trim();
+        // Blank/unknown status stays open — only an explicit completed/closed/paid/settled tag closes.
+        bool statusClosed=status is "Completed" or "completed" or "Closed" or "closed" or "Paid" or "paid" or "Settled" or "settled";
+        bool periodEnded=DateOnly.TryParseExact((item.S("periodTo").Length>=10?item.S("periodTo")[..10]:item.S("periodTo")),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var to)
+            ?to<=asOfDay
+            :DateOnly.TryParseExact((item.S("chargedTo").Length>=10?item.S("chargedTo")[..10]:item.S("chargedTo")),"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var ct)&&ct<=asOfDay;
+        bool openStatus=status is "" or "Open" or "open" or "Pending" or "pending" or "InProgress" or "in_progress" or "Draft" or "draft"||!statusClosed;
+        bool completed=periodEnded&&statusClosed&&!openStatus;
+        item["isCompletedClosed"]=completed;
+        item["completionLabelAr"]=completed?"مكتملة ومقفلة":"غير مكتملة / مفتوحة";
+    }
+    static JsonObject JahezLiveTotals(IReadOnlyList<JsonObject> items)=>new()
+    {
+        ["net"]=J.Money(items.Sum(i=>i.N("net"))),
+        ["commission"]=J.Money(items.Sum(i=>i.N("commission"))),
+        ["transferToRider"]=J.Money(items.Sum(i=>i.N("transferToRider")))
+    };
+    static JsonObject ChefzLiveTotals(IReadOnlyList<JsonObject> items)=>new()
+    {
+        ["gross"]=J.Money(items.Sum(i=>i.N("gross"))),
+        ["companyAmount"]=J.Money(items.Sum(i=>i.N("companyAmount"))),
+        ["riderAmount"]=J.Money(items.Sum(i=>i.N("riderAmount"))),
+        ["completedClosed"]=items.Count(i=>i.B("isCompletedClosed")),
+        ["openOrIncomplete"]=items.Count(i=>!i.B("isCompletedClosed"))
+    };
+    static JsonObject BuildPeriodTotals(decimal net,decimal commission,decimal transferToRider,decimal deliveryFees,decimal cashCollections,decimal paidOnBehalf,decimal companyDue,decimal expectedNet,bool hasInvoice,decimal invoiceNet,decimal invoiceVat,decimal variance,decimal bonusesTips=0,decimal driverAdjustments=0)
+    {
+        var totals=new JsonObject
+        {
+            ["operationsNet"]=net,["commission"]=commission,["transferToRider"]=transferToRider,
+            ["deliveryFees"]=deliveryFees,["bonusesTips"]=bonusesTips,["driverAdjustments"]=driverAdjustments,
+            ["cashCollections"]=cashCollections,["paidOnBehalf"]=paidOnBehalf,
+            ["companyDue"]=companyDue,["expectedNet"]=expectedNet,["hasInvoice"]=hasInvoice
+        };
+        if(hasInvoice){totals["invoiceNet"]=invoiceNet;totals["invoiceVat"]=invoiceVat;totals["variance"]=variance;}
+        return totals;
+    }
+    static bool InDayRange(string raw,DateOnly from,DateOnly to)
+    {
+        if(string.IsNullOrWhiteSpace(raw))return false;
+        DateOnly d;
+        if(raw.Length>=10&&DateOnly.TryParseExact(raw[..10],"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out d))
+        { /* ok */ }
+        else if(DateTimeOffset.TryParse(raw,CultureInfo.InvariantCulture,DateTimeStyles.RoundtripKind,out var dto))
+            d=DateOnly.FromDateTime(dto.ToOffset(TimeSpan.FromHours(3)).DateTime);
+        else return false;
+        return d>=from&&d<=to;
+    }
     static JsonObject ProjectChefzFreezePayload(JsonObject row)
     {
         var o=ProjectChefzLive(row);

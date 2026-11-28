@@ -18,6 +18,8 @@ import { useToast } from '../../components/ui/Toast';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
 import type { JahezReconciliationDoc } from '../../lib/types';
+import { JahezSettlementsPanel } from './JahezSettlementsPanel';
+import { OwnerExternalBoxPanel } from './OwnerExternalBoxPanel';
 
 function Field({
   label,
@@ -59,11 +61,14 @@ export function JahezWorkspace() {
   const [invoiceNet, setInvoiceNet] = useState('0');
   const [invoiceVat, setInvoiceVat] = useState('0');
   const [lastTransactionDate, setLastTransactionDate] = useState(() => periodDateRange(period).to);
+  const [fromDate, setFromDate] = useState(() => periodDateRange(period).from);
   const [invoiceReference, setInvoiceReference] = useState('');
   const [notes, setNotes] = useState('');
 
   useEffect(() => {
-    setLastTransactionDate(periodDateRange(period).to);
+    const r = periodDateRange(period);
+    setLastTransactionDate(r.to);
+    setFromDate(r.from);
   }, [period]);
 
   const [transfer, setTransfer] = useState({
@@ -144,6 +149,7 @@ export function JahezWorkspace() {
         invoiceNet: Number(invoiceNet),
         invoiceVat: Number(invoiceVat),
         lastTransactionDate,
+        fromDate: fromDate || undefined,
         invoiceReference: invoiceReference || undefined,
         notes: notes || undefined,
       });
@@ -195,7 +201,7 @@ export function JahezWorkspace() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h3 className="text-sm font-bold">جاهز — مطابقة التسوية وعمليات الخزينة</h3>
-          <p className="text-xs text-[var(--muted)] mt-0.5">تقارير المطابقة، التحويلات، التسوية، الرسوم، والعهدة.</p>
+          <p className="text-xs text-[var(--muted)] mt-0.5">تقارير المطابقة، التحويلات، التسوية، الرسوم، والعهدة. بلا دورة راتب — تصفيات متفرقة.</p>
         </div>
         <button
           type="button"
@@ -205,6 +211,9 @@ export function JahezWorkspace() {
           <RefreshCw size={14} /> تحديث
         </button>
       </div>
+
+      <JahezSettlementsPanel />
+      <OwnerExternalBoxPanel />
 
       {canWrite && (
         <form
@@ -228,6 +237,14 @@ export function JahezWorkspace() {
               type="month"
               value={period}
               onChange={(e) => setPeriod(e.target.value)}
+              className={inputClass}
+            />
+          </Field>
+          <Field label="بداية فترة الفاتورة">
+            <input
+              type="date"
+              value={fromDate}
+              onChange={(e) => setFromDate(e.target.value)}
               className={inputClass}
             />
           </Field>

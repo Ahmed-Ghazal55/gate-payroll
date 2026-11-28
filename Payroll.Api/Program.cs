@@ -238,6 +238,7 @@ ManualJournals.Map(api,store);
 MadaAccounting.Map(api,store);
 JahezTreasury.Map(api,store);
 JahezReconciliation.Map(api,store);
+OwnerExternalBoxApi.Map(api,store);
 api.MapPost("/finance/legacy-cash-allocation/preview",(JsonObject input)=>{_=input;return Results.Json(ApiErrors.Body(410,FinancialCore.LegacyCashAllocationGone),statusCode:410);}).WithTags("Banks and treasury").WithSummary("Gone: legacy cash allocation retired");
 api.MapPost("/finance/legacy-cash-allocation/commit",(JsonObject input)=>{_=input;return Results.Json(ApiErrors.Body(410,FinancialCore.LegacyCashAllocationGone),statusCode:410);}).WithTags("Banks and treasury").WithSummary("Gone: legacy cash allocation retired");
 JahezHandovers.Map(api,store);

@@ -167,7 +167,7 @@ public sealed class TreasuryW2ApiTests
             ["chargedFrom"]="2026-11-01",["chargedTo"]="2026-11-10",["assignedDays"]=10,
             ["source"]="Orders",["gross"]=100,["companyAmount"]=25,["riderAmount"]=75,
             ["commissionRate"]=0,["dailyFee"]=25,["deliveryFees"]=100,["vatAmount"]=0,["tips"]=0,["compensation"]=0,["bonuses"]=0,["deductions"]=0,
-            ["sourceDeleted"]=false
+            ["status"]="Completed",["sourceDeleted"]=false
         };
         ErpSettlementsApi.LiveBatchProvider=(_,_,_,_,_,_)=>new ErpSettlementsApi.LiveBatch([liveRow],DateTimeOffset.Parse("2026-11-20T08:00:00Z"),"omar_live");
         try

@@ -93,6 +93,7 @@ public sealed partial class Store
             SchemaOperationCapture.Ensure(conn,tx);
             SchemaDebt.Ensure(conn,tx);
             SchemaTreasury.Ensure(conn,tx);
+            SchemaOwnerExternalBox.Ensure(conn,tx);
             SchemaBankFile.Ensure(conn,tx);
         });
         // M9: captured cycle must have freeze rows (in-flight cycles cannot deploy without U2 + rows).

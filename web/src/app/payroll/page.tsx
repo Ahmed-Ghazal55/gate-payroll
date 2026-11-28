@@ -85,6 +85,8 @@ import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
 import { ChefzReviewPanel } from '../../features/payroll/ChefzReviewPanel';
 import { MudadPanel } from '../../features/payroll/MudadPanel';
+import { ChefzSettlementsPanel } from '../../features/payroll/ChefzSettlementsPanel';
+
 import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
 import { KeetaOperationsImportDialog } from '../../features/imports/KeetaOperationsImportDialog';
 import {
@@ -3040,7 +3042,10 @@ function PayrollPageInner() {
 
           {/* Chefz review */}
           {(selectedPlatform === 'thechefz' || selectedPlatform === 'chefz') && appSubTab === 'settlements' && (
-            <ChefzReviewPanel />
+            <div className="space-y-4">
+              <ChefzSettlementsPanel />
+              <ChefzReviewPanel />
+            </div>
           )}
 
           {/* Jahez treasury link + stub */}
