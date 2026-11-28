@@ -251,7 +251,7 @@ function AccountingPageContent() {
   }, []);
 
   useEffect(() => {
-    if (activeTab === 'trial_balance' || activeTab === 'app_profitability' || activeTab === 'reports') {
+    if (activeTab === 'trial_balance' || activeTab === 'reports') {
       loadTrialBalance();
     }
     if (activeTab === 'income_statement' || activeTab === 'reports') {
@@ -1251,10 +1251,6 @@ function AccountingPageContent() {
       {/* ======================================================== */}
       {activeTab === 'app_profitability' && (
         <AppProfitabilityPanel
-          trialData={trialData}
-          loading={loadingTrial}
-          error={trialError}
-          onReload={loadTrialBalance}
           companies={companies}
           selectedSponsor={selectedSponsor}
           onSponsorChange={setSelectedSponsor}

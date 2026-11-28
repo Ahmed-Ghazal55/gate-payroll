@@ -4,12 +4,12 @@
 |---|---|
 | Current writer | (free) |
 | Branch | `qa/agy-screens` |
-| Updated | 2026-11-28 by Antigravity (AGYFIX1 fix round) |
+| Updated | 2026-11-28 by Antigravity (AGYFIX2 fix round) |
 | Live | unchanged (local commit only; never pushed) |
-| Next | Planner: review AGYFIX1 on `qa/agy-screens`; never push until Ghazal says |
+| Next | Planner: re-review AGYFIX2 on `qa/agy-screens`; never push until Ghazal says |
 
 ## Goal now
-AGYFIX1 done on `qa/agy-screens`: fixed all 5 HIGH and 10 MEDIUM items from `agy-G3-screens.md` (188 screens inspected, 184 passed, 0 HIGH, 0 MEDIUM, 4 pre-existing LOW). Report: `/home/ghazal/.cache/agents-runs/agy-FIX1-report.md`.
+AGYFIX2 done on `qa/agy-screens`: resolved all 2 HIGH and 2 MEDIUM findings from `/home/ghazal/.cache/agents-runs/grok-AGYFIX1g.md` with unit/engine tests for every row. Report: `/home/ghazal/.cache/agents-runs/agy-AGYFIX2-report.md`.
 
 ## Done (TRIAL1)
 - Merges through `feat/w3-screens-pay`; contracts regenerated (`4bcdfe3`); integration fix (`d9d40ca`).

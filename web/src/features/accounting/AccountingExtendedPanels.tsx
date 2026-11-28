@@ -12,6 +12,8 @@ import {
   TrendingUp,
   TrendingDown,
   Eye,
+  AlertTriangle,
+  CheckCircle2,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import { formatSar } from '../../lib/money';
@@ -22,13 +24,21 @@ import type {
   FinanceJournal,
   IncomeStatementResponse,
   TargetCoaAccount,
-  TrialBalanceCompanyRow,
   TrialBalanceResponse,
 } from '../../lib/types';
 import { DataTable, type ColumnDef, defaultStatusTone } from '../../components/ui/DataTable';
 import { StatCard } from '../../components/ui/StatCard';
 import { EmptyState, ErrorState } from '../../components/ui/EmptyState';
 import { SearchableSelect } from '../../components/ui/SearchableSelect';
+import {
+  buildGeneralLedgerRows,
+  buildBalanceSheetSections,
+  buildAppProfitabilityRows,
+  summarizeAppProfitability,
+  type LedgerEntryRow,
+  type BalanceSheetLine,
+  type AppProfitRow,
+} from './accounting-panels-logic';
 
 type ExportFn = (title: string, headers: string[], rows: unknown[][], numericCols?: number[]) => void;
 
@@ -40,22 +50,6 @@ type SharedProps = {
   onPeriodChange: (v: string) => void;
   companyName: (...candidates: Array<string | undefined>) => string;
   onExportExcel: ExportFn;
-};
-
-type LedgerEntryRow = {
-  id: string;
-  journalId: string;
-  journalNumber: string;
-  date: string;
-  period: string;
-  accountCode: string;
-  accountNameAr: string;
-  companyName: string;
-  description: string;
-  sourceRef: string;
-  debit: number;
-  credit: number;
-  journal: FinanceJournal;
 };
 
 export function GeneralLedgerPanel({
@@ -92,44 +86,19 @@ export function GeneralLedgerPanel({
     [coaAccounts]
   );
 
-  const ledgerRows = useMemo<LedgerEntryRow[]>(() => {
-    const out: LedgerEntryRow[] = [];
-    for (const j of journals) {
-      const jPeriod = (j.period || j.date || j.entryDate || j.createdAt || '').slice(0, 7);
-      if (periodMonth && jPeriod && jPeriod !== periodMonth) continue;
-      const lines = j.lines || [];
-      lines.forEach((l, idx) => {
-        if (accountCode !== 'all' && l.accountCode !== accountCode) return;
-        const sponsorMatch =
-          selectedSponsor === 'all' ||
-          l.sponsorId === selectedSponsor ||
-          j.originSponsorId === selectedSponsor ||
-          j.creditorSponsorId === selectedSponsor ||
-          companies.some(
-            (c) =>
-              (c.code === selectedSponsor || c.id === selectedSponsor) &&
-              (l.sponsorId === c.id || l.sponsorId === c.code || j.originSponsorId === c.id)
-          );
-        if (!sponsorMatch) return;
-        out.push({
-          id: `${j.id}-${idx}`,
-          journalId: j.id,
-          journalNumber: j.journalNumber || j.id.slice(0, 10),
-          date: (j.date || j.entryDate || j.createdAt || '').slice(0, 10),
-          period: jPeriod || periodMonth,
-          accountCode: l.accountCode || '',
-          accountNameAr: l.accountNameAr || coaAccounts.find((a) => a.code === l.accountCode)?.nameAr || '—',
-          companyName: companyName(l.sponsorId, j.originSponsorId, j.creditorSponsorId),
-          description: l.description || j.description || '—',
-          sourceRef: j.sourceRef || '—',
-          debit: Number(l.debit || 0),
-          credit: Number(l.credit || 0),
-          journal: j,
-        });
-      });
-    }
-    return out;
-  }, [journals, periodMonth, accountCode, selectedSponsor, companies, coaAccounts, companyName]);
+  const ledgerRows = useMemo<LedgerEntryRow[]>(
+    () =>
+      buildGeneralLedgerRows({
+        journals,
+        periodMonth,
+        accountCode,
+        selectedSponsor,
+        companies,
+        coaAccounts,
+        companyName,
+      }),
+    [journals, periodMonth, accountCode, selectedSponsor, companies, coaAccounts, companyName]
+  );
 
   const totals = useMemo(() => {
     const debit = ledgerRows.reduce((s, r) => s + r.debit, 0);
@@ -307,17 +276,6 @@ export function GeneralLedgerPanel({
   );
 }
 
-type BalanceSheetLine = {
-  id: string;
-  section: 'assets' | 'liabilities' | 'equity';
-  sectionLabel: string;
-  code: string;
-  nameAr: string;
-  level: number;
-  posting: boolean;
-  balance: number;
-};
-
 const BS_SECTION_LABEL: Record<BalanceSheetLine['section'], string> = {
   assets: 'الأصول',
   liabilities: 'الالتزامات',
@@ -344,65 +302,10 @@ export function BalanceSheetPanel({
   error: string | null;
   onReload: () => void;
 }) {
-  const sections = useMemo(() => {
-    const trialCompanies = trialData?.companies || [];
-    const incomeCompanies = incomeData?.companies || [];
-    return trialCompanies.map((c) => {
-      const inc = incomeCompanies.find((ic) => ic.sponsorId === c.sponsorId || ic.companyCode === c.companyCode);
-      const netProfit = Number(inc?.net || 0);
-      const rows = (c.rows || []) as TrialBalanceCompanyRow[];
-      const lines: BalanceSheetLine[] = [];
-      let totalAssets = 0;
-      let totalLiabilities = 0;
-      let totalEquityAccounts = 0;
-
-      for (const r of rows) {
-        const cls = (r.code || '')[0];
-        if (cls !== '1' && cls !== '2' && cls !== '3') continue;
-        const closingDebit = Number(r.closingDebit || 0);
-        const closingCredit = Number(r.closingCredit || 0);
-        const balance = cls === '1' ? closingDebit - closingCredit : closingCredit - closingDebit;
-        if (r.code === '1') totalAssets = balance;
-        if (r.code === '2') totalLiabilities = balance;
-        if (r.code === '3') totalEquityAccounts = balance;
-        if (balance === 0 && (r.level ?? 0) > 2) continue;
-        const section: BalanceSheetLine['section'] =
-          cls === '1' ? 'assets' : cls === '2' ? 'liabilities' : 'equity';
-        lines.push({
-          id: `${c.sponsorId || c.companyCode}-${r.code}`,
-          section,
-          sectionLabel: BS_SECTION_LABEL[section],
-          code: r.code,
-          nameAr: r.nameAr || r.name || r.code,
-          level: Number(r.level || 1),
-          posting: Boolean(r.posting),
-          balance,
-        });
-      }
-      if (netProfit !== 0) {
-        lines.push({
-          id: `${c.sponsorId || c.companyCode}-NET`,
-          section: 'equity',
-          sectionLabel: BS_SECTION_LABEL.equity,
-          code: '3999',
-          nameAr: 'صافي أرباح / خسائر الفترة الحالية',
-          level: 2,
-          posting: true,
-          balance: netProfit,
-        });
-      }
-      const totalEquity = totalEquityAccounts + netProfit;
-      return {
-        key: c.sponsorId || c.companyCode || 'company',
-        companyLabel: companyName(c.companyCode, c.sponsorId),
-        totalAssets,
-        totalLiabilities,
-        totalEquity,
-        diff: totalAssets - (totalLiabilities + totalEquity),
-        lines,
-      };
-    });
-  }, [trialData, incomeData, companyName]);
+  const sections = useMemo(
+    () => buildBalanceSheetSections(trialData, incomeData, companyName),
+    [trialData, incomeData, companyName]
+  );
 
   const columns: ColumnDef<BalanceSheetLine>[] = [
     {
@@ -482,15 +385,37 @@ export function BalanceSheetPanel({
         <div className="space-y-6">
           {sections.map((sec) => (
             <div key={sec.key} className="space-y-4">
-              <div className="flex items-center justify-between px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-bold">
-                <span>{sec.companyLabel}</span>
+              <div className="flex flex-wrap items-center justify-between gap-2 px-4 py-2.5 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs font-bold">
+                <div className="flex items-center gap-2">
+                  <span>{sec.companyLabel}</span>
+                  <span
+                    className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                      sec.isBalanced
+                        ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                        : 'bg-amber-500/15 text-amber-700 dark:text-amber-300'
+                    }`}
+                  >
+                    {sec.isBalanced ? <CheckCircle2 size={12} /> : <AlertTriangle size={12} />}
+                    <span>{sec.isBalanced ? 'متوازنة' : `غير متوازنة · فرق ${formatSar(sec.diff)}`}</span>
+                  </span>
+                </div>
                 <button
                   type="button"
                   onClick={() =>
                     onExportExcel(
                       `الميزانية_العمومية_${sec.key}`,
                       ['القسم', 'رمز الحساب', 'اسم البند', 'الرصيد (ر.س)'],
-                      sec.lines.map((l) => [l.sectionLabel, l.code, l.nameAr, l.balance]),
+                      [
+                        ...sec.lines.map((l) => [l.sectionLabel, l.code, l.nameAr, l.balance]),
+                        [
+                          'المطابقة',
+                          '—',
+                          sec.isBalanced
+                            ? 'فرق الميزانية (متوازنة)'
+                            : 'تحذير: الميزانية غير متوازنة — فرق الأصول عن الالتزامات وحقوق الملكية',
+                          sec.diff,
+                        ],
+                      ],
                       [1, 3]
                     )
                   }
@@ -500,10 +425,31 @@ export function BalanceSheetPanel({
                   <span>تصدير إكسل</span>
                 </button>
               </div>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+              {!sec.isBalanced && (
+                <div
+                  role="alert"
+                  className="flex items-start gap-2.5 p-3.5 rounded-2xl border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200 text-xs"
+                >
+                  <AlertTriangle size={16} className="shrink-0 mt-0.5" />
+                  <div className="space-y-0.5">
+                    <p className="font-bold">تحذير: الميزانية العمومية غير متوازنة</p>
+                    <p>
+                      يوجد فرق قدره <span className="num font-bold">{formatSar(sec.diff)}</span> بين إجمالي الأصول وإجمالي الالتزامات وحقوق الملكية؛ راجع القيود أو التعيين قبل الاعتماد أو التصدير.
+                    </p>
+                  </div>
+                </div>
+              )}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                 <StatCard label="إجمالي الأصول (1)" value={formatSar(sec.totalAssets)} icon={Scale} />
                 <StatCard label="إجمالي الالتزامات (2)" value={formatSar(sec.totalLiabilities)} icon={TrendingDown} />
                 <StatCard label="حقوق الملكية وصافي الفترة (3)" value={formatSar(sec.totalEquity)} icon={TrendingUp} />
+                <StatCard
+                  label="فرق الميزانية"
+                  value={formatSar(sec.diff)}
+                  hint={sec.isBalanced ? 'الأصول تساوي الالتزامات وحقوق الملكية' : 'تحذير: يوجد فرق عدم توازن'}
+                  icon={sec.isBalanced ? CheckCircle2 : AlertTriangle}
+                  trend={{ value: sec.isBalanced ? 'متوازنة' : 'غير متوازنة', isPositive: sec.isBalanced }}
+                />
               </div>
               <DataTable
                 tableId={`accounting-balance-sheet-${sec.key}`}
@@ -708,7 +654,7 @@ export function CostCentresPanel({
           emptyTitle="لا توجد مراكز تكلفة"
           emptyDescription="لم تُسجّل مراكز تكلفة أو أرصدة في الفترة المختارة."
           exportFilename={`cost_centres_${periodMonth}`}
-          getRowId={(r) => r.id}
+          getRowId={(r) => `${r.id}:${r.companyId || 'shared'}`}
           searchable
           syncUrl={false}
         />
@@ -717,92 +663,44 @@ export function CostCentresPanel({
   );
 }
 
-type AppProfitRow = {
-  app: string;
-  nameAr: string;
-  receivableCode: string;
-  revenueCodes: string[];
-  receivableClosing: number;
-  revenueAmount: number;
-  directCostAmount: number;
-  netMargin: number;
-};
-
-const PLATFORM_ACCOUNT_MAP: Array<{
-  app: string;
-  nameAr: string;
-  receivableCode: string;
-  revenueCodes: string[];
-  costCodes: string[];
-}> = [
-  { app: 'keeta', nameAr: 'كيتا', receivableCode: '112804', revenueCodes: ['411101', '411501'], costCodes: ['512201'] },
-  { app: 'hs', nameAr: 'هنقرستيشن', receivableCode: '112805', revenueCodes: ['411102', '411601'], costCodes: ['512202'] },
-  { app: 'chefz', nameAr: 'ذا شيفز', receivableCode: '112807', revenueCodes: ['411103'], costCodes: ['512203'] },
-  { app: 'ninja', nameAr: 'نينجا', receivableCode: '112806', revenueCodes: ['411104'], costCodes: ['512204'] },
-  { app: 'amazon', nameAr: 'أمازون', receivableCode: '112808', revenueCodes: ['411105'], costCodes: ['512205'] },
-  { app: 'jahez', nameAr: 'جاهز', receivableCode: '112801', revenueCodes: ['411106', '411401'], costCodes: ['512206'] },
-];
-
 export function AppProfitabilityPanel({
-  trialData,
-  loading,
-  error,
-  onReload,
   companies,
   selectedSponsor,
   onSponsorChange,
   periodMonth,
   onPeriodChange,
   onExportExcel,
-}: SharedProps & {
-  trialData: TrialBalanceResponse | null;
-  loading: boolean;
-  error: string | null;
-  onReload: () => void;
-}) {
-  const rows = useMemo<AppProfitRow[]>(() => {
-    const byCode = new Map<string, { debit: number; credit: number; closingDebit: number; closingCredit: number }>();
-    for (const c of trialData?.companies || []) {
-      for (const r of (c.rows || []) as TrialBalanceCompanyRow[]) {
-        const prev = byCode.get(r.code) || { debit: 0, credit: 0, closingDebit: 0, closingCredit: 0 };
-        byCode.set(r.code, {
-          debit: prev.debit + Number(r.periodDebit || 0),
-          credit: prev.credit + Number(r.periodCredit || 0),
-          closingDebit: prev.closingDebit + Number(r.closingDebit || 0),
-          closingCredit: prev.closingCredit + Number(r.closingCredit || 0),
-        });
-      }
-    }
-    return PLATFORM_ACCOUNT_MAP.map((p) => {
-      const rec = byCode.get(p.receivableCode);
-      const receivableClosing = rec ? rec.closingDebit - rec.closingCredit : 0;
-      const revenueAmount = p.revenueCodes.reduce((sum, code) => {
-        const m = byCode.get(code);
-        return sum + (m ? m.credit - m.debit : 0);
-      }, 0);
-      const directCostAmount = p.costCodes.reduce((sum, code) => {
-        const m = byCode.get(code);
-        return sum + (m ? m.debit - m.credit : 0);
-      }, 0);
-      return {
-        app: p.app,
-        nameAr: p.nameAr,
-        receivableCode: p.receivableCode,
-        revenueCodes: p.revenueCodes,
-        receivableClosing,
-        revenueAmount,
-        directCostAmount,
-        netMargin: revenueAmount - directCostAmount,
-      };
-    });
-  }, [trialData]);
+}: SharedProps) {
+  const [trialData, setTrialData] = useState<TrialBalanceResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
-  const totals = useMemo(() => {
-    const revenue = rows.reduce((s, r) => s + r.revenueAmount, 0);
-    const cost = rows.reduce((s, r) => s + r.directCostAmount, 0);
-    const rec = rows.reduce((s, r) => s + r.receivableClosing, 0);
-    return { revenue, cost, net: revenue - cost, rec };
-  }, [rows]);
+  const load = useCallback(async () => {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await api.getTrialBalance({
+        view: 'target',
+        from: periodMonth,
+        to: periodMonth,
+        sponsorId: selectedSponsor !== 'all' ? selectedSponsor : undefined,
+      });
+      setTrialData(res);
+    } catch (err: unknown) {
+      setError(err instanceof ApiError ? err.message : 'تعذر تحميل إيرادات وذمم التطبيقات');
+      setTrialData(null);
+    } finally {
+      setLoading(false);
+    }
+  }, [selectedSponsor, periodMonth]);
+
+  useEffect(() => {
+    void load();
+  }, [load]);
+
+  const rows = useMemo<AppProfitRow[]>(() => buildAppProfitabilityRows(trialData), [trialData]);
+
+  const totals = useMemo(() => summarizeAppProfitability(rows), [rows]);
 
   const columns: ColumnDef<AppProfitRow>[] = [
     {
@@ -835,31 +733,13 @@ export function AppProfitabilityPanel({
       getValue: (r) => r.revenueAmount,
       render: (r) => <span className="num font-bold text-emerald-600 dark:text-emerald-400">{formatSar(r.revenueAmount)}</span>,
     },
-    {
-      key: 'directCostAmount',
-      header: 'التكاليف المباشرة',
-      type: 'number',
-      numeric: true,
-      getValue: (r) => r.directCostAmount,
-      render: (r) => <span className="num font-bold text-rose-600 dark:text-rose-400">{formatSar(r.directCostAmount)}</span>,
-    },
-    {
-      key: 'netMargin',
-      header: 'صافي الهامش',
-      type: 'number',
-      numeric: true,
-      getValue: (r) => r.netMargin,
-      render: (r) => <span className="num font-black">{formatSar(r.netMargin)}</span>,
-    },
   ];
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <StatCard label="إيرادات المنصات" value={formatSar(totals.revenue)} hint={`فترة ${periodMonth}`} icon={TrendingUp} />
-        <StatCard label="التكاليف المباشرة" value={formatSar(totals.cost)} icon={TrendingDown} />
-        <StatCard label="صافي هامش التطبيقات" value={formatSar(totals.net)} icon={PieChart} />
-        <StatCard label="ذمم المنصات القائمة" value={formatSar(totals.rec)} icon={Scale} />
+      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+        <StatCard label="إيرادات المنصات" value={formatSar(totals.revenue)} hint={`فترة ${periodMonth} · الدليل المستهدف`} icon={TrendingUp} />
+        <StatCard label="ذمم المنصات القائمة" value={formatSar(totals.rec)} hint="أرصدة ذمم المنصات على الدليل المستهدف" icon={Scale} />
       </div>
 
       <div className="flex flex-wrap items-center justify-between gap-3 p-3 rounded-2xl border border-[var(--line)] bg-[var(--surface)]">
@@ -891,7 +771,7 @@ export function AppProfitabilityPanel({
         <div className="flex items-center gap-2">
           <button
             type="button"
-            onClick={onReload}
+            onClick={() => void load()}
             className="p-1.5 rounded-xl bg-[var(--raised)] text-[var(--muted)] hover:text-[var(--ink)] border border-[var(--line)] transition"
             title="تحديث"
           >
@@ -901,10 +781,10 @@ export function AppProfitabilityPanel({
             type="button"
             onClick={() =>
               onExportExcel(
-                'ربحية_التطبيقات',
-                ['التطبيق', 'حساب الذمم', 'ذمم المنصة', 'الإيرادات', 'التكاليف المباشرة', 'صافي الهامش'],
-                rows.map((r) => [r.nameAr, r.receivableCode, r.receivableClosing, r.revenueAmount, r.directCostAmount, r.netMargin]),
-                [1, 2, 3, 4, 5]
+                'إيرادات_وذمم_التطبيقات',
+                ['التطبيق', 'حساب الذمم', 'ذمم المنصة', 'الإيرادات'],
+                rows.map((r) => [r.nameAr, r.receivableCode, r.receivableClosing, r.revenueAmount]),
+                [1, 2, 3]
               )
             }
             className="inline-flex items-center gap-1 px-3 py-1.5 rounded-xl bg-[var(--raised)] hover:bg-[var(--line)] text-xs font-semibold"
@@ -916,14 +796,14 @@ export function AppProfitabilityPanel({
       </div>
 
       {error ? (
-        <ErrorState title="تعذر تحميل ربحية التطبيقات" message={error} onRetry={onReload} />
+        <ErrorState title="تعذر تحميل إيرادات وذمم التطبيقات" message={error} onRetry={load} />
       ) : (
         <DataTable
           tableId="accounting-app-profitability"
           columns={columns}
           data={rows}
           loading={loading}
-          emptyTitle="لا توجد بيانات ربحية"
+          emptyTitle="لا توجد بيانات للمنصات"
           emptyDescription="لم تُرحّل قيود منصات في الفترة المختارة."
           exportFilename={`app_profitability_${periodMonth}`}
           getRowId={(r) => r.app}
@@ -1018,7 +898,7 @@ export function AccountingReportsPanel({
     {
       id: 'app_profitability' as const,
       title: 'ربحية التطبيقات',
-      desc: 'مقارنة إيرادات وتكاليف وذمم كل منصة تشغيلية.',
+      desc: 'مقارنة إيرادات وذمم كل منصة تشغيلية على الدليل المستهدف.',
       metric: '6 تطبيقات',
       onExport: () => onNavigateTab('app_profitability'),
     },
