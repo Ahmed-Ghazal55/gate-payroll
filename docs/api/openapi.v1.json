@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:36321/"
+      "url": "http://127.0.0.1:46835/"
     }
   ],
   "paths": {
@@ -13902,6 +13902,169 @@
         }
       }
     },
+    "/api/pay/apps/{app}/defaults/seed": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Seed Ninja default pay schemes/terms as unapproved drafts (maker-checker)",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "app",
+                    "period",
+                    "drafts",
+                    "created",
+                    "existing"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "drafts": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "app",
+                          "period",
+                          "status",
+                          "version",
+                          "data"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "period": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "version": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "data": {
+                            "type": "object",
+                            "properties": {
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              },
+                              "billingModel": {
+                                "type": "string"
+                              },
+                              "accountingRole": {
+                                "type": "string"
+                              },
+                              "eligibilitySetId": {
+                                "type": "string"
+                              },
+                              "parameters": {
+                                "type": "object"
+                              },
+                              "values": {
+                                "type": "object"
+                              },
+                              "rules": {
+                                "type": "array",
+                                "items": {
+                                  "required": [
+                                    "metric",
+                                    "operator",
+                                    "threshold",
+                                    "effect"
+                                  ],
+                                  "type": "object",
+                                  "properties": {
+                                    "metric": {
+                                      "type": "string"
+                                    },
+                                    "operator": {
+                                      "type": "string"
+                                    },
+                                    "threshold": {
+                                      "type": "number"
+                                    },
+                                    "effect": {
+                                      "required": [
+                                        "type"
+                                      ],
+                                      "type": "object",
+                                      "properties": {
+                                        "type": {
+                                          "type": "string"
+                                        }
+                                      }
+                                    },
+                                    "included": {
+                                      "type": "boolean"
+                                    }
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "effectiveFrom": {
+                            "type": "string"
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "created": {
+                      "type": "number"
+                    },
+                    "existing": {
+                      "type": "number"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pay/settings": {
       "get": {
         "tags": [
@@ -14412,6 +14575,481 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/{app}/assignments/defaults/preview": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Preview default app scheme assignments (counts and draft/choice rows)",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "app",
+                    "period",
+                    "source",
+                    "counts",
+                    "rows",
+                    "canCommit",
+                    "errors",
+                    "fingerprint"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "counts": {
+                      "type": "object",
+                      "additionalProperties": {
+                        "type": "number"
+                      }
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "rider",
+                          "app",
+                          "schemeId",
+                          "period",
+                          "status",
+                          "choiceApprovedAt"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "rider": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "schemeId": {
+                            "type": "string"
+                          },
+                          "period": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "choiceApprovedAt": {
+                            "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "approvedAt": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "required": [
+                              "kind"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string"
+                              },
+                              "formId": {
+                                "type": "string"
+                              },
+                              "responseId": {
+                                "type": "string"
+                              },
+                              "version": {
+                                "type": "number"
+                              },
+                              "fieldId": {
+                                "type": "string"
+                              },
+                              "approvedBy": {
+                                "type": "string"
+                              },
+                              "fingerprint": {
+                                "type": "string"
+                              },
+                              "rule": {
+                                "type": "string"
+                              },
+                              "choice": {
+                                "type": "string"
+                              },
+                              "period": {
+                                "type": "string"
+                              },
+                              "category": {
+                                "type": "string"
+                              },
+                              "bikeOnCarId": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "canCommit": {
+                      "type": "boolean"
+                    },
+                    "errors": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "code"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "code": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "fingerprint": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/{app}/assignments/defaults/drafts": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Save default app scheme assignments as drafts requiring independent approval",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "app",
+                    "period",
+                    "drafted",
+                    "approvedFromSubmission",
+                    "existing",
+                    "rows"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "drafted": {
+                      "type": "number"
+                    },
+                    "approvedFromSubmission": {
+                      "type": "number"
+                    },
+                    "existing": {
+                      "type": "number"
+                    },
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "rider",
+                          "app",
+                          "schemeId",
+                          "period",
+                          "status",
+                          "choiceApprovedAt"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "rider": {
+                            "type": "string"
+                          },
+                          "app": {
+                            "type": "string"
+                          },
+                          "schemeId": {
+                            "type": "string"
+                          },
+                          "period": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "choiceApprovedAt": {
+                            "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "approvedAt": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "createdAt": {
+                            "type": "string"
+                          },
+                          "source": {
+                            "required": [
+                              "kind"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "kind": {
+                                "type": "string"
+                              },
+                              "formId": {
+                                "type": "string"
+                              },
+                              "responseId": {
+                                "type": "string"
+                              },
+                              "version": {
+                                "type": "number"
+                              },
+                              "fieldId": {
+                                "type": "string"
+                              },
+                              "approvedBy": {
+                                "type": "string"
+                              },
+                              "fingerprint": {
+                                "type": "string"
+                              },
+                              "rule": {
+                                "type": "string"
+                              },
+                              "choice": {
+                                "type": "string"
+                              },
+                              "period": {
+                                "type": "string"
+                              },
+                              "category": {
+                                "type": "string"
+                              },
+                              "bikeOnCarId": {
+                                "type": "boolean"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/{app}/assignments/{id}/approve": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Independently approve a drafted default scheme assignment",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "rider",
+                    "app",
+                    "schemeId",
+                    "period",
+                    "status",
+                    "choiceApprovedAt"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "rider": {
+                      "type": "string"
+                    },
+                    "app": {
+                      "type": "string"
+                    },
+                    "schemeId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "choiceApprovedAt": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "approvedAt": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "createdAt": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "required": [
+                        "kind"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "kind": {
+                          "type": "string"
+                        },
+                        "formId": {
+                          "type": "string"
+                        },
+                        "responseId": {
+                          "type": "string"
+                        },
+                        "version": {
+                          "type": "number"
+                        },
+                        "fieldId": {
+                          "type": "string"
+                        },
+                        "approvedBy": {
+                          "type": "string"
+                        },
+                        "fingerprint": {
+                          "type": "string"
+                        },
+                        "rule": {
+                          "type": "string"
+                        },
+                        "choice": {
+                          "type": "string"
+                        },
+                        "period": {
+                          "type": "string"
+                        },
+                        "category": {
+                          "type": "string"
+                        },
+                        "bikeOnCarId": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -21117,6 +21755,15 @@
                               },
                               "accountIds": {
                                 "type": "string"
+                              },
+                              "queryJson": {
+                                "type": "string"
+                              },
+                              "resultJson": {
+                                "type": "string"
+                              },
+                              "period": {
+                                "type": "string"
                               }
                             }
                           },
@@ -22065,6 +22712,15 @@
                                 "type": "string"
                               },
                               "accountIds": {
+                                "type": "string"
+                              },
+                              "queryJson": {
+                                "type": "string"
+                              },
+                              "resultJson": {
+                                "type": "string"
+                              },
+                              "period": {
                                 "type": "string"
                               }
                             }

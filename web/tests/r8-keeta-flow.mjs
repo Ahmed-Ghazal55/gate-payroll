@@ -1,4 +1,5 @@
 // R9 Keeta First Payroll Flow Verification (W1)
+// 0.35.2 NSET1b: missing pay_eligibility is setup-only for Keeta too (never blocks invoice/dues); this flow seeds no eligibility and only asserts invoice maker-checker.
 // Drives the real browser flow end-to-end:
 // 1. User A uploads a real synthetic Keeta xlsx (with captain penalty + company adjustment row),
 //    handles companyRows when requested by the API, confirms, and classifies deductions.

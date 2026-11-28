@@ -229,10 +229,13 @@ try {
         roundingDigits: 2,
         roundingMode: 'AwayFromZero',
         vehicleRent: { company_car: 1800, company_bike: 800, private: 0 },
+        // 0.35.2 NUI1b: catalog housing default is 200; approve/UI require the key.
+        housingMonthly: 200,
         accounts: {
           salaryExpense: '512101',
           vehicleIncomeCar: '421101',
           vehicleIncomeBike: '421102',
+          housingIncome: '421401',
           outputVat: '213201',
         },
       },
@@ -260,7 +263,8 @@ try {
     },
   });
 
-  // Approved Ninja eligibility for 2026-10
+  // Approved Ninja eligibility for 2026-10.
+  // 0.35.2 NSET1b: missing eligibility is setupChecklist only (never a hard Block); we still seed approved so the draft stays at 0 blockers.
   const rulesId = 'ninja-eligibility-2026-10';
   put('pay_eligibility', {
     id: rulesId,
@@ -294,6 +298,7 @@ try {
     createdBy: userA,
     approvedBy: 'auditor-chief',
     data: {
+      // 0.35.2: default Ninja scheme is 10% of rider due (percent_of_gross / companyPercent).
       name: 'نظام نينجا الداخلي',
       type: 'percent_of_gross',
       accountingRole: 'principal',
