@@ -21,7 +21,8 @@ public static partial class AccessPolicy
         // Those need an explicit dual-scoped grant. Invoice / pay.approve / approvals.decide stay covered.
         if((string.Equals(grantScope,ScopePayApprovals,StringComparison.OrdinalIgnoreCase)
             ||string.Equals(grantScope,"pay.approvals",StringComparison.OrdinalIgnoreCase))
-           &&needed is "pay.approve" or "approvals.decide")
+           &&(needed is "pay.approve" or "approvals.decide" or ScopeInvoiceApprovals
+              ||needed.Contains("invoice",StringComparison.OrdinalIgnoreCase)))
             return true;
         if(string.Equals(grantScope,ScopeInvoiceApprovals,StringComparison.OrdinalIgnoreCase)
            &&needed.Contains("invoice",StringComparison.OrdinalIgnoreCase)
@@ -56,9 +57,9 @@ public static partial class AccessPolicy
     public static bool BypassForView(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,string? scope=null)
         =>actor.Identity?.IsAuthenticated==true&&!string.IsNullOrWhiteSpace(actor.Identity.Name)
           &&(actor.IsInRole("SystemAdmin")||ActiveBypassGrant(c,tx,actor.Identity.Name,scope)!=null);
-    /// <summary>View-time maker-checker: another user, or the actor holds an active bypass grant. The approve action still audits via <c>Independent(...,c,tx,record)</c>.</summary>
-    public static bool IndependentForView(ClaimsPrincipal actor,string maker,bool bypass)
-        =>!SamePerson(actor,maker)||bypass;
+    /// <summary>View-time maker-checker: another user, active bypass, or approvals.approve_own (non–money-out only). Commit still audits via <c>Independent(...,c,tx,record)</c>.</summary>
+    public static bool IndependentForView(ClaimsPrincipal actor,string maker,bool bypass,bool approveOwnAllowed=false)
+        =>!SamePerson(actor,maker)||bypass||(approveOwnAllowed&&HasApproveOwnClaim(actor));
     /// <summary>Maker-checker identity: the actor's current username or any former username (after a rename) counts as the same person.</summary>
     public static bool SamePerson(ClaimsPrincipal actor,string maker)
         =>!string.IsNullOrWhiteSpace(maker)&&(string.Equals(actor.Identity?.Name,maker,StringComparison.OrdinalIgnoreCase)

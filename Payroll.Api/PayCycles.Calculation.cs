@@ -27,7 +27,15 @@ public static partial class PayCycles
         ValidateRiders(c,tx,cycle,actor);string period=cycle.S("period");var global=PaySettings.Global(c,tx,period+"-01");var values=global["data"]!["values"]!.AsObject();var facts=new List<JsonObject>();
         foreach(var (app,a) in Accounts(cycle))
         {
-            var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();var split=PayEvaluator.SplitIncentives(shares.Select(r=>new PayRiderShare(r.S("rider"),(int)r.N("orders"),r.N("baseGross"))),a.N("baseGross"),a.N("incentives"),values);
+            var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();
+            if(shares.Count==0)
+            {
+                // NFLOW1f / grok-NFLOW1e #6: held no-ops keep gross in invoice tie-out; never pay — skip SplitIncentives (PayEvaluator empty-rider throw); no pay line.
+                bool hasDaily=app=="ninja"&&OpsList(c,tx,cycle,"ninja_daily").Any(d=>d.S("platformAccountId")==a.S("accountId")&&d.S("companyId")==cycle.S("companyId")&&d.S("date").StartsWith(cycle.S("period")+"-",StringComparison.Ordinal));
+                J.Need(app=="ninja"&&!hasDaily,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
+                continue;
+            }
+            var split=PayEvaluator.SplitIncentives(shares.Select(r=>new PayRiderShare(r.S("rider"),(int)r.N("orders"),r.N("baseGross"))),a.N("baseGross"),a.N("incentives"),values);
             foreach(var share in split){var f=shares.Single(r=>r.S("rider")==share.Rider).Clone();f["app"]=app;f["accountId"]=a.S("accountId");f["sourceLineId"]=a.S("sourceLineId");f["incentive"]=share.Incentive;facts.Add(f);}
         }
         foreach(var group in facts.GroupBy(f=>(App:f.S("app"),Rider:f.S("rider"))))

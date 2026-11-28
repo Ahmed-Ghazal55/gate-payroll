@@ -2600,6 +2600,35 @@ export const api = {
   getPostingGate: (code: string) => handleRequest<{ code: string; enabled: boolean }>(`/platforms/${encodeURIComponent(code)}/posting`),
   setPostingGate: (code: string, enabled: boolean, reason: string) =>
     handleRequest<unknown>(`/platforms/${encodeURIComponent(code)}/posting`, { method: 'POST', body: JSON.stringify({ enabled, reason }) }),
+  getDuesSplit: (params: { app: string; period: string; companyId: string; invoiceId?: string }) => {
+    const q = new URLSearchParams({ app: params.app, period: params.period, companyId: params.companyId });
+    if (params.invoiceId) q.set('invoiceId', params.invoiceId);
+    return handleRequest<{
+      app: string;
+      period: string;
+      companyId: string;
+      stage: string;
+      titleAr: string;
+      accounts: Array<Record<string, unknown>>;
+      riderSplits: Array<Record<string, unknown>>;
+      accountantLines: Array<Record<string, unknown>>;
+      setupChecklist: Array<{ code: string; message: string; fixAction: string; hint?: string }>;
+      counts: {
+        users: number;
+        riderSplits: number;
+        fuelRows: number;
+        custodyRows: number;
+        accountantLines: number;
+        setupLeft: number;
+      };
+      allowedActions: string[];
+    }>(`/pay/dues-split?${q.toString()}`);
+  },
+  applyPaySetupDefaults: (body: { app: string; period: string }) =>
+    handleRequest<{ app: string; period: string; approvedIds: string[]; allowedActions: string[] }>(
+      '/pay/setup-defaults',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
   getDebtDeductions: (cycleId: string) => handleRequest<DebtDeductionsView>(`/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`),
   actDebtDeductions: (cycleId: string, body: { action: 'edit'; rider: string; key: string; amount: number; reason?: string } | { action: 'confirm'; rider: string } | { action: 'confirm-all' }) =>
     handleRequest<DebtDeductionsView>(`/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`, { method: 'POST', body: JSON.stringify(body) }),

@@ -52,6 +52,10 @@ import {
   Plus,
   Ban,
   HelpCircle,
+  Hash,
+  Fuel,
+  Car,
+  Settings,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import type {
@@ -154,6 +158,7 @@ const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
   upload_invoice: { label: 'رفع فاتورة نينجا', href: '/app/payroll?tab=ninja_upload' },
   approve_invoice: { label: 'اعتماد الفاتورة', href: '/app/payroll?tab=ninja_upload' },
   approve_settings: { label: 'اعتماد شروط الأهلية والأنظمة', href: '/app/payroll?tab=rules' },
+  apply_default_settings: { label: 'تطبيق الافتراضي بنقرة واحدة', href: '/app/payroll?tab=cycle' },
   resolve_dispute: { label: 'حسم الاعتراض الرسمي', href: '/app/payroll?tab=ninja_upload' },
   classify_invoice: { label: 'تصنيف خصومات الفاتورة', href: '/app/payroll?tab=ninja_upload' },
   review_invoice_account: { label: 'مراجعة حسابات الفاتورة', href: '/app/workforce/' },
@@ -167,6 +172,7 @@ const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
   review_rider: { label: 'مراجعة بيانات المندوب', href: '/app/riders' },
   review_posting: { label: 'مراجعة الترحيل والقيود', href: '/app/treasury' },
   open_cycle: { label: 'عرض الدورة القائمة', href: '/app/payroll?tab=cycle' },
+  split_dues: { label: 'فصل مستحقات اليوزرات', href: '/app/payroll?tab=cycle&stage=split_dues' },
 };
 
 const NINJA_METRICS_MAP: Record<string, string> = {
@@ -595,6 +601,10 @@ function PayrollPageInner() {
   // Review Draft States (A5)
   const [cycleViewMode, setCycleViewMode] = useState<'draft' | 'active'>('draft');
   const [reviewDraft, setReviewDraft] = useState<PayReviewDraft | null>(null);
+  const [duesSplit, setDuesSplit] = useState<Awaited<ReturnType<typeof api.getDuesSplit>> | null>(null);
+  const [loadingDuesSplit, setLoadingDuesSplit] = useState(false);
+  const [duesSplitError, setDuesSplitError] = useState<string | null>(null);
+  const [applyingDefaults, setApplyingDefaults] = useState(false);
   const [loadingDraft, setLoadingDraft] = useState<boolean>(false);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [creatingCycle, setCreatingCycle] = useState<boolean>(false);
@@ -980,6 +990,41 @@ function PayrollPageInner() {
       setReviewDraft(null);
     } finally {
       setLoadingDraft(false);
+    }
+  };
+
+  const loadDuesSplit = async () => {
+    setLoadingDuesSplit(true);
+    setDuesSplitError(null);
+    try {
+      const comp = selectedCompany !== 'all' ? selectedCompany : 'BW';
+      const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+      const split = await api.getDuesSplit({
+        app: 'ninja',
+        period: selectedPeriod,
+        companyId: comp,
+        invoiceId: params.get('invoiceId') || undefined,
+      });
+      setDuesSplit(split);
+    } catch (err: unknown) {
+      setDuesSplitError(err instanceof Error ? err.message : 'تعذر تحميل فصل المستحقات');
+      setDuesSplit(null);
+    } finally {
+      setLoadingDuesSplit(false);
+    }
+  };
+
+  const handleApplyDefaultSettings = async () => {
+    setApplyingDefaults(true);
+    try {
+      await api.applyPaySetupDefaults({ app: 'ninja', period: selectedPeriod });
+      showToast('تم تطبيق الاعتمادات الافتراضية للشروط والأهلية والإعدادات العامة', 'success');
+      await loadReviewDraft();
+      await loadDuesSplit();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر تطبيق الافتراضي', 'error');
+    } finally {
+      setApplyingDefaults(false);
     }
   };
 
@@ -1378,6 +1423,7 @@ function PayrollPageInner() {
     } else if (mainTab === 'cycle') {
       loadCycles();
       loadReviewDraft();
+      loadDuesSplit();
     } else if (mainTab === 'rules') {
       loadGlobalSettings();
       loadNinjaEligibility();
@@ -3715,14 +3761,77 @@ function PayrollPageInner() {
                 onClick={() => {
                   loadCycles();
                   loadReviewDraft();
+                  loadDuesSplit();
                 }}
                 className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--line)] transition cursor-pointer"
                 title="تحديث البيانات"
               >
-                <RefreshCw size={14} className={loadingDraft || loadingCycles ? 'animate-spin' : ''} />
+                <RefreshCw size={14} className={loadingDraft || loadingCycles || loadingDuesSplit ? 'animate-spin' : ''} />
               </button>
             </div>
           </div>
+
+          {/* NFLOW1: dues split stage after invoice approval */}
+          {cycleViewMode === 'draft' && (
+            <div id="dues-split-stage" className="mb-6 p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--ink)]">فصل مستحقات اليوزرات وتوزيعها على المناديب</h3>
+                  <p className="text-[11px] text-[var(--muted)] mt-0.5">قراءة تشغيل عمر (قراءة فقط) + أنظمة داخلية؛ الفاتورة لا تتغيّر.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={loadDuesSplit}
+                    disabled={loadingDuesSplit}
+                    className="px-3 py-1.5 rounded-xl border border-[var(--line)] text-xs font-bold text-[var(--ink)] cursor-pointer disabled:opacity-50"
+                  >
+                    تحديث التوزيع
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApplyDefaultSettings}
+                    disabled={applyingDefaults}
+                    className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    {applyingDefaults ? 'جاري التطبيق…' : 'تطبيق الافتراضي بنقرة واحدة'}
+                  </button>
+                </div>
+              </div>
+              {duesSplitError && <p className="text-xs text-[var(--danger)]">{duesSplitError}</p>}
+              {duesSplit && (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                    <StatCard label="يوزرات" value={String(duesSplit.counts.users)} icon={Hash} />
+                    <StatCard label="توزيع مناديب" value={String(duesSplit.counts.riderSplits)} icon={Users} />
+                    <StatCard label="وقود" value={String(duesSplit.counts.fuelRows)} icon={Fuel} />
+                    <StatCard label="عهدة مركبة" value={String(duesSplit.counts.custodyRows)} icon={Car} />
+                    <StatCard label="سطور محاسب" value={String(duesSplit.counts.accountantLines)} icon={FileText} />
+                    <StatCard label="إعداد متبقٍ" value={String(duesSplit.counts.setupLeft)} icon={Settings} />
+                  </div>
+                  {duesSplit.setupChecklist.length > 0 && (
+                    <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-1">
+                      <p className="text-xs font-bold text-[var(--ink)]">قائمة إعداد قصيرة (ما لا يوجد في نظام عمر)</p>
+                      {duesSplit.setupChecklist.map((item, i) => (
+                        <p key={i} className="text-[11px] text-[var(--muted)]">• {item.message}{item.hint ? ` — ${item.hint}` : ''}</p>
+                      ))}
+                    </div>
+                  )}
+                  {duesSplit.accountantLines.length > 0 && (
+                    <div className="p-3 rounded-xl border border-[var(--line)] space-y-1">
+                      <p className="text-xs font-bold text-[var(--ink)]">سطور المحاسب (فروق / بلا تشغيل) — قبول الفاتورة افتراضيًا</p>
+                      {duesSplit.accountantLines.slice(0, 20).map((line, i) => (
+                        <p key={i} className="text-[11px] text-[var(--muted)]">• {String((line as { message?: string }).message || line.kind || '')}</p>
+                      ))}
+                      {duesSplit.accountantLines.length > 20 && (
+                        <p className="text-[11px] text-[var(--muted)]">… و{duesSplit.accountantLines.length - 20} سطرًا إضافيًا</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* VIEW 1: REVIEW DRAFT (A5) */}
           {cycleViewMode === 'draft' && (

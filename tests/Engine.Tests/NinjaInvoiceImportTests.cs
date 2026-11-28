@@ -71,9 +71,9 @@ public sealed class NinjaInvoiceImportTests
         f.Store.Write((c,tx)=>{using(var d=c.CreateCommand()){d.Transaction=tx;d.CommandText="DELETE FROM records WHERE kind='ninja_account'";d.ExecuteNonQuery();}Store.Save(c,"platform_account",new(){["id"]="synthetic-ninja-platform",["platformCode"]="NINJA",["companyId"]=Company,["externalAccountId"]="SYN-A"},tx);return true;});
         var invoice=f.Commit(Workbook(penalty:300));
         Assert.AreEqual(1,f.Store.Read(c=>NinjaInvoices.Lines(c,null,invoice.S("id")).Count));
+        // NFLOW1: captain deductions default to account_level — checker can approve without a forced classify.
         var checker=f.Store.Read(c=>NinjaInvoices.View(c,null,Actor("synthetic-checker"),invoice));
-        Assert.IsFalse(checker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"));
-        StringAssert.Contains(string.Join("|",checker["approvalBlockers"]!.AsArray()),"بلا تصنيف");
+        Assert.IsTrue(checker["allowedActions"]!.AsArray().Any(a=>a!.ToString()=="approve"),string.Join("|",checker["approvalBlockers"]!.AsArray()));
         var line=checker["lines"]!.AsArray()[0]!.AsObject();
         var batch=new JsonObject{["items"]=new JsonArray(new JsonObject{["lineId"]=line.S("id"),["category"]="penalty",["level"]="company_level",["expenseAccount"]="526402"})};
         f.Store.Write((c,tx)=>NinjaInvoices.ClassifyBatch(c,tx,Actor(),invoice.S("id"),batch));
@@ -170,7 +170,7 @@ public sealed class NinjaInvoiceImportTests
     public void ClassificationsAreIndependentAndFormalDisputesAreNotEngineDifferences()
     {
         using var f=new Fixture();var invoice=f.Commit(Workbook(penalty:10,blocked:20));string id=invoice.S("id");var line=f.Store.Read(c=>NinjaInvoices.Lines(c,null,id).Single());
-        Assert.ThrowsExactly<ApiError>(()=>f.Store.Write((c,tx)=>NinjaInvoices.Approve(c,tx,Actor("synthetic-checker"),id)));
+        // Account-level defaults are already classified; company override still needs an explicit classify when chosen.
         foreach(string category in new[]{"penalty","naqilBlocked"})f.Store.Write((c,tx)=>NinjaInvoices.Classify(c,tx,Actor(),id,new(){["lineId"]=line.S("id"),["category"]=category,["level"]="company_level",["expenseAccount"]="526402"}));
         f.Store.Write((c,tx)=>NinjaInvoices.Approve(c,tx,Actor("synthetic-checker"),id));Assert.AreEqual(2,f.Store.Read(c=>Store.List(c,PlatformDeductions.Kind).Count));Assert.AreEqual(0,f.Store.Read(c=>Store.List(c,"debt").Count));
         var d=f.Store.Write((c,tx)=>NinjaInvoices.Dispute(c,tx,Actor(),id,new(){["reason"]="Synthetic formal dispute"}));f.Store.Write((c,tx)=>PlatformPosting.Set(c,tx,Actor(),"ninja",new(){["enabled"]=true}));

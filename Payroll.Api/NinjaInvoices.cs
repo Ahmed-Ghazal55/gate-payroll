@@ -68,7 +68,8 @@ public static partial class NinjaInvoices
             // Bind every cent to the invoice, retaining rounded component residual explicitly.
             decimal rounding=J.Money(invoiced-(baseGross+incentives-deduction));baseGross+=rounding;
             string reason=comparison.N("engineFinal")==invoiced?"":comparison.S("capability")=="bike"&&(comparison["reasons"] as JsonArray??[]).Any(r=>r!.ToString().StartsWith("capability_label_edited:",StringComparison.OrdinalIgnoreCase))?"vehicle type edited by the platform":"invoice differs from expected engine calculation";
-            var deductions=new JsonArray();foreach(var item in pass.Where(x=>x.Value!.GetValue<decimal>()<0))deductions.Add(new JsonObject{["category"]=item.Key,["amount"]=J.Money(-item.Value!.GetValue<decimal>()),["level"]="unclassified"});
+            // Invoice is final: a deduction that arrives on a captain/user defaults to that account (ops split later). Override stays optional.
+            var deductions=new JsonArray();foreach(var item in pass.Where(x=>x.Value!.GetValue<decimal>()<0))deductions.Add(new JsonObject{["category"]=item.Key,["amount"]=J.Money(-item.Value!.GetValue<decimal>()),["level"]="account_level"});
             var line=new JsonObject{["id"]="ninja-line:"+Hash(id+":"+comparison.N("row")),["invoiceId"]=id,["companyId"]=company,["period"]=period,["platform"]="Ninja",["sourceRow"]=comparison.N("row"),["captainId"]=captain,["platformAccountId"]=matches[0],["lineType"]="account",["baseGross"]=baseGross,["incentives"]=incentives,["deductionAmount"]=deduction,["deductions"]=deductions,["orders"]=v.N("orders"),["vat"]=vat,["expected"]=comparison.N("engineFinal"),["invoiced"]=invoiced,["difference"]=J.Money(invoiced-comparison.N("engineFinal")),["reason"]=reason,["status"]="invoiced",["roundingResidual"]=rounding};lines.Add(line);
         }
         // Keep the supplier row and captain reference; the accountant chooses its bearer.

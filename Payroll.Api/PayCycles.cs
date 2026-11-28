@@ -130,6 +130,8 @@ public static partial class PayCycles
     // Captured cycles read freeze only (M6). Pre-capture import/synthetic validation still uses Store.
     static JsonObject? OpsDoc(DbConnection c,DbTransaction? tx,JsonObject cycle,string kind,string docId)
         =>PayRunInputs.Captured(cycle)?CycleOpsGet(c,tx,cycle,kind,docId):Store.Get(c,docId,kind,tx);
+    static IEnumerable<JsonObject> OpsList(DbConnection c,DbTransaction? tx,JsonObject cycle,string kind)
+        =>PayRunInputs.Captured(cycle)?PayRunInputs.List(c,tx,cycle.S("id"),kind):Store.List(c,kind,tx);
     static void ValidateAccounts(DbConnection c,DbTransaction tx,JsonObject cycle)
     {
         foreach(var (app,a) in Accounts(cycle))
@@ -146,7 +148,15 @@ public static partial class PayCycles
     {
         foreach(var (app,a) in Accounts(cycle))
         {
-            var source=OpsDoc(c,tx,cycle,"platform_account",a.S("accountId"))??throw new ApiError("يوزر المنصة غير موجود.");var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();J.Need(shares.Count>0&&shares.Select(r=>r.S("rider")).Distinct().Count()==shares.Count,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
+            var source=OpsDoc(c,tx,cycle,"platform_account",a.S("accountId"))??throw new ApiError("يوزر المنصة غير موجود.");var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();
+            if(shares.Count==0)
+            {
+                // NFLOW1e / grok-NFLOW1d #6: held no-ops keep gross in invoice tie-out and on the accountant line; never pay; skip rider check so one held account does not block canCreate / stage 3.
+                bool hasDaily=app=="ninja"&&OpsList(c,tx,cycle,"ninja_daily").Any(d=>d.S("platformAccountId")==a.S("accountId")&&d.S("companyId")==cycle.S("companyId")&&d.S("date").StartsWith(cycle.S("period")+"-",StringComparison.Ordinal));
+                J.Need(app=="ninja"&&!hasDaily,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
+                continue;
+            }
+            J.Need(shares.Select(r=>r.S("rider")).Distinct().Count()==shares.Count,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
             foreach(var r in shares)
             {
                 PayValues.Fields(r,"rider","orders","baseGross","deduction","category","days","metrics","sourceLineId","operationSourceIds","chefzFullTimeCommission");

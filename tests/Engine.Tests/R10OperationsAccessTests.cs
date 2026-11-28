@@ -31,11 +31,64 @@ public sealed class R10OperationsAccessTests
         var draft=Draft(f);Assert.IsTrue(draft.B("canCreate"),draft["blockers"]!.ToJsonString());
     }
     [TestMethod]
-    public void MissingDailyUsesTheOnlyAssignedOperatorWithAWarning()
+    public void MissingDailyHoldsNoOpsOnAccountantLineNeverAutoPaysSoleAssignee()
     {
         using var f=PayReviewDraftTests.Setup();f.Store.Write((c,tx)=>{using var remove=Store.Command(c,tx,"DELETE FROM records WHERE id=@id",("@id","synthetic-r8-day"));remove.ExecuteNonQuery();return true;});
-        var draft=Draft(f);Assert.IsTrue(Warned(draft,"operations_missing_using_assignment"));Assert.IsTrue(draft.B("canCreate"),draft["blockers"]!.ToJsonString());
-        Assert.AreEqual(Rider,draft["invoices"]![0]!["accounts"]![0]!["riders"]![0]!.S("rider"));
+        var draft=Draft(f);
+        Assert.IsFalse(Warned(draft,"operations_missing_using_assignment"));
+        var line=draft["accountantLines"]!.AsArray().OfType<JsonObject>().First(a=>a.S("kind")=="no_ops_account");
+        Assert.AreEqual(1m,line.N("assigneeCount"));
+        Assert.AreEqual("hold_for_accountant",line.S("decisionDefault"));
+        Assert.AreEqual(0,draft["invoices"]![0]!["accounts"]![0]!["riders"]!.AsArray().Count);
+        Assert.IsTrue(draft.B("canCreate"),draft["blockers"]!.ToJsonString());
+        f.Store.Read(c=>{PayCycles.ValidateImportedReview(c,null,PayFixture.Maker,Company,"2026-10",draft["invoices"]![0]!.AsObject(),"pay.view");return true;});
+    }
+
+    /// <summary>NFLOW1f / grok-NFLOW1e #6: held no-ops must not block canCreate or stage-4 calc; sibling account still pays; held has no pay line.</summary>
+    [TestMethod]
+    public void HeldNoOpsAccountDoesNotBlockCanCreateWhileSiblingPays()
+    {
+        using var f=PayReviewDraftTests.Setup();
+        f.Store.Write((c,tx)=>
+        {
+            Store.Save(c,"platform_account",new()
+            {
+                ["id"]="synthetic-r8-held-noops",
+                ["companyId"]=Company,
+                ["platformCode"]="ninja",
+                ["assignments"]=new JsonArray(new JsonObject{["riderId"]=Rider,["RawEffectiveFrom"]="2026-10-01T00:00:00+03:00"})
+            },tx);
+            Store.Save(c,"platform_invoice_line",new()
+            {
+                ["id"]="synthetic-r8-held-noops-line",["invoiceId"]=PayReviewDraftTests.Invoice,["platformAccountId"]="synthetic-r8-held-noops",
+                ["lineType"]="account",["baseGross"]=25,["incentives"]=0,["orders"]=2,["deductionAmount"]=0,["deductions"]=new JsonArray(),["difference"]=0,["captainId"]="HELD1"
+            },tx);
+            var invoice=Store.Get(c,PayReviewDraftTests.Invoice,"platform_invoice",tx)!;
+            invoice["amountExclVat"]=125;
+            Store.Save(c,"platform_invoice",invoice,tx);
+            return true;
+        });
+        var draft=Draft(f);
+        Assert.IsTrue(draft.B("canCreate"),draft["blockers"]!.ToJsonString());
+        Assert.IsTrue(draft["accountantLines"]!.AsArray().OfType<JsonObject>().Any(a=>a.S("kind")=="no_ops_account"&&a.S("sourceLineId")=="synthetic-r8-held-noops-line"&&a.S("decisionDefault")=="hold_for_accountant"));
+        var accounts=draft["invoices"]![0]!["accounts"]!.AsArray().OfType<JsonObject>().ToList();
+        Assert.AreEqual(2,accounts.Count);
+        Assert.AreEqual(125m,accounts.Sum(a=>a.N("baseGross")+a.N("incentives")));
+        var paid=accounts.Single(a=>a.S("accountId")==Account);
+        var held=accounts.Single(a=>a.S("accountId")=="synthetic-r8-held-noops");
+        Assert.AreEqual(1,paid["riders"]!.AsArray().Count);
+        Assert.AreEqual(0,held["riders"]!.AsArray().Count);
+        f.Store.Read(c=>{PayCycles.ValidateImportedReview(c,null,PayFixture.Maker,Company,"2026-10",draft["invoices"]![0]!.AsObject(),"pay.view");return true;});
+        var cycle=f.Store.Write((c,tx)=>PayCycles.Create(c,tx,PayFixture.Maker,new JsonObject{["period"]="2026-10",["companyId"]=Company,["app"]="ninja",["invoices"]=draft["invoices"]!.DeepClone()}));
+        Assert.AreEqual("draft",cycle.S("status"));
+        f.Store.Write((c,tx)=>PayCycles.CaptureInputs(c,tx,PayFixture.Maker,cycle.S("id")));
+        for(int stage=1;stage<=4;stage++)cycle=f.Store.Write((c,tx)=>PayCycles.Advance(c,tx,PayFixture.Maker,cycle.S("id"),new(){["stage"]=stage}));
+        Assert.AreEqual(4,(int)cycle.N("stage"));
+        var lines=f.Store.Read(c=>PayCycles.Lines(c,null,cycle.S("id")));
+        Assert.AreEqual(1,lines.Count,"held no-ops must not create a pay line");
+        Assert.AreEqual(Rider,lines.Single().S("rider"));
+        Assert.AreEqual(Account,lines.Single()["sources"]!.AsArray().OfType<JsonObject>().Single().S("accountId"));
+        Assert.IsFalse(lines.Any(l=>(l["sources"] as JsonArray??[]).OfType<JsonObject>().Any(s=>s.S("accountId")=="synthetic-r8-held-noops")));
     }
     [TestMethod]
     public void SeveralOperatorsGetAProposalButStayBlocked()
