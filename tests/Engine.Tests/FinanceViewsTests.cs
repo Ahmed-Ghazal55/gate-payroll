@@ -228,4 +228,94 @@ public sealed class FinanceViewsTests
     {
         foreach(string role in new[]{"Admin","SuperAdmin","FinancialManager","Accountant","FinancialAccountant","OperationsManager"}){var user=UserAccess.Principal(new(){["role"]=role,["username"]="synthetic"});bool expected=role is "Admin" or "SuperAdmin" or "FinancialManager";Assert.AreEqual(expected,AccessPolicy.Allowed(user,"POST","/api/finance/bank-file/preview"));Assert.AreEqual(expected,AccessPolicy.Allowed(user,"POST","/api/finance/bank-file/export"));}
     }
+    [TestMethod] public void CostCentresListsSeededCentresAndChecksPermission()
+    {
+        InStore(store=>{
+            var cc=store.Read(c=>FinanceViews.CostCentres(c,Admin,null,"2026-10","2026-10"));
+            var items=cc["items"] as JsonArray;
+            Assert.IsNotNull(items);
+            Assert.IsTrue(items.OfType<JsonObject>().Any(x=>x.S("code")=="none"));
+        });
+        var reader=UserAccess.Principal(new(){["role"]="Reviewer",["username"]="synthetic-reader"});
+        Assert.IsFalse(AccessPolicy.Allowed(reader,"GET","/api/finance/cost-centres"));
+        var acc=UserAccess.Principal(new(){["role"]="Accountant",["username"]="synthetic-acc"});
+        Assert.IsTrue(AccessPolicy.Allowed(acc,"GET","/api/finance/cost-centres"));
+    }
+    [TestMethod] public void CostCentresNetsNaturesTakesFirstOpeningLastClosingAndKeysByCompany()
+    {
+        InStore(store=>{
+            string tr=FinancialCore.Sponsors[2].Id;
+            string cityBw=SchemaSql.GuidText(SchemaSql.NewId());
+            string sharedNone=SchemaOrgCostCentre.NoneId.ToString("D");
+            string pBwSep=SchemaSql.GuidText(SchemaSql.NewId());
+            string pBwOct=SchemaSql.GuidText(SchemaSql.NewId());
+            string pBwNov=SchemaSql.GuidText(SchemaSql.NewId());
+            string pExOct=SchemaSql.GuidText(SchemaSql.NewId());
+            store.Write((c,tx)=>{
+                foreach(var sp in new[]{FinancialCore.Sponsors[0],FinancialCore.Sponsors[1]})
+                    SchemaSql.Exec(c,tx,"INSERT OR IGNORE INTO hr_company(id,code,unified_number,name_ar,short_name_ar,status,created_at) VALUES(@id,@code,@un,@name,@short,1,datetime('now'))",("@id",sp.Id),("@code",sp.Code),("@un",sp.UnifiedNumber),("@name",sp.NameAr),("@short",sp.ShortNameAr));
+                SchemaSql.Exec(c,tx,"INSERT INTO org_cost_centre(id,code,name_ar,kind,company_id,status,created_at) VALUES(@id,'CITY-BW','مدينة البوابا','city',@cid,1,datetime('now'))",("@id",cityBw),("@cid",Bw));
+                SchemaSql.Exec(c,tx,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-09-01',1,datetime('now'))",("@id",pBwSep),("@cid",Bw));
+                SchemaSql.Exec(c,tx,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-10-01',1,datetime('now'))",("@id",pBwOct),("@cid",Bw));
+                SchemaSql.Exec(c,tx,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-11-01',1,datetime('now'))",("@id",pBwNov),("@cid",Bw));
+                SchemaSql.Exec(c,tx,"INSERT INTO fin_accounting_period(id,company_id,period_month,state,created_at) VALUES(@id,@cid,'2026-10-01',1,datetime('now'))",("@id",pExOct),("@cid",Ex));
+                string debitAcc=(string)SchemaSql.Scalar(c,tx,"SELECT id FROM fin_account WHERE nature=1 AND is_postable=1 ORDER BY code LIMIT 1")!;
+                string creditAcc=(string)SchemaSql.Scalar(c,tx,"SELECT id FROM fin_account WHERE nature=2 AND is_postable=1 ORDER BY code LIMIT 1")!;
+                void AddPb(string pid,string month,string cid,string accId,string ccId,string app,decimal op,decimal db,decimal cr,decimal cl)
+                {
+                    byte[] dim=SchemaFinPeriodBalance.ComputeDimensionKey(Guid.Parse(cid),Guid.Parse(accId),Guid.Parse(ccId),app);
+                    SchemaSql.Exec(c,tx,"""
+                        INSERT INTO fin_period_balance(id,period_id,period_month,company_id,account_id,cost_centre_id,app_code,dimension_key,opening,debit,credit,closing,created_at)
+                        VALUES(@id,@pid,@pm,@cid,@aid,@cc,@app,@dim,@op,@db,@cr,@cl,datetime('now'))
+                        """,("@id",SchemaSql.GuidText(SchemaSql.NewId())),("@pid",pid),("@pm",month),("@cid",cid),("@aid",accId),("@cc",ccId),("@app",app),("@dim",dim),("@op",op),("@db",db),("@cr",cr),("@cl",cl));
+                }
+                // Out-of-range prior month (2026-09): must be excluded from 2026-10..2026-11.
+                AddPb(pBwSep,"2026-09-01",Bw,debitAcc,cityBw,"none",500m,500m,0m,1000m);
+                // Month 1 (2026-10): debit-nature (+1000 op, +300 db, -100 cr -> +1200 cl) and credit-nature (800 op, 50 db, 250 cr -> 1000 cl).
+                AddPb(pBwOct,"2026-10-01",Bw,debitAcc,cityBw,"keeta",1000m,300m,100m,1200m);
+                AddPb(pBwOct,"2026-10-01",Bw,creditAcc,cityBw,"keeta",800m,50m,250m,1000m);
+                // Month 2 (2026-11): debit-nature (+1200 op, +200 db, -400 cr -> +1000 cl) and credit-nature (1000 op, 100 db, 100 cr -> 1000 cl).
+                AddPb(pBwNov,"2026-11-01",Bw,debitAcc,cityBw,"keeta",1200m,200m,400m,1000m);
+                AddPb(pBwNov,"2026-11-01",Bw,creditAcc,cityBw,"keeta",1000m,100m,100m,1000m);
+                // Shared 'none' sentinel has separate balances per company (BW vs EX, none for TR).
+                AddPb(pBwOct,"2026-10-01",Bw,debitAcc,sharedNone,"none",0m,250m,0m,250m);
+                AddPb(pExOct,"2026-10-01",Ex,creditAcc,sharedNone,"none",0m,0m,400m,400m);
+                return true;
+            });
+
+            var range=store.Read(c=>FinanceViews.CostCentres(c,Admin,null,"2026-10","2026-11"));
+            var items=range["items"]!.AsArray().OfType<JsonObject>().ToArray();
+            var cityRow=items.Single(x=>x.S("code")=="CITY-BW");
+            Assert.AreEqual(Bw,cityRow.S("companyId"));
+            // Opening from first month only (1000 - 800 = 200); debit/credit summed across both months; closing from last month netted by nature (+1000 - 1000 = 0).
+            Assert.AreEqual(200m,cityRow.N("opening"));
+            Assert.AreEqual(650m,cityRow.N("debit"));
+            Assert.AreEqual(850m,cityRow.N("credit"));
+            Assert.AreEqual(0m,cityRow.N("closing"));
+
+            // Shared 'none' keyed separately per company (BW and EX).
+            var noneRows=items.Where(x=>x.S("code")=="none").ToArray();
+            Assert.AreEqual(2,noneRows.Length);
+            var noneBw=noneRows.Single(x=>x.S("companyId")==Bw);
+            var noneEx=noneRows.Single(x=>x.S("companyId")==Ex);
+            Assert.AreEqual(250m,noneBw.N("closing"));
+            Assert.AreEqual(-400m,noneEx.N("closing"));
+
+            // Sponsor filter excludes shared centres without a balance for that sponsor (TR has none).
+            var bwFiltered=store.Read(c=>FinanceViews.CostCentres(c,Admin,"BW","2026-10","2026-11"))["items"]!.AsArray().OfType<JsonObject>().ToArray();
+            Assert.AreEqual(2,bwFiltered.Length);
+            Assert.IsTrue(bwFiltered.All(x=>x.S("companyId")==Bw));
+
+            var trFiltered=store.Read(c=>FinanceViews.CostCentres(c,Admin,tr,"2026-10","2026-11"))["items"]!.AsArray().OfType<JsonObject>().ToArray();
+            Assert.AreEqual(0,trFiltered.Length);
+        });
+    }
+    [TestMethod] public void VaultCountsListIncludesCashBoxesArray()
+    {
+        InStore(store=>{
+            var vc=store.Read(c=>TreasuryVaultCountsApi.List(c,null,Admin,null));
+            Assert.IsNotNull(vc["items"] as JsonArray);
+            Assert.IsNotNull(vc["cashBoxes"] as JsonArray);
+        });
+    }
 }

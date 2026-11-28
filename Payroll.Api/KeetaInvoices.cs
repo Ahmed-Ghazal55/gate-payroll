@@ -148,7 +148,23 @@ public static class KeetaInvoices
         bool dueIsNetExVat=netCol<0;if(netCol<0)netCol=due;
         var selected=new HashSet<int>{accountCol,ordersCol,netCol,due};foreach(var d in DeductionColumns){int col=Col(d.Header);if(col>=0)selected.Add(col);}var cache=Imports.MissingFormulaCacheRows(bytes,sheet.Name,selected);
         var accounts=Store.List(c,"platform_account",tx);var lines=new JsonArray();var seen=new HashSet<string>();
-        var companyRows=(input["companyRows"] as JsonArray??[]).Select(x=>x!.GetValue<int>()).ToHashSet();var usedCompanyRows=new HashSet<int>();
+        // Manual override (typed row numbers) unions with auto-detected blank-account company rows.
+        var manualCompanyRows=(input["companyRows"] as JsonArray??[]).Select(x=>x!.GetValue<int>()).ToHashSet();
+        var detectedCompanyRows=new HashSet<int>();
+        for(int i=headerRow+1;i<sheet.Rows.Count;i++)
+        {
+            var row=sheet.Rows[i];string V(int index)=>index>=0&&index<row.Count?row[index].Trim():"";
+            if(row.All(string.IsNullOrWhiteSpace))continue;string key=V(accountCol);
+            if(IsBlankToken(key))key="";
+            if(Header(key) is "الاجمالي" or "المجموع" || key is "Grand Total")continue;
+            if(key!="")continue;
+            if(cache.Contains(i+1))continue;
+            decimal probeOrders=ParseMoneyCell(V(ordersCol),i+1),probeDue=ParseMoneyCell(V(due),i+1),probeNet=ParseMoneyCell(V(netCol),i+1);
+            // Blank account + zero orders + non-zero due/net = company adjustment (e.g. target-shortfall -2000).
+            if(probeOrders==0&&(probeDue!=0||probeNet!=0))detectedCompanyRows.Add(i+1);
+        }
+        var companyRows=new HashSet<int>(manualCompanyRows);companyRows.UnionWith(detectedCompanyRows);
+        var usedCompanyRows=new HashSet<int>();
         for(int i=headerRow+1;i<sheet.Rows.Count;i++)
         {
             var row=sheet.Rows[i];string V(int index)=>index>=0&&index<row.Count?row[index].Trim():"";
@@ -183,31 +199,50 @@ public static class KeetaInvoices
             }
             else
             {
+                // Invoice is final: a deduction that arrives on a user/ID defaults to that account (ops split later), matching Ninja.
+                // Company-row supplier_adjustment stays unclassified and needs an explicit override.
                 foreach(var field in DeductionColumns)
                 {
                     int col=Col(field.Header);if(col<0)continue;decimal value=N(col),amount=field.Signed||dueIsNetExVat?Math.Max(0,-value):Math.Abs(value);if(amount==0)continue;
-                    deductions.Add(new JsonObject{["category"]=field.Category,["amount"]=amount,["level"]="unclassified",["sourceHeader"]=field.Header,["sourceSignedAmount"]=value});
+                    deductions.Add(new JsonObject{["category"]=field.Category,["amount"]=amount,["level"]="account_level",["sourceHeader"]=field.Header,["sourceSignedAmount"]=value});
                 }
             }
             decimal deduction=deductions.OfType<JsonObject>().Sum(d=>d.N("amount")),gross=J.Money(net+deduction);
             var sourceMetrics=new JsonObject();foreach(string name in new[]{"صالح","المركبة","أيام الاتصال-صالحة","ساعات الاتصال اليومي-صالحة","ساعات الاتصال اليومي خلال وقت الذروة-صالحة"}){int col=Col(name);if(col>=0)sourceMetrics[name]=V(col);}
+            bool autoDetected=detectedCompanyRows.Contains(i+1);
             lines.Add(new JsonObject{["id"]="keeta-line:"+Hash(id+":"+(i+1)),["invoiceId"]=id,["companyId"]=company,["period"]=period,["platform"]="Keeta",["sourceRow"]=i+1,["lineType"]=companyRow?"company":"account",["platformAccountId"]=account,
-                ["baseGross"]=gross,["incentives"]=0,["deductionAmount"]=deduction,["deductions"]=deductions,["orders"]=orders,["vat"]=vat,["invoiced"]=net,["invoiceInclusive"]=inclusive,["sourceMetrics"]=sourceMetrics,["status"]="invoiced",["reason"]="final supplier invoice; no expected amount substituted"});
+                ["baseGross"]=gross,["incentives"]=0,["deductionAmount"]=deduction,["deductions"]=deductions,["orders"]=orders,["vat"]=vat,["invoiced"]=net,["invoiceInclusive"]=inclusive,["sourceMetrics"]=sourceMetrics,["status"]="invoiced",["reason"]=companyRow?(autoDetected?"company adjustment auto-detected from blank account row":"company adjustment (manual override)"):"final supplier invoice; no expected amount substituted",["companyAdjustmentDetected"]=companyRow&&autoDetected});
         }
-        J.Need(usedCompanyRows.SetEquals(companyRows),"صف تعديل شركة غير موجود أو مختلط بسطر إجمالي.");
+        J.Need(manualCompanyRows.IsSubsetOf(usedCompanyRows),"صف تعديل شركة غير موجود أو مختلط بسطر إجمالي.");
         var lineList=lines.OfType<JsonObject>().ToList();
         J.Need(lineList.Count>0&&lineList.Any(l=>l.S("lineType")=="account"),"الفاتورة بلا سطور يوزرات.");
         decimal headerVat=lineList.Sum(l=>l.N("vat"));
+        decimal partnerResidual=0;
         if(dueIsNetExVat)
         {
             var partner=ReadPartnerTotals(sheets);
             headerVat=partner.Tax;
             decimal riderDueSum=lineList.Sum(l=>l.N("invoiced"));
+            decimal gap=J.Money(partner.PartnerDue-(riderDueSum+headerVat));
+            // Partner-only residual (e.g. Albwaba activities 4400 vs rider sum 4300) has no rider-sheet row.
+            if(Math.Abs(gap)>0.01m)
+            {
+                partnerResidual=gap;
+                var residualDeductions=new JsonArray();
+                if(gap<0)residualDeductions.Add(new JsonObject{["category"]="supplier_adjustment",["amount"]=-gap,["level"]="unclassified"});
+                decimal residualGross=J.Money(gap<0?0:gap);
+                lines.Add(new JsonObject{["id"]="keeta-line:"+Hash(id+":partner-residual"),["invoiceId"]=id,["companyId"]=company,["period"]=period,["platform"]="Keeta",["sourceRow"]=0,["lineType"]="company",["platformAccountId"]="",
+                    ["baseGross"]=residualGross,["incentives"]=0,["deductionAmount"]=gap<0?-gap:0,["deductions"]=residualDeductions,["orders"]=0,["vat"]=0,["invoiced"]=gap,["invoiceInclusive"]=gap,["sourceMetrics"]=new JsonObject(),["status"]="invoiced",
+                    ["reason"]="partner residual company adjustment (unallocated partner vs rider due)",["partnerResidual"]=true,["companyAdjustmentDetected"]=true});
+                lineList=lines.OfType<JsonObject>().ToList();
+                riderDueSum=lineList.Sum(l=>l.N("invoiced"));
+            }
             J.Need(Math.Abs(riderDueSum+headerVat-partner.PartnerDue)<=0.01m,"مجموع استحقاق السائقين مع ضريبة الشريك لا يطابق إجمالي الشريك المستحق.");
         }
         else J.Need(headerVat>=0,"ضريبة الفاتورة سالبة.");
         string role=input.S("accountingRole","cycle_only");J.Need(role is "principal" or "cycle_only","حدد principal أو cycle_only.");
-        return new(){["id"]=id,["platform"]="Keeta",["companyId"]=company,["period"]=period,["reference"]=reference,["sourceSha256"]=sha,["sourceSheet"]=sheet.Name,["accountingRole"]=role,["amountExclVat"]=lineList.Sum(l=>l.N("baseGross")),["deductionsTotal"]=lineList.Sum(l=>l.N("deductionAmount")),["vat"]=headerVat,["status"]="invoiced",["odooVoucherNo"]=input.S("odooVoucherNo"),["lines"]=lines};
+        var detectedRowsArr=new JsonArray(detectedCompanyRows.OrderBy(x=>x).Select(x=>(JsonNode?)x).ToArray());
+        return new(){["id"]=id,["platform"]="Keeta",["companyId"]=company,["period"]=period,["reference"]=reference,["sourceSha256"]=sha,["sourceSheet"]=sheet.Name,["accountingRole"]=role,["amountExclVat"]=lineList.Sum(l=>l.N("baseGross")),["deductionsTotal"]=lineList.Sum(l=>l.N("deductionAmount")),["vat"]=headerVat,["status"]="invoiced",["odooVoucherNo"]=input.S("odooVoucherNo"),["detectedCompanyRows"]=detectedRowsArr,["partnerResidual"]=partnerResidual,["lines"]=lines};
     }
     public static JsonObject Preview(DbConnection c,ClaimsPrincipal actor,JsonObject input,byte[] bytes)
     {var rows=new JsonArray(Parse(c,null,actor,input,bytes));return new(){["rows"]=rows,["fingerprint"]=FinancialImports.Issue(c,PreviewKind,rows,actor.Identity!.Name!)};}

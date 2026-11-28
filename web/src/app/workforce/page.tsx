@@ -220,6 +220,7 @@ function WorkforcePageInner() {
   const [loadingCases, setLoadingCases] = useState(false);
   const [casesError, setCasesError] = useState<string | null>(null);
   const [legalItems, setLegalItems] = useState<Record<string, unknown>[]>([]);
+  const [legalMessage, setLegalMessage] = useState<string | null>(null);
   const [allowedActions, setAllowedActions] = useState<string[]>([]);
   const directoryAbort = useRef<AbortController | null>(null);
 
@@ -473,12 +474,13 @@ function WorkforcePageInner() {
   const loadLegal = useCallback(async () => {
     setLoadingCases(true);
     setCasesError(null);
+    setLegalMessage(null);
     try {
       const res = await api.getWorkforceLegalCases();
       setLegalItems((res?.items as Record<string, unknown>[]) || []);
       setCasesSource(res?.source || '');
       if (res?.message) {
-        setCasesError(
+        setLegalMessage(
           res.source && res.source !== 'live'
             ? `${res.message} — يحتاج اتصال حي.`
             : res.message
@@ -1695,9 +1697,20 @@ function WorkforcePageInner() {
         <div className="space-y-4">
           {casesError ? (
             <ErrorState title="تعذر تحميل القضايا" message={casesError} onRetry={loadLegal} />
+          ) : !loadingCases && legalItems.length === 0 ? (
+            <EmptyState
+              title="لا توجد قضايا"
+              description={legalMessage || 'لا توجد قضايا قانونية في المصدر الحالي، أو لا يوجد مصدر بعد.'}
+            />
           ) : (
-            <DataTable
-              tableId="workforce-legal"
+            <>
+              {legalMessage && (
+                <div className="p-3 rounded-xl border border-[var(--warning)]/30 bg-[var(--warning)]/10 text-xs text-[var(--warning)]">
+                  {legalMessage}
+                </div>
+              )}
+              <DataTable
+                tableId="workforce-legal"
               columns={[
                 {
                   key: 'caseNumber',
@@ -1758,6 +1771,7 @@ function WorkforcePageInner() {
               searchable
               syncUrl={false}
             />
+            </>
           )}
         </div>
       )}

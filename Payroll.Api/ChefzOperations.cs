@@ -82,7 +82,7 @@ public static class ChefzOperations
                 if(op==null)Error("actual_delivered_orders_and_category_required");
                 else
                 {
-                    usedOperators.Add(group.Key+":"+riderGroup.Key);category=op.S("category");if(!PaySettings.Categories.Contains(category))Error("pay_category_required");
+                    usedOperators.Add(group.Key+":"+riderGroup.Key);category=op.S("category");if(!PaySettings.AllCategories.Contains(category))Error("pay_category_required");
                     actualOrders=PayValues.Number(op,"orders",0,int.MaxValue);J.Need(actualOrders==decimal.Truncate(actualOrders),"عدد طلبات فعلي صحيح مطلوب.");
                 }
                 decimal baseGross=riderGroup.Sum(r=>r.N("gross")+r.N("deductions")),deduction=riderGroup.Sum(r=>r.N("deductions"));gross+=baseGross;orders=checked(orders+(int)actualOrders);

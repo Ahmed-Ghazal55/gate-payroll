@@ -121,7 +121,9 @@ test('U-W3-21 simulation banner discard/promote use allowedActions and Arabic co
 test('money formatter and follow-ups', () => {
   assert.match(money, /formatSar/);
   assert.match(money, /ر\.س/);
-  assert.match(payReview, /شروط الأجر/);
+  // Parent terms are display-only and no longer block Ninja review (Ghazal 2026-11-27).
+  assert.match(payReview, /قواعد الاستحقاق/);
+  assert.match(payReview, /display-only/);
   assert.doesNotMatch(payReview, /غير معتمد: "\+kind/);
   assert.match(browser, /package_web\.py/);
   assert.match(browser, /assert\.ok\(packaged/);

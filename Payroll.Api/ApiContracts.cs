@@ -76,6 +76,18 @@ public static partial class ApiContracts
     static OpenApiSchema NinjaLiveDailyDeductionRow()=>O(new(){["id"]=S(),["reportDate"]=S(),["captainId"]=S(),["platformRiderAccountId"]=S(),["externalAccountId"]=S(),["accountCode"]=S(),["actualRiderProfileId"]=S(),["riderClientAssignmentId"]=S(),["sourceId"]=S(),["sourceRowNumber"]=N(),["collectedAmount"]=N(),["deductionsAmount"]=N(),["ownerUnifiedNumber"]=S()},"id","reportDate","captainId","platformRiderAccountId","externalAccountId","actualRiderProfileId");
     static OpenApiSchema NinjaLivePaymentMethodRow()=>O(new(){["platformRiderAccountId"]=S(),["externalAccountId"]=S(),["accountCode"]=S(),["accountStatus"]=S(),["accountPaymentModel"]=S(),["assignmentPaymentModel"]=S(),["payScheme"]=S(),["ownerEmployeeId"]=S(),["ownerUnifiedNumber"]=S(),["openAssignmentId"]=S(),["openActualRiderProfileId"]=S(),["ninjaRiderType"]=S(),["openEffectiveFrom"]=S(),["openEffectiveTo"]=S()},"platformRiderAccountId","externalAccountId","payScheme","ownerUnifiedNumber");
     static OpenApiSchema NinjaLivePage(OpenApiSchema row)=>O(new(){["items"]=A(row),["total"]=N(),["page"]=N(),["pageSize"]=N(),["coverage"]=NinjaLiveCoverage(),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","coverage","source","asOf","allowedActions");
+    static OpenApiSchema RegisterOpsLiveCoverage()=>O(new(){["requestedFrom"]=S(),["requestedTo"]=S(),["firstDay"]=S(),["lastDay"]=S(),["missingDays"]=A(S()),["missingDayCount"]=N(),["hasGapAtPeriodEnd"]=B()},"requestedFrom","requestedTo","missingDays","missingDayCount");
+    static OpenApiSchema RegisterOpsLivePage()
+    {
+        var row=OperationsImportDisplayRow();
+        return O(new()
+        {
+            ["items"]=A(row),["displayRows"]=A(row),["total"]=N(),["page"]=N(),["pageSize"]=N(),
+            ["register"]=S(),["registerSheet"]=S(),["columns"]=A(S()),["counts"]=OperationsImportCounts(),
+            ["coverage"]=RegisterOpsLiveCoverage(),["erpSources"]=A(S()),["source"]=S(),["asOf"]=S(),
+            ["cache"]=S(),["allowedActions"]=A(S())
+        },"items","displayRows","total","page","pageSize","register","columns","counts","coverage","source","asOf","allowedActions");
+    }
     static OpenApiSchema NinjaLivePaymentMethodsPage()=>O(new(){["items"]=A(NinjaLivePaymentMethodRow()),["total"]=N(),["page"]=N(),["pageSize"]=N(),["coverage"]=O(new(){["total"]=N()},"total"),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","coverage","source","asOf","allowedActions");
     static OpenApiSchema NinjaLiveAccountBearerRow()=>O(new(){["assignmentId"]=S(),["platformRiderAccountId"]=S(),["externalAccountId"]=S(),["accountCode"]=S(),["owningSponsorId"]=S(),["owningUnifiedNumber"]=S(),["ownerEmployeeId"]=S(),["ownerRiderProfileId"]=S(),["actualRiderProfileId"]=S(),["holderRiderProfileId"]=S(),["effectiveFrom"]=S(),["effectiveTo"]=S(),["assignmentPaymentModel"]=S(),["assignmentStatus"]=S()},"assignmentId","platformRiderAccountId","externalAccountId","owningUnifiedNumber","ownerEmployeeId","actualRiderProfileId","effectiveFrom");
     static OpenApiSchema NinjaLiveAccountBearersPage()=>O(new(){["items"]=A(NinjaLiveAccountBearerRow()),["total"]=N(),["page"]=N(),["pageSize"]=N(),["coverage"]=O(new(){["total"]=N(),["requestedFrom"]=S(),["requestedTo"]=S()},"total","requestedFrom","requestedTo"),["source"]=S(),["asOf"]=S(),["allowedActions"]=A(S())},"items","total","page","pageSize","coverage","source","asOf","allowedActions");
@@ -142,6 +154,30 @@ public static partial class ApiContracts
     }
     static OpenApiSchema OperationsImportPreview()=>O(new(){["rows"]=A(OperationsImportReview()),["fingerprint"]=S(),["register"]=S(),["registerSheet"]=S(),["columns"]=A(S()),["displayRows"]=A(OperationsImportDisplayRow()),["counts"]=OperationsImportCounts()},"rows","fingerprint");
     static OpenApiSchema OperationsImportDoc()=>O(new(){["id"]=S(),["app"]=S(),["invoiceId"]=S(),["companyId"]=S(),["period"]=S(),["sourceSha256"]=S(),["review"]=OperationsImportReview(),["createdBy"]=S(),["createdAt"]=S(),["register"]=S(),["registerSheet"]=S(),["columns"]=A(S()),["displayRows"]=A(OperationsImportDisplayRow()),["counts"]=OperationsImportCounts()},"id","app","invoiceId","companyId","period","review");
+    static OpenApiSchema ErpSettlementJahezItem()=>O(new(){["id"]=S(),["erpRowId"]=S(),["executedAt"]=S(),["net"]=N(),["commission"]=N(),["transferToRider"]=N(),["remaining"]=N(),["fund"]=S(),["purpose"]=S(),["status"]=S(),["paymentStatus"]=S(),["riderId"]=S(),["platformAccountId"]=S()},"id");
+    static OpenApiSchema ErpSettlementChefzItem()=>O(new(){["id"]=S(),["erpRowId"]=S(),["platformAccountId"]=S(),["riderId"]=S(),["accountType"]=S(),["periodFrom"]=S(),["periodTo"]=S(),["chargedFrom"]=S(),["chargedTo"]=S(),["assignedDays"]=N(),["source"]=S(),["gross"]=N(),["companyAmount"]=N(),["riderAmount"]=N(),["commissionRate"]=N(),["dailyFee"]=N(),["status"]=S(),["isCompletedClosed"]=B(),["completionLabelAr"]=S()},"id");
+    static OpenApiSchema ErpSettlementItem()=>O(new()
+    {
+        ["id"]=S(),["erpRowId"]=S(),["executedAt"]=S(),["net"]=N(),["commission"]=N(),["transferToRider"]=N(),["remaining"]=N(),
+        ["fund"]=S(),["purpose"]=S(),["status"]=S(),["paymentStatus"]=S(),["riderId"]=S(),["platformAccountId"]=S(),
+        ["accountType"]=S(),["periodFrom"]=S(),["periodTo"]=S(),["chargedFrom"]=S(),["chargedTo"]=S(),["assignedDays"]=N(),
+        ["source"]=S(),["gross"]=N(),["companyAmount"]=N(),["riderAmount"]=N(),["commissionRate"]=N(),["dailyFee"]=N(),
+        ["isCompletedClosed"]=B(),["completionLabelAr"]=S()
+    },"id");
+    static OpenApiSchema ErpSettlementsLive()=>O(new(){["app"]=S(),["companyId"]=S(),["period"]=S(),["half"]=S(),["from"]=S(),["to"]=S(),["source"]=S(),["asOf"]=S(),["items"]=A(ErpSettlementItem()),["total"]=N(),["totals"]=O(new(){["net"]=N(),["commission"]=N(),["transferToRider"]=N(),["gross"]=N(),["companyAmount"]=N(),["riderAmount"]=N(),["completedClosed"]=N(),["openOrIncomplete"]=N()}),["snapshotSafe"]=B(),["snapshotSafetyRuleAr"]=S(),["allowedActions"]=A(S()),["noteAr"]=S()},"app","companyId","items","total","snapshotSafe","allowedActions");
+    static OpenApiSchema JahezPeriodTotals()=>O(new(){["operationsNet"]=N(),["commission"]=N(),["transferToRider"]=N(),["deliveryFees"]=N(),["bonusesTips"]=N(),["driverAdjustments"]=N(),["cashCollections"]=N(),["paidOnBehalf"]=N(),["companyDue"]=N(),["expectedNet"]=N(),["hasInvoice"]=B(),["invoiceNet"]=N(),["invoiceVat"]=N(),["variance"]=N()},"commission","deliveryFees","cashCollections","paidOnBehalf","companyDue","expectedNet","hasInvoice");
+    static OpenApiSchema JahezPeriodReport()=>O(new(){["app"]=S(),["companyId"]=S(),["from"]=S(),["to"]=S(),["live"]=ErpSettlementsLive(),["commissionRates"]=A(O(new(){["effectiveFrom"]=S(),["dailyRate"]=N(),["percentRate"]=N(),["cityId"]=S()})),["totals"]=JahezPeriodTotals(),["noteAr"]=S(),["allowedActions"]=A(S())},"app","companyId","from","to","totals","allowedActions");
+    static OpenApiSchema ErpSettlementSnapshot()=>O(new(){["id"]=S(),["kind"]=S(),["app"]=S(),["companyId"]=S(),["period"]=S(),["businessDate"]=S(),["purpose"]=S(),["status"]=S(),["moneyFrozen"]=B(),["allowedActions"]=A(S())},"id","app","companyId","purpose","status");
+    static OpenApiSchema OwnerExternalBoxNode()
+    {
+        // Nested children reuse the same fields; AdditionalProperties keeps openapi-typescript from Record<string, never>.
+        var nested=new OpenApiSchema{Type=JsonSchemaType.Object,AdditionalPropertiesAllowed=true};
+        var child=O(new(){["id"]=S(),["parentId"]=S(),["kind"]=S(),["code"]=S(),["labelAr"]=S(),["sortOrder"]=N(),["purposeCode"]=S(),["activeFrom"]=S(),["archivedAt"]=S(),["archiveRequestedBy"]=S(),["balance"]=N(),["ownBalance"]=N(),["hitsCompanyBooks"]=B(),["allowedActions"]=A(S()),["children"]=A(nested)},"id","kind","code","labelAr","balance","hitsCompanyBooks","allowedActions");
+        return O(new(){["id"]=S(),["parentId"]=S(),["kind"]=S(),["code"]=S(),["labelAr"]=S(),["sortOrder"]=N(),["purposeCode"]=S(),["activeFrom"]=S(),["archivedAt"]=S(),["archiveRequestedBy"]=S(),["balance"]=N(),["ownBalance"]=N(),["hitsCompanyBooks"]=B(),["children"]=A(child),["allowedActions"]=A(S())},"id","kind","code","labelAr","balance","hitsCompanyBooks","allowedActions");
+    }
+    static OpenApiSchema OwnerExternalBoxTree()=>O(new(){["hitsCompanyBooks"]=B(),["noteAr"]=S(),["companyExpenseNoteAr"]=S(),["roots"]=A(OwnerExternalBoxNode()),["allowedActions"]=A(S())},"hitsCompanyBooks","roots","allowedActions");
+    static OpenApiSchema OwnerExternalBoxEntry()=>O(new(){["id"]=S(),["nodeId"]=S(),["occurredOn"]=S(),["direction"]=S(),["amount"]=N(),["sourceKind"]=S(),["sourceRef"]=S(),["notes"]=S(),["hitsCompanyBooks"]=B(),["status"]=S(),["companyId"]=S(),["companyJournalId"]=S(),["createdBy"]=S(),["approvedBy"]=S(),["preparedBy"]=S(),["allowedActions"]=A(S())},"id","nodeId","direction","amount","hitsCompanyBooks","status");
+    static OpenApiSchema OwnerExternalBoxEntries()=>O(new(){["hitsCompanyBooks"]=B(),["items"]=A(OwnerExternalBoxEntry()),["total"]=N(),["allowedActions"]=A(S())},"hitsCompanyBooks","items","total","allowedActions");
     public static OpenApiSchema? Response(string method,string path)
     {
         bool get=method=="GET";
@@ -168,12 +204,32 @@ public static partial class ApiContracts
         if(path=="/api/pay/cycles/{id}/review/{iqama}")return ReviewRow();
         if(path=="/api/pay/shared-riders")return A(SharedRider());
         if(path=="/api/pay/shared-riders/{rider}/{period}/release")return SharedRider();
-        if(path=="/api/pay/review-draft")return O(new(){["app"]=S(),["period"]=S(),["companyId"]=S(),["invoices"]=A(Review()),["blockers"]=A(O(new(){["code"]=S(),["message"]=S(),["fixAction"]=S(),["sourceLineId"]=S()},"code","message","fixAction","sourceLineId")),["warnings"]=A(O(new(){["code"]=S(),["message"]=S(),["sourceLineId"]=S(),["erpOrders"]=N(),["invoiceOrders"]=N()},"code","message","sourceLineId")),["allocationProposals"]=A(Free()),["dataThrough"]=S(),["unassignedOrders"]=A(Free()),["ridersNotFound"]=A(Free()),["evidence"]=A(Free()),["canCreate"]=B(),["totals"]=O(new(){["gross"]=N(),["deductions"]=N(),["vat"]=N()},"gross","deductions","vat")},"app","period","companyId","invoices","blockers","unassignedOrders","ridersNotFound","evidence","canCreate","totals");
+        if(path=="/api/pay/review-draft")return O(new(){["app"]=S(),["period"]=S(),["companyId"]=S(),["invoices"]=A(Review()),["blockers"]=A(O(new(){["code"]=S(),["message"]=S(),["fixAction"]=S(),["sourceLineId"]=S()},"code","message","fixAction","sourceLineId")),["warnings"]=A(O(new(){["code"]=S(),["message"]=S(),["sourceLineId"]=S(),["erpOrders"]=N(),["invoiceOrders"]=N()},"code","message","sourceLineId")),["accountantLines"]=A(Free()),["setupChecklist"]=A(Free()),["allocationProposals"]=A(Free()),["dataThrough"]=S(),["unassignedOrders"]=A(Free()),["ridersNotFound"]=A(Free()),["evidence"]=A(Free()),["canCreate"]=B(),["allowedActions"]=A(S()),["totals"]=O(new(){["gross"]=N(),["deductions"]=N(),["vat"]=N()},"gross","deductions","vat")},"app","period","companyId","invoices","blockers","unassignedOrders","ridersNotFound","evidence","canCreate","totals");
+        if(get&&path=="/api/pay/dues-split")return O(new(){["app"]=S(),["period"]=S(),["companyId"]=S(),["stage"]=S(),["titleAr"]=S(),["invoiceIds"]=A(S()),["accounts"]=A(Free()),["riderSplits"]=A(Free()),["accountantLines"]=A(Free()),["setupChecklist"]=A(Free()),["counts"]=O(new(){["users"]=N(),["riderSplits"]=N(),["fuelRows"]=N(),["custodyRows"]=N(),["accountantLines"]=N(),["setupLeft"]=N()},"users","riderSplits","fuelRows","custodyRows","accountantLines","setupLeft"),["allocation"]=Free(),["allowedActions"]=A(S())},"app","period","companyId","stage","titleAr","counts","allowedActions");
+        if(path=="/api/pay/setup-defaults"&&!get)return O(new(){["app"]=S(),["period"]=S(),["approvedIds"]=A(S()),["allowedActions"]=A(S())},"app","period","approvedIds","allowedActions");
         if(path=="/api/finance/treasury/summary")return TreasurySummarySchema();
         if(path=="/api/treasury/balances/tree"&&get)return O(new(){["periodMonth"]=S(),["items"]=A(Free()),["totals"]=O(new(){["cash"]=N(),["bank"]=N(),["custody"]=N(),["total"]=N()},"cash","bank","custody","total"),["allowedActions"]=A(S()),["noteAr"]=S()},"periodMonth","items","totals","allowedActions");
+        if(path=="/api/mudad"&&get)return O(new(){["rows"]=A(O(new(){["id"]=S(),["companyId"]=S(),["periodMonth"]=S(),["fileKind"]=S(),["fileName"]=S(),["rowCount"]=N(),["status"]=N(),["uploadedBy"]=S(),["uploadedAt"]=S()},"id","companyId","periodMonth","fileKind","fileName","rowCount","status"))},"rows");
+        if(path=="/api/finance/cost-centres"&&get)return O(new(){["from"]=S(),["to"]=S(),["items"]=A(O(new(){["id"]=S(),["code"]=S(),["nameAr"]=S(),["kind"]=S(),["companyId"]=S(),["companyCode"]=S(),["companyNameAr"]=S(),["status"]=N(),["opening"]=N(),["debit"]=N(),["credit"]=N(),["closing"]=N()},"id","code","nameAr","kind","status","opening","debit","credit","closing"))},"from","to","items");
+        if(path=="/api/treasury/vault-counts"&&get)return O(new(){["items"]=A(Free()),["allowedActions"]=A(S()),["cashBoxes"]=A(O(new(){["id"]=S(),["code"]=S(),["nameAr"]=S(),["companyId"]=S(),["accountCode"]=S()},"id","code","nameAr","companyId","accountCode"))},"items","allowedActions","cashBoxes");
         if(path.StartsWith("/api/treasury/bank-statements",StringComparison.Ordinal)||path.StartsWith("/api/treasury/bank-adjustments",StringComparison.Ordinal)||path.StartsWith("/api/treasury/vault-counts",StringComparison.Ordinal))
             return Free();
-        if(path.StartsWith("/api/sal/erp-settlements",StringComparison.Ordinal))return Free();
+        if(path=="/api/sal/erp-settlements/jahez/period-report"&&get)return JahezPeriodReport();
+        if(path.StartsWith("/api/sal/erp-settlements",StringComparison.Ordinal))
+        {
+            if(path.EndsWith("/live",StringComparison.Ordinal)&&get)return ErpSettlementsLive();
+            if(path.EndsWith("/snapshot",StringComparison.Ordinal)||path.EndsWith("/freeze",StringComparison.Ordinal))return ErpSettlementSnapshot();
+            if(path.EndsWith("/difference-report",StringComparison.Ordinal)&&get)return Free();
+            return ErpSettlementsLive();
+        }
+        if(path.StartsWith("/api/finance/owner-external-box",StringComparison.Ordinal))
+        {
+            if(path.EndsWith("/tree",StringComparison.Ordinal)&&get)return OwnerExternalBoxTree();
+            if(path.EndsWith("/entries",StringComparison.Ordinal)&&get)return OwnerExternalBoxEntries();
+            if(path.EndsWith("/entries",StringComparison.Ordinal)&&!get)return OwnerExternalBoxEntry();
+            if(path.Contains("/entries/",StringComparison.Ordinal))return OwnerExternalBoxEntry();
+            return OwnerExternalBoxTree();
+        }
         if(path.StartsWith("/api/finance/jahez-reconciliations/day",StringComparison.Ordinal))return Free();
         if(path=="/api/finance/bank-file/preview")return BankFilePreview();
         if(path=="/api/finance/vault-transfer")return Journal();
@@ -266,6 +322,7 @@ public static partial class ApiContracts
         if(get&&path=="/api/pay/apps/ninja/live/daily-deductions")return NinjaLivePage(NinjaLiveDailyDeductionRow());
         if(get&&path=="/api/pay/apps/ninja/live/payment-methods")return NinjaLivePaymentMethodsPage();
         if(get&&path=="/api/pay/apps/ninja/live/account-bearers")return NinjaLiveAccountBearersPage();
+        if(get&&path=="/api/pay/apps/{app}/live/register-ops")return RegisterOpsLivePage();
         if(path=="/api/pay/apps/{app}/operations/import/preview"&&!get)return OperationsImportPreview();
         if(path=="/api/pay/apps/{app}/operations/import/commit"&&!get)return OperationsImportDoc();
         if(path=="/api/pay/apps/{app}/operations/imports/{id}"&&get)return OperationsImportDoc();
@@ -274,6 +331,7 @@ public static partial class ApiContracts
         if(path=="/api/payroll/runs")return A(PayrollRun());
         if(path is "/api/adjustments" or "/api/payments")return get?A(Free()):Free();
         if(path=="/api/ledger/{iqama}")return O(new(){["rows"]=A(O(new(){["id"]=S(),["iqama"]=S(),["amount"]=N(),["kind"]=S(),["period"]=S()},"id","iqama","amount")),["balance"]=N()},"rows","balance");
+        var staff=StaffHrResponse(method,path);if(staff!=null)return staff;
         return null;
     }
     public static void Describe(OpenApiOperation operation,string method,string path)

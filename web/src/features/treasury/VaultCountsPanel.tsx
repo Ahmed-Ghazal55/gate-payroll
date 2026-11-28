@@ -7,6 +7,7 @@ import { useToast } from '../../components/ui/Toast';
 import { EmptyState, ErrorState, Skeleton } from '../../components/ui/EmptyState';
 import { useTableAutoFilter, AutoFilterTh, AutoFilterBar } from '../../components/ui/ColumnFilterMenu';
 import { formatSar } from '../../lib/money';
+import type { VaultCashBox } from '../../lib/types';
 
 type VaultCountRow = {
   id?: string;
@@ -26,6 +27,7 @@ export function VaultCountsPanel() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [rows, setRows] = useState<VaultCountRow[]>([]);
+  const [cashBoxes, setCashBoxes] = useState<VaultCashBox[]>([]);
   const [listAllowed, setListAllowed] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const [form, setForm] = useState({ cashBoxId: '', countedOn: '', countedAmount: '' });
@@ -36,6 +38,7 @@ export function VaultCountsPanel() {
     try {
       const res = await api.listVaultCounts();
       setRows(Array.isArray(res.items) ? (res.items as VaultCountRow[]) : []);
+      setCashBoxes(Array.isArray(res.cashBoxes) ? res.cashBoxes : []);
       setListAllowed(Array.isArray(res.allowedActions) ? (res.allowedActions as string[]) : []);
     } catch (err: unknown) {
       setError(err instanceof Error ? err.message : 'تعذر تحميل جرد الخزن');
@@ -115,16 +118,52 @@ export function VaultCountsPanel() {
           </button>
         </div>
         {listAllowed.includes('create') && (
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-            {(['cashBoxId', 'countedOn', 'countedAmount'] as const).map((k) => (
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3 items-end">
+            <label className="text-xs font-semibold space-y-1">
+              <span>الخزنة</span>
+              {cashBoxes.length > 0 ? (
+                <select
+                  value={form.cashBoxId}
+                  onChange={(e) => setForm({ ...form, cashBoxId: e.target.value })}
+                  className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs"
+                >
+                  <option value="">اختر الخزنة…</option>
+                  {cashBoxes.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.code} — {b.nameAr}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  placeholder="معرّف الخزنة"
+                  value={form.cashBoxId}
+                  onChange={(e) => setForm({ ...form, cashBoxId: e.target.value })}
+                  className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono"
+                />
+              )}
+            </label>
+            <label className="text-xs font-semibold space-y-1">
+              <span>تاريخ الجرد</span>
               <input
-                key={k}
-                placeholder={k}
-                value={form[k]}
-                onChange={(e) => setForm({ ...form, [k]: e.target.value })}
-                className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono"
+                type="date"
+                value={form.countedOn}
+                onChange={(e) => setForm({ ...form, countedOn: e.target.value })}
+                className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono"
               />
-            ))}
+            </label>
+            <label className="text-xs font-semibold space-y-1">
+              <span>المبلغ المعدود فعليًا (ر.س)</span>
+              <input
+                type="number"
+                step="0.01"
+                min="0"
+                placeholder="0.00"
+                value={form.countedAmount}
+                onChange={(e) => setForm({ ...form, countedAmount: e.target.value })}
+                className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs num"
+              />
+            </label>
             <button
               type="button"
               disabled={busy}

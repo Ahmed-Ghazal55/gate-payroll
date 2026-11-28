@@ -3,6 +3,7 @@
 const PAYROLL_BLOCKER_LABELS_AR: Record<string, string> = {
   invoice_missing: 'فاتورة المنصة غير مرفوعة',
   pay_terms_missing: 'شروط عقد المنصة غير معتمدة',
+  vehicle_type_platform_mismatch: 'عدم تطابق نوع مركبة المندوب مع يوزر المنصة',
   pay_terms: 'شروط عقد المنصة غير مكتملة',
   pay_eligibility_missing: 'شروط الأهلية غير معتمدة',
   pay_eligibility: 'شروط الأهلية غير مكتملة',

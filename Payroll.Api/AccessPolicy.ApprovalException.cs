@@ -17,6 +17,10 @@ public static partial class AccessPolicy
     {
         if(scope is ApprovalsArea.DualBankFile or ApprovalsArea.DualPaymentOut or ApprovalsArea.DualSharedRiderRelease)
             return true;
+        // Owner-box confirm / archive-with-balance: money movement (or sealing a balance) — never approve_own.
+        if(string.Equals(scope,ScopeTreasuryJahez,StringComparison.OrdinalIgnoreCase)
+           &&(operation??"").Contains("owner_box",StringComparison.OrdinalIgnoreCase))
+            return true;
         string op=operation??"";
         return op.Contains("payout",StringComparison.OrdinalIgnoreCase)
             ||op.Contains("payment_out",StringComparison.OrdinalIgnoreCase)
@@ -25,7 +29,9 @@ public static partial class AccessPolicy
             ||op.Contains("disburse",StringComparison.OrdinalIgnoreCase)
             ||op.Contains("advance.payout",StringComparison.OrdinalIgnoreCase)
             ||op.Contains("debt.payout",StringComparison.OrdinalIgnoreCase)
-            ||op.Contains("payment.document.approve",StringComparison.OrdinalIgnoreCase);
+            ||op.Contains("payment.document.approve",StringComparison.OrdinalIgnoreCase)
+            ||op.Contains("owner_box.entry_confirmed",StringComparison.OrdinalIgnoreCase)
+            ||op.Contains("owner_box.archive_confirmed",StringComparison.OrdinalIgnoreCase);
     }
     /// <summary>TRIAL7 X2 / grok-TRIAL6: money-out by posting lines (credit to bank/cash/vault) or recon payment — not only by operation-name substrings.</summary>
     public static bool IsMoneyOutDocument(JsonObject? record,string operation="",string? scope=null)

@@ -28,6 +28,10 @@ public static class UserAccess
         new("pay.view","Payroll","الرواتب","عرض إطار الرواتب","عرض إعدادات التطبيقات والدورات والكشوف ضمن النطاق."),
         new("pay.manage","Payroll","الرواتب","تحضير الرواتب","إنشاء مسودات الإعدادات وتحضير الدورات دون اعتماد ذاتي."),
         new("pay.approve","Payroll","الرواتب","اعتماد الرواتب","اعتماد مستقل لإعدادات ودورات المسار الجديد."),
+        new("staff.hr.view","StaffHR","شؤون الموظفين","عرض شؤون الموظفين","عرض بطاقات الموظفين وعقود قوى ومسير الموظفين وتنبيهات الانتهاء."),
+        new("staff.hr.manage","StaffHR","شؤون الموظفين","إدارة شؤون الموظفين","إنشاء وتعديل بطاقة الموظف والملخص الشهري والسلف ومسودات المسير وملف مدد."),
+        new("staff.hr.approve","StaffHR","شؤون الموظفين","اعتماد مسير الموظفين","اعتماد أو عكس مسير موظفين؛ المجهّز لا يعتمد."),
+        new("staff.contract.upload","StaffHR","شؤون الموظفين","رفع عقد قوى","رفع ملف عقد منصة قوى بصلاحية مستقلة."),
         new("people.mudad.manage","Riders","دليل المناديب والملفات","رفع ومطابقة مدد","رفع دفعات مدد ومطابقة الصفوف بالهوية دون اعتماد مالي."),
         new("salaries.mudad.edit","Payroll","الرواتب","تعديل صفوف مدد","إضافة وتعديل وحذف صفوف مدد داخل دفعة مرفوعة."),
         new("salaries.hold.request","Payroll","الرواتب","طلب إيقاف راتب","رفع طلب إيقاف راتب مندوب للمحاسب."),
@@ -182,15 +186,17 @@ public static class UserAccess
                 "debts.reschedule", "debts.collect", "debts.waive", "debts.transfer_sponsor", "debts.import_opening", "debts.statement.print",
                 "treasury.view", "treasury.transfer", "treasury.bank_reconcile", "treasury.vault_reconcile", "treasury.balances.by_registration", "treasury.jahez.manage", "treasury.jahez.handover",
                 "accounting.chart.view", "accounting.chart.create", "accounting.chart.edit", "accounting.chart.deactivate",
+                "staff.hr.view", "staff.hr.approve",
                 "approvals.view", "approvals.decide", "mobile.broadcast", "payroll.view"
             ]),
 
         new("HRSpecialist", "أخصائي الموارد البشرية والعلاقات الحكومية", "HR", 2,
-            "إنشاء طلبات خدمات الموارد البشرية (رخص العمل، الإقامات، نقل الكفالة، التأشيرات، التأمين)، تحديد نسب التحمل، وتوثيق ملفات المناديب.",
+            "إنشاء طلبات خدمات الموارد البشرية (رخص العمل، الإقامات، نقل الكفالة، التأشيرات، التأمين)، تحديد نسب التحمل، وتوثيق ملفات المناديب، وبطاقات الموظفين الإداريين.",
             [
                 "operations.view", "riders.view", "riders.view_360", "riders.edit",
                 "riders.iban.view", "riders.saudi_salary.view", "riders.legal_cases.view", "riders.unified_number.view",
                 "debts.view", "debts.create.hr", "debts.create.advance",
+                "staff.hr.view", "staff.hr.manage", "staff.contract.upload",
                 "approvals.view", "approvals.decide", "mobile.broadcast", "forms.review"
             ]),
 

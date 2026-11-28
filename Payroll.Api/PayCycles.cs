@@ -130,12 +130,15 @@ public static partial class PayCycles
     // Captured cycles read freeze only (M6). Pre-capture import/synthetic validation still uses Store.
     static JsonObject? OpsDoc(DbConnection c,DbTransaction? tx,JsonObject cycle,string kind,string docId)
         =>PayRunInputs.Captured(cycle)?CycleOpsGet(c,tx,cycle,kind,docId):Store.Get(c,docId,kind,tx);
+    static IEnumerable<JsonObject> OpsList(DbConnection c,DbTransaction? tx,JsonObject cycle,string kind)
+        =>PayRunInputs.Captured(cycle)?PayRunInputs.List(c,tx,cycle.S("id"),kind):Store.List(c,kind,tx);
     static void ValidateAccounts(DbConnection c,DbTransaction tx,JsonObject cycle)
     {
         foreach(var (app,a) in Accounts(cycle))
         {
             var source=OpsDoc(c,tx,cycle,"platform_account",a.Required("accountId"))??throw new ApiError("يوزر المنصة غير موجود.");
-            J.Need(source.S("companyId")==cycle.S("companyId")&&PayPlatforms.For(source.S("platformCode")).App==app,"السجل أو التطبيق لا يطابق اليوزر.");PaySettings.Resolve(c,tx,"pay_terms",app,cycle.S("period"));
+            // Parent terms are display-only; do not require approved pay_terms to advance the cycle.
+            J.Need(source.S("companyId")==cycle.S("companyId")&&PayPlatforms.For(source.S("platformCode")).App==app,"السجل أو التطبيق لا يطابق اليوزر.");
         }
     }
     static DateTimeOffset Time(string value){J.Need(DateTimeOffset.TryParse(value,CultureInfo.InvariantCulture,DateTimeStyles.AssumeUniversal,out var time),"توقيت المصدر غير صالح.");return time;}
@@ -146,10 +149,18 @@ public static partial class PayCycles
     {
         foreach(var (app,a) in Accounts(cycle))
         {
-            var source=OpsDoc(c,tx,cycle,"platform_account",a.S("accountId"))??throw new ApiError("يوزر المنصة غير موجود.");var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();J.Need(shares.Count>0&&shares.Select(r=>r.S("rider")).Distinct().Count()==shares.Count,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
+            var source=OpsDoc(c,tx,cycle,"platform_account",a.S("accountId"))??throw new ApiError("يوزر المنصة غير موجود.");var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();
+            if(shares.Count==0)
+            {
+                // NFLOW1e / grok-NFLOW1d #6: held no-ops keep gross in invoice tie-out and on the accountant line; never pay; skip rider check so one held account does not block canCreate / stage 3.
+                bool hasDaily=app=="ninja"&&OpsList(c,tx,cycle,"ninja_daily").Any(d=>d.S("platformAccountId")==a.S("accountId")&&d.S("companyId")==cycle.S("companyId")&&d.S("date").StartsWith(cycle.S("period")+"-",StringComparison.Ordinal));
+                J.Need(app=="ninja"&&!hasDaily,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
+                continue;
+            }
+            J.Need(shares.Select(r=>r.S("rider")).Distinct().Count()==shares.Count,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
             foreach(var r in shares)
             {
-                PayValues.Fields(r,"rider","orders","baseGross","deduction","category","days","metrics","sourceLineId","operationSourceIds","chefzFullTimeCommission");
+                PayValues.Fields(r,"rider","orders","baseGross","deduction","category","days","metrics","sourceLineId","operationSourceIds","chefzFullTimeCommission","platformVehicleType","accountVehicleType");
                 if(r.ContainsKey("chefzFullTimeCommission")){J.Need(app=="chefz","عمولة دوام شيفز تخص شيفز فقط.");Money(r,"chefzFullTimeCommission");}
                 if(r.ContainsKey("sourceLineId"))J.Need(r.S("sourceLineId")==a.S("sourceLineId"),"مصدر استحقاق المندوب لا يطابق سطر الفاتورة.");
                 if(r.ContainsKey("operationSourceIds"))
@@ -172,7 +183,7 @@ public static partial class PayCycles
                     bool metricPerf=r["metrics"] is JsonObject mx&&(mx.N("workDays")>0||mx.N("distancePaid")>0||mx.N("distanceTotal")>0||mx.N("validOnlineDays")>0);
                     J.Need(r.N("orders")>0||r.N("days")>0||metricPerf,"يوزر مفصول بلا أداء في الشهر لا يُقبل في التشغيل.");
                 }
-                J.Need(PaySettings.Categories.Contains(r.Required("category")),"فئة الكفالة والمركبة مطلوبة للمراجعة.");SignedMoney(r,"baseGross");Money(r,"deduction");decimal orders=PayValues.Number(r,"orders",0,int.MaxValue),days=PayValues.Number(r,"days",0,31);J.Need(orders==decimal.Truncate(orders)&&days==decimal.Truncate(days),"طلبات وأيام صحيحة مطلوبة.");
+                J.Need(PaySettings.AllCategories.Contains(r.Required("category")),"فئة الكفالة والمركبة مطلوبة للمراجعة.");SignedMoney(r,"baseGross");Money(r,"deduction");decimal orders=PayValues.Number(r,"orders",0,int.MaxValue),days=PayValues.Number(r,"days",0,31);J.Need(orders==decimal.Truncate(orders)&&days==decimal.Truncate(days),"طلبات وأيام صحيحة مطلوبة.");
             }
             J.Need(shares.Sum(r=>r.N("orders"))==a.N("orders")&&shares.Sum(r=>r.N("baseGross"))==a.N("baseGross"),"طلبات واستحقاقات المشغلين لا تطابق اليوزر.");
             decimal deductions=Rows(cycle["invoices"]).OfType<JsonObject>().Where(i=>i.S("app")==app).SelectMany(i=>Rows(i["deductions"]).OfType<JsonObject>()).Where(d=>d.S("level")=="account_level"&&d.S("accountId")==a.S("accountId")).Sum(d=>d.N("amount"));J.Need(shares.Sum(r=>r.N("deduction"))==deductions,"خصم اليوزر يحتاج توزيعًا صريحًا على مشغليه؛ لا تحمل خصم الشركة عليهم.");

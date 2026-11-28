@@ -39,6 +39,9 @@ import type {
   TargetCoaResponse,
   TrialBalanceResponse,
   IncomeStatementResponse,
+  CostCentresResponse,
+  MudadListResponse,
+  VaultCountsResponse,
   AdvanceRequest,
   AdvanceRequestSummary,
   OrgCatalog,
@@ -106,6 +109,8 @@ export type PayCyclesResponse = ApiResp<'/api/pay/cycles'>;
 export type PayCycleCaptureResponse = ApiResp<'/api/pay/cycles/{id}/capture-inputs', 'post'>;
 export type PayCycleLinesResponse = ApiResp<'/api/pay/cycles/{id}/lines'>;
 export type PayCycleLineItem = PayCycleLinesResponse['items'][number];
+export type RegisterOpsLivePage = ApiResp<'/api/pay/apps/{app}/live/register-ops'>;
+export type RegisterOpsLiveRow = RegisterOpsLivePage['displayRows'][number];
 
 export type PayCatalog = ApiResp<'/api/pay/catalog'>;
 export type PayEligibilityResponse = ApiResp<'/api/pay/apps/{app}/eligibility'>;
@@ -943,6 +948,41 @@ export const api = {
     return handleRequest<{ items: Array<{ id: string; action: string; actor: string; at: string }>; total: number; page: number; pageSize: number }>(`/audit?${q}`);
   },
 
+  // Staff HR (HR1)
+  getStaffHrCatalogs: () => handleRequest<Record<string, string[]>>('/staff/hr/catalogs'),
+  getStaffHrDashboard: () => handleRequest<Record<string, unknown>>('/staff/hr/dashboard'),
+  getStaffEmployees: (params?: { companyId?: string; status?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.status) q.set('status', params.status);
+    const qs = q.toString();
+    return handleRequest<Record<string, unknown>[]>(`/staff/hr/employees${qs ? `?${qs}` : ''}`);
+  },
+  createStaffEmployee: (payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/staff/hr/employees', { method: 'POST', body: JSON.stringify(payload) }),
+  getStaffEmployee: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}`),
+  updateStaffEmployee: (id: string, payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify(payload) }),
+  addStaffContract: (id: string, payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}/contracts`, { method: 'POST', body: JSON.stringify(payload) }),
+  upsertStaffMonth: (id: string, payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}/months`, { method: 'PUT', body: JSON.stringify(payload) }),
+  createStaffAdvance: (id: string, payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}/advances`, { method: 'POST', body: JSON.stringify(payload) }),
+  approveStaffAdvance: (id: string, debtId: string) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/employees/${encodeURIComponent(id)}/advances/${encodeURIComponent(debtId)}/approve`, { method: 'POST', body: '{}' }),
+  getStaffRuns: (companyId?: string) => {
+    const qs = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
+    return handleRequest<Record<string, unknown>[]>(`/staff/hr/runs${qs}`);
+  },
+  createStaffRun: (payload: Record<string, unknown>) =>
+    handleRequest<Record<string, unknown>>('/staff/hr/runs', { method: 'POST', body: JSON.stringify(payload) }),
+  getStaffRun: (id: string) =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/runs/${encodeURIComponent(id)}`),
+  staffRunAction: (id: string, action: 'recalculate' | 'submit-review' | 'back-to-draft' | 'approve' | 'mudad' | 'post' | 'reverse') =>
+    handleRequest<Record<string, unknown>>(`/staff/hr/runs/${encodeURIComponent(id)}/${action}`, { method: 'POST', body: '{}' }),
+
   // Campaigns
   getEvaluationStaff: () =>
     handleRequest<EvaluationStaffItem[]>('/forms/evaluations/staff'),
@@ -1602,9 +1642,7 @@ export const api = {
     }),
   listVaultCounts: (companyId?: string) => {
     const q = companyId ? `?companyId=${encodeURIComponent(companyId)}` : '';
-    return handleRequest<{ items?: Array<Record<string, unknown>>; allowedActions?: string[] }>(
-      `/treasury/vault-counts${q}`
-    );
+    return handleRequest<VaultCountsResponse>(`/treasury/vault-counts${q}`);
   },
   createVaultCount: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/treasury/vault-counts', { method: 'POST', body: JSON.stringify(input) }),
@@ -1786,6 +1824,23 @@ export const api = {
     return handleRequest<IncomeStatementResponse>(`/finance/income-statement${qs}`);
   },
 
+  getCostCentres: (params?: { sponsorId?: string; from?: string; to?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.sponsorId) q.set('sponsorId', params.sponsorId);
+    if (params?.from) q.set('from', params.from);
+    if (params?.to) q.set('to', params.to);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<CostCentresResponse>(`/finance/cost-centres${qs}`);
+  },
+
+  getMudadUploads: (params?: { companyId?: string; periodMonth?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.companyId) q.set('companyId', params.companyId);
+    if (params?.periodMonth) q.set('periodMonth', params.periodMonth);
+    const qs = q.toString() ? `?${q.toString()}` : '';
+    return handleRequest<MudadListResponse>(`/mudad${qs}`);
+  },
+
   // Riders Directory APIs (Track L & Spec 09)
   getRiders: (params?: { search?: string; status?: string; sponsorId?: string; page?: number; pageSize?: number }) => {
     const q = new URLSearchParams();
@@ -1899,11 +1954,12 @@ export const api = {
 
 
   // Operations & Assets APIs (Codex R4.6)
-  getOperations: (kind: string, params?: { page?: number; pageSize?: number; q?: string }) => {
+  getOperations: (kind: string, params?: { page?: number; pageSize?: number; q?: string; platform?: string }) => {
     const p = new URLSearchParams();
     if (params?.page) p.set('page', String(params.page));
     if (params?.pageSize) p.set('pageSize', String(params.pageSize));
     if (params?.q) p.set('q', params.q);
+    if (params?.platform) p.set('platform', params.platform);
     const qs = p.toString() ? `?${p.toString()}` : '';
     return handleRequest<OperationsResponse>(`/operations/${encodeURIComponent(kind)}${qs}`);
   },
@@ -2087,6 +2143,25 @@ export const api = {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
     return handleRequest<PayConfigListResponse>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`);
   },
+  /** Display-only parent terms: ERP expected eligibility vs approved invoice (no calculation effect). */
+  getParentTermsDisplay: (app: string, period: string) =>
+    handleRequest<Record<string, unknown>>(
+      `/pay/apps/${encodeURIComponent(app)}/parent-terms/display?period=${encodeURIComponent(period)}`
+    ),
+  getKeetaEligibility: (params?: { month?: string; page?: number; pageSize?: number; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.month) q.set('month', params.month);
+    if (params?.page) q.set('page', String(params.page));
+    if (params?.pageSize) q.set('pageSize', String(params.pageSize));
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString();
+    return handleRequest<Record<string, unknown>>(`/pay/sources/keeta-eligibility${qs ? `?${qs}` : ''}`);
+  },
+  deleteConfigListItem: (group: string, code: string) =>
+    handleRequest<{ deleted: boolean; code: string; id: string }>(
+      `/config/lists/${encodeURIComponent(group)}/items/${encodeURIComponent(code)}`,
+      { method: 'DELETE' }
+    ),
   createPayTerms: (app: string, input: PayTermsCreateInput, period?: string) => {
     const q = period ? `?period=${encodeURIComponent(period)}` : '';
     return handleRequest<PayConfigDoc>(`/pay/apps/${encodeURIComponent(app)}/terms${q}`, {
@@ -2581,6 +2656,35 @@ export const api = {
   getPostingGate: (code: string) => handleRequest<{ code: string; enabled: boolean }>(`/platforms/${encodeURIComponent(code)}/posting`),
   setPostingGate: (code: string, enabled: boolean, reason: string) =>
     handleRequest<unknown>(`/platforms/${encodeURIComponent(code)}/posting`, { method: 'POST', body: JSON.stringify({ enabled, reason }) }),
+  getDuesSplit: (params: { app: string; period: string; companyId: string; invoiceId?: string }) => {
+    const q = new URLSearchParams({ app: params.app, period: params.period, companyId: params.companyId });
+    if (params.invoiceId) q.set('invoiceId', params.invoiceId);
+    return handleRequest<{
+      app: string;
+      period: string;
+      companyId: string;
+      stage: string;
+      titleAr: string;
+      accounts: Array<Record<string, unknown>>;
+      riderSplits: Array<Record<string, unknown>>;
+      accountantLines: Array<Record<string, unknown>>;
+      setupChecklist: Array<{ code: string; message: string; fixAction: string; hint?: string }>;
+      counts: {
+        users: number;
+        riderSplits: number;
+        fuelRows: number;
+        custodyRows: number;
+        accountantLines: number;
+        setupLeft: number;
+      };
+      allowedActions: string[];
+    }>(`/pay/dues-split?${q.toString()}`);
+  },
+  applyPaySetupDefaults: (body: { app: string; period: string }) =>
+    handleRequest<{ app: string; period: string; approvedIds: string[]; allowedActions: string[] }>(
+      '/pay/setup-defaults',
+      { method: 'POST', body: JSON.stringify(body) },
+    ),
   getDebtDeductions: (cycleId: string) => handleRequest<DebtDeductionsView>(`/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`),
   actDebtDeductions: (cycleId: string, body: { action: 'edit'; rider: string; key: string; amount: number; reason?: string } | { action: 'confirm'; rider: string } | { action: 'confirm-all' }) =>
     handleRequest<DebtDeductionsView>(`/pay/cycles/${encodeURIComponent(cycleId)}/debt-deductions`, { method: 'POST', body: JSON.stringify(body) }),
@@ -2741,6 +2845,25 @@ export const api = {
     return { ...baseInvoice, disputes: existing };
   },
 
+  // ERPV1 — live register-sheet ops (A..AH) from Omar ERP (types from generated contract)
+  getRegisterOpsLive: (params: {
+    app: 'keeta' | 'ninja';
+    register: string;
+    from?: string;
+    to?: string;
+    page?: number;
+    pageSize?: number;
+  }) => {
+    const q = new URLSearchParams({ register: params.register });
+    if (params.from) q.set('from', params.from);
+    if (params.to) q.set('to', params.to);
+    if (params.page) q.set('page', String(params.page));
+    if (params.pageSize) q.set('pageSize', String(params.pageSize));
+    return handleRequest<RegisterOpsLivePage>(
+      `/pay/apps/${encodeURIComponent(params.app)}/live/register-ops?${q.toString()}`,
+    );
+  },
+
   // Pay Review Draft (C3 / A5)
   getPayReviewDraft: (params: { app: string; period: string; companyId: string }) => {
     const q = new URLSearchParams({
@@ -2860,10 +2983,56 @@ export const api = {
   reviewChefzOperations: (input: Record<string, unknown>) =>
     handleRequest<Record<string, unknown>>('/pay/apps/chefz/operations/review', { method: 'POST', body: JSON.stringify(input) }),
 
+  getErpSettlementsLive: (app: string, q: { companyId: string; period?: string; half?: string; from?: string; to?: string }) => {
+    const params = new URLSearchParams({ companyId: q.companyId });
+    if (q.period) params.set('period', q.period);
+    if (q.half) params.set('half', q.half);
+    if (q.from) params.set('from', q.from);
+    if (q.to) params.set('to', q.to);
+    return handleRequest<ApiResp<'/api/sal/erp-settlements/{app}/live'>>(`/sal/erp-settlements/${encodeURIComponent(app)}/live?${params}`);
+  },
+  getJahezPeriodReport: (q: { companyId: string; from: string; to: string; invoiceNet?: number; invoiceVat?: number }) => {
+    const params = new URLSearchParams({ companyId: q.companyId, from: q.from, to: q.to });
+    if (q.invoiceNet != null) params.set('invoiceNet', String(q.invoiceNet));
+    if (q.invoiceVat != null) params.set('invoiceVat', String(q.invoiceVat));
+    return handleRequest<ApiResp<'/api/sal/erp-settlements/jahez/period-report'>>(`/sal/erp-settlements/jahez/period-report?${params}`);
+  },
+  takeErpSettlementSnapshot: (app: string, input: Record<string, unknown>) =>
+    handleRequest<ApiResp<'/api/sal/erp-settlements/{app}/snapshot', 'post'>>(`/sal/erp-settlements/${encodeURIComponent(app)}/snapshot`, {
+      method: 'POST', body: JSON.stringify(input),
+    }),
+
+  getOwnerExternalBoxTree: (includeArchived = false) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/tree'>>(`/finance/owner-external-box/tree?includeArchived=${includeArchived ? 'true' : 'false'}`),
+  listOwnerExternalBoxEntries: (q?: { nodeId?: string; from?: string; to?: string }) => {
+    const params = new URLSearchParams();
+    if (q?.nodeId) params.set('nodeId', q.nodeId);
+    if (q?.from) params.set('from', q.from);
+    if (q?.to) params.set('to', q.to);
+    const qs = params.toString();
+    return handleRequest<ApiResp<'/api/finance/owner-external-box/entries'>>(`/finance/owner-external-box/entries${qs ? `?${qs}` : ''}`);
+  },
+  growOwnerExternalBoxNode: (input: Record<string, unknown>) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/nodes', 'post'>>('/finance/owner-external-box/nodes', { method: 'POST', body: JSON.stringify(input) }),
+  archiveOwnerExternalBoxNode: (id: string) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/nodes/{id}/archive', 'post'>>(`/finance/owner-external-box/nodes/${encodeURIComponent(id)}/archive`, { method: 'POST', body: '{}' }),
+  confirmOwnerExternalBoxArchive: (id: string) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/nodes/{id}/confirm-archive', 'post'>>(`/finance/owner-external-box/nodes/${encodeURIComponent(id)}/confirm-archive`, { method: 'POST', body: '{}' }),
+  restoreOwnerExternalBoxNode: (id: string) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/nodes/{id}/restore', 'post'>>(`/finance/owner-external-box/nodes/${encodeURIComponent(id)}/restore`, { method: 'POST', body: '{}' }),
+  postOwnerExternalBoxEntry: (input: Record<string, unknown>) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/entries', 'post'>>('/finance/owner-external-box/entries', { method: 'POST', body: JSON.stringify(input) }),
+  confirmOwnerExternalBoxEntry: (id: string) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/entries/{id}/confirm', 'post'>>(`/finance/owner-external-box/entries/${encodeURIComponent(id)}/confirm`, { method: 'POST', body: '{}' }),
+  reverseOwnerExternalBoxEntry: (id: string, input?: Record<string, unknown>) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/entries/{id}/reverse', 'post'>>(`/finance/owner-external-box/entries/${encodeURIComponent(id)}/reverse`, { method: 'POST', body: JSON.stringify(input ?? {}) }),
+  cancelOwnerExternalBoxEntry: (id: string) =>
+    handleRequest<ApiResp<'/api/finance/owner-external-box/entries/{id}/cancel', 'post'>>(`/finance/owner-external-box/entries/${encodeURIComponent(id)}/cancel`, { method: 'POST', body: '{}' }),
+
   listJahezReconciliations: () => handleRequest<JahezReconciliationDoc[]>('/finance/jahez-reconciliations'),
   buildJahezReconciliation: (input: {
     companyId: string; period: string; invoiceNet: number; invoiceVat: number;
-    lastTransactionDate: string; invoiceReference?: string; notes?: string;
+    lastTransactionDate: string; fromDate?: string; invoiceReference?: string; notes?: string;
   }) => handleRequest<JahezReconciliationDoc>('/finance/jahez-reconciliations', { method: 'POST', body: JSON.stringify(input) }),
   submitJahezReconciliation: (id: string) =>
     handleRequest<JahezReconciliationDoc>(`/finance/jahez-reconciliations/${encodeURIComponent(id)}/submit`, { method: 'POST', body: '{}' }),

@@ -22,32 +22,38 @@ public static class PayReviewCategory
         if(owner is not ("1" or "2"))return ""; // ERP: 1 Owned, 2 Leased. Third party needs a person to decide.
         return type switch{"1"=>"company_bike","2"=>"company_car",_=>""}; // ERP: 1 Motorcycle, 2 Car.
     }
-    public static string Derive(DbConnection c,DbTransaction? tx,JsonObject rider,string period,Func<string,IEnumerable<JsonObject>>? liveOps=null)
+    public static string Derive(DbConnection c,DbTransaction? tx,JsonObject rider,string period,Func<string,IEnumerable<JsonObject>>? liveOps=null,string? platformVehicleType=null)
     {
-        string saved=rider.S("payCategory");if(PaySettings.Categories.Contains(saved))return saved;
+        string saved=rider.S("payCategory");if(PaySettings.AllCategories.Contains(saved))return saved;
         string prefix=rider.S("engagementType") switch{"SponsoredInternal"=>"sponsored","External"=>"external",_=>""};if(prefix=="")return "";
         var openCycle=Store.List(c,PayCycles.Kind,tx).FirstOrDefault(p=>p.S("period")==period&&p.S("status") is not ("cancelled" or "reversed")&&PayRunInputs.Captured(p)&&(p.S("companyId")==rider.S("sponsorId")||p.S("companyId")==rider.S("companyId")));
         List<JsonObject> Ops(string kind)=>openCycle!=null?PayRunInputs.List(c,tx,openCycle.S("id"),kind):(liveOps!=null?liveOps(kind).ToList():Store.List(c,kind,tx));
         var assignments=Ops("vehicle_assignment");
         var vehicles=Ops("vehicle");
         var held=assignments.Where(a=>a.S("riderId")==rider.S("id")&&Overlaps(a.S("startedAt"),a.S("endedAt"),period)).Select(a=>openCycle!=null?PayRunInputs.Get(c,tx,openCycle.S("id"),"vehicle",a.S("vehicleId")):vehicles.FirstOrDefault(v=>v.S("id")==a.S("vehicleId"))??Store.Get(c,a.S("vehicleId"),"vehicle",tx)).ToList();
-        if(held.Count==0)return prefix+"_private";
-        var kinds=held.Select(v=>v==null?"":Vehicle(v)).Distinct().ToList();
-        return kinds.Count==1&&kinds[0]!=""?prefix+"_"+kinds[0]:"";
+        string riderNorm;
+        if(held.Count==0)riderNorm=VehicleIdentity.PrivateCar;
+        else
+        {
+            var kinds=held.Select(v=>v==null?VehicleIdentity.Unknown:VehicleIdentity.NormalizeForPay(v.S("vehicleType"),v.S("ownershipType"))).Distinct().ToList();
+            if(kinds.Count!=1||kinds[0]==VehicleIdentity.Unknown)return "";
+            riderNorm=kinds[0];
+        }
+        string platformNorm=VehicleIdentity.NormalizePlatform(platformVehicleType);
+        string mismatchCat=VehicleIdentity.PayCategory(prefix,riderNorm,platformNorm);
+        // When bike-on-car optional cell is not yet configured, fall back to company_bike category.
+        if(mismatchCat.EndsWith("_bike_on_car_id",StringComparison.Ordinal))return mismatchCat;
+        if(riderNorm==VehicleIdentity.PrivateCar)return prefix+"_private";
+        if(riderNorm==VehicleIdentity.Bike)return prefix+"_company_bike";
+        if(riderNorm==VehicleIdentity.Car)return prefix+"_company_car";
+        return "";
     }
 
+    /// <summary>Fixed default split (orders, then days). Parent terms never supply the weight (brief D / display-only).</summary>
     public static (string Weight,string TieBreak) AllocationSetting(DbConnection c,DbTransaction? tx,string app,string period)
     {
-        try
-        {
-            var terms=PaySettings.Resolve(c,tx,"pay_terms",app,period);
-            var p=terms["data"]?["parameters"] as JsonObject??new JsonObject();
-            string weight=p.S("riderAllocationWeight","orders"),tie=p.S("riderAllocationTieBreak","days");
-            J.Need(AllocationWeights.Contains(weight),"وزن توزيع المناديب غير مدعوم.");
-            J.Need(AllocationWeights.Contains(tie),"كسر تعادل التوزيع غير مدعوم.");
-            return (weight,tie);
-        }
-        catch(ApiError){return ("orders","days");}
+        _=c;_=tx;_=app;_=period;
+        return ("orders","days");
     }
 
     static decimal Metric(OperatorMetrics o,string weight)=>weight switch

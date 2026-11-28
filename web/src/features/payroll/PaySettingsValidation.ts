@@ -73,7 +73,26 @@ export const PAY_CATEGORIES_META: ReadonlyArray<{
     vehicleAr: 'مركبة خاصة',
     isPrivateVehicle: true,
   },
+  {
+    key: 'sponsored_bike_on_car_id',
+    labelAr: 'كفالة × دباب على يوزر سيارة',
+    sponsorshipAr: 'على الكفالة',
+    vehicleAr: 'دباب على يوزر سيارة',
+    isPrivateVehicle: false,
+  },
+  {
+    key: 'external_bike_on_car_id',
+    labelAr: 'خارجي × دباب على يوزر سيارة',
+    sponsorshipAr: 'خارجي (أجير / متعاون)',
+    vehicleAr: 'دباب على يوزر سيارة',
+    isPrivateVehicle: false,
+  },
 ];
+
+/** Six mandatory cells; bike-on-car-ID cells are optional scheme overrides. */
+export const PAY_CATEGORY_KEYS_REQUIRED = PAY_CATEGORIES_META.filter(
+  (c) => !c.key.endsWith('_bike_on_car_id')
+).map((c) => c.key);
 
 export const SCHEME_TYPES_META: ReadonlyArray<{
   value: 'daily_commission' | 'percent_of_gross' | 'target_salary' | 'monthly_commission' | 'percent_monthly_with_vehicle';
@@ -851,6 +870,7 @@ export function validateSchemeForm(
       continue;
     }
     enabledCount++;
+    // bike_on_car_id is a company bike — same vehicle-charge rule as other company cells.
     const chargeVehicle =
       form.type === 'percent_monthly_with_vehicle' && !catMeta.isPrivateVehicle
         ? true

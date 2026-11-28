@@ -3,7 +3,7 @@ from pathlib import Path
 import re
 ROOT = Path(__file__).resolve().parents[1]
 DEPRECATED = {'/api/template.csv', '/api/payroll/fingerprint', '/api/imports', '/api/debts/settlements', '/api/public/forms/{token}/resume', '/api/system/release-check'}
-GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Workforce':'القوى العاملة', 'HR Catalogs':'كتالوجات الموارد البشرية', 'Companies and registrations':'الشركات والسجلات', 'Platforms':'المنصات', 'Payroll':'الرواتب', 'Operations':'العمليات', 'Debts and advances':'المديونيات والسلف', 'Banks and treasury':'البنوك والصناديق والخزن', 'Accounting and reports':'المحاسبة والتقارير', 'Forms and responses':'النماذج والردود', 'Administration':'الإدارة'}
+GROUPS = {'Home':'الرئيسية', 'Riders':'المناديب', 'Workforce':'القوى العاملة', 'HR Catalogs':'كتالوجات الموارد البشرية', 'Staff HR':'شؤون الموظفين', 'Companies and registrations':'الشركات والسجلات', 'Platforms':'المنصات', 'Payroll':'الرواتب', 'Operations':'العمليات', 'Debts and advances':'المديونيات والسلف', 'Banks and treasury':'البنوك والصناديق والخزن', 'Accounting and reports':'المحاسبة والتقارير', 'Forms and responses':'النماذج والردود', 'Administration':'الإدارة'}
 def permission(method,p):
  if p.startswith(('/api/public/', '/api/auth/')) or not p.startswith('/api/'): return 'public (rider portal: own authenticated rider)'
  if p.startswith(('/api/rider-mobile/login','/api/rider-mobile/portal/')) or p.startswith('/api/rider-mobile/broadcasts/') and p.endswith('/ack'):return 'own rider session / one-time inquiry code'
@@ -57,7 +57,7 @@ def permission(method,p):
   return 'debts.create.<category> (+ treasury.opening for opening balances)'
  if p.startswith('/api/finance/statement/') or p.startswith('/api/promissory'):return 'debts.view (promissory writes: Admin + feature enabled)'
  if '/bank-file/' in p:return 'finance.bankfile.export + payroll.view'
- if '/trial-balance' in p or '/income-statement' in p:return 'treasury.journals'
+ if '/trial-balance' in p or '/income-statement' in p or '/cost-centres' in p:return 'treasury.journals'
  if p=='/api/finance/catalog':return 'debts.view OR treasury.view'
  if '/opening/' in p or '/legacy-cash-allocation/' in p:return 'treasury.opening'
  if '/jahez-handovers/' in p:return 'treasury.jahez.receive'

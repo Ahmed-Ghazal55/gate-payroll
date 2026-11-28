@@ -115,7 +115,7 @@ public static class OperationsImports
                 decimal n=decimal.Parse(J.Digits(V(key)),NumberStyles.Number,CultureInfo.InvariantCulture);J.Need(n>=(key=="baseGross"?-100000000:0)&&n<=100000000&&n==decimal.Round(n,4)&&(!integer||n==decimal.Truncate(n))&&(!money||n==J.Money(n)),"الصف "+(i+1)+": قيمة رقمية خارج النطاق.");return n;
             }
             decimal days=Number("days",true),orders=Number("orders",true);J.Need(days<=DateTime.DaysInMonth(int.Parse(period[..4],CultureInfo.InvariantCulture),int.Parse(period[5..],CultureInfo.InvariantCulture)),"أيام التشغيل تتجاوز أيام الشهر.");
-            J.Need(PaySettings.Categories.Contains(V("category")),"فئة الكفالة والمركبة مطلوبة؛ المركبة وحدها غير كافية.");
+            J.Need(PaySettings.AllCategories.Contains(V("category")),"فئة الكفالة والمركبة مطلوبة؛ المركبة وحدها غير كافية.");
             var metrics=new JsonObject();foreach(var column in step.Columns.Where(col=>col.Numeric&&!new[]{"days","orders","baseGross","deduction"}.Contains(col.Header)))if(V(column.Header)!="")metrics[column.Header]=Number(column.Header);
             review["riders"]!.AsArray().Add(new JsonObject{["rider"]=rider,["orders"]=orders,["baseGross"]=Number("baseGross",money:true),["deduction"]=Number("deduction",money:true),["category"]=V("category"),["days"]=days,["metrics"]=metrics});
         }

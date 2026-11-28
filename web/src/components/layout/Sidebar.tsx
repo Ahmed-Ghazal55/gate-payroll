@@ -85,6 +85,12 @@ export function buildNavGroups(
           permission: 'companies.view',
         },
         {
+          id: 'hr-staff',
+          href: '/hr/staff/',
+          label: 'شؤون الموظفين',
+          permission: ['staff.hr.view', 'staff.hr.manage'],
+        },
+        {
           id: 'hr-catalogs',
           href: '/hr/catalogs/',
           label: 'كتالوجات الموظفين',
@@ -159,7 +165,9 @@ export function buildNavGroups(
         { id: 'pr-amazon', href: '/payroll/amazon', label: 'أمازون', laterBadge: true, disabled: true },
         { id: 'pr-chefz', href: '/payroll/?tab=platforms&app=chefz', label: 'شيفز' },
         { id: 'pr-jahez', href: '/payroll/?tab=platforms&app=jahez', label: 'جاهز' },
-        { id: 'pr-mudad', href: '/payroll/?tab=platforms', label: 'رواتب مدد' },
+        { id: 'pr-register-ops', href: '/payroll/register-ops/?app=ninja&register=BW', label: 'تشغيل السجلات (حي)' },
+        { id: 'pr-mudad', href: '/payroll/?tab=mudad', label: 'رواتب مدد' },
+
         { id: 'pr-bank', href: '/payroll/?tab=bank', label: 'مسيرات الرواتب والبنك' },
         { id: 'pr-holds', href: '/payroll/?tab=deductions', label: 'طلبات إيقاف والخصم' },
         { id: 'pr-settings', href: '/payroll/?tab=rules', label: 'إعدادات الرواتب' },
@@ -308,6 +316,7 @@ function SidebarInner({
     if (pathname === '/' || pathname === '') return 'home';
     const clean = pathname.replace(/\/$/, '');
     if (clean === '/payments' || clean.startsWith('/payments/')) return 'payments';
+    if (clean === '/hr/staff' || clean.startsWith('/hr/staff/')) return 'hr-staff';
     if (clean === '/hr' || clean.startsWith('/hr/')) return 'companies';
     if (clean === '/riders' || clean.startsWith('/riders/')) {
       if (clean.startsWith('/riders/statement')) return 'workforce';

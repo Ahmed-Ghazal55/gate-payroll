@@ -1433,6 +1433,15 @@ export interface PayReviewRow {
   phase2: number;
   phase3: number;
   net: number;
+  blockers?: string[];
+  vehicleTypeMismatch?: boolean;
+  vehicleMismatches?: Array<{
+    app?: string;
+    riderVehicleType?: string;
+    platformVehicleType?: string;
+    code?: string;
+    labelAr?: string;
+  }>;
   items: PayReviewItem[];
   edits: PayReviewEdit[];
 }
@@ -1475,6 +1484,10 @@ export interface ConfigListItem {
   values?: Record<string, any>;
   status?: string;
   version?: number;
+  allowedActions?: string[];
+  approvalBlockers?: string[];
+  deleteBlockers?: string[];
+  references?: Array<{ kind?: string; id?: string; code?: string; field?: string; labelAr?: string }>;
 }
 
 export interface ConfigListGroup {
@@ -1616,6 +1629,14 @@ export interface ImportPreviewResult {
   batchId?: string;
   count?: number;
 }
+
+export type MudadListResponse = paths['/api/mudad']['get']['responses'][200]['content']['application/json'];
+export type MudadUploadRow = MudadListResponse['rows'][number];
+export type CostCentresResponse = paths['/api/finance/cost-centres']['get']['responses'][200]['content']['application/json'];
+export type CostCentreRow = CostCentresResponse['items'][number];
+export type VaultCountsResponse = paths['/api/treasury/vault-counts']['get']['responses'][200]['content']['application/json'];
+export type VaultCashBox = VaultCountsResponse['cashBoxes'][number];
+
 
 
 

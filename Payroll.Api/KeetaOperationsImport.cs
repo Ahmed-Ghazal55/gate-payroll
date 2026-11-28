@@ -81,6 +81,7 @@ public static class KeetaOperationsImport
         {
             if(line.S("platformAccountId",line.S("accountId"))=="")
             {
+                // §24.6 company rows (incl. 95% shortfall) stay off rider accounts; company_level deductions flow via Deductions().
                 J.Need(line.ContainsKey("baseGross")&&line.ContainsKey("incentives")&&line.ContainsKey("orders")&&line.N("incentives")==0&&line.N("orders")==0&&(line.S("lineType")=="company"||line.N("baseGross")==0),"سطر شركة باستحقاق غير موزع يحتاج مراجعة.");
                 continue;
             }
@@ -172,7 +173,7 @@ public static class KeetaOperationsImport
             string expectedEligibility=V("الصلاحية المتوقعة");
             J.Need(expectedEligibility!="",$"الصف {i+1}: الصلاحية المتوقعة مطلوبة (متوقع فقط؛ النهائي من الفاتورة).");
             string category=DeriveCategory(person,company,V("المركبة"),V("نوع المركبة"));
-            J.Need(PaySettings.Categories.Contains(category),$"الصف {i+1}: تعذر استنتاج فئة الكفالة والمركبة من الورقة.");
+            J.Need(PaySettings.AllCategories.Contains(category),$"الصف {i+1}: تعذر استنتاج فئة الكفالة والمركبة من الورقة.");
 
             int daysInMonth=DateTime.DaysInMonth(int.Parse(period[..4],CultureInfo.InvariantCulture),int.Parse(period[5..],CultureInfo.InvariantCulture));
             J.Need(validDays<=daysInMonth,$"الصف {i+1}: الأيام الصالحة تتجاوز أيام الشهر.");
@@ -201,6 +202,9 @@ public static class KeetaOperationsImport
                 ["expectedApproval"]="expected_only",
                 ["expectedFinal"]=false
             };
+            // Platform user/ID vehicle = نوع المركبة only (المركبة may describe the rider's bike → would hide bike-on-car).
+            string platformVehicleRaw=V("نوع المركبة");
+            if(platformVehicleRaw=="")platformVehicleRaw=V("المركبة");
             var share=new JsonObject
             {
                 ["rider"]=rider,
@@ -209,8 +213,16 @@ public static class KeetaOperationsImport
                 ["deduction"]=0m, // account-level invoice deductions allocated below
                 ["category"]=category,
                 ["days"]=validDays,
-                ["metrics"]=metrics
+                ["metrics"]=metrics,
+                ["platformVehicleType"]=platformVehicleRaw,
+                ["accountVehicleType"]=platformVehicleRaw
             };
+            // Persist onto platform_account so PayReviewDraft / Ninja-style readers see vehicleType (FIELD map).
+            if(tx!=null&&platformVehicleRaw!="")
+            {
+                account["vehicleType"]=platformVehicleRaw;
+                Store.Save(c,"platform_account",account,tx);
+            }
             pending.Add((review,share,i+1));
 
             var display=new JsonObject{["row"]=i+1,["dismissed"]=dismissed,["active"]=active,["expectedApproval"]="expected_only"};
@@ -331,17 +343,35 @@ public static class KeetaOperationsImport
         }
     }
 
+    /// <summary>
+    /// المركبة = rider vehicle; نوع المركبة = platform user/ID type.
+    /// Never concatenate both into one blob: دراجة+سيارة must become bike_on_car_id, not private.
+    /// All bikes (incl. private bike) → company_bike; private four-wheel → private (brief E).
+    /// </summary>
     static string DeriveCategory(JsonObject person,string company,string vehicle,string vehicleType)
     {
         bool sponsored=person.S("sponsorId")==company||FinancialCore.FindSponsor(person.S("sponsorId"))?.Id==company;
-        string blob=(vehicle+" "+vehicleType).Trim();
-        bool bike=ContainsAny(blob,"دراجة","bike","motorbike","scooter");
-        bool companyVehicle=ContainsAny(blob,"شركة","company","مؤسسة")&&!ContainsAny(blob,"خاص","خاصة","private");
-        bool privateVehicle=ContainsAny(blob,"خاص","خاصة","private")||(!companyVehicle&&blob!="");
-        if(privateVehicle||(!companyVehicle&&!bike&&blob!=""))
-            return sponsored?"sponsored_private":"external_private";
-        if(bike)return sponsored?"sponsored_company_bike":"external_company_bike";
-        return sponsored?"sponsored_company_car":"external_company_car";
+        string prefix=sponsored?"sponsored":"external";
+        string riderNorm=VehicleIdentity.Normalize(vehicle);
+        if(riderNorm==VehicleIdentity.Unknown)
+        {
+            if(ContainsAny(vehicle,"دراجة","دباب","bike","motorbike","scooter"))riderNorm=VehicleIdentity.Bike;
+            else if(ContainsAny(vehicle,"خاص","خاصة","private")&&!ContainsAny(vehicle,"دراجة","دباب","bike"))
+                riderNorm=VehicleIdentity.PrivateCar;
+            else if(ContainsAny(vehicle,"سيارة","car"))
+                riderNorm=ContainsAny(vehicle,"خاص","خاصة","private")?VehicleIdentity.PrivateCar:VehicleIdentity.Car;
+            else if(vehicle==""&&vehicleType!="")
+            {
+                riderNorm=VehicleIdentity.Normalize(vehicleType);
+                if(riderNorm==VehicleIdentity.Unknown)riderNorm=VehicleIdentity.NormalizePlatform(vehicleType);
+            }
+        }
+        string platformNorm=vehicleType==""?VehicleIdentity.Unknown:VehicleIdentity.NormalizePlatform(vehicleType);
+        string cat=VehicleIdentity.PayCategory(prefix,riderNorm,platformNorm==VehicleIdentity.Unknown?null:platformNorm);
+        if(cat!="")return cat;
+        // Unclear non-empty text → private (accountant reviews); empty → fail AllCategories check.
+        if((vehicle+" "+vehicleType).Trim()!="")return prefix+"_private";
+        return "";
     }
 
     static bool ContainsAny(string text,params string[] parts)=>parts.Any(p=>text.Contains(p,StringComparison.OrdinalIgnoreCase));

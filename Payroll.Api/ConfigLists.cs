@@ -84,6 +84,69 @@ public static class ConfigLists
     // Current, approved and active values for one item; null while it has never been approved.
     public static JsonObject? Current(DbConnection c,DbTransaction? tx,string group,string code)
     {var item=Store.Get(c,ItemId(group,code),ItemKind,tx);return item?["current"] is JsonObject cur&&item.B("active")?cur:null;}
+    /// <summary>References that block hard delete of an operating_systems item (Ghazal 2026-11-27).</summary>
+    public static List<JsonObject> FindOperatingSystemReferences(DbConnection c,DbTransaction? tx,string code)
+    {
+        var refs=new List<JsonObject>();
+        foreach(var item in Items(c,tx,"operating_systems"))
+        {
+            var values=item["current"]?["values"] as JsonObject??item["pending"]?["values"] as JsonObject??new JsonObject();
+            if(item.S("code")==code)continue;
+            if(values.S("parent")==code)refs.Add(new(){["kind"]="config_list_item",["id"]=item.S("id"),["code"]=item.S("code"),["field"]="parent",["labelAr"]="نظام فرعي يتبع هذا الأصل"});
+            if(values.S("aliasOf")==code)refs.Add(new(){["kind"]="config_list_item",["id"]=item.S("id"),["code"]=item.S("code"),["field"]="aliasOf",["labelAr"]="اسم قديم يشير إلى هذا الرمز"});
+            if(values.S("vehicleMode")==code)refs.Add(new(){["kind"]="config_list_item",["id"]=item.S("id"),["code"]=item.S("code"),["field"]="vehicleMode",["labelAr"]="ورقة نظام تستخدم وضع المركبة هذا"});
+        }
+        // Forward-compatible body scan: riders / cycles / lines / submissions that store the code.
+        foreach(string kind in new[]{"rider","pay_cycle","pay_cycle_line","pay_assignment","submission","platform_account"})
+        {
+            foreach(var row in Store.List(c,kind,tx))
+            {
+                string body=row.ToJsonString();
+                if(!body.Contains('"'+code+'"',StringComparison.Ordinal)&&!body.Contains(":"+code,StringComparison.Ordinal))continue;
+                // Exact field hits preferred.
+                bool hit=row.S("operatingSystem")==code||row.S("operatingSystemCode")==code||row.S("workSystem")==code
+                    ||row.S("code")==code||(row["data"] is JsonObject d&&(d.S("operatingSystem")==code||d.S("operatingSystemCode")==code));
+                if(!hit&&kind is "rider" or "pay_cycle" or "pay_cycle_line" or "pay_assignment" or "submission")
+                {
+                    // Conservative: only count when the code appears as a JSON string value.
+                    hit=Regex.IsMatch(body,"\"(?:operatingSystem|operatingSystemCode|workSystem|workPreference)\"\\s*:\\s*\""+Regex.Escape(code)+"\"");
+                }
+                if(hit)refs.Add(new(){["kind"]=kind,["id"]=row.S("id"),["field"]="operatingSystem",["labelAr"]="سجل يشير إلى نظام التشغيل"});
+            }
+        }
+        return refs;
+    }
+    /// <summary>Seeded kafala/external tree + aliases must stay (brief E). Hard delete is for unused extra systems only.</summary>
+    public static readonly HashSet<string> SeededOperatingSystemCodes=new(StringComparer.Ordinal)
+    {
+        "kafala","external","own_vehicle","company_car","company_bike",
+        "kafala.own_vehicle","kafala.company_car","kafala.company_bike",
+        "external.own_vehicle","external.company_car","external.company_bike",
+        "own_car","bike"
+    };
+    public static bool IsProtectedOperatingSystem(DbConnection c,DbTransaction? tx,string code)
+    {
+        if(SeededOperatingSystemCodes.Contains(code))return true;
+        var cur=Current(c,tx,"operating_systems",code);
+        string kind=cur?["values"].S("kind")??"";
+        return kind is "parent" or "alias";
+    }
+    public static JsonObject DeleteOperatingSystem(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,string code)
+    {
+        AccessPolicy.Demand(actor,"pay.manage");
+        var item=Store.Get(c,ItemId("operating_systems",code),ItemKind,tx)?.Clone()??throw new ApiError("نظام التشغيل غير موجود.",404);
+        if(IsProtectedOperatingSystem(c,tx,code))
+            throw new ApiError("لا يُحذف أصل الكفالة/الخارجي ولا الأوراق المزروعة أو الأسماء القديمة؛ احذف الأنظمة الإضافية غير المستخدمة فقط.",409);
+        var refs=FindOperatingSystemReferences(c,tx,code);
+        if(refs.Count>0)
+        {
+            string detail=string.Join("؛ ",refs.Take(8).Select(r=>r.S("labelAr")+(r.S("code")!=""?" ("+r.S("code")+")":"")+(r.S("id")!=""?" ["+r.S("id")+"]":"")));
+            throw new ApiError("لا يمكن حذف نظام التشغيل لأنه مستخدم: "+detail,409);
+        }
+        using(var cmd=Store.Command(c,tx,"DELETE FROM records WHERE id=@id AND kind=@kind",("@id",item.S("id")),("@kind",ItemKind)))cmd.ExecuteNonQuery();
+        Store.Audit(c,tx,"config.item_deleted",item.S("id"),Me(actor),new(){["group"]="operating_systems",["code"]=code,["nameAr"]=item["current"].S("nameAr",item["pending"].S("nameAr"))});
+        return new(){["deleted"]=true,["code"]=code,["id"]=item.S("id")};
+    }
     static JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,GroupDef def,List<FieldDef> fields,List<JsonObject> items)
     {
         bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopePayApprovals);bool manage=AccessPolicy.Has(actor,"pay.manage"),approve=AccessPolicy.Has(actor,"pay.approve");
@@ -101,11 +164,28 @@ public static class ConfigLists
                     else if(!AccessPolicy.IndependentForView(actor,pending.S("by"),bypass))blockers.Add("الاعتماد لشخص غير مقدم التعديل.");
                     else actions.Add("approve");
                 }
+                JsonArray? deleteBlockers=null;JsonArray? references=null;
+                if(def.Group=="operating_systems"&&manage)
+                {
+                    var refs=FindOperatingSystemReferences(c,tx,i.S("code"));
+                    references=new JsonArray(refs.Select(r=>(JsonNode)r.DeepClone()).ToArray());
+                    if(IsProtectedOperatingSystem(c,tx,i.S("code")))
+                    {
+                        deleteBlockers=new JsonArray("شجرة الكفالة/الخارجي المزروعة لا تُحذف.");
+                        blockers.Add("لا يُحذف أصل أو ورقة مزروعة من أنظمة التشغيل.");
+                    }
+                    else if(refs.Count==0)actions.Add("delete");
+                    else
+                    {
+                        deleteBlockers=new JsonArray(refs.Select(r=>(JsonNode)(r.S("labelAr")+(r.S("code")!=""?" — "+r.S("code"):""))).ToArray());
+                        blockers.Add("لا يُحذف نظام التشغيل وفيه مراجع.");
+                    }
+                }
                 return (JsonNode)new JsonObject{
                     ["code"]=i.S("code"),["nameAr"]=i["current"].S("nameAr",i["pending"].S("nameAr")),["active"]=i.B("active"),
                     ["values"]=(i["current"]?["values"] ?? i["pending"]?["values"] ?? new JsonObject()).DeepClone(),
                     ["status"]=i["pending"] is JsonObject?"pending_approval":"active",["pending"]=i["pending"]?.DeepClone(),["version"]=i.N("version"),
-                    ["allowedActions"]=actions,["approvalBlockers"]=blockers};
+                    ["allowedActions"]=actions,["approvalBlockers"]=blockers,["deleteBlockers"]=deleteBlockers,["references"]=references};
             }).ToArray())
         };
     }
@@ -262,5 +342,10 @@ public static class ConfigLists
         api.MapPost("/config/lists/{group}/items",(string group,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>Upsert(c,tx,ctx.User,group,input))).WithTags("Administration").WithSummary("Add or change a list item; financial lists wait for approval");
         api.MapPost("/config/lists/{group}/items/{code}/approve",(string group,string code,HttpContext ctx)=>store.Write((c,tx)=>Approve(c,tx,ctx.User,group,code))).WithTags("Administration").WithSummary("Approve a pending financial list change by another user");
         api.MapPost("/config/lists/{group}/fields",(string group,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>AddField(c,tx,ctx.User,group,input))).WithTags("Administration").WithSummary("Add a custom field to a list");
+        api.MapDelete("/config/lists/{group}/items/{code}",(string group,string code,HttpContext ctx)=>
+        {
+            J.Need(group=="operating_systems","الحذف النهائي متاح لأنظمة التشغيل فقط.",400);
+            return store.Write((c,tx)=>DeleteOperatingSystem(c,tx,ctx.User,code));
+        }).WithTags("Administration").WithSummary("Hard-delete an operating system only when no rider/cycle/record references it");
     }
 }

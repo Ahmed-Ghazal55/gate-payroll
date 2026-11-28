@@ -117,6 +117,14 @@ public static partial class AccessPolicy
         if(path=="/api/workforce/legal-cases")return method=="GET"&&Has("riders.legal_cases.view");
         if(path.StartsWith("/api/workforce/",StringComparison.Ordinal)&&path.EndsWith("/360",StringComparison.Ordinal))return method=="GET"&&Has("riders.view_360")&&Has("debts.view");
         if(path.StartsWith("/api/hr-catalogs/",StringComparison.Ordinal))return method=="GET"&&Has("riders.view");
+        if(path.StartsWith("/api/staff/hr/",StringComparison.Ordinal))
+        {
+            if(method=="GET")return Has(StaffHr.ViewPermission)||Has(StaffHr.ManagePermission)||Has(StaffHr.ApprovePermission);
+            if(method is not ("POST" or "PUT"))return false;
+            if(path.Contains("/contracts",StringComparison.Ordinal)&&method=="POST")return Has(StaffHr.ContractUploadPermission)&&Has(StaffHr.ManagePermission);
+            if(path.EndsWith("/approve",StringComparison.Ordinal)||path.EndsWith("/reverse",StringComparison.Ordinal))return Has(StaffHr.ApprovePermission);
+            return Has(StaffHr.ManagePermission);
+        }
         if(path.StartsWith("/api/riders/",StringComparison.Ordinal))
         {
             if(path.EndsWith("/profile-360",StringComparison.Ordinal))return method=="GET"&&Has("riders.view_360")&&Has("debts.view");
@@ -150,7 +158,7 @@ public static partial class AccessPolicy
         if(path.StartsWith("/api/finance/statement/rider/",StringComparison.Ordinal)&&path.EndsWith("/monthly",StringComparison.Ordinal))return method=="GET"&&CanAccessRiderMonthlyStatement(user);
         if(path.StartsWith("/api/finance/statement/",StringComparison.Ordinal))return method=="GET"&&Has("debts.view");
         if(path is "/api/finance/bank-file/preview" or "/api/finance/bank-file/export")return method=="POST"&&Has("finance.bankfile.export")&&Has("payroll.view");
-        if(path is "/api/finance/trial-balance" or "/api/finance/income-statement")return method=="GET"&&Has("treasury.journals");
+        if(path is "/api/finance/trial-balance" or "/api/finance/income-statement" or "/api/finance/cost-centres")return method=="GET"&&Has("treasury.journals");
         if(path=="/api/finance/catalog")return method=="GET"&&(Has("debts.view")||Has("treasury.view"));
         if(path=="/api/finance/coa"||path.StartsWith("/api/finance/coa/",StringComparison.Ordinal))
         {
@@ -186,6 +194,10 @@ public static partial class AccessPolicy
             "/api/finance/jahez-reconciliations"=>Has("treasury.transfer")||Has("treasury.jahez.receive"),
             "/api/finance/jahez-reconciliations/day"=>Has("treasury.transfer")||Has("treasury.jahez.receive"),
             _ when path.StartsWith("/api/finance/jahez-reconciliations/",StringComparison.Ordinal)=>Has("treasury.transfer")||Has("treasury.jahez.receive"),
+            "/api/finance/owner-external-box/nodes"=>Has("treasury.jahez.manage")||Has("treasury.transfer"),
+            "/api/finance/owner-external-box/entries"=>Has("treasury.jahez.manage")||Has("treasury.transfer"),
+            _ when path.StartsWith("/api/finance/owner-external-box/nodes/",StringComparison.Ordinal)=>Has("treasury.jahez.manage")||Has("treasury.transfer"),
+            _ when path.StartsWith("/api/finance/owner-external-box/entries/",StringComparison.Ordinal)=>Has("treasury.jahez.manage")||Has("treasury.transfer"),
             _=>false});
         if(path=="/api/org/supervision"&&method=="GET")return Has("advances.request")||Has("org.manage"); // mine=1 for supervisors; the full list is re-checked in the handler.
         if(path.StartsWith("/api/org/",StringComparison.Ordinal))return method=="GET"&&path=="/api/org/catalog"||Has("org.manage");

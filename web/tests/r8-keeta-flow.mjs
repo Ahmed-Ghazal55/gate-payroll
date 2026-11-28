@@ -262,24 +262,20 @@ try {
     const nextStep = pageA.locator('#ninja-next-step');
     await nextStep.locator('button', { hasText: 'بدء المطابقة' }).click();
 
-    // First preview asks for companyRows on row 3 -> UI offers and pre-populates companyRows=3
-    const companyRowsInput = pageA.locator('input[aria-label="أسطر تعديل الشركة"]');
-    await companyRowsInput.waitFor({ state: 'visible', timeout: 10000 });
-    assert.equal(await companyRowsInput.inputValue(), '3', 'companyRows input must auto-populate row 3 from API error');
-    console.log('✓ Conditional companyRows field offered and populated when API needed it');
-
-    await nextStep.locator('button', { hasText: 'إعادة المطابقة' }).click();
-    await nextStep.locator('button', { hasText: 'تأكيد وحفظ' }).click({ timeout: 20000 });
+    // 0.35.0: the blank-account company row (row 3) is detected automatically; no manual row number.
+    const confirm = nextStep.locator('button', { hasText: 'تأكيد وحفظ' });
+    try {
+      await confirm.waitFor({ state: 'visible', timeout: 15000 });
+    } catch {
+      await nextStep.locator('button', { hasText: 'إعادة المطابقة' }).click();
+    }
+    await confirm.click({ timeout: 20000 });
+    console.log('✓ Company adjustment row detected automatically; no manual row number');
 
     const panel = pageA.locator('#ninja-classify-panel');
     await panel.waitFor({ state: 'visible', timeout: 15000 });
-    assert.ok(
-      (await pageA.locator('#ninja-approval-blockers').textContent()).includes('بلا تصنيف'),
-      'Blockers must explain the unclassified Keeta deduction',
-    );
-
-    await panel.locator('[data-category="penalty"] button').click();
-    await panel.locator('[data-category="penalty"]', { hasText: '0 بلا تصنيف' }).waitFor({ timeout: 8000 });
+    // 0.35.0: deductions stay on the user/ID by default (invoice is final); no forced choice.
+    await panel.locator('[data-category="penalty"]', { hasText: 'على اليوزر' }).waitFor({ timeout: 8000 });
 
     const adjustmentRow = panel.locator('[data-category="supplier_adjustment"]');
     await adjustmentRow.locator('input[role="combobox"]').click();
@@ -287,7 +283,7 @@ try {
     await adjustmentRow.locator('input[role="combobox"]').fill('5');
     await pageA.locator('[role="option"]').first().click();
     await adjustmentRow.locator('button').click();
-    await adjustmentRow.filter({ hasText: '0 بلا تصنيف' }).waitFor({ timeout: 8000 });
+    await pageA.waitForFunction(() => !(document.querySelector('#ninja-classify-panel [data-category="supplier_adjustment"]')?.textContent || '').includes('يحتاج مراجعة'), null, { timeout: 8000 });
 
     assert.equal(
       await pageA.locator('#btn-approve-ninja-invoice').count(),

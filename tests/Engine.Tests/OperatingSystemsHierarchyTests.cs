@@ -58,4 +58,58 @@ public sealed class OperatingSystemsHierarchyTests
             Assert.AreEqual(1000m, store.Read(c => ConfigLists.Current(c, null, "operating_systems", "external.own_vehicle"))!["values"].N("operatingCostD"));
         });
     }
+
+    [TestMethod]
+    public void HardDelete_CustomLeafWithoutReferences_SucceedsAndIsAudited()
+    {
+        WithStore(store =>
+        {
+            ConfigLists.Seed(store);
+            var maker = PayFixture.Maker;
+            store.Write((c, tx) =>
+            {
+                ConfigLists.Upsert(c, tx, maker, "operating_systems", new System.Text.Json.Nodes.JsonObject
+                {
+                    ["code"] = "kafala.custom_test",
+                    ["nameAr"] = "اختبار حذف",
+                    ["active"] = true,
+                    ["values"] = new System.Text.Json.Nodes.JsonObject
+                    {
+                        ["kind"] = "leaf",
+                        ["parent"] = "kafala",
+                        ["vehicleMode"] = "company_bike",
+                        ["operatingCostD"] = 500m
+                    }
+                });
+                return true;
+            });
+
+            var view = store.Read(c =>
+            {
+                var groups = ConfigLists.Groups;
+                var def = groups.First(g => g.Group == "operating_systems");
+                return ConfigLists.Items(c, null, "operating_systems");
+            });
+            Assert.IsTrue(view.Any(i => i.S("code") == "kafala.custom_test"));
+
+            var deleted = store.Write((c, tx) => ConfigLists.DeleteOperatingSystem(c, tx, maker, "kafala.custom_test"));
+            Assert.IsTrue(deleted.B("deleted"));
+            Assert.IsNull(store.Read(c => ConfigLists.Current(c, null, "operating_systems", "kafala.custom_test")));
+            Assert.IsTrue(store.Read(c => Store.List(c, "audit").Any(a => a.S("action") == "config.item_deleted")));
+        });
+    }
+
+    [TestMethod]
+    public void HardDelete_ParentWithChildren_Returns409WithExplanation()
+    {
+        WithStore(store =>
+        {
+            ConfigLists.Seed(store);
+            var err = Assert.ThrowsExactly<ApiError>(() =>
+                store.Write((c, tx) => ConfigLists.DeleteOperatingSystem(c, tx, PayFixture.Maker, "kafala")));
+            Assert.AreEqual(409, err.Status);
+            // Seeded parent is protected even before reference scan (CORE1b).
+            StringAssert.Contains(err.Message, "مزروعة");
+        });
+    }
 }

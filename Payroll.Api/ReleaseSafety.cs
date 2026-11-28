@@ -7,7 +7,7 @@ namespace Payroll;
 
 public static class ReleaseSafety
 {
-    public const string Version="0.34.2";
+    public const string Version="0.35.0";
     public static object Capture(DbConnection c,DbTransaction? tx=null)
     {
         var counts=new SortedDictionary<string,int>(StringComparer.Ordinal);using var digest=IncrementalHash.CreateHash(HashAlgorithmName.SHA256);

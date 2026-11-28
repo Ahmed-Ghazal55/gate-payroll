@@ -138,7 +138,13 @@ public static class LiveOperationsQuery
         else if(query.TryGetValue("search",out var q2)&&!string.IsNullOrWhiteSpace(q2))q=q2.Trim();
         int skip=checked((page-1)*pageSize);
         string afterId=query.TryGetValue("afterId",out var after)&&!string.IsNullOrWhiteSpace(after)?after.Trim():"";
-        return new(page,pageSize,sort,q,skip,pageSize,"","","","",afterId);
+        string periodFrom=query.TryGetValue("periodFrom",out var pf)&&!string.IsNullOrWhiteSpace(pf)?pf.Trim():"";
+        string periodTo=query.TryGetValue("periodTo",out var pt)&&!string.IsNullOrWhiteSpace(pt)?pt.Trim():"";
+        // platform / platformApp = payroll app code (ninja/keeta/…); maps to ERP ClientPlatforms.Code in BuildWhere.
+        string platformApp="";
+        if(query.TryGetValue("platformApp",out var pa)&&!string.IsNullOrWhiteSpace(pa))platformApp=pa.Trim();
+        else if(query.TryGetValue("platform",out var p)&&!string.IsNullOrWhiteSpace(p))platformApp=p.Trim();
+        return new(page,pageSize,sort,q,skip,pageSize,"",periodFrom,periodTo,platformApp,afterId);
     }
 
     public static PageResult Page(DbConnection source,string kind,PageRequest request,Scope scope,IReadOnlyList<ISyncSponsor> sponsors,CancellationToken cancellationToken=default,long? knownTotal=null)

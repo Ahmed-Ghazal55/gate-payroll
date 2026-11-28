@@ -6,7 +6,7 @@
   },
   "servers": [
     {
-      "url": "http://127.0.0.1:5878/"
+      "url": "http://127.0.0.1:36321/"
     }
   ],
   "paths": {
@@ -2855,6 +2855,44 @@
           },
           "required": true
         },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/config/lists/{group}/items/{code}": {
+      "delete": {
+        "tags": [
+          "Administration"
+        ],
+        "summary": "Hard-delete an operating system only when no rider/cycle/record references it",
+        "parameters": [
+          {
+            "name": "group",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "code",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
@@ -12485,7 +12523,7 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray"
+                  "$ref": "#/components/schemas/AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray"
                 }
               }
             }
@@ -14276,6 +14314,36 @@
                       }
                     }
                   }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/apps/{app}/parent-terms/display": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Display-only parent terms: ERP expected eligibility vs approved invoice (no calculation effect)",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
                 }
               }
             }
@@ -17135,7 +17203,7 @@
         "tags": [
           "Payroll"
         ],
-        "summary": "Read source-bound Ninja cycle input and actionable blockers without writes",
+        "summary": "Read source-bound Ninja or Keeta cycle input and actionable blockers without writes",
         "parameters": [
           {
             "name": "app",
@@ -17349,6 +17417,18 @@
                         }
                       }
                     },
+                    "accountantLines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "setupChecklist": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
                     "allocationProposals": {
                       "type": "array",
                       "items": {
@@ -17379,6 +17459,12 @@
                     "canCreate": {
                       "type": "boolean"
                     },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
                     "totals": {
                       "required": [
                         "gross",
@@ -17396,6 +17482,204 @@
                         "vat": {
                           "type": "number"
                         }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/dues-split": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Split approved invoice dues across riders from ERP live ops (read-only; invoice unchanged)",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "period",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "app",
+                    "period",
+                    "companyId",
+                    "stage",
+                    "titleAr",
+                    "counts",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "stage": {
+                      "type": "string"
+                    },
+                    "titleAr": {
+                      "type": "string"
+                    },
+                    "invoiceIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "accounts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "riderSplits": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "accountantLines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "setupChecklist": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "counts": {
+                      "required": [
+                        "users",
+                        "riderSplits",
+                        "fuelRows",
+                        "custodyRows",
+                        "accountantLines",
+                        "setupLeft"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "users": {
+                          "type": "number"
+                        },
+                        "riderSplits": {
+                          "type": "number"
+                        },
+                        "fuelRows": {
+                          "type": "number"
+                        },
+                        "custodyRows": {
+                          "type": "number"
+                        },
+                        "accountantLines": {
+                          "type": "number"
+                        },
+                        "setupLeft": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "allocation": {
+                      "type": "object"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/pay/setup-defaults": {
+      "post": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "One-click draft+approve missing pay terms/eligibility/global defaults for the month",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "app",
+                    "period",
+                    "approvedIds",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "approvedIds": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
                       }
                     }
                   }
@@ -19435,6 +19719,404 @@
         }
       }
     },
+    "/api/pay/apps/{app}/live/register-ops": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Live register-sheet operations display (A..AH) from Omar ERP; expected eligibility only",
+        "parameters": [
+          {
+            "name": "app",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "items",
+                    "displayRows",
+                    "total",
+                    "page",
+                    "pageSize",
+                    "register",
+                    "columns",
+                    "counts",
+                    "coverage",
+                    "source",
+                    "asOf",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "row",
+                          "dismissed"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "row": {
+                            "type": "number"
+                          },
+                          "dismissed": {
+                            "type": "boolean"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "expectedApproval": {
+                            "type": "string"
+                          },
+                          "المعرف": {
+                            "type": "string"
+                          },
+                          "الاسم بالكامل": {
+                            "type": "string"
+                          },
+                          "رقم بطاقة الهوية": {
+                            "type": "string"
+                          },
+                          "كفالة اليوزر": {
+                            "type": "string"
+                          },
+                          "المركبة": {
+                            "type": "string"
+                          },
+                          "الحالة": {
+                            "type": "string"
+                          },
+                          "رقم الهوية1": {
+                            "type": "string"
+                          },
+                          "البديل 1": {
+                            "type": "string"
+                          },
+                          "رقم التواصل": {
+                            "type": "string"
+                          },
+                          "نوع البديل": {
+                            "type": "string"
+                          },
+                          "نوع المركبة": {
+                            "type": "string"
+                          },
+                          "رقم كرت البنزين1": {
+                            "type": "string"
+                          },
+                          "الأدوات1": {
+                            "type": "string"
+                          },
+                          "الجنسية 1": {
+                            "type": "string"
+                          },
+                          "الرقم المسجل": {
+                            "type": "string"
+                          },
+                          "الايبان 1": {
+                            "type": "string"
+                          },
+                          "تاريخ الاستلام1": {
+                            "type": "string"
+                          },
+                          "تاريخ التسليم": {
+                            "type": "string"
+                          },
+                          "الأيام الصالحة": {
+                            "type": "number"
+                          },
+                          "الطلبات": {
+                            "type": "number"
+                          },
+                          "المخالفات": {
+                            "type": "number"
+                          },
+                          "المسافة المدفوعة": {
+                            "type": "number"
+                          },
+                          "عدد ايام عمل المندوب": {
+                            "type": "number"
+                          },
+                          "الصلاحية المتوقعة": {
+                            "type": "string"
+                          },
+                          "اجمالي المسافه": {
+                            "type": "number"
+                          },
+                          "مطابقة المسافة": {
+                            "type": "string"
+                          },
+                          "الملاحظات": {
+                            "type": "string"
+                          },
+                          "اجمالي طلبات المعادلة": {
+                            "type": "number"
+                          },
+                          "اجمالي طلبات اليوزر": {
+                            "type": "number"
+                          },
+                          "مطابقة الطلبات": {
+                            "type": "string"
+                          },
+                          "عدد البدلاء": {
+                            "type": "number"
+                          },
+                          "اجمالي ايام المعادلة": {
+                            "type": "number"
+                          },
+                          "اجمالي ايام اليوزر": {
+                            "type": "number"
+                          },
+                          "مطابقة الايام": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "displayRows": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "row",
+                          "dismissed"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "row": {
+                            "type": "number"
+                          },
+                          "dismissed": {
+                            "type": "boolean"
+                          },
+                          "active": {
+                            "type": "boolean"
+                          },
+                          "expectedApproval": {
+                            "type": "string"
+                          },
+                          "المعرف": {
+                            "type": "string"
+                          },
+                          "الاسم بالكامل": {
+                            "type": "string"
+                          },
+                          "رقم بطاقة الهوية": {
+                            "type": "string"
+                          },
+                          "كفالة اليوزر": {
+                            "type": "string"
+                          },
+                          "المركبة": {
+                            "type": "string"
+                          },
+                          "الحالة": {
+                            "type": "string"
+                          },
+                          "رقم الهوية1": {
+                            "type": "string"
+                          },
+                          "البديل 1": {
+                            "type": "string"
+                          },
+                          "رقم التواصل": {
+                            "type": "string"
+                          },
+                          "نوع البديل": {
+                            "type": "string"
+                          },
+                          "نوع المركبة": {
+                            "type": "string"
+                          },
+                          "رقم كرت البنزين1": {
+                            "type": "string"
+                          },
+                          "الأدوات1": {
+                            "type": "string"
+                          },
+                          "الجنسية 1": {
+                            "type": "string"
+                          },
+                          "الرقم المسجل": {
+                            "type": "string"
+                          },
+                          "الايبان 1": {
+                            "type": "string"
+                          },
+                          "تاريخ الاستلام1": {
+                            "type": "string"
+                          },
+                          "تاريخ التسليم": {
+                            "type": "string"
+                          },
+                          "الأيام الصالحة": {
+                            "type": "number"
+                          },
+                          "الطلبات": {
+                            "type": "number"
+                          },
+                          "المخالفات": {
+                            "type": "number"
+                          },
+                          "المسافة المدفوعة": {
+                            "type": "number"
+                          },
+                          "عدد ايام عمل المندوب": {
+                            "type": "number"
+                          },
+                          "الصلاحية المتوقعة": {
+                            "type": "string"
+                          },
+                          "اجمالي المسافه": {
+                            "type": "number"
+                          },
+                          "مطابقة المسافة": {
+                            "type": "string"
+                          },
+                          "الملاحظات": {
+                            "type": "string"
+                          },
+                          "اجمالي طلبات المعادلة": {
+                            "type": "number"
+                          },
+                          "اجمالي طلبات اليوزر": {
+                            "type": "number"
+                          },
+                          "مطابقة الطلبات": {
+                            "type": "string"
+                          },
+                          "عدد البدلاء": {
+                            "type": "number"
+                          },
+                          "اجمالي ايام المعادلة": {
+                            "type": "number"
+                          },
+                          "اجمالي ايام اليوزر": {
+                            "type": "number"
+                          },
+                          "مطابقة الايام": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "page": {
+                      "type": "number"
+                    },
+                    "pageSize": {
+                      "type": "number"
+                    },
+                    "register": {
+                      "type": "string"
+                    },
+                    "registerSheet": {
+                      "type": "string"
+                    },
+                    "columns": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "counts": {
+                      "required": [
+                        "rows",
+                        "dismissed",
+                        "duplicateIdRows",
+                        "uniqueIds"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "rows": {
+                          "type": "number"
+                        },
+                        "dismissed": {
+                          "type": "number"
+                        },
+                        "duplicateIdRows": {
+                          "type": "number"
+                        },
+                        "uniqueIds": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "coverage": {
+                      "required": [
+                        "requestedFrom",
+                        "requestedTo",
+                        "missingDays",
+                        "missingDayCount"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "requestedFrom": {
+                          "type": "string"
+                        },
+                        "requestedTo": {
+                          "type": "string"
+                        },
+                        "firstDay": {
+                          "type": "string"
+                        },
+                        "lastDay": {
+                          "type": "string"
+                        },
+                        "missingDays": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "missingDayCount": {
+                          "type": "number"
+                        },
+                        "hasGapAtPeriodEnd": {
+                          "type": "boolean"
+                        }
+                      }
+                    },
+                    "erpSources": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "cache": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/pay/sources/fuel-consumption": {
       "get": {
         "tags": [
@@ -20429,6 +21111,12 @@
                               },
                               "createdAt": {
                                 "type": "string"
+                              },
+                              "accountIdsJson": {
+                                "type": "string"
+                              },
+                              "accountIds": {
+                                "type": "string"
                               }
                             }
                           },
@@ -20467,6 +21155,9 @@
                               },
                               "endDate": {
                                 "type": "string"
+                              },
+                              "vehicleType": {
+                                "type": "number"
                               },
                               "assignments": {
                                 "type": "array",
@@ -21369,6 +22060,12 @@
                               },
                               "createdAt": {
                                 "type": "string"
+                              },
+                              "accountIdsJson": {
+                                "type": "string"
+                              },
+                              "accountIds": {
+                                "type": "string"
                               }
                             }
                           },
@@ -21407,6 +22104,9 @@
                               },
                               "endDate": {
                                 "type": "string"
+                              },
+                              "vehicleType": {
+                                "type": "number"
                               },
                               "assignments": {
                                 "type": "array",
@@ -22598,6 +23298,1891 @@
                       "type": "string"
                     },
                     "asOf": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/catalogs": {
+      "get": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Read staff HR pick-lists",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "employmentTypes",
+                    "departments",
+                    "cities",
+                    "nationalities",
+                    "jobTitles"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "employmentTypes": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "departments": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "cities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "nationalities": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "jobTitles": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/dashboard": {
+      "get": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Read staff HR dashboard with contract expiry alerts",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "contractAlerts",
+                    "recentRuns",
+                    "employeeCount",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "contractAlerts": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "recentRuns": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "employeeCount": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/employees": {
+      "get": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "List staff employees",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "required": [
+                      "id",
+                      "displayName",
+                      "iqama",
+                      "companyId",
+                      "status",
+                      "allowedActions"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "displayName": {
+                        "type": "string"
+                      },
+                      "iqama": {
+                        "type": "string"
+                      },
+                      "companyId": {
+                        "type": "string"
+                      },
+                      "department": {
+                        "type": "string"
+                      },
+                      "jobTitle": {
+                        "type": "string"
+                      },
+                      "city": {
+                        "type": "string"
+                      },
+                      "nationality": {
+                        "type": "string"
+                      },
+                      "employmentType": {
+                        "type": "string"
+                      },
+                      "erpEmployeeId": {
+                        "type": "string"
+                      },
+                      "erpUserEmployeeId": {
+                        "type": "string"
+                      },
+                      "linkedUserId": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "basicSalary": {
+                        "type": "number"
+                      },
+                      "contractEndDate": {
+                        "type": "string"
+                      },
+                      "contractIssueDate": {
+                        "type": "string"
+                      },
+                      "currentContractId": {
+                        "type": "string"
+                      },
+                      "notes": {
+                        "type": "string"
+                      },
+                      "allowedActions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Create staff employee card",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "displayName",
+                    "iqama",
+                    "companyId",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "department": {
+                      "type": "string"
+                    },
+                    "jobTitle": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "nationality": {
+                      "type": "string"
+                    },
+                    "employmentType": {
+                      "type": "string"
+                    },
+                    "erpEmployeeId": {
+                      "type": "string"
+                    },
+                    "erpUserEmployeeId": {
+                      "type": "string"
+                    },
+                    "linkedUserId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "basicSalary": {
+                      "type": "number"
+                    },
+                    "contractEndDate": {
+                      "type": "string"
+                    },
+                    "contractIssueDate": {
+                      "type": "string"
+                    },
+                    "currentContractId": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/employees/{id}": {
+      "get": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Read staff employee card",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "displayName",
+                    "iqama",
+                    "companyId",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "department": {
+                      "type": "string"
+                    },
+                    "jobTitle": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "nationality": {
+                      "type": "string"
+                    },
+                    "employmentType": {
+                      "type": "string"
+                    },
+                    "erpEmployeeId": {
+                      "type": "string"
+                    },
+                    "erpUserEmployeeId": {
+                      "type": "string"
+                    },
+                    "linkedUserId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "basicSalary": {
+                      "type": "number"
+                    },
+                    "contractEndDate": {
+                      "type": "string"
+                    },
+                    "contractIssueDate": {
+                      "type": "string"
+                    },
+                    "currentContractId": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Update staff employee card",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "displayName",
+                    "iqama",
+                    "companyId",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "displayName": {
+                      "type": "string"
+                    },
+                    "iqama": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "department": {
+                      "type": "string"
+                    },
+                    "jobTitle": {
+                      "type": "string"
+                    },
+                    "city": {
+                      "type": "string"
+                    },
+                    "nationality": {
+                      "type": "string"
+                    },
+                    "employmentType": {
+                      "type": "string"
+                    },
+                    "erpEmployeeId": {
+                      "type": "string"
+                    },
+                    "erpUserEmployeeId": {
+                      "type": "string"
+                    },
+                    "linkedUserId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "basicSalary": {
+                      "type": "number"
+                    },
+                    "contractEndDate": {
+                      "type": "string"
+                    },
+                    "contractIssueDate": {
+                      "type": "string"
+                    },
+                    "currentContractId": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/employees/{id}/contracts": {
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Add Qiwa contract (keeps history)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "employeeId",
+                    "issueDate",
+                    "endDate",
+                    "basicSalary",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "employeeId": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "issueDate": {
+                      "type": "string"
+                    },
+                    "endDate": {
+                      "type": "string"
+                    },
+                    "basicSalary": {
+                      "type": "number"
+                    },
+                    "attachmentId": {
+                      "type": "string"
+                    },
+                    "fileHash": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/employees/{id}/contracts/{contractId}/file": {
+      "get": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Download Qiwa contract file",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "contractId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/staff/hr/employees/{id}/months": {
+      "put": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Upsert monthly attendance/OT/lateness/bonus/deduction",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "employeeId",
+                    "period",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "employeeId": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "attendanceDays": {
+                      "type": "number"
+                    },
+                    "overtimeHours": {
+                      "type": "number"
+                    },
+                    "latenessHours": {
+                      "type": "number"
+                    },
+                    "bonusAmount": {
+                      "type": "number"
+                    },
+                    "deductionAmount": {
+                      "type": "number"
+                    },
+                    "notes": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/employees/{id}/advances": {
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Create staff advance draft (unique key; no cash until approve)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "sourceRef",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "sourceRef": {
+                      "type": "string"
+                    },
+                    "remainingBalance": {
+                      "type": "number"
+                    },
+                    "monthlyInstallment": {
+                      "type": "number"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/employees/{id}/advances/{debtId}/approve": {
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Approve staff advance and post cash journal (second person)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "debtId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "sourceRef",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "sourceRef": {
+                      "type": "string"
+                    },
+                    "remainingBalance": {
+                      "type": "number"
+                    },
+                    "monthlyInstallment": {
+                      "type": "number"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/runs": {
+      "get": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "List staff payroll runs",
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "required": [
+                      "id",
+                      "period",
+                      "companyId",
+                      "status",
+                      "allowedActions"
+                    ],
+                    "type": "object",
+                    "properties": {
+                      "id": {
+                        "type": "string"
+                      },
+                      "period": {
+                        "type": "string"
+                      },
+                      "companyId": {
+                        "type": "string"
+                      },
+                      "status": {
+                        "type": "string"
+                      },
+                      "lineCount": {
+                        "type": "number"
+                      },
+                      "blockedCount": {
+                        "type": "number"
+                      },
+                      "grossTotal": {
+                        "type": "number"
+                      },
+                      "netTotal": {
+                        "type": "number"
+                      },
+                      "lines": {
+                        "type": "array",
+                        "items": {
+                          "type": "object"
+                        }
+                      },
+                      "blocked": {
+                        "type": "array",
+                        "items": {
+                          "type": "object"
+                        }
+                      },
+                      "createdBy": {
+                        "type": "string"
+                      },
+                      "preparedBy": {
+                        "type": "string"
+                      },
+                      "approvedBy": {
+                        "type": "string"
+                      },
+                      "journalEntryId": {
+                        "type": "string"
+                      },
+                      "mudadFileId": {
+                        "type": "string"
+                      },
+                      "postRefused": {
+                        "type": "boolean"
+                      },
+                      "postRefuseReason": {
+                        "type": "string"
+                      },
+                      "postRefusedAt": {
+                        "type": "string"
+                      },
+                      "mudadVoided": {
+                        "type": "boolean"
+                      },
+                      "reversalJournalId": {
+                        "type": "string"
+                      },
+                      "allowedActions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Create staff payroll run draft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "period",
+                    "companyId",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "lineCount": {
+                      "type": "number"
+                    },
+                    "blockedCount": {
+                      "type": "number"
+                    },
+                    "grossTotal": {
+                      "type": "number"
+                    },
+                    "netTotal": {
+                      "type": "number"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "blocked": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "mudadFileId": {
+                      "type": "string"
+                    },
+                    "postRefused": {
+                      "type": "boolean"
+                    },
+                    "postRefuseReason": {
+                      "type": "string"
+                    },
+                    "postRefusedAt": {
+                      "type": "string"
+                    },
+                    "mudadVoided": {
+                      "type": "boolean"
+                    },
+                    "reversalJournalId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/runs/{id}": {
+      "get": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Read staff payroll run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "period",
+                    "companyId",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "lineCount": {
+                      "type": "number"
+                    },
+                    "blockedCount": {
+                      "type": "number"
+                    },
+                    "grossTotal": {
+                      "type": "number"
+                    },
+                    "netTotal": {
+                      "type": "number"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "blocked": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "mudadFileId": {
+                      "type": "string"
+                    },
+                    "postRefused": {
+                      "type": "boolean"
+                    },
+                    "postRefuseReason": {
+                      "type": "string"
+                    },
+                    "postRefusedAt": {
+                      "type": "string"
+                    },
+                    "mudadVoided": {
+                      "type": "boolean"
+                    },
+                    "reversalJournalId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/runs/{id}/recalculate": {
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Recalculate staff run draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "period",
+                    "companyId",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "lineCount": {
+                      "type": "number"
+                    },
+                    "blockedCount": {
+                      "type": "number"
+                    },
+                    "grossTotal": {
+                      "type": "number"
+                    },
+                    "netTotal": {
+                      "type": "number"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "blocked": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "mudadFileId": {
+                      "type": "string"
+                    },
+                    "postRefused": {
+                      "type": "boolean"
+                    },
+                    "postRefuseReason": {
+                      "type": "string"
+                    },
+                    "postRefusedAt": {
+                      "type": "string"
+                    },
+                    "mudadVoided": {
+                      "type": "boolean"
+                    },
+                    "reversalJournalId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/runs/{id}/submit-review": {
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Submit staff run for review",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "period",
+                    "companyId",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "lineCount": {
+                      "type": "number"
+                    },
+                    "blockedCount": {
+                      "type": "number"
+                    },
+                    "grossTotal": {
+                      "type": "number"
+                    },
+                    "netTotal": {
+                      "type": "number"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "blocked": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "mudadFileId": {
+                      "type": "string"
+                    },
+                    "postRefused": {
+                      "type": "boolean"
+                    },
+                    "postRefuseReason": {
+                      "type": "string"
+                    },
+                    "postRefusedAt": {
+                      "type": "string"
+                    },
+                    "mudadVoided": {
+                      "type": "boolean"
+                    },
+                    "reversalJournalId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/runs/{id}/back-to-draft": {
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Return staff run to draft",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "period",
+                    "companyId",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "lineCount": {
+                      "type": "number"
+                    },
+                    "blockedCount": {
+                      "type": "number"
+                    },
+                    "grossTotal": {
+                      "type": "number"
+                    },
+                    "netTotal": {
+                      "type": "number"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "blocked": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "mudadFileId": {
+                      "type": "string"
+                    },
+                    "postRefused": {
+                      "type": "boolean"
+                    },
+                    "postRefuseReason": {
+                      "type": "string"
+                    },
+                    "postRefusedAt": {
+                      "type": "string"
+                    },
+                    "mudadVoided": {
+                      "type": "boolean"
+                    },
+                    "reversalJournalId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/runs/{id}/approve": {
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Approve staff run (preparer never approves)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "period",
+                    "companyId",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "lineCount": {
+                      "type": "number"
+                    },
+                    "blockedCount": {
+                      "type": "number"
+                    },
+                    "grossTotal": {
+                      "type": "number"
+                    },
+                    "netTotal": {
+                      "type": "number"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "blocked": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "mudadFileId": {
+                      "type": "string"
+                    },
+                    "postRefused": {
+                      "type": "boolean"
+                    },
+                    "postRefuseReason": {
+                      "type": "string"
+                    },
+                    "postRefusedAt": {
+                      "type": "string"
+                    },
+                    "mudadVoided": {
+                      "type": "boolean"
+                    },
+                    "reversalJournalId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/runs/{id}/mudad": {
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Generate staff Mudad CSV",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Download staff Mudad CSV",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/api/staff/hr/runs/{id}/post": {
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Post one journal for the staff run",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "period",
+                    "companyId",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "lineCount": {
+                      "type": "number"
+                    },
+                    "blockedCount": {
+                      "type": "number"
+                    },
+                    "grossTotal": {
+                      "type": "number"
+                    },
+                    "netTotal": {
+                      "type": "number"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "blocked": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "mudadFileId": {
+                      "type": "string"
+                    },
+                    "postRefused": {
+                      "type": "boolean"
+                    },
+                    "postRefuseReason": {
+                      "type": "string"
+                    },
+                    "postRefusedAt": {
+                      "type": "string"
+                    },
+                    "mudadVoided": {
+                      "type": "boolean"
+                    },
+                    "reversalJournalId": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/staff/hr/runs/{id}/reverse": {
+      "post": {
+        "tags": [
+          "Staff HR"
+        ],
+        "summary": "Reverse staff run journal",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "period",
+                    "companyId",
+                    "status",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "lineCount": {
+                      "type": "number"
+                    },
+                    "blockedCount": {
+                      "type": "number"
+                    },
+                    "grossTotal": {
+                      "type": "number"
+                    },
+                    "netTotal": {
+                      "type": "number"
+                    },
+                    "lines": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "blocked": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "journalEntryId": {
+                      "type": "string"
+                    },
+                    "mudadFileId": {
+                      "type": "string"
+                    },
+                    "postRefused": {
+                      "type": "boolean"
+                    },
+                    "postRefuseReason": {
+                      "type": "string"
+                    },
+                    "postRefusedAt": {
+                      "type": "string"
+                    },
+                    "mudadVoided": {
+                      "type": "boolean"
+                    },
+                    "reversalJournalId": {
                       "type": "string"
                     },
                     "allowedActions": {
@@ -36362,11 +38947,60 @@
         ],
         "responses": {
           "200": {
-            "description": "OK",
+            "description": "Successful response (stored wire field names)",
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/JsonObject"
+                  "required": [
+                    "rows"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "rows": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "companyId",
+                          "periodMonth",
+                          "fileKind",
+                          "fileName",
+                          "rowCount",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "periodMonth": {
+                            "type": "string"
+                          },
+                          "fileKind": {
+                            "type": "string"
+                          },
+                          "fileName": {
+                            "type": "string"
+                          },
+                          "rowCount": {
+                            "type": "number"
+                          },
+                          "status": {
+                            "type": "number"
+                          },
+                          "uploadedBy": {
+                            "type": "string"
+                          },
+                          "uploadedAt": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -38921,6 +41555,117 @@
         }
       }
     },
+    "/api/finance/cost-centres": {
+      "get": {
+        "tags": [
+          "Accounting and reports"
+        ],
+        "summary": "Read finance cost centres and balances",
+        "parameters": [
+          {
+            "name": "sponsorId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "from",
+                    "to",
+                    "items"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "code",
+                          "nameAr",
+                          "kind",
+                          "status",
+                          "opening",
+                          "debit",
+                          "credit",
+                          "closing"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "companyCode": {
+                            "type": "string"
+                          },
+                          "companyNameAr": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "number"
+                          },
+                          "opening": {
+                            "type": "number"
+                          },
+                          "debit": {
+                            "type": "number"
+                          },
+                          "credit": {
+                            "type": "number"
+                          },
+                          "closing": {
+                            "type": "number"
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "/api/finance/coa": {
       "get": {
         "tags": [
@@ -39871,7 +42616,56 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "required": [
+                    "items",
+                    "allowedActions",
+                    "cashBoxes"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "type": "object"
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "cashBoxes": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "code",
+                          "nameAr",
+                          "companyId",
+                          "accountCode"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "nameAr": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "accountCode": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -40003,6 +42797,20 @@
             "schema": {
               "type": "string"
             }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
           }
         ],
         "responses": {
@@ -40011,7 +42819,533 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "required": [
+                    "app",
+                    "companyId",
+                    "items",
+                    "total",
+                    "snapshotSafe",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "half": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "erpRowId": {
+                            "type": "string"
+                          },
+                          "executedAt": {
+                            "type": "string"
+                          },
+                          "net": {
+                            "type": "number"
+                          },
+                          "commission": {
+                            "type": "number"
+                          },
+                          "transferToRider": {
+                            "type": "number"
+                          },
+                          "remaining": {
+                            "type": "number"
+                          },
+                          "fund": {
+                            "type": "string"
+                          },
+                          "purpose": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "paymentStatus": {
+                            "type": "string"
+                          },
+                          "riderId": {
+                            "type": "string"
+                          },
+                          "platformAccountId": {
+                            "type": "string"
+                          },
+                          "accountType": {
+                            "type": "string"
+                          },
+                          "periodFrom": {
+                            "type": "string"
+                          },
+                          "periodTo": {
+                            "type": "string"
+                          },
+                          "chargedFrom": {
+                            "type": "string"
+                          },
+                          "chargedTo": {
+                            "type": "string"
+                          },
+                          "assignedDays": {
+                            "type": "number"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "gross": {
+                            "type": "number"
+                          },
+                          "companyAmount": {
+                            "type": "number"
+                          },
+                          "riderAmount": {
+                            "type": "number"
+                          },
+                          "commissionRate": {
+                            "type": "number"
+                          },
+                          "dailyFee": {
+                            "type": "number"
+                          },
+                          "isCompletedClosed": {
+                            "type": "boolean"
+                          },
+                          "completionLabelAr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "net": {
+                          "type": "number"
+                        },
+                        "commission": {
+                          "type": "number"
+                        },
+                        "transferToRider": {
+                          "type": "number"
+                        },
+                        "gross": {
+                          "type": "number"
+                        },
+                        "companyAmount": {
+                          "type": "number"
+                        },
+                        "riderAmount": {
+                          "type": "number"
+                        },
+                        "completedClosed": {
+                          "type": "number"
+                        },
+                        "openOrIncomplete": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "snapshotSafe": {
+                      "type": "boolean"
+                    },
+                    "snapshotSafetyRuleAr": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "noteAr": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/sal/erp-settlements/jahez/period-report": {
+      "get": {
+        "tags": [
+          "Payroll"
+        ],
+        "summary": "Jahez invoice-period settlements, commission, rider transfers vs invoice",
+        "parameters": [
+          {
+            "name": "companyId",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "invoiceNet",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+              "type": [
+                "number",
+                "string"
+              ],
+              "format": "double"
+            }
+          },
+          {
+            "name": "invoiceVat",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+              "type": [
+                "number",
+                "string"
+              ],
+              "format": "double"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "app",
+                    "companyId",
+                    "from",
+                    "to",
+                    "totals",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "live": {
+                      "required": [
+                        "app",
+                        "companyId",
+                        "items",
+                        "total",
+                        "snapshotSafe",
+                        "allowedActions"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "app": {
+                          "type": "string"
+                        },
+                        "companyId": {
+                          "type": "string"
+                        },
+                        "period": {
+                          "type": "string"
+                        },
+                        "half": {
+                          "type": "string"
+                        },
+                        "from": {
+                          "type": "string"
+                        },
+                        "to": {
+                          "type": "string"
+                        },
+                        "source": {
+                          "type": "string"
+                        },
+                        "asOf": {
+                          "type": "string"
+                        },
+                        "items": {
+                          "type": "array",
+                          "items": {
+                            "required": [
+                              "id"
+                            ],
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string"
+                              },
+                              "erpRowId": {
+                                "type": "string"
+                              },
+                              "executedAt": {
+                                "type": "string"
+                              },
+                              "net": {
+                                "type": "number"
+                              },
+                              "commission": {
+                                "type": "number"
+                              },
+                              "transferToRider": {
+                                "type": "number"
+                              },
+                              "remaining": {
+                                "type": "number"
+                              },
+                              "fund": {
+                                "type": "string"
+                              },
+                              "purpose": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "paymentStatus": {
+                                "type": "string"
+                              },
+                              "riderId": {
+                                "type": "string"
+                              },
+                              "platformAccountId": {
+                                "type": "string"
+                              },
+                              "accountType": {
+                                "type": "string"
+                              },
+                              "periodFrom": {
+                                "type": "string"
+                              },
+                              "periodTo": {
+                                "type": "string"
+                              },
+                              "chargedFrom": {
+                                "type": "string"
+                              },
+                              "chargedTo": {
+                                "type": "string"
+                              },
+                              "assignedDays": {
+                                "type": "number"
+                              },
+                              "source": {
+                                "type": "string"
+                              },
+                              "gross": {
+                                "type": "number"
+                              },
+                              "companyAmount": {
+                                "type": "number"
+                              },
+                              "riderAmount": {
+                                "type": "number"
+                              },
+                              "commissionRate": {
+                                "type": "number"
+                              },
+                              "dailyFee": {
+                                "type": "number"
+                              },
+                              "isCompletedClosed": {
+                                "type": "boolean"
+                              },
+                              "completionLabelAr": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        },
+                        "total": {
+                          "type": "number"
+                        },
+                        "totals": {
+                          "type": "object",
+                          "properties": {
+                            "net": {
+                              "type": "number"
+                            },
+                            "commission": {
+                              "type": "number"
+                            },
+                            "transferToRider": {
+                              "type": "number"
+                            },
+                            "gross": {
+                              "type": "number"
+                            },
+                            "companyAmount": {
+                              "type": "number"
+                            },
+                            "riderAmount": {
+                              "type": "number"
+                            },
+                            "completedClosed": {
+                              "type": "number"
+                            },
+                            "openOrIncomplete": {
+                              "type": "number"
+                            }
+                          }
+                        },
+                        "snapshotSafe": {
+                          "type": "boolean"
+                        },
+                        "snapshotSafetyRuleAr": {
+                          "type": "string"
+                        },
+                        "allowedActions": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          }
+                        },
+                        "noteAr": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "commissionRates": {
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "effectiveFrom": {
+                            "type": "string"
+                          },
+                          "dailyRate": {
+                            "type": "number"
+                          },
+                          "percentRate": {
+                            "type": "number"
+                          },
+                          "cityId": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "totals": {
+                      "required": [
+                        "commission",
+                        "deliveryFees",
+                        "cashCollections",
+                        "paidOnBehalf",
+                        "companyDue",
+                        "expectedNet",
+                        "hasInvoice"
+                      ],
+                      "type": "object",
+                      "properties": {
+                        "operationsNet": {
+                          "type": "number"
+                        },
+                        "commission": {
+                          "type": "number"
+                        },
+                        "transferToRider": {
+                          "type": "number"
+                        },
+                        "deliveryFees": {
+                          "type": "number"
+                        },
+                        "bonusesTips": {
+                          "type": "number"
+                        },
+                        "driverAdjustments": {
+                          "type": "number"
+                        },
+                        "cashCollections": {
+                          "type": "number"
+                        },
+                        "paidOnBehalf": {
+                          "type": "number"
+                        },
+                        "companyDue": {
+                          "type": "number"
+                        },
+                        "expectedNet": {
+                          "type": "number"
+                        },
+                        "hasInvoice": {
+                          "type": "boolean"
+                        },
+                        "invoiceNet": {
+                          "type": "number"
+                        },
+                        "invoiceVat": {
+                          "type": "number"
+                        },
+                        "variance": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "noteAr": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -40051,7 +43385,49 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "required": [
+                    "id",
+                    "app",
+                    "companyId",
+                    "purpose",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "app": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "businessDate": {
+                      "type": "string"
+                    },
+                    "purpose": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "moneyFrozen": {
+                      "type": "boolean"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -40081,7 +43457,49 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "required": [
+                    "id",
+                    "app",
+                    "companyId",
+                    "purpose",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "kind": {
+                      "type": "string"
+                    },
+                    "app": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "businessDate": {
+                      "type": "string"
+                    },
+                    "purpose": {
+                      "type": "string"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "moneyFrozen": {
+                      "type": "boolean"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -40139,7 +43557,180 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "object"
+                  "required": [
+                    "app",
+                    "companyId",
+                    "items",
+                    "total",
+                    "snapshotSafe",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "app": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "period": {
+                      "type": "string"
+                    },
+                    "half": {
+                      "type": "string"
+                    },
+                    "from": {
+                      "type": "string"
+                    },
+                    "to": {
+                      "type": "string"
+                    },
+                    "source": {
+                      "type": "string"
+                    },
+                    "asOf": {
+                      "type": "string"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "erpRowId": {
+                            "type": "string"
+                          },
+                          "executedAt": {
+                            "type": "string"
+                          },
+                          "net": {
+                            "type": "number"
+                          },
+                          "commission": {
+                            "type": "number"
+                          },
+                          "transferToRider": {
+                            "type": "number"
+                          },
+                          "remaining": {
+                            "type": "number"
+                          },
+                          "fund": {
+                            "type": "string"
+                          },
+                          "purpose": {
+                            "type": "string"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "paymentStatus": {
+                            "type": "string"
+                          },
+                          "riderId": {
+                            "type": "string"
+                          },
+                          "platformAccountId": {
+                            "type": "string"
+                          },
+                          "accountType": {
+                            "type": "string"
+                          },
+                          "periodFrom": {
+                            "type": "string"
+                          },
+                          "periodTo": {
+                            "type": "string"
+                          },
+                          "chargedFrom": {
+                            "type": "string"
+                          },
+                          "chargedTo": {
+                            "type": "string"
+                          },
+                          "assignedDays": {
+                            "type": "number"
+                          },
+                          "source": {
+                            "type": "string"
+                          },
+                          "gross": {
+                            "type": "number"
+                          },
+                          "companyAmount": {
+                            "type": "number"
+                          },
+                          "riderAmount": {
+                            "type": "number"
+                          },
+                          "commissionRate": {
+                            "type": "number"
+                          },
+                          "dailyFee": {
+                            "type": "number"
+                          },
+                          "isCompletedClosed": {
+                            "type": "boolean"
+                          },
+                          "completionLabelAr": {
+                            "type": "string"
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "totals": {
+                      "type": "object",
+                      "properties": {
+                        "net": {
+                          "type": "number"
+                        },
+                        "commission": {
+                          "type": "number"
+                        },
+                        "transferToRider": {
+                          "type": "number"
+                        },
+                        "gross": {
+                          "type": "number"
+                        },
+                        "companyAmount": {
+                          "type": "number"
+                        },
+                        "riderAmount": {
+                          "type": "number"
+                        },
+                        "completedClosed": {
+                          "type": "number"
+                        },
+                        "openOrIncomplete": {
+                          "type": "number"
+                        }
+                      }
+                    },
+                    "snapshotSafe": {
+                      "type": "boolean"
+                    },
+                    "snapshotSafetyRuleAr": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    },
+                    "noteAr": {
+                      "type": "string"
+                    }
+                  }
                 }
               }
             }
@@ -41348,6 +44939,1423 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/JsonObject"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/owner-external-box/tree": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Owner external box living tree (outside company books)",
+        "parameters": [
+          {
+            "name": "includeArchived",
+            "in": "query",
+            "schema": {
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "hitsCompanyBooks",
+                    "roots",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "hitsCompanyBooks": {
+                      "type": "boolean"
+                    },
+                    "noteAr": {
+                      "type": "string"
+                    },
+                    "companyExpenseNoteAr": {
+                      "type": "string"
+                    },
+                    "roots": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "kind",
+                          "code",
+                          "labelAr",
+                          "balance",
+                          "hitsCompanyBooks",
+                          "allowedActions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "parentId": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "sortOrder": {
+                            "type": "number"
+                          },
+                          "purposeCode": {
+                            "type": "string"
+                          },
+                          "activeFrom": {
+                            "type": "string"
+                          },
+                          "archivedAt": {
+                            "type": "string"
+                          },
+                          "archiveRequestedBy": {
+                            "type": "string"
+                          },
+                          "balance": {
+                            "type": "number"
+                          },
+                          "ownBalance": {
+                            "type": "number"
+                          },
+                          "hitsCompanyBooks": {
+                            "type": "boolean"
+                          },
+                          "children": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "kind",
+                                "code",
+                                "labelAr",
+                                "balance",
+                                "hitsCompanyBooks",
+                                "allowedActions"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "parentId": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "code": {
+                                  "type": "string"
+                                },
+                                "labelAr": {
+                                  "type": "string"
+                                },
+                                "sortOrder": {
+                                  "type": "number"
+                                },
+                                "purposeCode": {
+                                  "type": "string"
+                                },
+                                "activeFrom": {
+                                  "type": "string"
+                                },
+                                "archivedAt": {
+                                  "type": "string"
+                                },
+                                "archiveRequestedBy": {
+                                  "type": "string"
+                                },
+                                "balance": {
+                                  "type": "number"
+                                },
+                                "ownBalance": {
+                                  "type": "number"
+                                },
+                                "hitsCompanyBooks": {
+                                  "type": "boolean"
+                                },
+                                "allowedActions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "children": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/owner-external-box/entries": {
+      "get": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Owner external box entries (never company books)",
+        "parameters": [
+          {
+            "name": "nodeId",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "from",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          },
+          {
+            "name": "to",
+            "in": "query",
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "hitsCompanyBooks",
+                    "items",
+                    "total",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "hitsCompanyBooks": {
+                      "type": "boolean"
+                    },
+                    "items": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "nodeId",
+                          "direction",
+                          "amount",
+                          "hitsCompanyBooks",
+                          "status"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "nodeId": {
+                            "type": "string"
+                          },
+                          "occurredOn": {
+                            "type": "string"
+                          },
+                          "direction": {
+                            "type": "string"
+                          },
+                          "amount": {
+                            "type": "number"
+                          },
+                          "sourceKind": {
+                            "type": "string"
+                          },
+                          "sourceRef": {
+                            "type": "string"
+                          },
+                          "notes": {
+                            "type": "string"
+                          },
+                          "hitsCompanyBooks": {
+                            "type": "boolean"
+                          },
+                          "status": {
+                            "type": "string"
+                          },
+                          "companyId": {
+                            "type": "string"
+                          },
+                          "companyJournalId": {
+                            "type": "string"
+                          },
+                          "createdBy": {
+                            "type": "string"
+                          },
+                          "approvedBy": {
+                            "type": "string"
+                          },
+                          "preparedBy": {
+                            "type": "string"
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "total": {
+                      "type": "number"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Prepare owner-box entry (pending; second person confirms)",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "nodeId",
+                    "direction",
+                    "amount",
+                    "hitsCompanyBooks",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "nodeId": {
+                      "type": "string"
+                    },
+                    "occurredOn": {
+                      "type": "string"
+                    },
+                    "direction": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "sourceKind": {
+                      "type": "string"
+                    },
+                    "sourceRef": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string"
+                    },
+                    "hitsCompanyBooks": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "companyJournalId": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/owner-external-box/nodes": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Grow owner-box branch or leaf",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/JsonObject"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "hitsCompanyBooks",
+                    "roots",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "hitsCompanyBooks": {
+                      "type": "boolean"
+                    },
+                    "noteAr": {
+                      "type": "string"
+                    },
+                    "companyExpenseNoteAr": {
+                      "type": "string"
+                    },
+                    "roots": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "kind",
+                          "code",
+                          "labelAr",
+                          "balance",
+                          "hitsCompanyBooks",
+                          "allowedActions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "parentId": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "sortOrder": {
+                            "type": "number"
+                          },
+                          "purposeCode": {
+                            "type": "string"
+                          },
+                          "activeFrom": {
+                            "type": "string"
+                          },
+                          "archivedAt": {
+                            "type": "string"
+                          },
+                          "archiveRequestedBy": {
+                            "type": "string"
+                          },
+                          "balance": {
+                            "type": "number"
+                          },
+                          "ownBalance": {
+                            "type": "number"
+                          },
+                          "hitsCompanyBooks": {
+                            "type": "boolean"
+                          },
+                          "children": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "kind",
+                                "code",
+                                "labelAr",
+                                "balance",
+                                "hitsCompanyBooks",
+                                "allowedActions"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "parentId": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "code": {
+                                  "type": "string"
+                                },
+                                "labelAr": {
+                                  "type": "string"
+                                },
+                                "sortOrder": {
+                                  "type": "number"
+                                },
+                                "purposeCode": {
+                                  "type": "string"
+                                },
+                                "activeFrom": {
+                                  "type": "string"
+                                },
+                                "archivedAt": {
+                                  "type": "string"
+                                },
+                                "archiveRequestedBy": {
+                                  "type": "string"
+                                },
+                                "balance": {
+                                  "type": "number"
+                                },
+                                "ownBalance": {
+                                  "type": "number"
+                                },
+                                "hitsCompanyBooks": {
+                                  "type": "boolean"
+                                },
+                                "allowedActions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "children": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/owner-external-box/nodes/{id}/archive": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Fall (archive) owner-box node or request archive when balance remains",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "hitsCompanyBooks",
+                    "roots",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "hitsCompanyBooks": {
+                      "type": "boolean"
+                    },
+                    "noteAr": {
+                      "type": "string"
+                    },
+                    "companyExpenseNoteAr": {
+                      "type": "string"
+                    },
+                    "roots": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "kind",
+                          "code",
+                          "labelAr",
+                          "balance",
+                          "hitsCompanyBooks",
+                          "allowedActions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "parentId": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "sortOrder": {
+                            "type": "number"
+                          },
+                          "purposeCode": {
+                            "type": "string"
+                          },
+                          "activeFrom": {
+                            "type": "string"
+                          },
+                          "archivedAt": {
+                            "type": "string"
+                          },
+                          "archiveRequestedBy": {
+                            "type": "string"
+                          },
+                          "balance": {
+                            "type": "number"
+                          },
+                          "ownBalance": {
+                            "type": "number"
+                          },
+                          "hitsCompanyBooks": {
+                            "type": "boolean"
+                          },
+                          "children": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "kind",
+                                "code",
+                                "labelAr",
+                                "balance",
+                                "hitsCompanyBooks",
+                                "allowedActions"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "parentId": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "code": {
+                                  "type": "string"
+                                },
+                                "labelAr": {
+                                  "type": "string"
+                                },
+                                "sortOrder": {
+                                  "type": "number"
+                                },
+                                "purposeCode": {
+                                  "type": "string"
+                                },
+                                "activeFrom": {
+                                  "type": "string"
+                                },
+                                "archivedAt": {
+                                  "type": "string"
+                                },
+                                "archiveRequestedBy": {
+                                  "type": "string"
+                                },
+                                "balance": {
+                                  "type": "number"
+                                },
+                                "ownBalance": {
+                                  "type": "number"
+                                },
+                                "hitsCompanyBooks": {
+                                  "type": "boolean"
+                                },
+                                "allowedActions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "children": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/owner-external-box/nodes/{id}/confirm-archive": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Second person confirms archive of a leaf with balance",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "hitsCompanyBooks",
+                    "roots",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "hitsCompanyBooks": {
+                      "type": "boolean"
+                    },
+                    "noteAr": {
+                      "type": "string"
+                    },
+                    "companyExpenseNoteAr": {
+                      "type": "string"
+                    },
+                    "roots": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "kind",
+                          "code",
+                          "labelAr",
+                          "balance",
+                          "hitsCompanyBooks",
+                          "allowedActions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "parentId": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "sortOrder": {
+                            "type": "number"
+                          },
+                          "purposeCode": {
+                            "type": "string"
+                          },
+                          "activeFrom": {
+                            "type": "string"
+                          },
+                          "archivedAt": {
+                            "type": "string"
+                          },
+                          "archiveRequestedBy": {
+                            "type": "string"
+                          },
+                          "balance": {
+                            "type": "number"
+                          },
+                          "ownBalance": {
+                            "type": "number"
+                          },
+                          "hitsCompanyBooks": {
+                            "type": "boolean"
+                          },
+                          "children": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "kind",
+                                "code",
+                                "labelAr",
+                                "balance",
+                                "hitsCompanyBooks",
+                                "allowedActions"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "parentId": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "code": {
+                                  "type": "string"
+                                },
+                                "labelAr": {
+                                  "type": "string"
+                                },
+                                "sortOrder": {
+                                  "type": "number"
+                                },
+                                "purposeCode": {
+                                  "type": "string"
+                                },
+                                "activeFrom": {
+                                  "type": "string"
+                                },
+                                "archivedAt": {
+                                  "type": "string"
+                                },
+                                "archiveRequestedBy": {
+                                  "type": "string"
+                                },
+                                "balance": {
+                                  "type": "number"
+                                },
+                                "ownBalance": {
+                                  "type": "number"
+                                },
+                                "hitsCompanyBooks": {
+                                  "type": "boolean"
+                                },
+                                "allowedActions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "children": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/owner-external-box/nodes/{id}/restore": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Restore archived owner-box node",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "hitsCompanyBooks",
+                    "roots",
+                    "allowedActions"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "hitsCompanyBooks": {
+                      "type": "boolean"
+                    },
+                    "noteAr": {
+                      "type": "string"
+                    },
+                    "companyExpenseNoteAr": {
+                      "type": "string"
+                    },
+                    "roots": {
+                      "type": "array",
+                      "items": {
+                        "required": [
+                          "id",
+                          "kind",
+                          "code",
+                          "labelAr",
+                          "balance",
+                          "hitsCompanyBooks",
+                          "allowedActions"
+                        ],
+                        "type": "object",
+                        "properties": {
+                          "id": {
+                            "type": "string"
+                          },
+                          "parentId": {
+                            "type": "string"
+                          },
+                          "kind": {
+                            "type": "string"
+                          },
+                          "code": {
+                            "type": "string"
+                          },
+                          "labelAr": {
+                            "type": "string"
+                          },
+                          "sortOrder": {
+                            "type": "number"
+                          },
+                          "purposeCode": {
+                            "type": "string"
+                          },
+                          "activeFrom": {
+                            "type": "string"
+                          },
+                          "archivedAt": {
+                            "type": "string"
+                          },
+                          "archiveRequestedBy": {
+                            "type": "string"
+                          },
+                          "balance": {
+                            "type": "number"
+                          },
+                          "ownBalance": {
+                            "type": "number"
+                          },
+                          "hitsCompanyBooks": {
+                            "type": "boolean"
+                          },
+                          "children": {
+                            "type": "array",
+                            "items": {
+                              "required": [
+                                "id",
+                                "kind",
+                                "code",
+                                "labelAr",
+                                "balance",
+                                "hitsCompanyBooks",
+                                "allowedActions"
+                              ],
+                              "type": "object",
+                              "properties": {
+                                "id": {
+                                  "type": "string"
+                                },
+                                "parentId": {
+                                  "type": "string"
+                                },
+                                "kind": {
+                                  "type": "string"
+                                },
+                                "code": {
+                                  "type": "string"
+                                },
+                                "labelAr": {
+                                  "type": "string"
+                                },
+                                "sortOrder": {
+                                  "type": "number"
+                                },
+                                "purposeCode": {
+                                  "type": "string"
+                                },
+                                "activeFrom": {
+                                  "type": "string"
+                                },
+                                "archivedAt": {
+                                  "type": "string"
+                                },
+                                "archiveRequestedBy": {
+                                  "type": "string"
+                                },
+                                "balance": {
+                                  "type": "number"
+                                },
+                                "ownBalance": {
+                                  "type": "number"
+                                },
+                                "hitsCompanyBooks": {
+                                  "type": "boolean"
+                                },
+                                "allowedActions": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "string"
+                                  }
+                                },
+                                "children": {
+                                  "type": "array",
+                                  "items": {
+                                    "type": "object"
+                                  }
+                                }
+                              }
+                            }
+                          },
+                          "allowedActions": {
+                            "type": "array",
+                            "items": {
+                              "type": "string"
+                            }
+                          }
+                        }
+                      }
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/owner-external-box/entries/{id}/confirm": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Second person posts owner-box entry (+ companion company journals when required)",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "nodeId",
+                    "direction",
+                    "amount",
+                    "hitsCompanyBooks",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "nodeId": {
+                      "type": "string"
+                    },
+                    "occurredOn": {
+                      "type": "string"
+                    },
+                    "direction": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "sourceKind": {
+                      "type": "string"
+                    },
+                    "sourceRef": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string"
+                    },
+                    "hitsCompanyBooks": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "companyJournalId": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/owner-external-box/entries/{id}/reverse": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Prepare reversing correction for a posted owner-box entry",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/JsonObject"
+                  }
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "nodeId",
+                    "direction",
+                    "amount",
+                    "hitsCompanyBooks",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "nodeId": {
+                      "type": "string"
+                    },
+                    "occurredOn": {
+                      "type": "string"
+                    },
+                    "direction": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "sourceKind": {
+                      "type": "string"
+                    },
+                    "sourceRef": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string"
+                    },
+                    "hitsCompanyBooks": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "companyJournalId": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/api/finance/owner-external-box/entries/{id}/cancel": {
+      "post": {
+        "tags": [
+          "Banks and treasury"
+        ],
+        "summary": "Cancel (drop) a pending owner-box entry that was never posted",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful response (stored wire field names)",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "required": [
+                    "id",
+                    "nodeId",
+                    "direction",
+                    "amount",
+                    "hitsCompanyBooks",
+                    "status"
+                  ],
+                  "type": "object",
+                  "properties": {
+                    "id": {
+                      "type": "string"
+                    },
+                    "nodeId": {
+                      "type": "string"
+                    },
+                    "occurredOn": {
+                      "type": "string"
+                    },
+                    "direction": {
+                      "type": "string"
+                    },
+                    "amount": {
+                      "type": "number"
+                    },
+                    "sourceKind": {
+                      "type": "string"
+                    },
+                    "sourceRef": {
+                      "type": "string"
+                    },
+                    "notes": {
+                      "type": "string"
+                    },
+                    "hitsCompanyBooks": {
+                      "type": "boolean"
+                    },
+                    "status": {
+                      "type": "string"
+                    },
+                    "companyId": {
+                      "type": "string"
+                    },
+                    "companyJournalId": {
+                      "type": "string"
+                    },
+                    "createdBy": {
+                      "type": "string"
+                    },
+                    "approvedBy": {
+                      "type": "string"
+                    },
+                    "preparedBy": {
+                      "type": "string"
+                    },
+                    "allowedActions": {
+                      "type": "array",
+                      "items": {
+                        "type": "string"
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -48675,11 +53683,13 @@
           }
         }
       },
-      "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray": {
+      "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray": {
         "required": [
           "apps",
           "schemeTypes",
           "categories",
+          "optionalCategories",
+          "allCategories",
           "operators",
           "ninjaMetrics",
           "defaults",
@@ -48707,6 +53717,24 @@
             }
           },
           "categories": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "optionalCategories": {
+            "type": [
+              "null",
+              "array"
+            ],
+            "items": {
+              "type": "string"
+            }
+          },
+          "allCategories": {
             "type": [
               "null",
               "array"
@@ -51342,6 +56370,9 @@
     },
     {
       "name": "HR Catalogs"
+    },
+    {
+      "name": "Staff HR"
     },
     {
       "name": "Banks and treasury"

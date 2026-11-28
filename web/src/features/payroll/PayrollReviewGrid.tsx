@@ -121,6 +121,9 @@ export function PayrollReviewGrid({ cycleId, onCycleUpdated }: PayrollReviewGrid
           >
             <div className="font-bold text-[var(--ink)]">{row.name || '—'}</div>
             <div className="font-mono text-[10px] text-[var(--muted)]" dir="ltr">{row.rider}</div>
+            {row.vehicleTypeMismatch && (
+              <div className="text-[10px] font-bold text-[var(--warning)] mt-0.5">دباب على يوزر سيارة</div>
+            )}
           </div>
         ),
       },

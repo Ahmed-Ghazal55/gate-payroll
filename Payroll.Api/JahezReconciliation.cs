@@ -22,45 +22,27 @@ public static class JahezReconciliation
     }
     public static JsonObject Build(DbConnection c,DbTransaction tx,ClaimsPrincipal actor,JsonObject input)
     {
-        DemandWrite(actor);PayValues.Fields(input,"companyId","period","invoiceNet","invoiceVat","lastTransactionDate","invoiceReference","notes");
+        DemandWrite(actor);PayValues.Fields(input,"companyId","period","invoiceNet","invoiceVat","lastTransactionDate","fromDate","invoiceReference","notes");
         var sponsor=FinancialCore.ResolveSponsor(input.Required("companyId"));FinancialScopes.DemandSponsor(actor,sponsor.Id);
         J.Need(FinancialScopes.Platform(actor,"Jahez"),"المنصة خارج النطاق المالي.",403);
         string period=J.Period(input.Required("period"));string lastRaw=input.Required("lastTransactionDate");
         J.Need(DateOnly.TryParseExact(lastRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out var last),"تاريخ آخر معاملة غير صالح.");
         var monthStart=DateOnly.ParseExact(period+"-01","yyyy-MM-dd",CultureInfo.InvariantCulture);J.Need(last>=monthStart&&last<monthStart.AddMonths(1),"آخر معاملة داخل شهر الفاتورة.");
+        // JC1 period picker: optional fromDate (defaults to month start) so an invoice date range can start mid-month.
+        DateOnly rangeStart=monthStart;
+        string fromRaw=input.S("fromDate");
+        if(fromRaw!="")
+        {
+            J.Need(DateOnly.TryParseExact(fromRaw,"yyyy-MM-dd",CultureInfo.InvariantCulture,DateTimeStyles.None,out rangeStart),"تاريخ بداية الفترة غير صالح.");
+            J.Need(rangeStart>=monthStart&&rangeStart<=last,"بداية الفترة داخل شهر الفاتورة وقبل آخر معاملة.");
+        }
         RefuseDuplicateActive(c,tx,sponsor.Id,period);
         decimal invoiceNet=J.Money(PayValues.Number(input,"invoiceNet",-1000000000)),invoiceVat=J.Money(PayValues.Number(input,"invoiceVat"));
         J.Need(invoiceVat>=0,"ضريبة الفاتورة غير سالبة.");
-        decimal deliveryFees=0,cashCollections=0,driverAdjustments=0,bonusesTips=0,paidOnBehalf=0,commission=0;
-        var details=new JsonArray();
-        foreach(var row in Store.List(c,"jahez_transaction",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&InRange(r.S("occurredAt"),monthStart,last)))
-        {
-            decimal delivery=row.N("deliveryPrice"),cash=row.N("cashAmount"),adj=row.N("driverAdjustment");
-            deliveryFees=J.Money(deliveryFees+delivery);cashCollections=J.Money(cashCollections+cash);driverAdjustments=J.Money(driverAdjustments+adj);
-            details.Add(Line("transaction",row.S("id"),row.S("riderId"),row.S("occurredAt"),delivery,cash,adj,0,0));
-        }
-        foreach(var row in Store.List(c,"jahez_earnings_statement",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&StatementInRange(r,monthStart,last)))
-        {
-            decimal tips=row.N("tips")+row.N("bonuses");bonusesTips=J.Money(bonusesTips+tips);
-            details.Add(Line("earnings",row.S("id"),row.S("riderId"),row.S("to",row.S("from")),0,0,0,tips,0));
-        }
-        foreach(var row in Store.List(c,"erp_money_movement",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&InRange(r.S("occurredAt"),monthStart,last)))
-        {
-            // Payments the company made on behalf of Jahez (direction/purpose tagged in ERP).
-            if(row.S("directionCode") is "2" or "Out" or "out"||row.S("purposeCode").Contains("Behalf",StringComparison.OrdinalIgnoreCase)||row.S("purposeCode").Contains("OnBehalf",StringComparison.OrdinalIgnoreCase)||row.N("dashboardDebtPaid")>0)
-            {
-                decimal amount=row.N("amount")+row.N("dashboardDebtPaid");paidOnBehalf=J.Money(paidOnBehalf+amount);
-                details.Add(Line("money_movement",row.S("id"),row.S("riderId"),row.S("occurredAt"),0,0,0,0,amount));
-            }
-        }
-        foreach(var row in Store.List(c,"erp_jahez_operation",tx).Where(r=>InScope(c,tx,r,sponsor.Id)&&InRange(r.S("executedAt"),monthStart,last)))
-        {
-            decimal fee=row.N("commission");if(fee==0)fee=row.N("calculatedCommission");commission=J.Money(commission+fee);
-            details.Add(Line("operation_commission",row.S("id"),row.S("riderId"),row.S("executedAt"),0,0,0,0,0,fee));
-        }
-        // BR §37: company due − collections + paid on behalf = expected transfer net.
-        decimal companyDue=J.Money(deliveryFees+bonusesTips+commission+driverAdjustments);
-        decimal expectedNet=J.Money(companyDue-cashCollections+paidOnBehalf);
+        var agg=AggregatePeriod(c,tx,sponsor.Id,rangeStart,last,withDetails:true);
+        decimal deliveryFees=agg.DeliveryFees,cashCollections=agg.CashCollections,driverAdjustments=agg.DriverAdjustments,bonusesTips=agg.BonusesTips,paidOnBehalf=agg.PaidOnBehalf,commission=agg.Commission,transferToRider=agg.TransferToRider;
+        var details=agg.Details;
+        decimal companyDue=agg.CompanyDue,expectedNet=agg.ExpectedNet;
         decimal variance=J.Money(expectedNet-invoiceNet);
         var proposed=new JsonArray
         {
@@ -72,8 +54,9 @@ public static class JahezReconciliation
         {
             ["id"]="jahez-recon:"+Guid.NewGuid().ToString("N"),["kind"]=Kind,["companyId"]=sponsor.Id,["period"]=period,
             ["invoiceReference"]=input.S("invoiceReference"),["lastTransactionDate"]=last.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
+            ["fromDate"]=rangeStart.ToString("yyyy-MM-dd",CultureInfo.InvariantCulture),
             ["invoiceNet"]=invoiceNet,["invoiceVat"]=invoiceVat,["notes"]=input.S("notes"),
-            ["totals"]=new JsonObject{["deliveryFees"]=deliveryFees,["cashCollections"]=cashCollections,["driverAdjustments"]=driverAdjustments,["bonusesTips"]=bonusesTips,["paidOnBehalf"]=paidOnBehalf,["commission"]=commission,["companyDue"]=companyDue,["expectedNet"]=expectedNet,["variance"]=variance},
+            ["totals"]=new JsonObject{["deliveryFees"]=deliveryFees,["cashCollections"]=cashCollections,["driverAdjustments"]=driverAdjustments,["bonusesTips"]=bonusesTips,["paidOnBehalf"]=paidOnBehalf,["commission"]=commission,["transferToRider"]=transferToRider,["companyDue"]=companyDue,["expectedNet"]=expectedNet,["variance"]=variance},
             ["details"]=details,["proposedJournals"]=proposed,
             ["status"]="draft",["createdBy"]=actor.Identity!.Name,["createdAt"]=DateTimeOffset.UtcNow.ToString("O"),
             ["submittedBy"]="",["submittedAt"]="",["approvedBy"]="",["approvedAt"]="",["journalEntryIds"]=new JsonArray()
@@ -381,7 +364,57 @@ public static class JahezReconciliation
         api.MapPost("/finance/jahez-reconciliations/{id}/variance",(string id,JsonObject input,HttpContext ctx)=>store.Write((c,tx)=>DecideVariance(c,tx,ctx.User,id,input))).WithTags("Banks and treasury").WithSummary("Record variance decision for Jahez reconciliation");
         api.MapPost("/finance/jahez-reconciliations/{id}/approve",(string id,HttpContext ctx)=>store.Write((c,tx)=>Approve(c,tx,ctx.User,id))).WithTags("Banks and treasury").WithSummary("Approve Jahez reconciliation (maker-checker)");
     }
-    static bool InScope(DbConnection c,DbTransaction tx,JsonObject row,string companyId)
+    /// <summary>BR §37 shared totals: delivery + bonuses/tips + adjustments + commission − collections + paid-on-behalf.
+    /// Paid-on-behalf = movements tagged Behalf/OnBehalf only; amount OR dashboardDebtPaid (never both).</summary>
+    public sealed record PeriodAgg(decimal DeliveryFees,decimal CashCollections,decimal DriverAdjustments,decimal BonusesTips,decimal PaidOnBehalf,decimal Commission,decimal TransferToRider,decimal CompanyDue,decimal ExpectedNet,JsonArray Details);
+    public static PeriodAgg AggregatePeriod(DbConnection c,DbTransaction? tx,string companyId,DateOnly from,DateOnly to,bool withDetails=false)
+    {
+        decimal deliveryFees=0,cashCollections=0,driverAdjustments=0,bonusesTips=0,paidOnBehalf=0,commission=0,transferToRider=0;
+        var details=new JsonArray();
+        foreach(var row in Store.List(c,"jahez_transaction",tx).Where(r=>InScope(c,tx,r,companyId)&&InRange(r.S("occurredAt"),from,to)))
+        {
+            decimal delivery=row.N("deliveryPrice"),cash=row.N("cashAmount"),adj=row.N("driverAdjustment");
+            deliveryFees=J.Money(deliveryFees+delivery);cashCollections=J.Money(cashCollections+cash);driverAdjustments=J.Money(driverAdjustments+adj);
+            if(withDetails)details.Add(Line("transaction",row.S("id"),row.S("riderId"),row.S("occurredAt"),delivery,cash,adj,0,0));
+        }
+        foreach(var row in Store.List(c,"jahez_earnings_statement",tx).Where(r=>InScope(c,tx,r,companyId)&&StatementInRange(r,from,to)))
+        {
+            decimal tips=row.N("tips")+row.N("bonuses");bonusesTips=J.Money(bonusesTips+tips);
+            if(withDetails)details.Add(Line("earnings",row.S("id"),row.S("riderId"),row.S("to",row.S("from")),0,0,0,tips,0));
+        }
+        foreach(var row in Store.List(c,"erp_money_movement",tx).Where(r=>InScope(c,tx,r,companyId)&&InRange(r.S("occurredAt"),from,to)))
+        {
+            if(!IsPaidOnBehalf(row))continue;
+            decimal amount=PaidOnBehalfAmount(row);paidOnBehalf=J.Money(paidOnBehalf+amount);
+            if(withDetails)details.Add(Line("money_movement",row.S("id"),row.S("riderId"),row.S("occurredAt"),0,0,0,0,amount));
+        }
+        foreach(var row in Store.List(c,"erp_jahez_operation",tx).Where(r=>InScope(c,tx,r,companyId)&&InRange(r.S("executedAt"),from,to)))
+        {
+            decimal fee=row.N("commission");if(fee==0)fee=row.N("calculatedCommission");commission=J.Money(commission+fee);
+            decimal xfer=row.N("transferToRider");transferToRider=J.Money(transferToRider+xfer);
+            if(withDetails)
+            {
+                var opLine=Line("operation_commission",row.S("id"),row.S("riderId"),row.S("executedAt"),0,0,0,0,0,fee);
+                opLine["transferToRider"]=J.Money(xfer);
+                details.Add(opLine);
+            }
+        }
+        decimal companyDue=J.Money(deliveryFees+bonusesTips+commission+driverAdjustments);
+        decimal expectedNet=J.Money(companyDue-cashCollections+paidOnBehalf);
+        return new(deliveryFees,cashCollections,driverAdjustments,bonusesTips,paidOnBehalf,commission,transferToRider,companyDue,expectedNet,details);
+    }
+    public static bool IsPaidOnBehalf(JsonObject row)
+    {
+        string purpose=row.S("purposeCode",row.S("purpose"));
+        return purpose.Contains("Behalf",StringComparison.OrdinalIgnoreCase)||purpose.Contains("OnBehalf",StringComparison.OrdinalIgnoreCase);
+    }
+    public static decimal PaidOnBehalfAmount(JsonObject row)
+    {
+        decimal amount=row.N("amount");
+        if(amount>0)return J.Money(amount);
+        return J.Money(row.N("dashboardDebtPaid"));
+    }
+    static bool InScope(DbConnection c,DbTransaction? tx,JsonObject row,string companyId)
     {
         if(row.S("companyId")==companyId||row.S("sponsorId")==companyId)return true;
         // Real Omar cashbox handover contract projects companyIds=[...] (no companyId).

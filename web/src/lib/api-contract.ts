@@ -2509,6 +2509,45 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/config/lists/{group}/items/{code}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Hard-delete an operating system only when no rider/cycle/record references it */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    group: string;
+                    code: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/imports/templates/{name}": {
         parameters: {
             query?: never;
@@ -7292,7 +7331,7 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray"];
+                        "application/json": components["schemas"]["AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray"];
                     };
                 };
             };
@@ -8112,6 +8151,44 @@ export interface paths {
                 };
             };
         };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/apps/{app}/parent-terms/display": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Display-only parent terms: ERP expected eligibility vs approved invoice (no calculation effect) */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -9444,7 +9521,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Read source-bound Ninja cycle input and actionable blockers without writes */
+        /** Read source-bound Ninja or Keeta cycle input and actionable blockers without writes */
         get: {
             parameters: {
                 query: {
@@ -9504,12 +9581,15 @@ export interface paths {
                                 erpOrders?: number;
                                 invoiceOrders?: number;
                             }[];
+                            accountantLines?: Record<string, never>[];
+                            setupChecklist?: Record<string, never>[];
                             allocationProposals?: Record<string, never>[];
                             dataThrough?: string;
                             unassignedOrders: Record<string, never>[];
                             ridersNotFound: Record<string, never>[];
                             evidence: Record<string, never>[];
                             canCreate: boolean;
+                            allowedActions?: string[];
                             totals: {
                                 gross: number;
                                 deductions: number;
@@ -9522,6 +9602,112 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/dues-split": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Split approved invoice dues across riders from ERP live ops (read-only; invoice unchanged) */
+        get: {
+            parameters: {
+                query: {
+                    app: string;
+                    period: string;
+                    companyId: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            app: string;
+                            period: string;
+                            companyId: string;
+                            stage: string;
+                            titleAr: string;
+                            invoiceIds?: string[];
+                            accounts?: Record<string, never>[];
+                            riderSplits?: Record<string, never>[];
+                            accountantLines?: Record<string, never>[];
+                            setupChecklist?: Record<string, never>[];
+                            counts: {
+                                users: number;
+                                riderSplits: number;
+                                fuelRows: number;
+                                custodyRows: number;
+                                accountantLines: number;
+                                setupLeft: number;
+                            };
+                            allocation?: Record<string, never>;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pay/setup-defaults": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** One-click draft+approve missing pay terms/eligibility/global defaults for the month */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            app: string;
+                            period: string;
+                            approvedIds: string[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -10805,6 +10991,151 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pay/apps/{app}/live/register-ops": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Live register-sheet operations display (A..AH) from Omar ERP; expected eligibility only */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    app: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            items: {
+                                row: number;
+                                dismissed: boolean;
+                                active?: boolean;
+                                expectedApproval?: string;
+                                "\u0627\u0644\u0645\u0639\u0631\u0641"?: string;
+                                "\u0627\u0644\u0627\u0633\u0645 \u0628\u0627\u0644\u0643\u0627\u0645\u0644"?: string;
+                                "\u0631\u0642\u0645 \u0628\u0637\u0627\u0642\u0629 \u0627\u0644\u0647\u0648\u064A\u0629"?: string;
+                                "\u0643\u0641\u0627\u0644\u0629 \u0627\u0644\u064A\u0648\u0632\u0631"?: string;
+                                "\u0627\u0644\u0645\u0631\u0643\u0628\u0629"?: string;
+                                "\u0627\u0644\u062D\u0627\u0644\u0629"?: string;
+                                "\u0631\u0642\u0645 \u0627\u0644\u0647\u0648\u064A\u06291"?: string;
+                                "\u0627\u0644\u0628\u062F\u064A\u0644 1"?: string;
+                                "\u0631\u0642\u0645 \u0627\u0644\u062A\u0648\u0627\u0635\u0644"?: string;
+                                "\u0646\u0648\u0639 \u0627\u0644\u0628\u062F\u064A\u0644"?: string;
+                                "\u0646\u0648\u0639 \u0627\u0644\u0645\u0631\u0643\u0628\u0629"?: string;
+                                "\u0631\u0642\u0645 \u0643\u0631\u062A \u0627\u0644\u0628\u0646\u0632\u064A\u06461"?: string;
+                                "\u0627\u0644\u0623\u062F\u0648\u0627\u062A1"?: string;
+                                "\u0627\u0644\u062C\u0646\u0633\u064A\u0629 1"?: string;
+                                "\u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u0645\u0633\u062C\u0644"?: string;
+                                "\u0627\u0644\u0627\u064A\u0628\u0627\u0646 1"?: string;
+                                "\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u0627\u0633\u062A\u0644\u0627\u06451"?: string;
+                                "\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u062A\u0633\u0644\u064A\u0645"?: string;
+                                "\u0627\u0644\u0623\u064A\u0627\u0645 \u0627\u0644\u0635\u0627\u0644\u062D\u0629"?: number;
+                                "\u0627\u0644\u0637\u0644\u0628\u0627\u062A"?: number;
+                                "\u0627\u0644\u0645\u062E\u0627\u0644\u0641\u0627\u062A"?: number;
+                                "\u0627\u0644\u0645\u0633\u0627\u0641\u0629 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0629"?: number;
+                                "\u0639\u062F\u062F \u0627\u064A\u0627\u0645 \u0639\u0645\u0644 \u0627\u0644\u0645\u0646\u062F\u0648\u0628"?: number;
+                                "\u0627\u0644\u0635\u0644\u0627\u062D\u064A\u0629 \u0627\u0644\u0645\u062A\u0648\u0642\u0639\u0629"?: string;
+                                "\u0627\u062C\u0645\u0627\u0644\u064A \u0627\u0644\u0645\u0633\u0627\u0641\u0647"?: number;
+                                "\u0645\u0637\u0627\u0628\u0642\u0629 \u0627\u0644\u0645\u0633\u0627\u0641\u0629"?: string;
+                                "\u0627\u0644\u0645\u0644\u0627\u062D\u0638\u0627\u062A"?: string;
+                                "\u0627\u062C\u0645\u0627\u0644\u064A \u0637\u0644\u0628\u0627\u062A \u0627\u0644\u0645\u0639\u0627\u062F\u0644\u0629"?: number;
+                                "\u0627\u062C\u0645\u0627\u0644\u064A \u0637\u0644\u0628\u0627\u062A \u0627\u0644\u064A\u0648\u0632\u0631"?: number;
+                                "\u0645\u0637\u0627\u0628\u0642\u0629 \u0627\u0644\u0637\u0644\u0628\u0627\u062A"?: string;
+                                "\u0639\u062F\u062F \u0627\u0644\u0628\u062F\u0644\u0627\u0621"?: number;
+                                "\u0627\u062C\u0645\u0627\u0644\u064A \u0627\u064A\u0627\u0645 \u0627\u0644\u0645\u0639\u0627\u062F\u0644\u0629"?: number;
+                                "\u0627\u062C\u0645\u0627\u0644\u064A \u0627\u064A\u0627\u0645 \u0627\u0644\u064A\u0648\u0632\u0631"?: number;
+                                "\u0645\u0637\u0627\u0628\u0642\u0629 \u0627\u0644\u0627\u064A\u0627\u0645"?: string;
+                            }[];
+                            displayRows: {
+                                row: number;
+                                dismissed: boolean;
+                                active?: boolean;
+                                expectedApproval?: string;
+                                "\u0627\u0644\u0645\u0639\u0631\u0641"?: string;
+                                "\u0627\u0644\u0627\u0633\u0645 \u0628\u0627\u0644\u0643\u0627\u0645\u0644"?: string;
+                                "\u0631\u0642\u0645 \u0628\u0637\u0627\u0642\u0629 \u0627\u0644\u0647\u0648\u064A\u0629"?: string;
+                                "\u0643\u0641\u0627\u0644\u0629 \u0627\u0644\u064A\u0648\u0632\u0631"?: string;
+                                "\u0627\u0644\u0645\u0631\u0643\u0628\u0629"?: string;
+                                "\u0627\u0644\u062D\u0627\u0644\u0629"?: string;
+                                "\u0631\u0642\u0645 \u0627\u0644\u0647\u0648\u064A\u06291"?: string;
+                                "\u0627\u0644\u0628\u062F\u064A\u0644 1"?: string;
+                                "\u0631\u0642\u0645 \u0627\u0644\u062A\u0648\u0627\u0635\u0644"?: string;
+                                "\u0646\u0648\u0639 \u0627\u0644\u0628\u062F\u064A\u0644"?: string;
+                                "\u0646\u0648\u0639 \u0627\u0644\u0645\u0631\u0643\u0628\u0629"?: string;
+                                "\u0631\u0642\u0645 \u0643\u0631\u062A \u0627\u0644\u0628\u0646\u0632\u064A\u06461"?: string;
+                                "\u0627\u0644\u0623\u062F\u0648\u0627\u062A1"?: string;
+                                "\u0627\u0644\u062C\u0646\u0633\u064A\u0629 1"?: string;
+                                "\u0627\u0644\u0631\u0642\u0645 \u0627\u0644\u0645\u0633\u062C\u0644"?: string;
+                                "\u0627\u0644\u0627\u064A\u0628\u0627\u0646 1"?: string;
+                                "\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u0627\u0633\u062A\u0644\u0627\u06451"?: string;
+                                "\u062A\u0627\u0631\u064A\u062E \u0627\u0644\u062A\u0633\u0644\u064A\u0645"?: string;
+                                "\u0627\u0644\u0623\u064A\u0627\u0645 \u0627\u0644\u0635\u0627\u0644\u062D\u0629"?: number;
+                                "\u0627\u0644\u0637\u0644\u0628\u0627\u062A"?: number;
+                                "\u0627\u0644\u0645\u062E\u0627\u0644\u0641\u0627\u062A"?: number;
+                                "\u0627\u0644\u0645\u0633\u0627\u0641\u0629 \u0627\u0644\u0645\u062F\u0641\u0648\u0639\u0629"?: number;
+                                "\u0639\u062F\u062F \u0627\u064A\u0627\u0645 \u0639\u0645\u0644 \u0627\u0644\u0645\u0646\u062F\u0648\u0628"?: number;
+                                "\u0627\u0644\u0635\u0644\u0627\u062D\u064A\u0629 \u0627\u0644\u0645\u062A\u0648\u0642\u0639\u0629"?: string;
+                                "\u0627\u062C\u0645\u0627\u0644\u064A \u0627\u0644\u0645\u0633\u0627\u0641\u0647"?: number;
+                                "\u0645\u0637\u0627\u0628\u0642\u0629 \u0627\u0644\u0645\u0633\u0627\u0641\u0629"?: string;
+                                "\u0627\u0644\u0645\u0644\u0627\u062D\u0638\u0627\u062A"?: string;
+                                "\u0627\u062C\u0645\u0627\u0644\u064A \u0637\u0644\u0628\u0627\u062A \u0627\u0644\u0645\u0639\u0627\u062F\u0644\u0629"?: number;
+                                "\u0627\u062C\u0645\u0627\u0644\u064A \u0637\u0644\u0628\u0627\u062A \u0627\u0644\u064A\u0648\u0632\u0631"?: number;
+                                "\u0645\u0637\u0627\u0628\u0642\u0629 \u0627\u0644\u0637\u0644\u0628\u0627\u062A"?: string;
+                                "\u0639\u062F\u062F \u0627\u0644\u0628\u062F\u0644\u0627\u0621"?: number;
+                                "\u0627\u062C\u0645\u0627\u0644\u064A \u0627\u064A\u0627\u0645 \u0627\u0644\u0645\u0639\u0627\u062F\u0644\u0629"?: number;
+                                "\u0627\u062C\u0645\u0627\u0644\u064A \u0627\u064A\u0627\u0645 \u0627\u0644\u064A\u0648\u0632\u0631"?: number;
+                                "\u0645\u0637\u0627\u0628\u0642\u0629 \u0627\u0644\u0627\u064A\u0627\u0645"?: string;
+                            }[];
+                            total: number;
+                            page: number;
+                            pageSize: number;
+                            register: string;
+                            registerSheet?: string;
+                            columns: string[];
+                            counts: {
+                                rows: number;
+                                dismissed: number;
+                                duplicateIdRows: number;
+                                uniqueIds: number;
+                            };
+                            coverage: {
+                                requestedFrom: string;
+                                requestedTo: string;
+                                firstDay?: string;
+                                lastDay?: string;
+                                missingDays: string[];
+                                missingDayCount: number;
+                                hasGapAtPeriodEnd?: boolean;
+                            };
+                            erpSources?: string[];
+                            source: string;
+                            asOf: string;
+                            cache?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pay/sources/fuel-consumption": {
         parameters: {
             query?: never;
@@ -11270,6 +11601,8 @@ export interface paths {
                                 inputRevision?: string;
                                 reason?: string;
                                 createdAt?: string;
+                                accountIdsJson?: string;
+                                accountIds?: string;
                             } | {
                                 id: string;
                                 code?: string;
@@ -11281,6 +11614,7 @@ export interface paths {
                                 paymentModelCode?: string;
                                 startDate?: string;
                                 endDate?: string;
+                                vehicleType?: number;
                                 assignments?: {
                                     riderId?: string;
                                     RawEffectiveFrom?: string;
@@ -11563,6 +11897,8 @@ export interface paths {
                                 inputRevision?: string;
                                 reason?: string;
                                 createdAt?: string;
+                                accountIdsJson?: string;
+                                accountIds?: string;
                             } | {
                                 id: string;
                                 code?: string;
@@ -11574,6 +11910,7 @@ export interface paths {
                                 paymentModelCode?: string;
                                 startDate?: string;
                                 endDate?: string;
+                                vehicleType?: number;
                                 assignments?: {
                                     riderId?: string;
                                     RawEffectiveFrom?: string;
@@ -12230,6 +12567,1115 @@ export interface paths {
         };
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/catalogs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read staff HR pick-lists */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            employmentTypes: string[];
+                            departments: string[];
+                            cities: string[];
+                            nationalities: string[];
+                            jobTitles: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/dashboard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read staff HR dashboard with contract expiry alerts */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            contractAlerts: Record<string, never>[];
+                            recentRuns: Record<string, never>[];
+                            employeeCount: number;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List staff employees */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            displayName: string;
+                            iqama: string;
+                            companyId: string;
+                            department?: string;
+                            jobTitle?: string;
+                            city?: string;
+                            nationality?: string;
+                            employmentType?: string;
+                            erpEmployeeId?: string;
+                            erpUserEmployeeId?: string;
+                            linkedUserId?: string;
+                            status: string;
+                            basicSalary?: number;
+                            contractEndDate?: string;
+                            contractIssueDate?: string;
+                            currentContractId?: string;
+                            notes?: string;
+                            allowedActions: string[];
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create staff employee card */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            displayName: string;
+                            iqama: string;
+                            companyId: string;
+                            department?: string;
+                            jobTitle?: string;
+                            city?: string;
+                            nationality?: string;
+                            employmentType?: string;
+                            erpEmployeeId?: string;
+                            erpUserEmployeeId?: string;
+                            linkedUserId?: string;
+                            status: string;
+                            basicSalary?: number;
+                            contractEndDate?: string;
+                            contractIssueDate?: string;
+                            currentContractId?: string;
+                            notes?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/employees/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read staff employee card */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            displayName: string;
+                            iqama: string;
+                            companyId: string;
+                            department?: string;
+                            jobTitle?: string;
+                            city?: string;
+                            nationality?: string;
+                            employmentType?: string;
+                            erpEmployeeId?: string;
+                            erpUserEmployeeId?: string;
+                            linkedUserId?: string;
+                            status: string;
+                            basicSalary?: number;
+                            contractEndDate?: string;
+                            contractIssueDate?: string;
+                            currentContractId?: string;
+                            notes?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        /** Update staff employee card */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            displayName: string;
+                            iqama: string;
+                            companyId: string;
+                            department?: string;
+                            jobTitle?: string;
+                            city?: string;
+                            nationality?: string;
+                            employmentType?: string;
+                            erpEmployeeId?: string;
+                            erpUserEmployeeId?: string;
+                            linkedUserId?: string;
+                            status: string;
+                            basicSalary?: number;
+                            contractEndDate?: string;
+                            contractIssueDate?: string;
+                            currentContractId?: string;
+                            notes?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/employees/{id}/contracts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Add Qiwa contract (keeps history) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            employeeId: string;
+                            companyId?: string;
+                            issueDate: string;
+                            endDate: string;
+                            basicSalary: number;
+                            attachmentId?: string;
+                            fileHash?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/employees/{id}/contracts/{contractId}/file": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download Qiwa contract file */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    contractId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/employees/{id}/months": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Upsert monthly attendance/OT/lateness/bonus/deduction */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            employeeId: string;
+                            companyId?: string;
+                            period: string;
+                            attendanceDays?: number;
+                            overtimeHours?: number;
+                            latenessHours?: number;
+                            bonusAmount?: number;
+                            deductionAmount?: number;
+                            notes?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/employees/{id}/advances": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create staff advance draft (unique key; no cash until approve) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            sourceRef: string;
+                            remainingBalance?: number;
+                            monthlyInstallment?: number;
+                            journalEntryId?: string;
+                            status: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/employees/{id}/advances/{debtId}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve staff advance and post cash journal (second person) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                    debtId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            sourceRef: string;
+                            remainingBalance?: number;
+                            monthlyInstallment?: number;
+                            journalEntryId?: string;
+                            status: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List staff payroll runs */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            period: string;
+                            companyId: string;
+                            status: string;
+                            lineCount?: number;
+                            blockedCount?: number;
+                            grossTotal?: number;
+                            netTotal?: number;
+                            lines?: Record<string, never>[];
+                            blocked?: Record<string, never>[];
+                            createdBy?: string;
+                            preparedBy?: string;
+                            approvedBy?: string;
+                            journalEntryId?: string;
+                            mudadFileId?: string;
+                            postRefused?: boolean;
+                            postRefuseReason?: string;
+                            postRefusedAt?: string;
+                            mudadVoided?: boolean;
+                            reversalJournalId?: string;
+                            allowedActions: string[];
+                        }[];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create staff payroll run draft */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            period: string;
+                            companyId: string;
+                            status: string;
+                            lineCount?: number;
+                            blockedCount?: number;
+                            grossTotal?: number;
+                            netTotal?: number;
+                            lines?: Record<string, never>[];
+                            blocked?: Record<string, never>[];
+                            createdBy?: string;
+                            preparedBy?: string;
+                            approvedBy?: string;
+                            journalEntryId?: string;
+                            mudadFileId?: string;
+                            postRefused?: boolean;
+                            postRefuseReason?: string;
+                            postRefusedAt?: string;
+                            mudadVoided?: boolean;
+                            reversalJournalId?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/runs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read staff payroll run */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            period: string;
+                            companyId: string;
+                            status: string;
+                            lineCount?: number;
+                            blockedCount?: number;
+                            grossTotal?: number;
+                            netTotal?: number;
+                            lines?: Record<string, never>[];
+                            blocked?: Record<string, never>[];
+                            createdBy?: string;
+                            preparedBy?: string;
+                            approvedBy?: string;
+                            journalEntryId?: string;
+                            mudadFileId?: string;
+                            postRefused?: boolean;
+                            postRefuseReason?: string;
+                            postRefusedAt?: string;
+                            mudadVoided?: boolean;
+                            reversalJournalId?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/runs/{id}/recalculate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Recalculate staff run draft */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            period: string;
+                            companyId: string;
+                            status: string;
+                            lineCount?: number;
+                            blockedCount?: number;
+                            grossTotal?: number;
+                            netTotal?: number;
+                            lines?: Record<string, never>[];
+                            blocked?: Record<string, never>[];
+                            createdBy?: string;
+                            preparedBy?: string;
+                            approvedBy?: string;
+                            journalEntryId?: string;
+                            mudadFileId?: string;
+                            postRefused?: boolean;
+                            postRefuseReason?: string;
+                            postRefusedAt?: string;
+                            mudadVoided?: boolean;
+                            reversalJournalId?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/runs/{id}/submit-review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Submit staff run for review */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            period: string;
+                            companyId: string;
+                            status: string;
+                            lineCount?: number;
+                            blockedCount?: number;
+                            grossTotal?: number;
+                            netTotal?: number;
+                            lines?: Record<string, never>[];
+                            blocked?: Record<string, never>[];
+                            createdBy?: string;
+                            preparedBy?: string;
+                            approvedBy?: string;
+                            journalEntryId?: string;
+                            mudadFileId?: string;
+                            postRefused?: boolean;
+                            postRefuseReason?: string;
+                            postRefusedAt?: string;
+                            mudadVoided?: boolean;
+                            reversalJournalId?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/runs/{id}/back-to-draft": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Return staff run to draft */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            period: string;
+                            companyId: string;
+                            status: string;
+                            lineCount?: number;
+                            blockedCount?: number;
+                            grossTotal?: number;
+                            netTotal?: number;
+                            lines?: Record<string, never>[];
+                            blocked?: Record<string, never>[];
+                            createdBy?: string;
+                            preparedBy?: string;
+                            approvedBy?: string;
+                            journalEntryId?: string;
+                            mudadFileId?: string;
+                            postRefused?: boolean;
+                            postRefuseReason?: string;
+                            postRefusedAt?: string;
+                            mudadVoided?: boolean;
+                            reversalJournalId?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/runs/{id}/approve": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve staff run (preparer never approves) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            period: string;
+                            companyId: string;
+                            status: string;
+                            lineCount?: number;
+                            blockedCount?: number;
+                            grossTotal?: number;
+                            netTotal?: number;
+                            lines?: Record<string, never>[];
+                            blocked?: Record<string, never>[];
+                            createdBy?: string;
+                            preparedBy?: string;
+                            approvedBy?: string;
+                            journalEntryId?: string;
+                            mudadFileId?: string;
+                            postRefused?: boolean;
+                            postRefuseReason?: string;
+                            postRefusedAt?: string;
+                            mudadVoided?: boolean;
+                            reversalJournalId?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/runs/{id}/mudad": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download staff Mudad CSV */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+            };
+        };
+        put?: never;
+        /** Generate staff Mudad CSV */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description OK */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/runs/{id}/post": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Post one journal for the staff run */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            period: string;
+                            companyId: string;
+                            status: string;
+                            lineCount?: number;
+                            blockedCount?: number;
+                            grossTotal?: number;
+                            netTotal?: number;
+                            lines?: Record<string, never>[];
+                            blocked?: Record<string, never>[];
+                            createdBy?: string;
+                            preparedBy?: string;
+                            approvedBy?: string;
+                            journalEntryId?: string;
+                            mudadFileId?: string;
+                            postRefused?: boolean;
+                            postRefuseReason?: string;
+                            postRefusedAt?: string;
+                            mudadVoided?: boolean;
+                            reversalJournalId?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/staff/hr/runs/{id}/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reverse staff run journal */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            period: string;
+                            companyId: string;
+                            status: string;
+                            lineCount?: number;
+                            blockedCount?: number;
+                            grossTotal?: number;
+                            netTotal?: number;
+                            lines?: Record<string, never>[];
+                            blocked?: Record<string, never>[];
+                            createdBy?: string;
+                            preparedBy?: string;
+                            approvedBy?: string;
+                            journalEntryId?: string;
+                            mudadFileId?: string;
+                            postRefused?: boolean;
+                            postRefuseReason?: string;
+                            postRefusedAt?: string;
+                            mudadVoided?: boolean;
+                            reversalJournalId?: string;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
         delete?: never;
         options?: never;
         head?: never;
@@ -21656,13 +23102,25 @@ export interface paths {
             };
             requestBody?: never;
             responses: {
-                /** @description OK */
+                /** @description Successful response (stored wire field names) */
                 200: {
                     headers: {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": components["schemas"]["JsonObject"];
+                        "application/json": {
+                            rows: {
+                                id: string;
+                                companyId: string;
+                                periodMonth: string;
+                                fileKind: string;
+                                fileName: string;
+                                rowCount: number;
+                                status: number;
+                                uploadedBy?: string;
+                                uploadedAt?: string;
+                            }[];
+                        };
                     };
                 };
             };
@@ -23061,6 +24519,63 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/finance/cost-centres": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Read finance cost centres and balances */
+        get: {
+            parameters: {
+                query?: {
+                    sponsorId?: string;
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            from: string;
+                            to: string;
+                            items: {
+                                id: string;
+                                code: string;
+                                nameAr: string;
+                                kind: string;
+                                companyId?: string;
+                                companyCode?: string;
+                                companyNameAr?: string;
+                                status: number;
+                                opening: number;
+                                debit: number;
+                                credit: number;
+                                closing: number;
+                            }[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/finance/coa": {
         parameters: {
             query?: never;
@@ -24027,7 +25542,17 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": Record<string, never>;
+                        "application/json": {
+                            items: Record<string, never>[];
+                            allowedActions: string[];
+                            cashBoxes: {
+                                id: string;
+                                code: string;
+                                nameAr: string;
+                                companyId: string;
+                                accountCode: string;
+                            }[];
+                        };
                     };
                 };
             };
@@ -24154,6 +25679,8 @@ export interface paths {
                     companyId: string;
                     period?: string;
                     half?: string;
+                    from?: string;
+                    to?: string;
                 };
                 header?: never;
                 path: {
@@ -24169,7 +25696,185 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": Record<string, never>;
+                        "application/json": {
+                            app: string;
+                            companyId: string;
+                            period?: string;
+                            half?: string;
+                            from?: string;
+                            to?: string;
+                            source?: string;
+                            asOf?: string;
+                            items: {
+                                id: string;
+                                erpRowId?: string;
+                                executedAt?: string;
+                                net?: number;
+                                commission?: number;
+                                transferToRider?: number;
+                                remaining?: number;
+                                fund?: string;
+                                purpose?: string;
+                                status?: string;
+                                paymentStatus?: string;
+                                riderId?: string;
+                                platformAccountId?: string;
+                                accountType?: string;
+                                periodFrom?: string;
+                                periodTo?: string;
+                                chargedFrom?: string;
+                                chargedTo?: string;
+                                assignedDays?: number;
+                                source?: string;
+                                gross?: number;
+                                companyAmount?: number;
+                                riderAmount?: number;
+                                commissionRate?: number;
+                                dailyFee?: number;
+                                isCompletedClosed?: boolean;
+                                completionLabelAr?: string;
+                            }[];
+                            total: number;
+                            totals?: {
+                                net?: number;
+                                commission?: number;
+                                transferToRider?: number;
+                                gross?: number;
+                                companyAmount?: number;
+                                riderAmount?: number;
+                                completedClosed?: number;
+                                openOrIncomplete?: number;
+                            };
+                            snapshotSafe: boolean;
+                            snapshotSafetyRuleAr?: string;
+                            allowedActions: string[];
+                            noteAr?: string;
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/sal/erp-settlements/jahez/period-report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Jahez invoice-period settlements, commission, rider transfers vs invoice */
+        get: {
+            parameters: {
+                query: {
+                    companyId: string;
+                    from: string;
+                    to: string;
+                    invoiceNet?: number | string;
+                    invoiceVat?: number | string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            app: string;
+                            companyId: string;
+                            from: string;
+                            to: string;
+                            live?: {
+                                app: string;
+                                companyId: string;
+                                period?: string;
+                                half?: string;
+                                from?: string;
+                                to?: string;
+                                source?: string;
+                                asOf?: string;
+                                items: {
+                                    id: string;
+                                    erpRowId?: string;
+                                    executedAt?: string;
+                                    net?: number;
+                                    commission?: number;
+                                    transferToRider?: number;
+                                    remaining?: number;
+                                    fund?: string;
+                                    purpose?: string;
+                                    status?: string;
+                                    paymentStatus?: string;
+                                    riderId?: string;
+                                    platformAccountId?: string;
+                                    accountType?: string;
+                                    periodFrom?: string;
+                                    periodTo?: string;
+                                    chargedFrom?: string;
+                                    chargedTo?: string;
+                                    assignedDays?: number;
+                                    source?: string;
+                                    gross?: number;
+                                    companyAmount?: number;
+                                    riderAmount?: number;
+                                    commissionRate?: number;
+                                    dailyFee?: number;
+                                    isCompletedClosed?: boolean;
+                                    completionLabelAr?: string;
+                                }[];
+                                total: number;
+                                totals?: {
+                                    net?: number;
+                                    commission?: number;
+                                    transferToRider?: number;
+                                    gross?: number;
+                                    companyAmount?: number;
+                                    riderAmount?: number;
+                                    completedClosed?: number;
+                                    openOrIncomplete?: number;
+                                };
+                                snapshotSafe: boolean;
+                                snapshotSafetyRuleAr?: string;
+                                allowedActions: string[];
+                                noteAr?: string;
+                            };
+                            commissionRates?: {
+                                effectiveFrom?: string;
+                                dailyRate?: number;
+                                percentRate?: number;
+                                cityId?: string;
+                            }[];
+                            totals: {
+                                operationsNet?: number;
+                                commission: number;
+                                transferToRider?: number;
+                                deliveryFees: number;
+                                bonusesTips?: number;
+                                driverAdjustments?: number;
+                                cashCollections: number;
+                                paidOnBehalf: number;
+                                companyDue: number;
+                                expectedNet: number;
+                                hasInvoice: boolean;
+                                invoiceNet?: number;
+                                invoiceVat?: number;
+                                variance?: number;
+                            };
+                            noteAr?: string;
+                            allowedActions: string[];
+                        };
                     };
                 };
             };
@@ -24213,7 +25918,18 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": Record<string, never>;
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            app: string;
+                            companyId: string;
+                            period?: string;
+                            businessDate?: string;
+                            purpose: string;
+                            status: string;
+                            moneyFrozen?: boolean;
+                            allowedActions?: string[];
+                        };
                     };
                 };
             };
@@ -24253,7 +25969,18 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": Record<string, never>;
+                        "application/json": {
+                            id: string;
+                            kind?: string;
+                            app: string;
+                            companyId: string;
+                            period?: string;
+                            businessDate?: string;
+                            purpose: string;
+                            status: string;
+                            moneyFrozen?: boolean;
+                            allowedActions?: string[];
+                        };
                     };
                 };
             };
@@ -24328,7 +26055,60 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
-                        "application/json": Record<string, never>;
+                        "application/json": {
+                            app: string;
+                            companyId: string;
+                            period?: string;
+                            half?: string;
+                            from?: string;
+                            to?: string;
+                            source?: string;
+                            asOf?: string;
+                            items: {
+                                id: string;
+                                erpRowId?: string;
+                                executedAt?: string;
+                                net?: number;
+                                commission?: number;
+                                transferToRider?: number;
+                                remaining?: number;
+                                fund?: string;
+                                purpose?: string;
+                                status?: string;
+                                paymentStatus?: string;
+                                riderId?: string;
+                                platformAccountId?: string;
+                                accountType?: string;
+                                periodFrom?: string;
+                                periodTo?: string;
+                                chargedFrom?: string;
+                                chargedTo?: string;
+                                assignedDays?: number;
+                                source?: string;
+                                gross?: number;
+                                companyAmount?: number;
+                                riderAmount?: number;
+                                commissionRate?: number;
+                                dailyFee?: number;
+                                isCompletedClosed?: boolean;
+                                completionLabelAr?: string;
+                            }[];
+                            total: number;
+                            totals?: {
+                                net?: number;
+                                commission?: number;
+                                transferToRider?: number;
+                                gross?: number;
+                                companyAmount?: number;
+                                riderAmount?: number;
+                                completedClosed?: number;
+                                openOrIncomplete?: number;
+                            };
+                            snapshotSafe: boolean;
+                            snapshotSafetyRuleAr?: string;
+                            allowedActions: string[];
+                            noteAr?: string;
+                        };
                     };
                 };
             };
@@ -25416,6 +27196,660 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["JsonObject"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/owner-external-box/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Owner external box living tree (outside company books) */
+        get: {
+            parameters: {
+                query?: {
+                    includeArchived?: boolean;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            hitsCompanyBooks: boolean;
+                            noteAr?: string;
+                            companyExpenseNoteAr?: string;
+                            roots: {
+                                id: string;
+                                parentId?: string;
+                                kind: string;
+                                code: string;
+                                labelAr: string;
+                                sortOrder?: number;
+                                purposeCode?: string;
+                                activeFrom?: string;
+                                archivedAt?: string;
+                                archiveRequestedBy?: string;
+                                balance: number;
+                                ownBalance?: number;
+                                hitsCompanyBooks: boolean;
+                                children?: {
+                                    id: string;
+                                    parentId?: string;
+                                    kind: string;
+                                    code: string;
+                                    labelAr: string;
+                                    sortOrder?: number;
+                                    purposeCode?: string;
+                                    activeFrom?: string;
+                                    archivedAt?: string;
+                                    archiveRequestedBy?: string;
+                                    balance: number;
+                                    ownBalance?: number;
+                                    hitsCompanyBooks: boolean;
+                                    allowedActions: string[];
+                                    children?: Record<string, never>[];
+                                }[];
+                                allowedActions: string[];
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/owner-external-box/entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Owner external box entries (never company books) */
+        get: {
+            parameters: {
+                query?: {
+                    nodeId?: string;
+                    from?: string;
+                    to?: string;
+                };
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            hitsCompanyBooks: boolean;
+                            items: {
+                                id: string;
+                                nodeId: string;
+                                occurredOn?: string;
+                                direction: string;
+                                amount: number;
+                                sourceKind?: string;
+                                sourceRef?: string;
+                                notes?: string;
+                                hitsCompanyBooks: boolean;
+                                status: string;
+                                companyId?: string;
+                                companyJournalId?: string;
+                                createdBy?: string;
+                                approvedBy?: string;
+                                preparedBy?: string;
+                                allowedActions?: string[];
+                            }[];
+                            total: number;
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Prepare owner-box entry (pending; second person confirms) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            nodeId: string;
+                            occurredOn?: string;
+                            direction: string;
+                            amount: number;
+                            sourceKind?: string;
+                            sourceRef?: string;
+                            notes?: string;
+                            hitsCompanyBooks: boolean;
+                            status: string;
+                            companyId?: string;
+                            companyJournalId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            preparedBy?: string;
+                            allowedActions?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/owner-external-box/nodes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Grow owner-box branch or leaf */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody: {
+                content: {
+                    "application/json": components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            hitsCompanyBooks: boolean;
+                            noteAr?: string;
+                            companyExpenseNoteAr?: string;
+                            roots: {
+                                id: string;
+                                parentId?: string;
+                                kind: string;
+                                code: string;
+                                labelAr: string;
+                                sortOrder?: number;
+                                purposeCode?: string;
+                                activeFrom?: string;
+                                archivedAt?: string;
+                                archiveRequestedBy?: string;
+                                balance: number;
+                                ownBalance?: number;
+                                hitsCompanyBooks: boolean;
+                                children?: {
+                                    id: string;
+                                    parentId?: string;
+                                    kind: string;
+                                    code: string;
+                                    labelAr: string;
+                                    sortOrder?: number;
+                                    purposeCode?: string;
+                                    activeFrom?: string;
+                                    archivedAt?: string;
+                                    archiveRequestedBy?: string;
+                                    balance: number;
+                                    ownBalance?: number;
+                                    hitsCompanyBooks: boolean;
+                                    allowedActions: string[];
+                                    children?: Record<string, never>[];
+                                }[];
+                                allowedActions: string[];
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/owner-external-box/nodes/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fall (archive) owner-box node or request archive when balance remains */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            hitsCompanyBooks: boolean;
+                            noteAr?: string;
+                            companyExpenseNoteAr?: string;
+                            roots: {
+                                id: string;
+                                parentId?: string;
+                                kind: string;
+                                code: string;
+                                labelAr: string;
+                                sortOrder?: number;
+                                purposeCode?: string;
+                                activeFrom?: string;
+                                archivedAt?: string;
+                                archiveRequestedBy?: string;
+                                balance: number;
+                                ownBalance?: number;
+                                hitsCompanyBooks: boolean;
+                                children?: {
+                                    id: string;
+                                    parentId?: string;
+                                    kind: string;
+                                    code: string;
+                                    labelAr: string;
+                                    sortOrder?: number;
+                                    purposeCode?: string;
+                                    activeFrom?: string;
+                                    archivedAt?: string;
+                                    archiveRequestedBy?: string;
+                                    balance: number;
+                                    ownBalance?: number;
+                                    hitsCompanyBooks: boolean;
+                                    allowedActions: string[];
+                                    children?: Record<string, never>[];
+                                }[];
+                                allowedActions: string[];
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/owner-external-box/nodes/{id}/confirm-archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Second person confirms archive of a leaf with balance */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            hitsCompanyBooks: boolean;
+                            noteAr?: string;
+                            companyExpenseNoteAr?: string;
+                            roots: {
+                                id: string;
+                                parentId?: string;
+                                kind: string;
+                                code: string;
+                                labelAr: string;
+                                sortOrder?: number;
+                                purposeCode?: string;
+                                activeFrom?: string;
+                                archivedAt?: string;
+                                archiveRequestedBy?: string;
+                                balance: number;
+                                ownBalance?: number;
+                                hitsCompanyBooks: boolean;
+                                children?: {
+                                    id: string;
+                                    parentId?: string;
+                                    kind: string;
+                                    code: string;
+                                    labelAr: string;
+                                    sortOrder?: number;
+                                    purposeCode?: string;
+                                    activeFrom?: string;
+                                    archivedAt?: string;
+                                    archiveRequestedBy?: string;
+                                    balance: number;
+                                    ownBalance?: number;
+                                    hitsCompanyBooks: boolean;
+                                    allowedActions: string[];
+                                    children?: Record<string, never>[];
+                                }[];
+                                allowedActions: string[];
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/owner-external-box/nodes/{id}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore archived owner-box node */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            hitsCompanyBooks: boolean;
+                            noteAr?: string;
+                            companyExpenseNoteAr?: string;
+                            roots: {
+                                id: string;
+                                parentId?: string;
+                                kind: string;
+                                code: string;
+                                labelAr: string;
+                                sortOrder?: number;
+                                purposeCode?: string;
+                                activeFrom?: string;
+                                archivedAt?: string;
+                                archiveRequestedBy?: string;
+                                balance: number;
+                                ownBalance?: number;
+                                hitsCompanyBooks: boolean;
+                                children?: {
+                                    id: string;
+                                    parentId?: string;
+                                    kind: string;
+                                    code: string;
+                                    labelAr: string;
+                                    sortOrder?: number;
+                                    purposeCode?: string;
+                                    activeFrom?: string;
+                                    archivedAt?: string;
+                                    archiveRequestedBy?: string;
+                                    balance: number;
+                                    ownBalance?: number;
+                                    hitsCompanyBooks: boolean;
+                                    allowedActions: string[];
+                                    children?: Record<string, never>[];
+                                }[];
+                                allowedActions: string[];
+                            }[];
+                            allowedActions: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/owner-external-box/entries/{id}/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Second person posts owner-box entry (+ companion company journals when required) */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            nodeId: string;
+                            occurredOn?: string;
+                            direction: string;
+                            amount: number;
+                            sourceKind?: string;
+                            sourceRef?: string;
+                            notes?: string;
+                            hitsCompanyBooks: boolean;
+                            status: string;
+                            companyId?: string;
+                            companyJournalId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            preparedBy?: string;
+                            allowedActions?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/owner-external-box/entries/{id}/reverse": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Prepare reversing correction for a posted owner-box entry */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": null | components["schemas"]["JsonObject"];
+                };
+            };
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            nodeId: string;
+                            occurredOn?: string;
+                            direction: string;
+                            amount: number;
+                            sourceKind?: string;
+                            sourceRef?: string;
+                            notes?: string;
+                            hitsCompanyBooks: boolean;
+                            status: string;
+                            companyId?: string;
+                            companyJournalId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            preparedBy?: string;
+                            allowedActions?: string[];
+                        };
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/finance/owner-external-box/entries/{id}/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Cancel (drop) a pending owner-box entry that was never posted */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                /** @description Successful response (stored wire field names) */
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": {
+                            id: string;
+                            nodeId: string;
+                            occurredOn?: string;
+                            direction: string;
+                            amount: number;
+                            sourceKind?: string;
+                            sourceRef?: string;
+                            notes?: string;
+                            hitsCompanyBooks: boolean;
+                            status: string;
+                            companyId?: string;
+                            companyJournalId?: string;
+                            createdBy?: string;
+                            approvedBy?: string;
+                            preparedBy?: string;
+                            allowedActions?: string[];
+                        };
                     };
                 };
             };
@@ -29282,10 +31716,12 @@ export interface components {
             projectId: null | string;
             androidPackageName: null | string;
         };
-        "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray": {
+        "AnonymousTypeOfIEnumerableOfAccountsAndString[]AndString[]AndString[]AndString[]AndString[]AndString[]AndJsonObjectAndbooleanAndJsonArray": {
             apps: null | components["schemas"]["Accounts"][];
             schemeTypes: null | string[];
             categories: null | string[];
+            optionalCategories: null | string[];
+            allCategories: null | string[];
             operators: null | string[];
             ninjaMetrics: null | string[];
             defaults: components["schemas"]["JsonObject"];

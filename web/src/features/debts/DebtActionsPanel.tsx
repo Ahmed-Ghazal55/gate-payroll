@@ -30,8 +30,36 @@ export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: str
     companyId: '',
   });
   const [createForm, setCreateForm] = useState({ iqama: '', category: 'CashAdvance', totalAmount: '', monthlyInstallment: '', creditorSponsorId: 'BW', notes: '' });
+  const [categories, setCategories] = useState<Array<{ code: string; nameAr: string }>>([]);
+  const [sponsors, setSponsors] = useState<Array<{ id: string; code: string; nameAr: string }>>([]);
 
   useEffect(() => { if (selectedDebtId) setDebtId(selectedDebtId); }, [selectedDebtId]);
+
+  useEffect(() => {
+    let cancelled = false;
+    api.getFinanceCatalog()
+      .then((cat) => {
+        if (cancelled) return;
+        const list = (cat?.categories || [])
+          .filter((c) => c.code)
+          .map((c) => ({ code: String(c.code), nameAr: String(c.nameAr || c.code) }));
+        setCategories(list);
+      })
+      .catch(() => {});
+    api.getFinanceSponsors()
+      .then((list) => {
+        if (cancelled) return;
+        setSponsors(
+          (Array.isArray(list) ? list : []).map((s) => ({
+            id: s.id,
+            code: s.code || s.id,
+            nameAr: s.nameAr || s.shortNameAr || s.code || s.id,
+          }))
+        );
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, []);
 
   const loadSettlements = useCallback(() => {
     if (!canView) return;
@@ -103,42 +131,133 @@ export function DebtActionsPanel({ selectedDebtId = '' }: { selectedDebtId?: str
       {canCreate && (
         <form onSubmit={onCreate} className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <h3 className="sm:col-span-2 lg:col-span-3 text-sm font-bold inline-flex items-center gap-2"><Plus size={16} /> دين جديد</h3>
-          {(['iqama', 'category', 'totalAmount', 'monthlyInstallment', 'creditorSponsorId', 'notes'] as const).map((k) => (
-            <input key={k} required={k !== 'notes'} placeholder={k} value={createForm[k]} onChange={(e) => setCreateForm({ ...createForm, [k]: e.target.value })} className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono" />
-          ))}
-          <button type="submit" disabled={busy} className="px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50">إنشاء</button>
+          <label className="text-xs font-semibold space-y-1">
+            <span>رقم الإقامة</span>
+            <input required placeholder="مثال: 2000000101" value={createForm.iqama} onChange={(e) => setCreateForm({ ...createForm, iqama: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>فئة المديونية</span>
+            {categories.length > 0 ? (
+              <select required value={createForm.category} onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs">
+                {categories.map((c) => (
+                  <option key={c.code} value={c.code}>{c.nameAr}</option>
+                ))}
+              </select>
+            ) : (
+              <input required placeholder="فئة المديونية" value={createForm.category} onChange={(e) => setCreateForm({ ...createForm, category: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs" />
+            )}
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>المبلغ الإجمالي (ر.س)</span>
+            <input required type="number" step="0.01" min="0" placeholder="0.00" value={createForm.totalAmount} onChange={(e) => setCreateForm({ ...createForm, totalAmount: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs num" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>القسط الشهري (ر.س)</span>
+            <input required type="number" step="0.01" min="0" placeholder="0.00" value={createForm.monthlyInstallment} onChange={(e) => setCreateForm({ ...createForm, monthlyInstallment: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs num" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>الشركة الدائنة</span>
+            {sponsors.length > 0 ? (
+              <select required value={createForm.creditorSponsorId} onChange={(e) => setCreateForm({ ...createForm, creditorSponsorId: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs">
+                {sponsors.map((s) => (
+                  <option key={s.id} value={s.code}>{s.nameAr} ({s.code})</option>
+                ))}
+              </select>
+            ) : (
+              <input required placeholder="رمز الشركة الدائنة" value={createForm.creditorSponsorId} onChange={(e) => setCreateForm({ ...createForm, creditorSponsorId: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs" />
+            )}
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>ملاحظات</span>
+            <input placeholder="ملاحظات اختيارية" value={createForm.notes} onChange={(e) => setCreateForm({ ...createForm, notes: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs" />
+          </label>
+          <div className="sm:col-span-2 lg:col-span-3 flex justify-end">
+            <button type="submit" disabled={busy} className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50">إنشاء</button>
+          </div>
         </form>
       )}
 
       {canCollect && (
         <form onSubmit={onCollect} className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           <h3 className="sm:col-span-2 lg:col-span-3 text-sm font-bold inline-flex items-center gap-2"><Banknote size={16} /> تحصيل دين</h3>
-          <input required placeholder="debtId" value={debtId} onChange={(e) => setDebtId(e.target.value)} className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono" />
-          {(['collectedAmount', 'waivedAmount', 'receiptRef', 'targetVaultCode', 'period', 'notes', 'waiverReason'] as const).map((k) => (
-            <input key={k} required={k === 'receiptRef' || k === 'collectedAmount'} placeholder={k} value={collect[k]} onChange={(e) => setCollect({ ...collect, [k]: e.target.value })} className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono" />
-          ))}
-          <button type="submit" disabled={busy} className="px-3 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50">تحصيل</button>
+          <label className="text-xs font-semibold space-y-1">
+            <span>معرّف المديونية</span>
+            <input required placeholder="أدخل معرّف المديونية" value={debtId} onChange={(e) => setDebtId(e.target.value)} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>المبلغ المحصّل (ر.س)</span>
+            <input required type="number" step="0.01" min="0" placeholder="0.00" value={collect.collectedAmount} onChange={(e) => setCollect({ ...collect, collectedAmount: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs num" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>مبلغ الإعفاء (ر.س)</span>
+            <input type="number" step="0.01" min="0" placeholder="0.00" value={collect.waivedAmount} onChange={(e) => setCollect({ ...collect, waivedAmount: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs num" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>رقم سند التحصيل</span>
+            <input required placeholder="مثال: REC-1001" value={collect.receiptRef} onChange={(e) => setCollect({ ...collect, receiptRef: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>حساب الخزنة المستلمة</span>
+            <input placeholder="رمز الخزنة (اختياري)" value={collect.targetVaultCode} onChange={(e) => setCollect({ ...collect, targetVaultCode: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>الفترة المالية</span>
+            <input type="month" value={collect.period} onChange={(e) => setCollect({ ...collect, period: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs num" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>ملاحظات</span>
+            <input placeholder="ملاحظات اختيارية" value={collect.notes} onChange={(e) => setCollect({ ...collect, notes: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>سبب الإعفاء</span>
+            <input placeholder="سبب الإعفاء عند وجود إعفاء" value={collect.waiverReason} onChange={(e) => setCollect({ ...collect, waiverReason: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs" />
+          </label>
+          <div className="sm:col-span-2 lg:col-span-3 flex justify-end">
+            <button type="submit" disabled={busy} className="px-4 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold disabled:opacity-50">تحصيل</button>
+          </div>
         </form>
       )}
 
       {canLedgerAct && (
         <div className="p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
-          <h3 className="sm:col-span-2 lg:col-span-3 text-sm font-bold">إعفاء / تحمّل / تحصيل دفتر W2 (بعد اعتماد)</h3>
-          <input
-            placeholder="debtId"
-            value={debtId}
-            onChange={(e) => setDebtId(e.target.value)}
-            className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono"
-          />
-          {(['amount', 'reason', 'approvalRequestId', 'period', 'cashAccountCode', 'companyId'] as const).map((k) => (
-            <input
-              key={k}
-              placeholder={k}
-              value={ledger[k]}
-              onChange={(e) => setLedger({ ...ledger, [k]: e.target.value })}
-              className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono"
-            />
-          ))}
+          <h3 className="sm:col-span-2 lg:col-span-3 text-sm font-bold">إعفاء / تحمّل / تحصيل دفتري (بعد اعتماد)</h3>
+          <label className="text-xs font-semibold space-y-1">
+            <span>معرّف المديونية</span>
+            <input placeholder="أدخل معرّف المديونية" value={debtId} onChange={(e) => setDebtId(e.target.value)} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>المبلغ (ر.س)</span>
+            <input type="number" step="0.01" min="0" placeholder="0.00" value={ledger.amount} onChange={(e) => setLedger({ ...ledger, amount: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs num" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>السبب / البيان</span>
+            <input placeholder="سبب الإجراء أو البيان" value={ledger.reason} onChange={(e) => setLedger({ ...ledger, reason: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>رقم طلب الاعتماد</span>
+            <input placeholder="معرّف طلب الاعتماد" value={ledger.approvalRequestId} onChange={(e) => setLedger({ ...ledger, approvalRequestId: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>الفترة المالية</span>
+            <input type="month" value={ledger.period} onChange={(e) => setLedger({ ...ledger, period: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs num" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>حساب النقدية</span>
+            <input placeholder="مثال: 111101" value={ledger.cashAccountCode} onChange={(e) => setLedger({ ...ledger, cashAccountCode: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs font-mono" />
+          </label>
+          <label className="text-xs font-semibold space-y-1">
+            <span>الشركة (للطباعة)</span>
+            {sponsors.length > 0 ? (
+              <select value={ledger.companyId} onChange={(e) => setLedger({ ...ledger, companyId: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs">
+                <option value="">اختر الشركة…</option>
+                {sponsors.map((s) => (
+                  <option key={s.id} value={s.code}>{s.nameAr} ({s.code})</option>
+                ))}
+              </select>
+            ) : (
+              <input placeholder="رمز الشركة" value={ledger.companyId} onChange={(e) => setLedger({ ...ledger, companyId: e.target.value })} className="w-full p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-xs" />
+            )}
+          </label>
           <div className="sm:col-span-2 lg:col-span-3 flex flex-wrap gap-2">
             <button
               type="button"

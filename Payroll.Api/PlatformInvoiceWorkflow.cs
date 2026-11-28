@@ -16,6 +16,7 @@ public sealed class PlatformInvoiceWorkflow(string app)
     public JsonObject View(DbConnection c,DbTransaction? tx,ClaimsPrincipal actor,JsonObject invoice)
     {
         Scope(actor,"pay.view",invoice.S("companyId"));var result=invoice.Clone();var actions=new JsonArray();string id=invoice.S("id");bool bypass=AccessPolicy.BypassForView(c,tx,actor,AccessPolicy.ScopeInvoiceApprovals);
+        bool approveOwn=AccessPolicy.HasApproveOwnClaim(actor);
         bool unused=!Store.List(c,PayCycles.Kind,tx).Any(p=>p.S("status") is not ("cancelled" or "reversed")&&(p["invoices"] as JsonArray??[]).OfType<JsonObject>().Any(i=>i.S("invoiceId")==id)),open=!Store.List(c,"accounting_period",tx).Any(p=>p.S("companyId")==invoice.S("companyId")&&p.S("period")==invoice.S("period")&&p.S("status")=="closed");
         var parts=Lines(c,tx,id).SelectMany(l=>(l["deductions"] as JsonArray??[]).OfType<JsonObject>()).ToList();
         var disputes=Store.List(c,"platform_dispute",tx).Where(d=>d.S("invoiceId")==id).ToList();
@@ -24,20 +25,21 @@ public sealed class PlatformInvoiceWorkflow(string app)
             if(AccessPolicy.Has(actor,"pay.manage")){if(InvoiceDiscard.Can(c,tx,invoice))actions.Add("discard");if(invoice.S("approvalStatus")=="pending")actions.Add("classify");actions.Add("dispute");}
             if(AccessPolicy.Has(actor,"pay.approve"))
             {
-                bool independent=AccessPolicy.IndependentForView(actor,invoice.S("createdBy"),bypass);
-                if(open&&independent&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>InvoiceDeductionClassification.Classified(d)&&AccessPolicy.IndependentForView(actor,d.S("classifiedBy"),bypass)))actions.Add("approve");
-                if(disputes.Any(d=>d.S("status")=="open"&&AccessPolicy.IndependentForView(actor,d.S("createdBy"),bypass)))actions.Add("resolve");
+                bool independent=AccessPolicy.IndependentForView(actor,invoice.S("createdBy"),bypass,approveOwn);
+                if(open&&independent&&invoice.S("approvalStatus")=="pending"&&parts.All(d=>InvoiceDeductionClassification.Classified(d)&&AccessPolicy.IndependentForView(actor,d.S("classifiedBy"),bypass,approveOwn)))actions.Add("approve");
+                if(disputes.Any(d=>d.S("status")=="open"&&AccessPolicy.IndependentForView(actor,d.S("createdBy"),bypass,approveOwn)))actions.Add("resolve");
                 if(open&&independent&&invoice.S("approvalStatus")=="approved"&&invoice.S("accountingRole")=="principal"&&PlatformPosting.Enabled(c,app,tx)&&parts.All(InvoiceDeductionClassification.AllCompany)&&disputes.All(d=>d.S("status")=="resolved"))actions.Add("post");
+                if(invoice.S("approvalStatus")=="approved")actions.Add("split_dues");
             }
         }
         var blockers=new JsonArray();
         if(InvoiceDiscard.Active(invoice)&&invoice.S("journalEntryId")==""&&unused&&invoice.S("approvalStatus")=="pending")
         {
             if(!AccessPolicy.Has(actor,"pay.approve"))blockers.Add("حسابك لا يملك صلاحية اعتماد فواتير الرواتب.");
-            if(!AccessPolicy.IndependentForView(actor,invoice.S("createdBy"),bypass))blockers.Add("أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر (فصل الصلاحيات).");
+            if(!AccessPolicy.IndependentForView(actor,invoice.S("createdBy"),bypass,approveOwn))blockers.Add("أنت من رفع هذه الفاتورة؛ يعتمدها مستخدم آخر، أو فعّل اعتمادك الذاتي / تجاوز الاعتماد المؤرخ.");
             if(!open)blockers.Add("الفترة المحاسبية مغلقة.");
-            int unclassified=parts.Count(d=>!InvoiceDeductionClassification.Classified(d));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ صنّفها أولًا.");
-            int ownClass=parts.Count(d=>d.S("classifiedBy")!=""&&!AccessPolicy.IndependentForView(actor,d.S("classifiedBy"),bypass));if(ownClass>0)blockers.Add($"أنت صنّفت {ownClass} خصم؛ يعتمدها مستخدم غير الذي صنّف.");
+            int unclassified=parts.Count(d=>!InvoiceDeductionClassification.Classified(d));if(unclassified>0)blockers.Add($"{unclassified} خصم بلا تصنيف؛ الافتراضي على اليوزر، أو تجاوز اختياري للشركة.");
+            int ownClass=parts.Count(d=>d.S("classifiedBy")!=""&&!AccessPolicy.IndependentForView(actor,d.S("classifiedBy"),bypass,approveOwn));if(ownClass>0)blockers.Add($"أنت صنّفت {ownClass} خصم؛ يعتمدها مستخدم آخر أو صلاحية اعتمادك الذاتي / التجاوز المؤرخ.");
         }
         result["approvalBlockers"]=blockers;result["allowedActions"]=actions;return result;
     }

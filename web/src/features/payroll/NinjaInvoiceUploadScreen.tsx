@@ -175,7 +175,7 @@ export function NinjaInvoiceUploadScreen({
     (async () => {
       const found: OperationAccount[] = [];
       for (let page = 1; page <= 20; page++) {
-        const res = (await api.getOperations('platform_account', { page, pageSize: 200, q: platform })) as unknown as { items?: OperationAccount[]; total?: number };
+        const res = (await api.getOperations('platform_account', { page, pageSize: 200, platform })) as unknown as { items?: OperationAccount[]; total?: number };
         const items = res?.items || [];
         found.push(...items);
         if (items.length === 0 || found.length >= (res?.total ?? 0)) break;
@@ -443,6 +443,19 @@ export function NinjaInvoiceUploadScreen({
         ? await api.uploadKeetaInvoice(formData, false)
         : await api.uploadNinjaInvoice(formData, false);
       setServerPreview(preview);
+      if (isKeeta) {
+        const previewRows = (preview as { rows?: Array<{ detectedCompanyRows?: number[]; partnerResidual?: number }> } | null)?.rows;
+        const row0 = Array.isArray(previewRows) ? previewRows[0] : null;
+        const detected = row0?.detectedCompanyRows;
+        if (Array.isArray(detected) && detected.length > 0) {
+          setNeedsCompanyRows(true);
+          setCompanyRowsInput(detected.join(', '));
+        }
+        const residual = row0?.partnerResidual;
+        if (typeof residual === 'number' && Math.abs(residual) > 0.01) {
+          setNeedsCompanyRows(true);
+        }
+      }
       setStepperStage(2);
       toast(`تمت عملية معاينة ومطابقة فاتورة ${platformNameAr} بنجاح`, 'success');
     } catch (err: unknown) {
@@ -889,10 +902,20 @@ export function NinjaInvoiceUploadScreen({
     }
     if (currentInvoice?.approvalStatus === 'approved') {
       return {
-        title: 'الفاتورة معتمدة. افتح مسودة المراجعة لإنشاء دورة الرواتب.',
+        title: 'الفصل التالي: فصل مستحقات اليوزرات وتوزيعها على المناديب',
+        detail: 'يقرأ التشغيل والوقود وعهدة المركبة من نظام عمر (قراءة فقط)، ثم يطبّق الأنظمة الداخلية.',
         action: (
           <>
-            <a href={`/app/payroll?tab=cycle&period=${period}`} className={primaryButton}>فتح مسودة المراجعة</a>
+            <a
+              href={`/app/payroll?tab=cycle&period=${period}&stage=split_dues&companyId=${encodeURIComponent(currentInvoice.companyId || companyId || '')}&invoiceId=${encodeURIComponent(currentInvoice.id)}`}
+              className={primaryButton}
+              id="btn-split-dues-next"
+            >
+              فصل مستحقات اليوزرات وتوزيعها على المناديب
+            </a>
+            <a href={`/app/payroll?tab=cycle&period=${period}`} className="px-4 py-2 rounded-xl border border-[var(--line)] text-[var(--ink)] text-xs sm:text-sm font-bold">
+              فتح مسودة المراجعة
+            </a>
             {nextInvoiceButton}
           </>
         ),
@@ -911,7 +934,7 @@ export function NinjaInvoiceUploadScreen({
       }
       const unclassified = deductionGroups.reduce((n, g) => n + g.unclassified, 0);
       if (unclassified > 0) {
-        return { title: `صنّف ${unclassified} خصم من اللوحة أسفل الصفحة.`, detail: 'لكل نوع خصم: على المندوب اللي اشتغل على اليوزر أم على الشركة.', action: nextInvoiceButton };
+        return { title: `راجع ${unclassified} خصم — الافتراضي على اليوزر من الفاتورة.`, detail: 'تجاوز اختياري للشركة أو مندوب محدد؛ الفاتورة نهائية.', action: nextInvoiceButton };
       }
       return { title: 'الفاتورة محفوظة وتنتظر مراجعًا آخر.', detail: approvalBlockers.join(' '), action: nextInvoiceButton };
     }
@@ -1232,17 +1255,23 @@ export function NinjaInvoiceUploadScreen({
             </div>
           )}
 
-          {isKeeta && needsCompanyRows && (
+          {isKeeta && (
             <div className="space-y-1">
-              <label className="text-xs font-bold text-[var(--ink)]">أسطر تعديل الشركة:</label>
+              <label className="text-xs font-bold text-[var(--ink)]">أسطر تعديل الشركة (تُكتشف تلقائيًا؛ التعديل اليدوي اختياري):</label>
               <input
                 type="text"
                 aria-label="أسطر تعديل الشركة"
-                placeholder="مثال: 5"
+                placeholder="تُملأ تلقائيًا بعد المعاينة، أو اكتب أرقام الصفوف يدويًا"
                 value={companyRowsInput}
-                onChange={(e) => setCompanyRowsInput(e.target.value)}
+                onChange={(e) => {
+                  setCompanyRowsInput(e.target.value);
+                  setNeedsCompanyRows(true);
+                }}
                 className="w-full px-3 py-2 text-xs rounded-xl border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)] focus:outline-hidden font-mono"
               />
+              {needsCompanyRows && (
+                <p className="text-[11px] text-[var(--muted)]">صفوف بدون يوزر وبطلبات صفر ومبلغ غير صفري تُعامل كتعديل شركة وتظهر في المعاينة للتأكيد.</p>
+              )}
             </div>
           )}
         </div>
@@ -1411,19 +1440,48 @@ export function NinjaInvoiceUploadScreen({
             </div>
           )}
 
+          {currentInvoice.lines && currentInvoice.lines.length > 0 && (
+            <div id="ninja-account-dues" className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/20 space-y-2">
+              <p className="text-xs font-bold text-[var(--ink)]">مستحق كل يوزر من الفاتورة (الفاتورة نهائية)</p>
+              <DataTable
+                tableId="ninja-account-dues"
+                data={(currentInvoice.lines || [])
+                  .filter((l) => l.lineType !== 'company')
+                  .map((l) => ({
+                    id: l.id,
+                    captainId: l.captainId || '—',
+                    orders: l.orders ?? 0,
+                    gross: (l.baseGross || 0) + (l.incentives || 0),
+                    deductions: l.deductionAmount || 0,
+                    due: (l.baseGross || 0) + (l.incentives || 0) - (l.deductionAmount || 0),
+                  }))}
+                getRowId={(r) => r.id}
+                pageSize={20}
+                columns={[
+                  { key: 'captainId', header: 'الكابتن / اليوزر', type: 'text', getValue: (r) => r.captainId, render: (r) => <span className="font-mono text-[11px]">{r.captainId}</span> },
+                  { key: 'orders', header: 'طلبات', type: 'number', numeric: true, getValue: (r) => r.orders, render: (r) => <span className="font-mono text-[11px]">{r.orders}</span> },
+                  { key: 'gross', header: 'إجمالي قبل خصم', type: 'number', numeric: true, money: true, getValue: (r) => r.gross, render: (r) => <span className="font-mono text-[11px]">{formatSar(r.gross)}</span> },
+                  { key: 'deductions', header: 'خصوم', type: 'number', numeric: true, money: true, getValue: (r) => r.deductions, render: (r) => <span className="font-mono text-[11px]">{formatSar(r.deductions)}</span> },
+                  { key: 'due', header: 'المستحق', type: 'number', numeric: true, money: true, getValue: (r) => r.due, render: (r) => <span className="font-mono text-[11px] font-bold">{formatSar(r.due)}</span> },
+                ]}
+              />
+            </div>
+          )}
+
           {allowedActions.includes('classify') && deductionGroups.length > 0 && (
             <div id="ninja-classify-panel" className="p-3 rounded-xl border border-[var(--line)] bg-[var(--raised)]/30 space-y-2">
-              <p className="text-xs font-bold text-[var(--ink)]">تصنيف خصومات الفاتورة: على المندوب اللي اشتغل على اليوزر أم على الشركة</p>
+              <p className="text-xs font-bold text-[var(--ink)]">خصومات الفاتورة — الافتراضي على اليوزر (تجاوز اختياري)</p>
+              <p className="text-[11px] text-[var(--muted)]">الخصم اللي جاء على اليوزر يبقى عليه؛ التوزيع على المناديب في خطوة لاحقة حسب التشغيل.</p>
               {deductionGroups.map((group) => {
                 const level = classLevel[group.category] ?? (group.companyOnly ? 'company_level' : 'account_level');
                 return (
                   <div key={group.category} data-category={group.category} className="flex flex-wrap items-center gap-2 text-xs text-[var(--ink)]">
                     <span className="font-bold min-w-40">{DEDUCTION_LABELS[group.category] ?? group.category}</span>
                     <span className="font-mono text-[var(--muted)]">
-                      {group.lineIds.length} سطر · {formatSar(group.amount)} · {group.unclassified} بلا تصنيف
+                      {group.lineIds.length} سطر · {formatSar(group.amount)} · {group.unclassified > 0 ? `${group.unclassified} يحتاج مراجعة` : 'على اليوزر'}
                     </span>
                     <select
-                      aria-label="جهة تحمل الخصم"
+                      aria-label="تجاوز اختياري لجهة تحمل الخصم"
                       value={level}
                       onChange={(e) => {
                         const value = e.target.value as 'account_level' | 'company_level' | 'rider_level';
@@ -1433,9 +1491,9 @@ export function NinjaInvoiceUploadScreen({
                       onFocus={() => group.companyOnly && loadCostAccounts()}
                       className="px-2 py-1 rounded-lg border border-[var(--line)] bg-[var(--surface)] text-[var(--ink)]"
                     >
-                      <option value="account_level">على المندوب اللي اشتغل على اليوزر</option>
-                      <option value="company_level">على الشركة</option>
-                      <option value="rider_level">على مندوب محدد</option>
+                      <option value="account_level">على اليوزر (افتراضي)</option>
+                      <option value="company_level">تجاوز: على الشركة</option>
+                      <option value="rider_level">تجاوز: على مندوب محدد</option>
                     </select>
                     {level === 'rider_level' && (
                       <RiderPicker

@@ -100,8 +100,8 @@ public sealed class JahezReconciliationTests
             Store.Save(c,"platform_account",new(){["id"]=account,["companyId"]=company,["platformCode"]="jahez"},tx);
             Store.Save(c,"jahez_transaction",new(){["id"]="synthetic-september-tx",["accountId"]=account,["companyId"]=company,["occurredAt"]="2026-09-20T12:00:00Z",["deliveryPrice"]=100},tx);
             Store.Save(c,"jahez_transaction",new(){["id"]="synthetic-october-tx",["accountId"]=account,["companyId"]=company,["occurredAt"]="2026-10-10T12:00:00Z",["deliveryPrice"]=500},tx);
-            Store.Save(c,"erp_money_movement",new(){["id"]="synthetic-september-money",["accountId"]=account,["companyId"]=company,["occurredAt"]="2026-09-20T12:00:00Z",["directionCode"]="Out",["amount"]=20},tx);
-            Store.Save(c,"erp_money_movement",new(){["id"]="synthetic-october-money",["accountId"]=account,["companyId"]=company,["occurredAt"]="2026-10-12T12:00:00Z",["directionCode"]="Out",["amount"]=50},tx);
+            Store.Save(c,"erp_money_movement",new(){["id"]="synthetic-september-money",["accountId"]=account,["companyId"]=company,["occurredAt"]="2026-09-20T12:00:00Z",["directionCode"]="Out",["purposeCode"]="OnBehalf",["amount"]=20},tx);
+            Store.Save(c,"erp_money_movement",new(){["id"]="synthetic-october-money",["accountId"]=account,["companyId"]=company,["occurredAt"]="2026-10-12T12:00:00Z",["directionCode"]="Out",["purposeCode"]="OnBehalf",["amount"]=50},tx);
             Store.Save(c,"erp_jahez_operation",new(){["id"]="synthetic-september-op",["accountId"]=account,["companyId"]=company,["executedAt"]="2026-09-20T12:00:00Z",["commission"]=5},tx);
             Store.Save(c,"erp_jahez_operation",new(){["id"]="synthetic-october-op",["accountId"]=account,["companyId"]=company,["executedAt"]="2026-10-11T12:00:00Z",["commission"]=15},tx);
             Store.Save(c,"jahez_earnings_statement",new(){["id"]="synthetic-september-earnings",["accountId"]=account,["companyId"]=company,["from"]="2026-09-01",["to"]="2026-09-30",["tips"]=7},tx);

@@ -4,6 +4,7 @@
 
 export const PAYROLL_TABS = [
   'platforms',
+  'mudad',
   'cycle',
   'current-cycle',
   'ninja_upload',
@@ -16,6 +17,7 @@ export type PayrollTab = (typeof PAYROLL_TABS)[number];
 
 export const PAYROLL_TAB_LABELS: Record<PayrollTab, string> = {
   platforms: 'فواتير وتسويات المنصات',
+  mudad: 'رواتب مدد',
   cycle: 'دورة الرواتب والمسير',
   'current-cycle': 'الدورة الحالية (النظام القائم)',
   ninja_upload: 'رفع فاتورة نينجا',

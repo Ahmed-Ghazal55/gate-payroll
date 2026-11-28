@@ -12,7 +12,8 @@ public static partial class PayCycles
     }
     static (string Type,decimal Days,JsonArray Sources) Vehicle(DbConnection c,DbTransaction tx,JsonObject cycle,string rider,string period,string category,JsonObject values)
     {
-        string type=category.EndsWith("_company_car",StringComparison.Ordinal)?"company_car":category.EndsWith("_company_bike",StringComparison.Ordinal)?"company_bike":"private";var sources=new JsonArray();if(type=="private")return(type,0,sources);
+        // bike_on_car_id = company bike for custody/rent (§24.4); scheme cell only changes commission/salary bands.
+        string type=category.EndsWith("_company_car",StringComparison.Ordinal)?"company_car":category.EndsWith("_company_bike",StringComparison.Ordinal)||category.EndsWith("_bike_on_car_id",StringComparison.Ordinal)?"company_bike":"private";var sources=new JsonArray();if(type=="private")return(type,0,sources);
         var intervals=new List<(DateTimeOffset From,DateTimeOffset To)>();var month=Time(period+"-01T00:00:00+03:00");
         foreach(var a in CycleOps(c,tx,cycle,"vehicle_assignment").Where(a=>a.S("riderId")==rider&&Overlaps(a,period,"startedAt","endedAt")))
         {
@@ -27,7 +28,15 @@ public static partial class PayCycles
         ValidateRiders(c,tx,cycle,actor);string period=cycle.S("period");var global=PaySettings.Global(c,tx,period+"-01");var values=global["data"]!["values"]!.AsObject();var facts=new List<JsonObject>();
         foreach(var (app,a) in Accounts(cycle))
         {
-            var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();var split=PayEvaluator.SplitIncentives(shares.Select(r=>new PayRiderShare(r.S("rider"),(int)r.N("orders"),r.N("baseGross"))),a.N("baseGross"),a.N("incentives"),values);
+            var shares=Rows(a["riders"]).OfType<JsonObject>().ToList();
+            if(shares.Count==0)
+            {
+                // NFLOW1f / grok-NFLOW1e #6: held no-ops keep gross in invoice tie-out; never pay — skip SplitIncentives (PayEvaluator empty-rider throw); no pay line.
+                bool hasDaily=app=="ninja"&&OpsList(c,tx,cycle,"ninja_daily").Any(d=>d.S("platformAccountId")==a.S("accountId")&&d.S("companyId")==cycle.S("companyId")&&d.S("date").StartsWith(cycle.S("period")+"-",StringComparison.Ordinal));
+                J.Need(app=="ninja"&&!hasDaily,"وزع الاستحقاق على المندوب الفعلي دون تكرار.");
+                continue;
+            }
+            var split=PayEvaluator.SplitIncentives(shares.Select(r=>new PayRiderShare(r.S("rider"),(int)r.N("orders"),r.N("baseGross"))),a.N("baseGross"),a.N("incentives"),values);
             foreach(var share in split){var f=shares.Single(r=>r.S("rider")==share.Rider).Clone();f["app"]=app;f["accountId"]=a.S("accountId");f["sourceLineId"]=a.S("sourceLineId");f["incentive"]=share.Incentive;facts.Add(f);}
         }
         foreach(var group in facts.GroupBy(f=>(App:f.S("app"),Rider:f.S("rider"))))
@@ -39,11 +48,38 @@ public static partial class PayCycles
             var vehicle=Vehicle(c,tx,cycle,rider,period,category,values);var metrics=(rows[0]["metrics"] as JsonObject??new()).ToDictionary(p=>p.Key,p=>(decimal?)PayValues.Number(rows[0]["metrics"]!.AsObject(),p.Key,-1000000000));
             var chefzFees=rows.Where(r=>r.ContainsKey("chefzFullTimeCommission")).Select(r=>r.N("chefzFullTimeCommission")).Distinct().ToList();J.Need(chefzFees.Count<=1,"عمولة دوام شيفز متضاربة بين حسابات المندوب.");decimal? chefzFee=chefzFees.Count==1?chefzFees[0]:null;
             decimal penalties=rows.Sum(r=>r.N("deduction"));
-            var result=PayEvaluator.Evaluate(new(rider,app,period,category,rows.Sum(r=>(int)r.N("orders")),rows.Sum(r=>r.N("baseGross")),rows.Sum(r=>r.N("incentive")),rows[0].N("days"),vehicle.Type,vehicle.Days,metrics,chefzFee,penalties),scheme,rules,global);
-            var doc=Json(result);doc["id"]="pay-line:"+Guid.NewGuid().ToString("N");doc["cycleId"]=cycle.S("id");doc["companyId"]=cycle.S("companyId");doc["schemeId"]=scheme.S("id");doc["schemeName"]=scheme["data"].S("name");doc["globalSettingId"]=global.S("id");doc["assignmentId"]=assignment.S("id");doc["termsId"]=PaySettings.Resolve(c,tx,"pay_terms",app,period).S("id");doc["sources"]=new JsonArray(rows.Select(r=>(JsonNode?)r.Clone()).ToArray());doc["vehicleSources"]=vehicle.Sources;
+            string platformRaw=rows.Select(r=>r.S("platformVehicleType",r.S("accountVehicleType"))).FirstOrDefault(v=>v!="")??"";
+            string platformVehicle=VehicleIdentity.NormalizePlatform(platformRaw);
+            string riderVehicleNorm=VehicleIdentity.NormalizeForPay(vehicle.Type);
+            // Empty = platform never supplies a type (Ninja/Chefz/generic) → do not block.
+            // Non-empty but unparseable → needs_decision. Never treat empty as equal to the rider type.
+            string? mismatch=platformVehicle==VehicleIdentity.Unknown?null:VehicleIdentity.MismatchCode(riderVehicleNorm,platformVehicle);
+            bool platformVehicleMissing=platformRaw!=""&&platformVehicle==VehicleIdentity.Unknown;
+            // Prefer optional bike-on-car-ID scheme cell when present and enabled; else keep the rider category.
+            string evalCategory=category;
+            if(mismatch==VehicleIdentity.MismatchBikeOnCar)
+            {
+                string prefix=category.StartsWith("external",StringComparison.Ordinal)?"external":"sponsored";
+                string mismatchCat=prefix+"_bike_on_car_id";
+                var mismatchCell=scheme["data"]?["parameters"]?["categories"]?[mismatchCat] as JsonObject;
+                if(mismatchCell!=null&&mismatchCell.B("enabled"))evalCategory=mismatchCat;
+            }
+            var result=PayEvaluator.Evaluate(new(rider,app,period,evalCategory,rows.Sum(r=>(int)r.N("orders")),rows.Sum(r=>r.N("baseGross")),rows.Sum(r=>r.N("incentive")),rows[0].N("days"),vehicle.Type,vehicle.Days,metrics,chefzFee,penalties),scheme,rules,global);
+            var doc=Json(result);doc["id"]="pay-line:"+Guid.NewGuid().ToString("N");doc["cycleId"]=cycle.S("id");doc["companyId"]=cycle.S("companyId");doc["schemeId"]=scheme.S("id");doc["schemeName"]=scheme["data"].S("name");doc["globalSettingId"]=global.S("id");doc["assignmentId"]=assignment.S("id");
+            // Parent terms are display-only — stamp termsId only when an approved copy exists.
+            var terms=PaySettings.TryResolve(c,tx,"pay_terms",app,period);if(terms!=null)doc["termsId"]=terms.S("id");
+            doc["sources"]=new JsonArray(rows.Select(r=>(JsonNode?)r.Clone()).ToArray());doc["vehicleSources"]=vehicle.Sources;
             // §40.3 percent: penalties already in commission base — do not subtract again at Merge or in PostEarnings source.deduction.
             doc["accountDeduction"]=result.PenaltiesInCommissionBase?0:penalties;doc["platformPenalties"]=penalties;doc["penaltiesInCommissionBase"]=result.PenaltiesInCommissionBase;
-            doc["vehicleType"]=vehicle.Type;Store.Save(c,LineKind,doc,tx);
+            doc["vehicleType"]=vehicle.Type;doc["riderVehicleType"]=riderVehicleNorm;doc["platformVehicleType"]=platformVehicle;doc["vehicleTypeMismatch"]=mismatch??"";doc["vehicleTypeMismatchAr"]=VehicleIdentity.ArabicMismatch(mismatch);
+            if(mismatch!=null||platformVehicleMissing)
+            {
+                if(doc["blockers"] is not JsonArray blockers){blockers=[];doc["blockers"]=blockers;}
+                if(mismatch!=null&&!blockers.OfType<JsonValue>().Any(b=>b.TryGetValue<string>(out var t)&&t=="vehicle_type_platform_mismatch"))blockers.Add("vehicle_type_platform_mismatch");
+                if(platformVehicleMissing&&!blockers.OfType<JsonValue>().Any(b=>b.TryGetValue<string>(out var t)&&t=="platform_vehicle_missing"))blockers.Add("platform_vehicle_missing");
+                doc["status"]="needs_decision";
+            }
+            Store.Save(c,LineKind,doc,tx);
         }
         if(Lines(c,tx,cycle.S("id")).Any(l=>l.S("status")!="ready"))cycle["status"]="needs_decision";
     }

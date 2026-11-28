@@ -52,6 +52,10 @@ import {
   Plus,
   Ban,
   HelpCircle,
+  Hash,
+  Fuel,
+  Car,
+  Settings,
 } from 'lucide-react';
 import { api, ApiError } from '../../lib/api';
 import type {
@@ -80,6 +84,9 @@ import { DebtDeductionStage } from '../../features/payroll/DebtDeductionStage';
 import { PayrollReviewGrid } from '../../features/payroll/PayrollReviewGrid';
 import { NinjaInvoiceUploadScreen } from '../../features/payroll/NinjaInvoiceUploadScreen';
 import { ChefzReviewPanel } from '../../features/payroll/ChefzReviewPanel';
+import { MudadPanel } from '../../features/payroll/MudadPanel';
+import { ChefzSettlementsPanel } from '../../features/payroll/ChefzSettlementsPanel';
+
 import { ImportUploadDialog } from '../../features/imports/ImportUploadDialog';
 import { KeetaOperationsImportDialog } from '../../features/imports/KeetaOperationsImportDialog';
 import {
@@ -92,6 +99,7 @@ import {
 import { ValidateGapsPanel } from '../../features/payroll/ValidateGapsPanel';
 import { PaySettingsEditorModal } from '../../features/payroll/PaySettingsEditorModal';
 import { PaySettingsCycleReview } from '../../features/payroll/PaySettingsCycleReview';
+import { ParentTermsDisplayPanel } from '../../features/payroll/ParentTermsDisplayPanel';
 import { RiderAssignmentsWorkspace } from '../../features/payroll/RiderAssignmentsWorkspace';
 import { RuleRecordWorkspace } from '../../features/payroll/RuleRecordWorkspace';
 import { SimulationBanner, SIMULATION_BLOCKED_HINT } from '../../components/payroll/SimulationBanner';
@@ -153,6 +161,7 @@ const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
   upload_invoice: { label: 'رفع فاتورة نينجا', href: '/app/payroll?tab=ninja_upload' },
   approve_invoice: { label: 'اعتماد الفاتورة', href: '/app/payroll?tab=ninja_upload' },
   approve_settings: { label: 'اعتماد شروط الأهلية والأنظمة', href: '/app/payroll?tab=rules' },
+  apply_default_settings: { label: 'تطبيق الافتراضي بنقرة واحدة', href: '/app/payroll?tab=cycle' },
   resolve_dispute: { label: 'حسم الاعتراض الرسمي', href: '/app/payroll?tab=ninja_upload' },
   classify_invoice: { label: 'تصنيف خصومات الفاتورة', href: '/app/payroll?tab=ninja_upload' },
   review_invoice_account: { label: 'مراجعة حسابات الفاتورة', href: '/app/workforce/' },
@@ -166,6 +175,7 @@ const BLOCKER_ACTION_MAP: Record<string, { label: string; href: string }> = {
   review_rider: { label: 'مراجعة بيانات المندوب', href: '/app/riders' },
   review_posting: { label: 'مراجعة الترحيل والقيود', href: '/app/treasury' },
   open_cycle: { label: 'عرض الدورة القائمة', href: '/app/payroll?tab=cycle' },
+  split_dues: { label: 'فصل مستحقات اليوزرات', href: '/app/payroll?tab=cycle&stage=split_dues' },
 };
 
 const NINJA_METRICS_MAP: Record<string, string> = {
@@ -214,7 +224,9 @@ function PayrollPageInner() {
   type PayAppSubTab = 'settlements' | 'parent_terms' | 'internal_schemes' | 'eligibility' | 'accounts';
   const resolvedTab = resolvePayrollTab(searchParams?.get('tab'));
   const tabFromUrl: PayrollTab = resolvedTab.tab;
-  const appFromUrl = searchParams?.get('app') || 'hungerstation';
+  const rawAppFromUrl = searchParams?.get('app') || 'hungerstation';
+  const appFromUrl =
+    rawAppFromUrl === 'thechefz' || rawAppFromUrl === 'the-chefz' ? 'chefz' : rawAppFromUrl;
   const subFromUrl = (searchParams?.get('sub') as PayAppSubTab) || 'settlements';
   const [mainTab, setMainTab] = useState<PayrollTab>(tabFromUrl);
 
@@ -592,6 +604,10 @@ function PayrollPageInner() {
   // Review Draft States (A5)
   const [cycleViewMode, setCycleViewMode] = useState<'draft' | 'active'>('draft');
   const [reviewDraft, setReviewDraft] = useState<PayReviewDraft | null>(null);
+  const [duesSplit, setDuesSplit] = useState<Awaited<ReturnType<typeof api.getDuesSplit>> | null>(null);
+  const [loadingDuesSplit, setLoadingDuesSplit] = useState(false);
+  const [duesSplitError, setDuesSplitError] = useState<string | null>(null);
+  const [applyingDefaults, setApplyingDefaults] = useState(false);
   const [loadingDraft, setLoadingDraft] = useState<boolean>(false);
   const [draftError, setDraftError] = useState<string | null>(null);
   const [creatingCycle, setCreatingCycle] = useState<boolean>(false);
@@ -965,17 +981,53 @@ function PayrollPageInner() {
     setDraftError(null);
     try {
       const comp = selectedCompany !== 'all' ? selectedCompany : 'BW';
+      const draftApp = selectedPlatform === 'keeta' ? 'keeta' : 'ninja';
       const draft = await api.getPayReviewDraft({
-        app: 'ninja',
+        app: draftApp,
         period: selectedPeriod,
         companyId: comp,
       });
       setReviewDraft(draft);
     } catch (err: any) {
-      setDraftError(err.message || 'تعذر تحميل مسودة المراجعة المقترحة لنينجا');
+      setDraftError(err.message || 'تعذر تحميل مسودة المراجعة المقترحة');
       setReviewDraft(null);
     } finally {
       setLoadingDraft(false);
+    }
+  };
+
+  const loadDuesSplit = async () => {
+    setLoadingDuesSplit(true);
+    setDuesSplitError(null);
+    try {
+      const comp = selectedCompany !== 'all' ? selectedCompany : 'BW';
+      const params = new URLSearchParams(typeof window !== 'undefined' ? window.location.search : '');
+      const split = await api.getDuesSplit({
+        app: 'ninja',
+        period: selectedPeriod,
+        companyId: comp,
+        invoiceId: params.get('invoiceId') || undefined,
+      });
+      setDuesSplit(split);
+    } catch (err: unknown) {
+      setDuesSplitError(err instanceof Error ? err.message : 'تعذر تحميل فصل المستحقات');
+      setDuesSplit(null);
+    } finally {
+      setLoadingDuesSplit(false);
+    }
+  };
+
+  const handleApplyDefaultSettings = async () => {
+    setApplyingDefaults(true);
+    try {
+      await api.applyPaySetupDefaults({ app: 'ninja', period: selectedPeriod });
+      showToast('تم تطبيق الاعتمادات الافتراضية للشروط والأهلية والإعدادات العامة', 'success');
+      await loadReviewDraft();
+      await loadDuesSplit();
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'تعذر تطبيق الافتراضي', 'error');
+    } finally {
+      setApplyingDefaults(false);
     }
   };
 
@@ -1374,6 +1426,7 @@ function PayrollPageInner() {
     } else if (mainTab === 'cycle') {
       loadCycles();
       loadReviewDraft();
+      loadDuesSplit();
     } else if (mainTab === 'rules') {
       loadGlobalSettings();
       loadNinjaEligibility();
@@ -2192,7 +2245,7 @@ function PayrollPageInner() {
     { id: 'hungerstation', nameAr: 'هنقرستيشن', nameEn: 'HungerStation', tag: 'فواتير معتمدة', active: true },
     { id: 'keeta', nameAr: 'كيتا', nameEn: 'Keeta', tag: 'شرائح وعمولات', active: true },
     { id: 'ninja', nameAr: 'نينجا', nameEn: 'Ninja', tag: 'تارجت مقطوع', active: true },
-    { id: 'thechefz', nameAr: 'ذا شيفز', nameEn: 'The Chefz', tag: 'كشف دوري', active: true },
+    { id: 'chefz', nameAr: 'ذا شيفز', nameEn: 'The Chefz', tag: 'كشف دوري', active: true },
     { id: 'amazon', nameAr: 'أمازون', nameEn: 'Amazon', tag: 'شحنات لوجستية', active: true },
     { id: 'jahez', nameAr: 'جاهز (دورة مستقلة)', nameEn: 'Jahez', tag: 'تسويات متغيرة', active: true },
   ];
@@ -2277,6 +2330,11 @@ function PayrollPageInner() {
           allowedActions={importAllowedActions}
         />
       )}
+
+      {/* ======================================================== */}
+      {/* SECTION: MUDAD SALARIES (رواتب مدد)                      */}
+      {/* ======================================================== */}
+      {mainTab === 'mudad' && <MudadPanel />}
 
       {/* ======================================================== */}
       {/* SECTION: NINJA INVOICE RECONCILE (BR §26, §31)           */}
@@ -2984,7 +3042,10 @@ function PayrollPageInner() {
 
           {/* Chefz review */}
           {(selectedPlatform === 'thechefz' || selectedPlatform === 'chefz') && appSubTab === 'settlements' && (
-            <ChefzReviewPanel />
+            <div className="space-y-4">
+              <ChefzSettlementsPanel />
+              <ChefzReviewPanel />
+            </div>
           )}
 
           {/* Jahez treasury link + stub */}
@@ -2998,231 +3059,21 @@ function PayrollPageInner() {
 
           {/* Fallback for other platforms settlements */}
           {selectedPlatform !== 'hungerstation' && selectedPlatform !== 'ninja' && selectedPlatform !== 'keeta' && selectedPlatform !== 'jahez' && selectedPlatform !== 'thechefz' && selectedPlatform !== 'chefz' && appSubTab === 'settlements' && (
-            <div className="p-8 text-center rounded-2xl border border-[var(--line)] bg-[var(--surface)] text-xs text-[var(--muted)]">
-              تسويات وفواتير منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr} قيد التطوير والتفعيل.
-            </div>
+            <EmptyState
+              title={`لا توجد فواتير أو تسويات مسجلة لمنصة ${platformsList.find((p) => p.id === selectedPlatform)?.nameAr || selectedPlatform}`}
+              description="يمكنك إدارة الشروط الأصلية والأنظمة الداخلية والحسابات والمعرفات لهذه المنصة من التبويبات أعلاه."
+            />
           )}
 
           {/* ======================================================== */}
-          {/* PARENT TERMS SUB-TAB (F1)                                */}
+          {/* PARENT TERMS SUB-TAB — display only (Ghazal 2026-11-27)  */}
           {/* ======================================================== */}
           {appSubTab === 'parent_terms' && (
-            <div className="space-y-6">
-              <div className="p-5 rounded-2xl border border-[var(--line)] bg-[var(--surface)] shadow-xs flex flex-wrap items-center justify-between gap-4">
-                <div>
-                  <h3 className="text-base sm:text-lg font-bold text-[var(--ink)]">
-                    عقد المنصة · منصة {platformsList.find((p) => p.id === selectedPlatform)?.nameAr}
-                  </h3>
-                  <p className="text-xs text-[var(--muted)] mt-1">
-                    إدارة نموذج الفوترة والتعاقد الأصلي مع المنصة. تخضع لاعتماد مستخدم ثانٍ مستقل.
-                  </p>
-                </div>
-
-                <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setShowCycleReview((prev) => !prev)}
-                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition inline-flex items-center gap-1.5 cursor-pointer ${
-                      showCycleReview
-                        ? 'bg-[var(--accent)] text-[var(--accent-ink)]'
-                        : 'bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--line)]'
-                    }`}
-                  >
-                    <span>{showCycleReview ? 'إخفاء مقارنة الدورة' : 'مقارنة الدورة والفروقات'}</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    disabled={copyingMonth}
-                    onClick={() => handleCopyMonth(appSlug)}
-                    className="px-3.5 py-2 rounded-xl bg-[var(--raised)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--line)] transition inline-flex items-center gap-1.5 cursor-pointer disabled:opacity-50"
-                  >
-                    <Copy size={14} />
-                    <span>اعتماد نفس إعدادات الشهر السابق</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={handleOpenTermsForm}
-                    className="px-3.5 py-2 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold hover:opacity-90 transition cursor-pointer"
-                  >
-                    + إعداد عقد المنصة
-                  </button>
-                </div>
-              </div>
-
-              {/* Cycle Review and Diff Viewer */}
-              {showCycleReview && (
-                <PaySettingsCycleReview
-                  period={selectedPeriod}
-                  previousPeriod={getPreviousMonth(selectedPeriod)}
-                  appSlug={appSlug}
-                  appNameAr={platformsList.find((p) => p.id === selectedPlatform)?.nameAr || appSlug}
-                  currentUser={user?.username || ''}
-                  termsList={termsList}
-                  schemesList={schemesList}
-                  eligibilityList={eligibilityList}
-                  prevTermsList={prevTermsList}
-                  prevSchemesList={prevSchemesList}
-                  prevEligibilityList={prevEligibilityList}
-                  onCopyPreviousMonth={() => handleCopyMonth(appSlug)}
-                  copying={copyingMonth}
-                  onEditSetting={(doc, kind) => {
-                    if (kind === 'terms') handleEditTerms(doc);
-                    if (kind === 'scheme') handleEditScheme(doc);
-                    if (kind === 'eligibility') handleEditEligibility(doc);
-                  }}
-                  onApproveSetting={(doc, kind) => {
-                    if (kind === 'terms') handleApproveTerms(doc);
-                    if (kind === 'scheme') handleApproveScheme(doc);
-                    if (kind === 'eligibility') handleApproveEligibility(doc);
-                  }}
-                  onRejectSetting={(doc, kind) => handleOpenRejectSetting(doc, kind)}
-                />
-              )}
-
-              {loadingTerms ? (
-                <div className="p-8 space-y-3 bg-[var(--surface)] rounded-2xl border border-[var(--line)]">
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-10 w-full" />
-                </div>
-              ) : termsError ? (
-                <ErrorState title="تعذر تحميل الشروط" message={termsError} onRetry={loadTerms} />
-              ) : termsList.length === 0 ? (
-                <EmptyState
-                  title={`لا توجد إعدادات لعقد المنصة لشهر ${selectedPeriod}`}
-                  description="لم يتم العثور على عقد مسجل لهذا التطبيق في الشهر المحدد. يمكنك اعتماد نفس إعدادات الشهر السابق بنقرة زر أو إنشاء نسخة جديدة."
-                  action={{
-                    label: 'اعتماد نفس إعدادات الشهر السابق',
-                    onClick: () => handleCopyMonth(appSlug),
-                  }}
-                />
-              ) : (
-                <div className="space-y-4">
-                  {termsList.map((t) => {
-                    const isApproved = t.status === 'approved';
-                    const isMaker = isSelfMaker(t);
-                    return (
-                      <div
-                        key={t.id}
-                        className={`p-5 rounded-2xl border transition shadow-xs space-y-4 ${
-                          isApproved
-                            ? 'border-[var(--line)] bg-[var(--surface)]'
-                            : 'border-[var(--warning)]/40 bg-[var(--warning)]/5'
-                        }`}
-                      >
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <div className="flex items-center gap-2">
-                            <h4 className="font-bold text-sm sm:text-base text-[var(--ink)]">
-                              {t.data?.name || 'عقد المنصة الأصلي'} (إصدار #{t.version})
-                            </h4>
-                            <span
-                              className={`px-2.5 py-0.5 rounded-full text-xs font-bold ${
-                                isApproved
-                                  ? 'bg-[var(--money-pos)]/15 text-[var(--money-pos)]'
-                                  : 'bg-[var(--warning)]/15 text-[var(--warning)]'
-                              }`}
-                            >
-                              {isApproved ? `معتمدة من @${t.approvedBy}` : 'بانتظار الاعتماد'}
-                            </span>
-                            {t.createdBy && (
-                              <span className="text-xs px-2 py-0.5 rounded-full bg-[var(--raised)] font-mono text-[var(--muted)]">
-                                أنشأه: @{t.createdBy}
-                              </span>
-                            )}
-                            {isApproved && (
-                              <span className="inline-flex items-center gap-1 text-[11px] text-[var(--muted)]">
-                                <Lock size={12} />
-                                <span>للقراءة فقط</span>
-                              </span>
-                            )}
-                          </div>
-
-                          <div className="flex items-center gap-2">
-                            <button
-                              type="button"
-                              onClick={() => handleEditTerms(t)}
-                              className="px-3 py-1.5 rounded-xl border border-[var(--line)] bg-[var(--surface)] text-xs font-bold text-[var(--ink)] hover:bg-[var(--raised)] transition cursor-pointer"
-                            >
-                              {isApproved ? 'إنشاء إصدار معدّل' : 'تعديل الإعداد'}
-                            </button>
-
-                            {!isApproved && (
-                              <>
-                                <button
-                                  type="button"
-                                  disabled={isMaker}
-                                  title={isMaker ? 'لا يجوز أن يعتمد نفس الشخص الذي أنشأ المسودة' : 'اعتماد العقد'}
-                                  onClick={() => handleApproveTerms(t)}
-                                  className="px-4 py-1.5 rounded-xl bg-[var(--money-pos)] text-white text-xs font-bold hover:opacity-90 transition disabled:opacity-40 cursor-pointer shadow-xs"
-                                >
-                                  اعتماد العقد
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleOpenRejectSetting(t, 'terms')}
-                                  className="px-3 py-1.5 rounded-xl border border-[var(--danger)]/30 text-[var(--danger)] text-xs font-bold hover:bg-[var(--danger)]/10 transition cursor-pointer"
-                                >
-                                  رفض
-                                </button>
-                                <button
-                                  type="button"
-                                  onClick={() => handleDeleteSetting(t, 'terms')}
-                                  className="px-2.5 py-1.5 rounded-xl text-[var(--danger)] text-xs hover:bg-[var(--danger)]/10 transition cursor-pointer"
-                                  title="حذف المسودة"
-                                >
-                                  حذف
-                                </button>
-                              </>
-                            )}
-                          </div>
-                        </div>
-
-                        {/* Terms parameters card */}
-                        <div className="p-4 rounded-xl bg-[var(--surface)] border border-[var(--line)] text-xs space-y-2">
-                          <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                            <div>
-                              <span className="text-[var(--muted)] block">نموذج الفوترة:</span>
-                              <span className="font-bold text-[var(--ink)] font-mono">
-                                {t.data?.billingModel || 'per_order'}
-                              </span>
-                            </div>
-                            <div>
-                              <span className="text-[var(--muted)] block">تاريخ الإنشاء:</span>
-                              <span className="font-mono">{t.createdAt?.slice(0, 10) || '-'}</span>
-                            </div>
-                            <div>
-                              <span className="text-[var(--muted)] block">أنشئت بواسطة:</span>
-                              <span className="font-mono">@{t.createdBy || 'system'}</span>
-                            </div>
-                            <div>
-                              <span className="text-[var(--muted)] block">حساب تكلفة الشركة:</span>
-                              <span className="font-mono">{t.data?.parameters?.companyCostAccount || '-'}</span>
-                            </div>
-                          </div>
-
-                          <div className="pt-2 border-t border-[var(--line)]">
-                            <span className="text-[var(--muted)] block mb-1">المحددات والشرائح:</span>
-                            <div className="p-2.5 rounded-lg bg-[var(--raised)] text-[11px] space-y-1">
-                              {formatRecordEntries(t.data?.parameters || {}).length === 0 ? (
-                                <span className="text-[var(--muted)]">—</span>
-                              ) : (
-                                formatRecordEntries(t.data?.parameters || {}).map((entry) => (
-                                  <div key={entry.key} className="flex flex-wrap gap-2">
-                                    <span className="font-semibold text-[var(--muted)]">{entry.key}:</span>
-                                    <span>{entry.value}</span>
-                                  </div>
-                                ))
-                              )}
-                            </div>
-                          </div>
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
+            <ParentTermsDisplayPanel
+              appSlug={appSlug}
+              appNameAr={platformsList.find((p) => p.id === selectedPlatform)?.nameAr || appSlug}
+              period={selectedPeriod}
+            />
           )}
 
           {/* ======================================================== */}
@@ -3705,14 +3556,77 @@ function PayrollPageInner() {
                 onClick={() => {
                   loadCycles();
                   loadReviewDraft();
+                  loadDuesSplit();
                 }}
                 className="p-2 rounded-xl border border-[var(--line)] bg-[var(--raised)] text-[var(--ink)] hover:bg-[var(--line)] transition cursor-pointer"
                 title="تحديث البيانات"
               >
-                <RefreshCw size={14} className={loadingDraft || loadingCycles ? 'animate-spin' : ''} />
+                <RefreshCw size={14} className={loadingDraft || loadingCycles || loadingDuesSplit ? 'animate-spin' : ''} />
               </button>
             </div>
           </div>
+
+          {/* NFLOW1: dues split stage after invoice approval */}
+          {cycleViewMode === 'draft' && (
+            <div id="dues-split-stage" className="mb-6 p-4 rounded-2xl border border-[var(--line)] bg-[var(--surface)] space-y-3">
+              <div className="flex flex-wrap items-center justify-between gap-2">
+                <div>
+                  <h3 className="text-sm font-bold text-[var(--ink)]">فصل مستحقات اليوزرات وتوزيعها على المناديب</h3>
+                  <p className="text-[11px] text-[var(--muted)] mt-0.5">قراءة تشغيل عمر (قراءة فقط) + أنظمة داخلية؛ الفاتورة لا تتغيّر.</p>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  <button
+                    type="button"
+                    onClick={loadDuesSplit}
+                    disabled={loadingDuesSplit}
+                    className="px-3 py-1.5 rounded-xl border border-[var(--line)] text-xs font-bold text-[var(--ink)] cursor-pointer disabled:opacity-50"
+                  >
+                    تحديث التوزيع
+                  </button>
+                  <button
+                    type="button"
+                    onClick={handleApplyDefaultSettings}
+                    disabled={applyingDefaults}
+                    className="px-3 py-1.5 rounded-xl bg-[var(--accent)] text-[var(--accent-ink)] text-xs font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    {applyingDefaults ? 'جاري التطبيق…' : 'تطبيق الافتراضي بنقرة واحدة'}
+                  </button>
+                </div>
+              </div>
+              {duesSplitError && <p className="text-xs text-[var(--danger)]">{duesSplitError}</p>}
+              {duesSplit && (
+                <>
+                  <div className="grid grid-cols-2 sm:grid-cols-6 gap-2">
+                    <StatCard label="يوزرات" value={String(duesSplit.counts.users)} icon={Hash} />
+                    <StatCard label="توزيع مناديب" value={String(duesSplit.counts.riderSplits)} icon={Users} />
+                    <StatCard label="وقود" value={String(duesSplit.counts.fuelRows)} icon={Fuel} />
+                    <StatCard label="عهدة مركبة" value={String(duesSplit.counts.custodyRows)} icon={Car} />
+                    <StatCard label="سطور محاسب" value={String(duesSplit.counts.accountantLines)} icon={FileText} />
+                    <StatCard label="إعداد متبقٍ" value={String(duesSplit.counts.setupLeft)} icon={Settings} />
+                  </div>
+                  {duesSplit.setupChecklist.length > 0 && (
+                    <div className="p-3 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-1">
+                      <p className="text-xs font-bold text-[var(--ink)]">قائمة إعداد قصيرة (ما لا يوجد في نظام عمر)</p>
+                      {duesSplit.setupChecklist.map((item, i) => (
+                        <p key={i} className="text-[11px] text-[var(--muted)]">• {item.message}{item.hint ? ` — ${item.hint}` : ''}</p>
+                      ))}
+                    </div>
+                  )}
+                  {duesSplit.accountantLines.length > 0 && (
+                    <div className="p-3 rounded-xl border border-[var(--line)] space-y-1">
+                      <p className="text-xs font-bold text-[var(--ink)]">سطور المحاسب (فروق / بلا تشغيل) — قبول الفاتورة افتراضيًا</p>
+                      {duesSplit.accountantLines.slice(0, 20).map((line, i) => (
+                        <p key={i} className="text-[11px] text-[var(--muted)]">• {String((line as { message?: string }).message || line.kind || '')}</p>
+                      ))}
+                      {duesSplit.accountantLines.length > 20 && (
+                        <p className="text-[11px] text-[var(--muted)]">… و{duesSplit.accountantLines.length - 20} سطرًا إضافيًا</p>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
+          )}
 
           {/* VIEW 1: REVIEW DRAFT (A5) */}
           {cycleViewMode === 'draft' && (
@@ -3731,10 +3645,17 @@ function PayrollPageInner() {
               ) : !reviewDraft ? (
                 <EmptyState
                   title="لا توجد مسودة مراجعة مقترحة"
-                  description="ارفع واعتمد فاتورة نينجا أولاً لتوليد مسودة المراجعة المقترحة."
+                  description={
+                    selectedPlatform === 'keeta'
+                      ? 'ارفع واعتمد فاتورة كيتا واستورد تشغيل السجل أولاً لتوليد مسودة المراجعة المقترحة.'
+                      : 'ارفع واعتمد فاتورة نينجا أولاً لتوليد مسودة المراجعة المقترحة.'
+                  }
                   action={{
-                    label: 'انتقل لرفع فاتورة نينجا',
-                    onClick: () => navigateMainTab('ninja_upload'),
+                    label: selectedPlatform === 'keeta' ? 'انتقل لتسويات كيتا' : 'انتقل لرفع فاتورة نينجا',
+                    onClick: () =>
+                      selectedPlatform === 'keeta'
+                        ? navigateMainTab('platforms')
+                        : navigateMainTab('ninja_upload'),
                   }}
                 />
               ) : (

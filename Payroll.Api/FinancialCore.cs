@@ -184,6 +184,8 @@ public static class FinancialCore
         new("5108", "مصروف بطاقة سائق هيئة النقل", "Expense", "Debit", "5100"),
         new("5109", "مصروف طلبات ورسوم حكومية أخرى", "Expense", "Debit", "5100"),
         new("5110", "مصروف سكن وإيجارات مناديب", "Expense", "Debit", "5100"),
+        // Staff HR admin salary: current-chart leaf under HR (5100), maps to target 521101 — never park target code under 5300.
+        new("5111", "مصروف رواتب وأجور الموظفين الإداريين", "Expense", "Debit", "5100"),
 
         // مصروفات الأسطول والتشغيل والإعفاءات الإدارية (طبيعتها: مدين Debit)
         new("5200", "مصروفات الأسطول والتشغيل والتسويات الإدارية", "Expense", "Debit", null),

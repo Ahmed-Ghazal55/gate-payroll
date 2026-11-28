@@ -36,7 +36,7 @@
   - the other groups apply directly.
 - `POST …/{group}/items/{code}/approve` (`pay.approve`, not the maker).
 - `POST …/{group}/fields` (`pay.manage`): field types `text|number|select|account|bool`.
-- Groups: `recharge_networks`, `recharge_packages`, `deduction_types`, `pay_adjustment_types`, `operating_systems`, `pay_systems`, `salary_classifications`. Items are versioned and never deleted.
+- Groups: `recharge_networks`, `recharge_packages`, `deduction_types`, `pay_adjustment_types`, `operating_systems`, `pay_systems`, `salary_classifications`. Items are versioned. Soft deactivate stays the default; `operating_systems` may be hard-deleted (`DELETE /api/config/lists/operating_systems/items/{code}`) only when `allowedActions` includes `delete` (no rider/cycle/record/intra-list references); otherwise the API explains the references (audited).
 
 ## Internet advance (BR §25.9)
 - `POST /api/advance-requests` with `type:"internet"` and `fulfilment: cash|bank|recharge_card`.
