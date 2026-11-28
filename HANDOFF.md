@@ -2,9 +2,9 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Cursor 2026-11-28 (INTEG1) |
+| Current writer | (free) |
 | Branch | `release/0.35.0` |
-| Updated | 2026-11-28 |
+| Updated | 2026-11-28 by Cursor (INTEG1 DONE) |
 | Live | unchanged (local only; never push) |
 | Next | Planner: review INTEG1 report; push/PR only after Ghazal yes |
 
