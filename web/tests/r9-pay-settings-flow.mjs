@@ -406,7 +406,7 @@ try {
     await catCheckbox.check();
 
     // Fill typed daily commission
-    const inputCommission = modal.locator('input[aria-label="العمولة اليومية"]');
+    const inputCommission = modal.locator('input[aria-label="عمولة الشركة بالنسبة المئوية"]');
     await inputCommission.waitFor({ state: 'visible', timeout: 5000 });
     await inputCommission.fill(typedDailyCommission);
 
