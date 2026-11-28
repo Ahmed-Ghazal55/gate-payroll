@@ -2,7 +2,7 @@
 
 | Field | Value |
 |---|---|
-| Current writer | Cursor 2026-11-28 05:41 |
+| Current writer | (free) |
 | Branch | `chore/app-reset` |
 | Updated | 2026-11-28 by Cursor (ARESET) |
 | Live | unchanged (local commit only; never pushed) |
