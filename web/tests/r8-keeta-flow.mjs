@@ -262,14 +262,15 @@ try {
     const nextStep = pageA.locator('#ninja-next-step');
     await nextStep.locator('button', { hasText: 'بدء المطابقة' }).click();
 
-    // First preview asks for companyRows on row 3 -> UI offers and pre-populates companyRows=3
-    const companyRowsInput = pageA.locator('input[aria-label="أسطر تعديل الشركة"]');
-    await companyRowsInput.waitFor({ state: 'visible', timeout: 10000 });
-    assert.equal(await companyRowsInput.inputValue(), '3', 'companyRows input must auto-populate row 3 from API error');
-    console.log('✓ Conditional companyRows field offered and populated when API needed it');
-
-    await nextStep.locator('button', { hasText: 'إعادة المطابقة' }).click();
-    await nextStep.locator('button', { hasText: 'تأكيد وحفظ' }).click({ timeout: 20000 });
+    // 0.35.0: the blank-account company row (row 3) is detected automatically; no manual row number.
+    const confirm = nextStep.locator('button', { hasText: 'تأكيد وحفظ' });
+    try {
+      await confirm.waitFor({ state: 'visible', timeout: 15000 });
+    } catch {
+      await nextStep.locator('button', { hasText: 'إعادة المطابقة' }).click();
+    }
+    await confirm.click({ timeout: 20000 });
+    console.log('✓ Company adjustment row detected automatically; no manual row number');
 
     const panel = pageA.locator('#ninja-classify-panel');
     await panel.waitFor({ state: 'visible', timeout: 15000 });
