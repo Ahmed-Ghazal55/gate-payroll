@@ -389,16 +389,15 @@ try {
     // The invoice has a penalty: without classification nobody could ever approve it.
     const panel = pageA.locator('#ninja-classify-panel');
     await panel.waitFor({ state: 'visible', timeout: 15000 });
-    assert.ok((await pageA.locator('#ninja-approval-blockers').textContent()).includes('بلا تصنيف'), 'Blockers must explain the unclassified deduction');
-    await panel.locator('[data-category="penalty"] button').click();
-    await panel.locator('[data-category="penalty"]', { hasText: '0 بلا تصنيف' }).waitFor({ timeout: 8000 });
+    // 0.35.0: an invoice deduction stays on the user/ID it came on by default (invoice is final); no forced choice.
+    await panel.locator('[data-category="penalty"]', { hasText: 'على اليوزر' }).waitFor({ timeout: 8000 });
     const adjustmentRow = panel.locator('[data-category="supplier_adjustment"]');
     await adjustmentRow.locator('input[role="combobox"]').click();
     await pageA.locator('[role="option"]').first().waitFor({ timeout: 8000 });
     await adjustmentRow.locator('input[role="combobox"]').fill('5');
     await pageA.locator('[role="option"]').first().click();
     await adjustmentRow.locator('button').click();
-    await adjustmentRow.filter({ hasText: '0 بلا تصنيف' }).waitFor({ timeout: 8000 });
+    await pageA.waitForFunction(() => !(document.querySelector('#ninja-classify-panel [data-category="supplier_adjustment"]')?.textContent || '').includes('يحتاج مراجعة'), null, { timeout: 8000 });
 
     assert.equal(await pageA.locator('#btn-approve-ninja-invoice').count(), 0, 'User A (maker) must see 0 approve buttons on their own invoice');
     assert.ok((await pageA.locator('#ninja-approval-blockers').textContent()).includes('مستخدم آخر'), 'Blockers must tell the maker a second user approves');
